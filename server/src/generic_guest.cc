@@ -60,18 +60,17 @@ Generic_guest::load_device_tree_at(char const *name, l4_addr_t base,
   auto dt = device_tree();
   dt.check_tree();
   dt.add_to_size(padding);
+  Dbg().printf("Loaded device tree to %llx:%llx\n", _device_tree.get(),
+               _device_tree.get() + dt.size());
 
-  // fill in memory node in the device tree
-  auto mem_nd = dt.path_offset("/memory");
-  mem_nd.setprop_u32("reg", _ram.vm_start());
-  mem_nd.appendprop_u32("reg", _ram.size());
+  auto mem_node = dt.path_offset("/memory");
+  mem_node.set_reg_val(_ram.vm_start(), _ram.size());
 }
 
 l4_size_t
 Generic_guest::load_ramdisk_at(char const *ram_disk, l4_addr_t ramaddr)
 {
   Dbg info(Dbg::Info);
-  info.printf("load ramdisk image %s\n", ram_disk);
 
   if (ramaddr < _ram.vm_start() || ramaddr >= _ram.vm_start() + _ram.size())
     L4Re::chksys(-L4_EINVAL, "Ramdisk begins outside physical RAM.");
@@ -79,6 +78,8 @@ Generic_guest::load_ramdisk_at(char const *ram_disk, l4_addr_t ramaddr)
   l4_addr_t offset = ramaddr - _ram.vm_start();
   l4_size_t size;
   auto initrd = _ram.load_file(ram_disk, offset, &size);
+  info.printf("loaded ramdisk image %s to %llx:%llx\n", ram_disk,
+              initrd.get(), initrd.get()+size);
 
   if (offset + size > _ram.size())
     L4Re::chksys(-L4_EINVAL, "Ramdisk does not fit into RAM.");
@@ -89,8 +90,8 @@ Generic_guest::load_ramdisk_at(char const *ram_disk, l4_addr_t ramaddr)
   if (has_device_tree())
     {
       auto node = device_tree().path_offset("/chosen");
-      node.setprop_u32("linux,initrd-start", _ram.boot_addr(initrd));
-      node.setprop_u32("linux,initrd-end", _ram.boot_addr(initrd) + size);
+      node.set_prop_address("linux,initrd-start", _ram.boot_addr(initrd));
+      node.set_prop_address("linux,initrd-end", _ram.boot_addr(initrd) + size);
     }
 
   return size;
@@ -134,14 +135,9 @@ void
 Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> &&dev,
                                     Vdev::Dt_node const &node, int index)
 {
-  // XXX need to check for address-cells and size-cells here
-  auto *prop = node.check_prop<fdt32_t>("reg", 2 * index);
-  uint32_t base = fdt32_to_cpu(prop[index * 2]);
-  uint32_t size = fdt32_to_cpu(prop[index * 2 + 1]);
-
+  l4_uint64_t base, size;
+  node.get_reg_val(index, &base, &size);
   _memmap[Region::ss(base, size)] = dev;
-
-  Dbg().printf("New mmio mapping: @ %x %x\n", base, size);
+  Dbg().printf("New mmio mapping: @ %llx %llx\n", base, size);
 }
-
 } // namespace

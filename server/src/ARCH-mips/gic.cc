@@ -206,10 +206,8 @@ struct F : Vdev::Factory
                                     Vmm::Virt_bus *,
                                     Vdev::Dt_node const &node)
   {
-    // FIXME: use size-cells and address-cells properties
-    auto *prop = node.check_prop<fdt32_t const>("reg", 2);
-
-    uint32_t size = fdt32_to_cpu(prop[1]);
+    l4_uint64_t size;
+    node.get_reg_val(0, nullptr, &size);
 
     auto g = Vdev::make_device<Dist>(size);
     g->set_core_ic(vmm->core_ic().get());
