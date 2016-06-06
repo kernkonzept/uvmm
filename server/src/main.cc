@@ -171,12 +171,7 @@ static int run(int argc, char *argv[])
   if (ram_disk)
     vmm->load_ramdisk_at(ram_disk, l4_round_size(eok.get(), L4_SUPERPAGESHIFT));
 
-  // XXX Some of the RAM memory might have been unmapped during copy_in()
-  // of the binary and the RAM disk. The VM paging code, however, expects the
-  // entire RAM to be present. Touch the RAM region again, now that setup has
-  // finished to remap the missing parts.
-  l4_touch_rw((void *)vmm->ram().local_start(), vmm->ram().size());
-
+  vmm->cleanup_ram_state();
   vmm->run(vcpu);
 
   Err().printf("ERROR: we must never reach this....\n");

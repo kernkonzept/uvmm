@@ -11,6 +11,7 @@
 #include <l4/re/dataspace>
 #include <l4/re/util/br_manager>
 #include <l4/re/util/object_registry>
+#include <l4/sys/cache.h>
 #include <l4/l4virtio/l4virtio>
 
 #include "debug.h"
@@ -54,6 +55,22 @@ public:
                               Vdev::Dt_node const &node, int index = 0);
 
     l4_size_t load_ramdisk_at(char const *ram_disk, l4_addr_t offset);
+
+    void cleanup_ram_state()
+    {
+      // XXX Some of the RAM memory might have been unmapped during copy_in()
+      // of the binary and the RAM disk. The VM paging code, however, expects
+      // the entire RAM to be present. Touch the RAM region again, now that
+      // setup has finished to remap the missing parts.
+      l4_touch_rw((void *)_ram.local_start(), _ram.size());
+
+      if (has_device_tree())
+        {
+          l4_addr_t ds_start = reinterpret_cast<l4_addr_t>(_ram.access(_device_tree));
+          l4_addr_t ds_end = ds_start + device_tree().size();
+          l4_cache_clean_data(ds_start, ds_end);
+        }
+    }
 
 protected:
     void load_device_tree_at(char const *src, l4_addr_t base, l4_size_t padding);
