@@ -1,0 +1,65 @@
+/*
+ * Device tree for a virtual machine with hardware pass-through
+ */
+
+/dts-v1/;
+
+#define INCLUDE_LS1021a_TWR
+#include "ls1021a-twr.dts"
+#include "syscon.dtsi"
+
+/ {
+	interrupt-parent = <&gic>;
+
+	/* delete nodes we do not want or intend to override */
+	/delete-node/memory@80000000;
+	/delete-node/interrupt-controller@1400000;
+	/delete-node/timer;
+
+	timer {
+		compatible = "arm,armv7-timer";
+		interrupts = <1 13 0xf08>,
+			     <1 14 0xf08>,
+			     <1 11 0xf08>,
+			     <1 10 0xf08>;
+		/* clock-frequency = <12500000>; */
+		always-on;
+	};
+
+        uvmm {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0x0 0x0 0x30000000 0x100000>;
+		virtio_net@30010000 {
+			compatible = "virtio,mmio";
+			reg = <0x10000 0x100>;
+			interrupts = <0 123 0>;
+			l4vmm,vdev = "proxy";
+			l4vmm,virtiocap = "net";
+		};
+
+		virtio_uart@30020000 {
+			compatible = "virtio,mmio";
+			reg = <0x20000 0x100>;
+			interrupts = <0 122 0>;
+			l4vmm,vdev = "console";
+		};
+	};
+        syscon {
+		ranges = <0 0 0x30030000 0x1000>;
+		l4syscon: syscon {
+			reg = <0x0 0x04>;
+		};
+	};
+	soc {
+		gic: interrupt-controller@1400000 {
+			compatible = "arm,cortex-a15-gic", "arm,cortex-a9-gic";
+			#interrupt-cells = <3>;
+			interrupt-controller;
+
+			reg = <0x0 0x01401000 0x0 0x1000>,
+			      <0x0 0x01402000 0x0 0x100>;
+		};
+	};
+};
