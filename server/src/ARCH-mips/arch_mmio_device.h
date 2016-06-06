@@ -88,11 +88,8 @@ struct Read_mapped_mmio_device_t : Mmio_device
     L4Re::chksys(e->mem_alloc()->alloc(size, _ds.get()));
     L4Re::chksys(e->rm()->attach(&_mmio_region, size,
                                  L4Re::Rm::Search_addr
-                                 /*| L4Re::Rm::Cache_uncached*/,
+                                 | L4Re::Rm::Cache_uncached,
                                  L4::Ipc::make_cap_rw(_ds.get())));
-    // XXX Disabled because read-only mapping is disabled.
-    //l4_cache_clean_data((l4_addr_t)_mmio_region.get(),
-    //                    (l4_addr_t)_mmio_region.get() + size);
   }
 
   bool access(l4_addr_t pfa, l4_addr_t offset, Cpu vcpu,
@@ -110,13 +107,7 @@ struct Read_mapped_mmio_device_t : Mmio_device
       }
     else
       {
-        // XXX Read-only mapping currently disabled because the
-        //     (uncached) memory cannot be correctly flushed before use.
-        //map_mmio(pfa, offset, vm_task, min, max);
-        (void)pfa;
-        (void)vm_task;
-        (void)min;
-        (void)max;
+        map_mmio(pfa, offset, vm_task, min, max);
 
         l4_uint32_t value = dev()->read(offset, insn.op_mem_width(),
                                         vcpu.get_vcpu_id());
