@@ -54,7 +54,9 @@ public:
     void register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> &&dev,
                               Vdev::Dt_node const &node, int index = 0);
 
-    l4_size_t load_ramdisk_at(char const *ram_disk, l4_addr_t offset);
+    L4virtio::Ptr<void> load_ramdisk_at(char const *ram_disk,
+                                        L4virtio::Ptr<void> addr,
+                                        l4_size_t *size);
 
     void cleanup_ram_state()
     {
@@ -66,14 +68,22 @@ public:
 
       if (has_device_tree())
         {
-          l4_addr_t ds_start = reinterpret_cast<l4_addr_t>(_ram.access(_device_tree));
+          l4_addr_t ds_start =
+            reinterpret_cast<l4_addr_t>(_ram.access(_device_tree));
           l4_addr_t ds_end = ds_start + device_tree().size();
           l4_cache_clean_data(ds_start, ds_end);
+          Dbg().printf("Cleaning caches [%lx-%lx] ([%lx+%llx])\n",
+                       ds_start, ds_end, _ram.local_start(),
+                       _device_tree.get());
         }
     }
 
+    void load_device_tree_at(char const *src, L4virtio::Ptr<void> addr,
+                             l4_size_t padding);
+    // architecture specific device tree manipulation hook
+    void update_device_tree(char const *cmd_line);
+    void set_ramdisk_params(L4virtio::Ptr<void> addr, l4_size_t size);
 protected:
-    void load_device_tree_at(char const *src, l4_addr_t base, l4_size_t padding);
 
     /**
      * Load the binary with the given name.
@@ -187,14 +197,6 @@ protected:
       Err().printf("VM entered a fatal state. Halting.\n");
       for(;;)
         wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
-    }
-
-    bool overlaps_device_tree(L4virtio::Ptr<void> start,
-                              L4virtio::Ptr<void> end) const noexcept
-    {
-      return has_device_tree()
-             && end.get() >= _device_tree.get()
-             && start.get() <= _device_tree.get() + device_tree().size();
     }
 
     L4Re::Util::Br_manager _bm;

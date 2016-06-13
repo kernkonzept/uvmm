@@ -27,12 +27,10 @@ public:
 
   Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
 
-  void load_device_tree(char const *name)
-  { load_device_tree_at(name, 0x100, 0x200); }
+  L4virtio::Ptr<void> load_linux_kernel(char const *kernel, l4_addr_t *entry);
 
-  L4virtio::Ptr<void> load_linux_kernel(char const *kernel,
-                                        char const *cmd_line, Cpu vcpu);
-
+  void prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
+                         char const *cmd_line);
   void run(Cpu vcpu);
 
   l4_msgtag_t handle_entry(Cpu vcpu);

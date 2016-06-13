@@ -37,10 +37,12 @@ public:
   Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
   cxx::Ref_ptr<Gic::Mips_core_ic> core_ic() const  { return _core_ic; }
 
-  void load_device_tree(char const *name);
+  void update_device_tree(char const *cmd_line);
 
-  L4virtio::Ptr<void> load_linux_kernel(char const *kernel,
-                                        char const *cmd_line, Cpu vcpu);
+  L4virtio::Ptr<void> load_linux_kernel(char const *kernel, l4_addr_t *entry);
+
+  void prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
+                         char const *cmd_line);
 
   void run(Cpu vcpu);
 

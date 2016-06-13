@@ -12,6 +12,11 @@
 
 #include <l4/l4virtio/virtqueue>
 
+// This should be moved to l4/l4virtio/virtqueue
+inline L4virtio::Ptr<void>
+l4_round_size(L4virtio::Ptr<void> p, unsigned char bits)
+{ return L4virtio::Ptr<void>((p.get() + (1ULL << bits) - 1) & (~0ULL << bits)); }
+
 namespace Vmm {
 
 class Vm_ram

@@ -38,6 +38,10 @@ public:
   L4virtio::Ptr<void>
   load_file(char const *name, l4_addr_t offset, l4_size_t *_size = 0);
 
+  L4virtio::Ptr<void>
+  load_file(char const *name, L4virtio::Ptr<void> addr, l4_size_t *_size = 0)
+  { return load_file(name, addr.get() - _vm_start, _size); }
+
   L4::Cap<L4Re::Dataspace> ram() const noexcept
   { return _ram; }
 

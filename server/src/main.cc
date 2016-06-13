@@ -45,6 +45,7 @@
 #include "device_factory.h"
 #include "guest.h"
 #include "monitor_console.h"
+#include "ram_ds.h"
 #include "virt_bus.h"
 
 __thread unsigned vmm_current_cpu_id;
@@ -86,11 +87,12 @@ static void scan_device_tree(Vmm::Guest *vmm, Vmm::Virt_bus *vbus)
     }
 }
 
-static char const *const options = "+k:d:r:c:b:";
+static char const *const options = "+k:d:p:r:c:b:";
 static struct option const loptions[] =
   {
     { "kernel",   1, NULL, 'k' },
     { "dtb",      1, NULL, 'd' },
+    { "dtb-padding", 1, NULL, 'p' },
     { "ramdisk",  1, NULL, 'r' },
     { "cmdline",  1, NULL, 'c' },
     { "rambase",  1, NULL, 'b' },
@@ -112,6 +114,7 @@ static int run(int argc, char *argv[])
   char const *device_tree  = nullptr;
   char const *ram_disk     = nullptr;
   l4_addr_t rambase = Vmm::Guest::Default_rambase;
+  size_t dtb_padding = 0x200;
 
   int opt;
   while ((opt = getopt_long(argc, argv, options, loptions, NULL)) != -1)
@@ -124,6 +127,9 @@ static int run(int argc, char *argv[])
         case 'r': ram_disk     = optarg; break;
         case 'b':
           rambase = optarg[0] == '-' ? ~0UL : strtoul(optarg, nullptr, 0);
+          break;
+        case 'p':
+          dtb_padding = strtoul(optarg, nullptr, 0);
           break;
         default:
           Err().printf("unknown command-line option\n");
@@ -154,23 +160,30 @@ static int run(int argc, char *argv[])
         }
     }
 
+  l4_addr_t entry;
+  auto load_addr = vmm->load_linux_kernel(kernel_image, &entry);
+
+  l4_size_t rd_size = 0;
+  L4virtio::Ptr<void> rd_addr(0);
+
+  if (ram_disk)
+    {
+      rd_addr = load_addr;
+      load_addr = vmm->load_ramdisk_at(ram_disk, rd_addr, &rd_size);
+    }
+
   if (device_tree)
     {
-      vmm->load_device_tree(device_tree);
+      vmm->load_device_tree_at(device_tree, load_addr, dtb_padding);
+      vmm->update_device_tree(cmd_line);
+      vmm->set_ramdisk_params(rd_addr, rd_size);
+
       auto dt = vmm->device_tree();
-
-      if (cmd_line)
-        dt.path_offset("/chosen").setprop_string("bootargs", cmd_line);
-
       scan_device_tree(vmm, vbus.get());
       devices.init_devices(dt);
     }
 
-  auto eok = vmm->load_linux_kernel(kernel_image, cmd_line, vcpu);
-
-  if (ram_disk)
-    vmm->load_ramdisk_at(ram_disk, l4_round_size(eok.get(), L4_SUPERPAGESHIFT));
-
+  vmm->prepare_linux_run(vcpu, entry, kernel_image, cmd_line);
   vmm->cleanup_ram_state();
   vmm->run(vcpu);
 

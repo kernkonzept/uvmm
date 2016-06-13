@@ -42,9 +42,9 @@ Guest::create_instance(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
 }
 
 void
-Guest::load_device_tree(char const *name)
+Guest::update_device_tree(char const *cmd_line)
 {
-  load_device_tree_at(name, 0x100, 0x200);
+  Guest::Generic_guest::update_device_tree(cmd_line);
 
   // advertise CPU core timer frequency in DTS
   auto node = device_tree().path_offset("/cpus");
@@ -52,46 +52,11 @@ Guest::load_device_tree(char const *name)
 }
 
 L4virtio::Ptr<void>
-Guest::load_linux_kernel(char const *kernel, char const *cmdline, Cpu vcpu)
+Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
 {
-  l4_addr_t entry = _ram.boot_addr(0x100400);
-  auto end = load_binary_at(kernel, 0x100000, &entry);
-
-  // Initial register setup:
-  //  a0 - number of kernel arguments
-  //  a1 - address of kernel arguments
-  //  a2 - unused
-  //  a3 - address of DTB
-  l4_addr_t promaddr = has_device_tree()
-                       ? (_device_tree.get() + device_tree().size())
-                       : 1;
-  L4virtio::Ptr<l4_uint32_t> prom_tab(l4_round_size(promaddr, 12));
-  L4virtio::Ptr<char> prom_buf(prom_tab.get() + 2 * sizeof(l4_uint32_t));
-
-  // Setup initial arguments
-  // two arguments: kernel name and optionally cmdline
-  vcpu->r.a0 = cmdline ? 2 : 1;
-  vcpu->r.a1 = _ram.boot_addr(prom_tab);
-
-  _ram.access(prom_tab)[0] = _ram.boot_addr(prom_buf.get());
-  unsigned strpos = sprintf(_ram.access(prom_buf), "%s", kernel) + 1;
-
-  if (cmdline)
-    {
-      prom_buf = L4virtio::Ptr<char>(prom_buf.get() + strpos);
-      _ram.access(prom_tab)[1] = _ram.boot_addr(prom_buf.get());
-      strcpy(_ram.access(prom_buf), cmdline);
-    }
-
-  l4_cache_clean_data(reinterpret_cast<l4_addr_t>(_ram.access(prom_tab)),
-                      2 * sizeof(l4_uint32_t) + (cmdline ? strlen(cmdline) : 0));
-
-  vcpu->r.a2 = 0;
-  vcpu->r.a3 = has_device_tree() ? _ram.boot_addr(_device_tree) : 0;
-  vcpu->r.status = 8;
-  vcpu->r.ip = entry;
-
-  return end;
+  *entry = _ram.boot_addr(0x100400);
+  return l4_round_size(load_binary_at(kernel, 0x100000, entry),
+                       L4_LOG2_SUPERPAGESIZE);
 }
 
 void
@@ -166,6 +131,47 @@ Guest::show_state_interrupts()
     }
 }
 
+void
+Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
+                         char const *cmd_line)
+{
+  /*
+   * Setup arguments for Mips boot protocol
+   */
+  l4_addr_t end = has_device_tree()
+                  ? (_device_tree.get() + device_tree().size())
+                  : 1;
+  L4virtio::Ptr<l4_uint32_t> prom_tab(l4_round_size(end, L4_PAGESHIFT));
+
+  size_t size = 2 * sizeof(l4_uint32_t);
+  L4virtio::Ptr<char> prom_buf(prom_tab.get() + size);
+
+  size += strlen(kernel) + 1;
+  strcpy(_ram.access(prom_buf), kernel);
+  _ram.access(prom_tab)[0] = _ram.boot_addr(prom_buf);
+
+  if (cmd_line)
+    {
+      prom_buf = L4virtio::Ptr<char>(prom_buf.get() + size);
+      size += strlen(cmd_line) + 1;
+      strcpy(_ram.access(prom_buf), cmd_line);
+      _ram.access(prom_tab)[1] = _ram.boot_addr(prom_buf);
+    }
+
+  l4_cache_clean_data(reinterpret_cast<l4_addr_t>(_ram.access(prom_tab)), size);
+
+  // Initial register setup:
+  //  a0 - number of kernel arguments
+  //  a1 - address of kernel arguments
+  //  a2 - unused
+  //  a3 - address of DTB
+  vcpu->r.a0 = cmd_line ? 2 : 1;
+  vcpu->r.a1 = _ram.boot_addr(prom_tab);
+  vcpu->r.a2 = 0;
+  vcpu->r.a3 = has_device_tree() ? _ram.boot_addr(_device_tree) : 0;
+  vcpu->r.status = 8;
+  vcpu->r.ip = entry;
+}
 
 void
 Guest::run(Cpu vcpu)

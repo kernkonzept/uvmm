@@ -52,49 +52,66 @@ Generic_guest::create_cpu()
 }
 
 void
-Generic_guest::load_device_tree_at(char const *name, l4_addr_t base,
-                                 l4_size_t padding)
+Generic_guest::load_device_tree_at(char const *name, L4virtio::Ptr<void> addr,
+                                   l4_size_t padding)
 {
-  _device_tree = _ram.load_file(name, base);
+  _device_tree = _ram.load_file(name, addr);
 
   auto dt = device_tree();
   dt.check_tree();
-  dt.add_to_size(padding);
+  // use 1.25 * size + padding for the time being
+  dt.add_to_size(dt.size() / 4 + padding);
   Dbg().printf("Loaded device tree to %llx:%llx\n", _device_tree.get(),
                _device_tree.get() + dt.size());
+}
 
+void
+Generic_guest::update_device_tree(char const *cmd_line)
+{
+  // We assume that "/choosen" and "/memory" are present
+  auto dt = device_tree();
+  if (cmd_line)
+    {
+      auto node = dt.path_offset("/chosen");
+      node.setprop_string("bootargs", cmd_line);
+    }
   auto mem_node = dt.path_offset("/memory");
   mem_node.set_reg_val(_ram.vm_start(), _ram.size());
 }
 
-l4_size_t
-Generic_guest::load_ramdisk_at(char const *ram_disk, l4_addr_t ramaddr)
+void
+Generic_guest::set_ramdisk_params(L4virtio::Ptr<void> addr, l4_size_t size)
+{
+  if (!size)
+    return;
+
+  // We assume that "/choosen" is present
+  auto dt = device_tree();
+
+  auto node = dt.path_offset("/chosen");
+  node.set_prop_address("linux,initrd-start", _ram.boot_addr(addr));
+  node.set_prop_address("linux,initrd-end", _ram.boot_addr(addr) + size);
+
+}
+
+L4virtio::Ptr<void>
+Generic_guest::load_ramdisk_at(char const *ram_disk, L4virtio::Ptr<void> addr,
+                               l4_size_t *size)
 {
   Dbg info(Dbg::Info);
 
-  if (ramaddr < _ram.vm_start() || ramaddr >= _ram.vm_start() + _ram.size())
-    L4Re::chksys(-L4_EINVAL, "Ramdisk begins outside physical RAM.");
+  l4_size_t tmp;
+  auto initrd = _ram.load_file(ram_disk, addr, &tmp);
 
-  l4_addr_t offset = ramaddr - _ram.vm_start();
-  l4_size_t size;
-  auto initrd = _ram.load_file(ram_disk, offset, &size);
-  info.printf("loaded ramdisk image %s to %llx:%llx\n", ram_disk,
-              initrd.get(), initrd.get()+size);
+  if (size)
+    *size = tmp;
 
-  if (offset + size > _ram.size())
-    L4Re::chksys(-L4_EINVAL, "Ramdisk does not fit into RAM.");
-
-  if (overlaps_device_tree(initrd, L4virtio::Ptr<void>(initrd.get() + size)))
-    L4Re::chksys(-L4_EINVAL, "Ramdisk overlaps with device tree.");
-
-  if (has_device_tree())
-    {
-      auto node = device_tree().path_offset("/chosen");
-      node.set_prop_address("linux,initrd-start", _ram.boot_addr(initrd));
-      node.set_prop_address("linux,initrd-end", _ram.boot_addr(initrd) + size);
-    }
-
-  return size;
+  // round to the next page to load anything else to a new page
+  auto res = l4_round_size(L4virtio::Ptr<void>(initrd.get() + tmp),
+                           L4_PAGESHIFT);
+  info.printf("Loaded ramdisk image %s to [%llx:%llx] (%08x)\n", ram_disk,
+              initrd.get(), res.get() - 1, tmp);
+  return res;
 }
 
 L4virtio::Ptr<void>
@@ -120,9 +137,6 @@ Generic_guest::load_binary_at(char const *kernel, l4_addr_t offset,
       start = _ram.load_file(kernel, offset, &sz);
       end = L4virtio::Ptr<void>(start.get() + sz);
     }
-
-  if (overlaps_device_tree(start, end))
-    L4Re::chksys(-L4_EINVAL, "Linux binary overlaps with device tree in RAM.");
 
   l4_cache_coherent((unsigned long) _ram.access(start),
                     (unsigned long) _ram.access(end));

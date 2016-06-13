@@ -127,24 +127,41 @@ static Vdev::Device_type tt = { "arm,armv7-timer", nullptr, &ftimer };
 } // namespace
 
 L4virtio::Ptr<void>
-Guest::load_linux_kernel(char const *kernel, char const *cmd_line, Cpu vcpu)
+Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
 {
-  (void)cmd_line;
+  enum { Default_entry =  0x208000 };
+  *entry = _ram.vm_start() + Default_entry;
+  auto end = load_binary_at(kernel, Default_entry, entry);
 
-  l4_addr_t entry = _ram.vm_start() + 0x208000;
-  load_binary_at(kernel, 0x208000, &entry);
+  /* If the kernel relocates itself it either decompresses itself
+   * directly to the final adress or it moves itself behind the end of
+   * bss before starting decompression. So we should be safe if we
+   * place anything (e.g. initrd/device tree) at 3/4 of the ram.
+   */
+  l4_size_t def_offs = l4_round_size((_ram.size() * 3) / 4,
+                                     L4_SUPERPAGESHIFT);
+  L4virtio::Ptr<void> def_end(_ram.vm_start() + def_offs);
 
-  // now set up the VCPU state as expected by Linux entry
+  if (def_end.get() < end.get())
+    L4Re::chksys(-L4_ENOMEM, "Not enough space to run Linux");
+
+  Dbg().printf("Linux end at %llx, reserving space up to :%llx\n",
+               end.get(), def_end.get());
+  return def_end;
+}
+
+void
+Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const * /* kernel */,
+                         char const * /* cmd_line */)
+{
+  // Set up the VCPU state as expected by Linux entry
   vcpu->r.flags = 0x00000013;
   vcpu->r.sp    = 0;
   vcpu->r.r[0]  = 0;
   vcpu->r.r[1]  = ~0UL;
-  vcpu->r.r[2]  = _device_tree.get();
+  vcpu->r.r[2]  = has_device_tree() ? _device_tree.get() : 0;
   vcpu->r.r[3]  = 0;
   vcpu->r.ip    = entry;
-
-  // ARM Linux relocates itself, so keep enough space
-  return L4virtio::Ptr<void>(_ram.vm_start() + 0x2000000);
 }
 
 void
