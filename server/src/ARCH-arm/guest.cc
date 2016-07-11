@@ -53,7 +53,14 @@ Guest::Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
   _gic(Vdev::make_device<Gic::Dist>(4, 2)), // 4 * 32 spis, 2 cpus
   _timer(Vdev::make_device<Vdev::Core_timer>())
 {
-  if (_ram.vm_start() & ~0xf0000000)
+  if (_ram.vm_start() & ((1 << 27) - 1))
+    Dbg().printf(
+      "\033[01;31mWARNING: Guest memory not 128MB aligned!\033[m\n"
+      "       If you run Linux as a guest, Linux will likely fail to boot\n"
+      "       as it assumes a 128MB alignment of its memory.\n"
+      "       Current guest RAM alignment is only %dMB\n",
+      (1 << __builtin_ctz(_ram.vm_start())) >> 20);
+  else if (_ram.vm_start() & ~0xf0000000)
     Dbg(Dbg::Info).printf(
         "WARNING: Guest memory not 256MB aligned!\n"
         "         If you run Linux as a guest, you might hit a bug\n"
