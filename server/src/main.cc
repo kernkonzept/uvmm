@@ -126,7 +126,9 @@ static int run(int argc, char *argv[])
         case 'd': device_tree  = optarg; break;
         case 'r': ram_disk     = optarg; break;
         case 'b':
-          rambase = optarg[0] == '-' ? ~0UL : strtoul(optarg, nullptr, 0);
+          rambase = optarg[0] == '-'
+                    ? (l4_addr_t)Vmm::Generic_guest::Ram_base_identity_mapped
+                    : strtoul(optarg, nullptr, 0);
           break;
         case 'p':
           dtb_padding = strtoul(optarg, nullptr, 0);

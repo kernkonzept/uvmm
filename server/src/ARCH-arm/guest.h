@@ -23,7 +23,7 @@ namespace Vmm {
 class Guest : public Generic_guest
 {
 public:
-  enum { Default_rambase = ~0UL };
+  enum { Default_rambase = Ram_base_identity_mapped };
 
   Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
 
