@@ -28,7 +28,7 @@ class Generic_guest
 {
 public:
     explicit Generic_guest(L4::Cap<L4Re::Dataspace> ram,
-                           l4_addr_t vm_base = ~0UL, l4_addr_t boot_offset = 0);
+                           l4_addr_t vm_base, l4_addr_t boot_offset = 0);
 
     virtual ~Generic_guest() = default;
 
