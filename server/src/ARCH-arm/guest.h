@@ -37,8 +37,8 @@ public:
 
   static Guest *create_instance(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
 
-  void show_state_registers() override;
-  void show_state_interrupts() override;
+  void show_state_registers(FILE *) override;
+  void show_state_interrupts(FILE *) override;
 
   cxx::Ref_ptr<Gic::Dist> gic() const
   { return _gic; }

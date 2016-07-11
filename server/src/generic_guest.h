@@ -22,6 +22,8 @@
 #include "vm_memmap.h"
 #include "vcpu.h"
 
+#include <cstdio>
+
 namespace Vmm {
 
 class Generic_guest
@@ -45,8 +47,8 @@ public:
   Ram_ds &ram()
   { return _ram; }
 
-  virtual void show_state_registers() = 0;
-  virtual void show_state_interrupts() = 0;
+  virtual void show_state_registers(FILE *f) = 0;
+  virtual void show_state_interrupts(FILE *f) = 0;
 
   L4Re::Util::Object_registry *registry() { return &_registry; }
 

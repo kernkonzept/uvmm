@@ -14,32 +14,41 @@
 
 class Monitor_console : private L4::Server_object_t<L4::Vcon>
 {
+  FILE *_f;
 
 public:
-  Monitor_console(L4::Cap<L4::Vcon> con, Vmm::Generic_guest *guest)
+  Monitor_console(const char * const capname, L4::Cap<L4::Vcon> con, Vmm::Generic_guest *guest)
   : _con(con), _guest(guest)
   {
+    _f = fopen(capname, "w+");
+    if (!_f)
+      {
+        Err().printf("Could not open monitor console '%s'\n", capname);
+        L4Re::chksys(-L4_ENOENT);
+      }
+  }
+
+  ~Monitor_console()
+  {
+    fclose(_f);
   }
 
   template<typename REG>
   void register_obj(REG *registry)
   {
     _con->bind(0, L4Re::chkcap(registry->register_irq_obj(this)));
-    // we want something like fprintf(_con, ...) here
-    printf("Monitor UP (printf'ing to wrong channel)\n");
+    fprintf(_f, "VMM Monitor Console\n");
     prompt();
   }
 
   void prompt()
   {
-    const char *s = "monitor> ";
-    _con->write(s, strlen(s));
+    fprintf(_f, "monitor> ");
+    fflush(_f);
   }
 
   int dispatch(l4_umword_t, L4::Ipc::Iostream &)
   {
-    //handle_input();
-    //char buf[100];
     int r;
 
     do
@@ -51,17 +60,23 @@ public:
             switch (cmd)
               {
               case 'r':
-                _guest->show_state_registers();
+                fputc('\n', _f);
+                _guest->show_state_registers(_f);
                 break;
               case 'i':
-                _guest->show_state_interrupts();
+                fputc('\n', _f);
+                _guest->show_state_interrupts(_f);
+                break;
+              case '\n':
+              case '\r':
+              case '\b':
                 break;
               default:
-                printf("Monitor: Unknown cmd\n");
+                fprintf(_f, "\nMonitor: Unknown cmd\n");
                 break;
               };
           }
-        _con->write("\n", 1);
+
         prompt();
       }
     while (r > 0);

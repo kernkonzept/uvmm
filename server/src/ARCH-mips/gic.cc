@@ -177,11 +177,11 @@ Dist::setup_source(unsigned irq, l4_uint32_t cpu, l4_uint32_t pin)
 }
 
 void
-Dist::show_state()
+Dist::show_state(FILE *f)
 {
   l4_uint32_t *sh = _mmio_region.get();
 
-  printf(" Interrupts available: %d\n", Num_irqs);
+  fprintf(f, " Interrupts available: %d\n", Num_irqs);
 
   for (unsigned i = 0; i < Num_irqs; ++i)
     {
@@ -191,10 +191,10 @@ Dist::show_state()
       unsigned reg = i >> 5;
       l4_uint32_t mask = 1 << (i & 0x1f);
 
-      printf(" Int %d => core IC %u  %s/%s\n",
-             i, (sh[Gic_sh_pin + i] & 0x1f) + 2,
-             (mask & sh[Gic_sh_mask + reg]) ? "on" : "off",
-             (mask & sh[Gic_sh_pend + reg]) ? "pending":"low");
+      fprintf(f, " Int %d => core IC %u  %s/%s\n",
+              i, (sh[Gic_sh_pin + i] & 0x1f) + 2,
+              (mask & sh[Gic_sh_mask + reg]) ? "on" : "off",
+              (mask & sh[Gic_sh_pend + reg]) ? "pending" : "low");
     }
 }
 

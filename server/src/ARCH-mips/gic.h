@@ -135,7 +135,7 @@ public:
   void set_mask(unsigned reg, l4_uint32_t mask);
   void setup_source(unsigned irq, l4_uint32_t cpu, l4_uint32_t pin);
 
-  void show_state();
+  void show_state(FILE *);
 
 private:
   l4_uint32_t read_cpu(unsigned reg, unsigned cpu_id);

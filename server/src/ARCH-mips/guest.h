@@ -49,8 +49,8 @@ public:
   int dispatch_hypcall(Hypcall_code hypcall_code, Cpu &vcpu);
   void handle_entry(Cpu vcpu);
 
-  void show_state_registers() override;
-  void show_state_interrupts() override;
+  void show_state_registers(FILE *) override;
+  void show_state_interrupts(FILE *) override;
 
   static Guest *create_instance(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
 

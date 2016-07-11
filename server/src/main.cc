@@ -154,10 +154,12 @@ static int run(int argc, char *argv[])
   vmm->set_fallback_mmio_ds(vbus->io_ds());
 
     {
-      auto mon_con_cap = L4Re::Env::env()->get_cap<L4::Vcon>("mon");
+      const char * const capname = "mon";
+      auto mon_con_cap = L4Re::Env::env()->get_cap<L4::Vcon>(capname);
       if (mon_con_cap)
         {
-          Monitor_console *moncon = new Monitor_console(mon_con_cap, vmm);
+          Monitor_console *moncon = new Monitor_console(capname,
+                                                        mon_con_cap, vmm);
           moncon->register_obj(vmm->registry());
         }
     }
