@@ -84,7 +84,7 @@ Guest::load_linux_kernel(char const *kernel, char const *cmdline, Cpu vcpu)
     }
 
   l4_cache_clean_data(reinterpret_cast<l4_addr_t>(_ram.access(prom_tab)),
-                      2 * sizeof(l4_uint32_t) + cmdline ? strlen(cmdline) : 0);
+                      2 * sizeof(l4_uint32_t) + (cmdline ? strlen(cmdline) : 0));
 
   vcpu->r.a2 = 0;
   vcpu->r.a3 = has_device_tree() ? _ram.boot_addr(_device_tree) : 0;
