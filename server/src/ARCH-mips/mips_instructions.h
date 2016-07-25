@@ -17,13 +17,13 @@ namespace Op {
 enum Opcode
 {
   Special = 0, Regimm, J, Jal, Beq, Bne, Blez, Bgtz,
-  Addi = 8, Addiu, Slti, Sltiu, Andi, Ori, Xori, Lui,
+  Pop10 = 8, Addiu, Slti, Sltiu, Andi, Ori, Xori, Lui,
   Cop0 = 16, Cop1, Cop2, Cop1x, Beql, Bnel, Blezl, Bgtzl,
   Pop30 = 24, Special2 = 28, Jalx, Msa, Special3,
   Lb = 32, Lh, Lwlw, Lw, Lbu, Lhu, Lwr,
   Sb = 40, Sh, Swl, Sw, Swr = 46, Cache,
-  Ll = 48, Lwc1, Lwc2, Pref, Ldc1 = 53, Ldc2,
-  Sc = 56, Swc1, Swc2, Pcrel, Sdc1 = 61, Sdc2
+  Ll = 48, Lwc1, Lwc2, Pref, Ldc1 = 53, Pop66, Ld,
+  Sc = 56, Swc1, Swc2, Pcrel, Sdc1 = 61, Pop76, Sd
 };
 
 enum Cop0_rs

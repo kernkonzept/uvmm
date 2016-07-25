@@ -101,7 +101,10 @@ public:
       case Mips::Op::Bnel:
       case Mips::Op::Bgtzl:
       case Mips::Op::Blezl:
-        r->ip += insn.branch_offset() + 4;
+        if (insn.rt() == 0)
+          r->ip += insn.branch_offset() + 4;
+        else
+          r->ip += 8; // R6 compact branch instruction
         return;
       case Mips::Op::Beq:
         if (r->r[insn.rs()] == r->r[insn.rt()])
@@ -116,22 +119,30 @@ public:
           r->ip += 8;
         return;
       case Mips::Op::Bgtz:
-        if ((long) r->r[insn.rs()] > 0)
+        if (insn.rt() == 0 && (long) r->r[insn.rs()] > 0)
           r->ip += insn.branch_offset() + 4;
         else
           r->ip += 8;
         return;
       case Mips::Op::Blez:
-        if ((long) r->r[insn.rs()] <= 0)
+        if (insn.rt() == 0 && (long) r->r[insn.rs()] <= 0)
           r->ip += insn.branch_offset() + 4;
         else
           r->ip += 8;
         return;
       case Mips::Op::Jal:
         r->ra = r->ip + 8;
+        // fallthrough
       case Mips::Op::J:
         r->ip = (r->ip & ~((1UL << 28) - 1)) | (insn.instr_index() << 2);
         return;
+      // compact branch instructions on R6
+      case Mips::Op::Pop10:
+      case Mips::Op::Pop30:
+      case Mips::Op::Pop66:
+      case Mips::Op::Pop76:
+          r->ip += 8;
+          return;
       }
 
     Err().printf("Guest exception in branch delay slot. Instruction not implemented @ IP 0x%lx\n", _s->r.ip);
