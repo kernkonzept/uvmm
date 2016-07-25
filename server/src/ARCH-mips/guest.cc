@@ -19,16 +19,25 @@ handler(l4_vcpu_state_t *vcpu)
   guest->handle_entry(Vmm::Cpu(vcpu));
 }
 
+namespace {
+
+l4_addr_t sign_ext(l4_uint32_t addr)
+{ return (l4_addr_t) ((l4_mword_t) ((l4_int32_t) addr)); }
+
+}
+
 namespace Vmm {
 
 Guest::Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
-: Guest::Generic_guest(ram, vm_base, 0x80000000),
+: Guest::Generic_guest(ram, vm_base, sign_ext(0x80000000)),
   _core_ic(Vdev::make_device<Gic::Mips_core_ic>())
 {
   // TODO Fiasco should be exporting the proc ID for us. For the
   //      moment just derive it from the platform.
   auto *platform = l4re_kip()->platform_info.name;
-  if (strcmp(platform, "baikal_t") == 0)
+  if (sizeof(l4_addr_t) == 8)
+    _proc_id = 0x00010000; // generic 64bit CPU
+  else if (strcmp(platform, "baikal_t") == 0)
     _proc_id = 0x0001a82c; // P5600
   else
     _proc_id = 0x0001a700; // M5150
