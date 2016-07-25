@@ -1,29 +1,29 @@
-From ff7d86bc5cabf33461a33fbfab2b85ac252c101c Mon Sep 17 00:00:00 2001
-From: Adam Lackorzynski <adam@l4re.org>
-Date: Wed, 25 May 2016 00:36:10 +0200
+From 04e2cd792d0b34ef81320cfdf446002d6e7941a1 Mon Sep 17 00:00:00 2001
+From: Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
+Date: Fri, 29 Jul 2016 17:08:05 +0200
 Subject: [PATCH] MIPS: Add virtual platform
 
 This adds a virtual platform to use as a guest in VZ-enabled
 virtualization environments.
-
-Signed-off-by: Adam Lackorzynski <adam@l4re.org>
 ---
- arch/mips/Kbuild.platforms                         |   1 +
- arch/mips/Kconfig                                  |  26 ++++++
- arch/mips/configs/mach_virt_defconfig              |  11 +++
- .../include/asm/mach-virt/cpu-feature-overrides.h  |  15 +++
- arch/mips/include/asm/mach-virt/hypcall.h          |  96 ++++++++++++++++++++
- arch/mips/include/asm/timex.h                      |   6 +-
- arch/mips/mach-virt/Makefile                       |   3 +
- arch/mips/mach-virt/Platform                       |   9 ++
- arch/mips/mach-virt/early_printk.c                 |  13 +++
- arch/mips/mach-virt/irq.c                          |  17 ++++
- arch/mips/mach-virt/setup.c                        | 101 +++++++++++++++++++++
- arch/mips/mm/c-r4k.c                               |   2 +
- 12 files changed, 297 insertions(+), 3 deletions(-)
+ arch/mips/Kbuild.platforms                         |  1 +
+ arch/mips/Kconfig                                  | 28 +++++++
+ arch/mips/configs/mach_virt_defconfig              | 11 +++
+ .../include/asm/mach-virt/cpu-feature-overrides.h  | 15 ++++
+ arch/mips/include/asm/mach-virt/hypcall.h          | 96 ++++++++++++++++++++++
+ arch/mips/include/asm/mach-virt/spaces.h           | 23 ++++++
+ arch/mips/include/asm/timex.h                      |  6 +-
+ arch/mips/mach-virt/Makefile                       |  3 +
+ arch/mips/mach-virt/Platform                       |  9 ++
+ arch/mips/mach-virt/early_printk.c                 | 13 +++
+ arch/mips/mach-virt/irq.c                          | 17 ++++
+ arch/mips/mach-virt/setup.c                        | 95 +++++++++++++++++++++
+ arch/mips/mm/c-r4k.c                               |  2 +
+ 13 files changed, 316 insertions(+), 3 deletions(-)
  create mode 100644 arch/mips/configs/mach_virt_defconfig
  create mode 100644 arch/mips/include/asm/mach-virt/cpu-feature-overrides.h
  create mode 100644 arch/mips/include/asm/mach-virt/hypcall.h
+ create mode 100644 arch/mips/include/asm/mach-virt/spaces.h
  create mode 100644 arch/mips/mach-virt/Makefile
  create mode 100644 arch/mips/mach-virt/Platform
  create mode 100644 arch/mips/mach-virt/early_printk.c
@@ -43,10 +43,10 @@ index a96c81d..f83c5b2 100644
  platforms += mti-sead3
  platforms += netlogic
 diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
-index db45961..e8b4c3b 100644
+index 71683a8..4677f89 100644
 --- a/arch/mips/Kconfig
 +++ b/arch/mips/Kconfig
-@@ -481,6 +481,32 @@ config MIPS_MALTA
+@@ -481,6 +481,34 @@ config MIPS_MALTA
  	  This enables support for the MIPS Technologies Malta evaluation
  	  board.
  
@@ -68,8 +68,10 @@ index db45961..e8b4c3b 100644
 +	select SWAP_IO_SPACE
 +	select SYS_HAS_CPU_MIPS32_R2
 +	select SYS_HAS_CPU_MIPS32_R3_5
++	select SYS_HAS_CPU_MIPS64_R6
 +	select SYS_HAS_EARLY_PRINTK
 +	select SYS_SUPPORTS_32BIT_KERNEL
++	select SYS_SUPPORTS_64BIT_KERNEL
 +	select SYS_SUPPORTS_HIGHMEM
 +	select SYS_SUPPORTS_LITTLE_ENDIAN
 +	select SYS_SUPPORTS_MIPS_CPS
@@ -98,7 +100,7 @@ index 0000000..20a0353
 +CONFIG_EXT4_FS_SECURITY=y
 diff --git a/arch/mips/include/asm/mach-virt/cpu-feature-overrides.h b/arch/mips/include/asm/mach-virt/cpu-feature-overrides.h
 new file mode 100644
-index 0000000..ded8a1a9
+index 0000000..ded8a1a
 --- /dev/null
 +++ b/arch/mips/include/asm/mach-virt/cpu-feature-overrides.h
 @@ -0,0 +1,15 @@
@@ -219,6 +221,35 @@ index 0000000..8a7e881
 +	*a2 = _a2;
 +	return _a0;
 +}
+diff --git a/arch/mips/include/asm/mach-virt/spaces.h b/arch/mips/include/asm/mach-virt/spaces.h
+new file mode 100644
+index 0000000..e1542fb
+--- /dev/null
++++ b/arch/mips/include/asm/mach-virt/spaces.h
+@@ -0,0 +1,23 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ *
++ * Copyright (C) 2016 Kernkonzept GmbH
++ */
++
++#ifndef _ASM_VIRT_SPACES_H
++#define _ASM_VIRT_SPACES_H
++
++
++#ifdef CONFIG_BLK_DEV_INITRD
++#define __early_init_dt_declare_initrd(__start, __end)			\
++	do {								\
++		initrd_start = (__start);				\
++		initrd_end = (__end);					\
++	} while (0)
++#endif
++
++#include <asm/mach-generic/spaces.h>
++
++#endif /* _ASM_VIRT_SPACES_H */
 diff --git a/arch/mips/include/asm/timex.h b/arch/mips/include/asm/timex.h
 index b05bb70..3222504 100644
 --- a/arch/mips/include/asm/timex.h
@@ -313,10 +344,10 @@ index 0000000..8a4c9ad
 +}
 diff --git a/arch/mips/mach-virt/setup.c b/arch/mips/mach-virt/setup.c
 new file mode 100644
-index 0000000..e570b10
+index 0000000..4182221
 --- /dev/null
 +++ b/arch/mips/mach-virt/setup.c
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,95 @@
 +/*
 + * This file is subject to the terms and conditions of the GNU General Public
 + * License.  See the file "COPYING" in the main directory of this archive
@@ -390,12 +421,6 @@ index 0000000..e570b10
 +
 +void __init plat_mem_setup(void)
 +{
-+#ifdef CONFIG_BLK_DEV_INITRD
-+	if (initrd_start)
-+		initrd_start = (unsigned long)__va(initrd_start);
-+	if (initrd_end)
-+		initrd_end = (unsigned long)__va(initrd_end);
-+#endif
 +}
 +
 +void __init prom_free_prom_memory(void)
@@ -435,5 +460,5 @@ index 5d3a25e..355e7c6 100644
  		}
  		sc_present = 0;
 -- 
-2.8.1
+2.1.4
 
