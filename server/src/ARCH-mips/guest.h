@@ -72,6 +72,8 @@ private:
       case L4_VM_CP0_MAAR_0:
       case L4_VM_CP0_MAAR_1:
       case L4_VM_CP0_ERR_CTL:
+      case L4_VM_CP0_CONFIG_6:
+      case L4_VM_CP0_CONFIG_7:
         *val = 0; break;
       default: return -L4_ENOSYS;
       }
@@ -95,6 +97,8 @@ private:
       case L4_VM_CP0_CONFIG_3:
       case L4_VM_CP0_CONFIG_4:
       case L4_VM_CP0_CONFIG_5:
+      case L4_VM_CP0_CONFIG_6:
+      case L4_VM_CP0_CONFIG_7:
         return Jump_instr; // XXX config registers are read-only atm
       case L4_VM_CP0_MAAR_0:
       case L4_VM_CP0_MAAR_1:
