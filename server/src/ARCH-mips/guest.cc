@@ -150,9 +150,9 @@ Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
   l4_addr_t end = has_device_tree()
                   ? (_device_tree.get() + device_tree().size())
                   : 1;
-  L4virtio::Ptr<l4_uint32_t> prom_tab(l4_round_size(end, L4_PAGESHIFT));
+  L4virtio::Ptr<l4_addr_t> prom_tab(l4_round_size(end, L4_PAGESHIFT));
 
-  size_t size = 2 * sizeof(l4_uint32_t);
+  size_t size = 2 * sizeof(l4_addr_t);
   L4virtio::Ptr<char> prom_buf(prom_tab.get() + size);
 
   size += strlen(kernel) + 1;
@@ -179,6 +179,10 @@ Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
   vcpu->r.a2 = 0;
   vcpu->r.a3 = has_device_tree() ? _ram.boot_addr(_device_tree) : 0;
   vcpu->r.status = 8;
+  // UHI boot protocol spec says that at least KX should be set when the
+  // boot loader passes in 64bit addresses for the command line parameters.
+  if (sizeof(l4_addr_t) == 8)
+    vcpu->r.status |= 0xe0;
   vcpu->r.ip = entry;
 }
 
