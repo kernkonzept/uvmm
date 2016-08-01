@@ -13,7 +13,9 @@
 
 static cxx::Static_container<Vmm::Guest> guest;
 
-static void
+void handler(l4_vcpu_state_t *vcpu);
+
+void __attribute__((flatten))
 handler(l4_vcpu_state_t *vcpu)
 {
   guest->handle_entry(Vmm::Cpu(vcpu));
