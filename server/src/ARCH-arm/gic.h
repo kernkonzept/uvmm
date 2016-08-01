@@ -850,7 +850,7 @@ public:
   void clear(unsigned) override {}
 
   void bind_irq_source(unsigned irq, cxx::Ref_ptr<Irq_source> src) override
-  { spi(irq).set_eoi(src); }
+  { spi(irq - Cpu::Num_local).set_eoi(src); }
 
   int dt_get_num_interrupts(Vdev::Dt_node const &node)
   {
