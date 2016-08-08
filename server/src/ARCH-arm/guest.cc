@@ -63,11 +63,11 @@ Guest::Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
   else if (_ram.vm_start() & ~0xf0000000)
     Dbg(Dbg::Info).printf(
         "WARNING: Guest memory not 256MB aligned!\n"
-        "         If you run Linux as a guest, you might hit a bug\n"
-        "         in the arch/arm/boot/compressed/head.S code\n"
-        "         that misses an ISB after code has been relocated.\n"
-        "         According to the internet a fix for this issue\n"
-        "         is floating around.\n");
+        "       If you run Linux as a guest, you might hit a bug\n"
+        "       in the arch/arm/boot/compressed/head.S code\n"
+        "       that misses an ISB after code has been relocated.\n"
+        "       According to the internet a fix for this issue\n"
+        "       is floating around.\n");
 }
 
 Guest *
