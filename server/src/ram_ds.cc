@@ -12,6 +12,7 @@
 #include <l4/l4re_vfs/backend>
 
 #include "debug.h"
+#include "generic_guest.h"
 #include "ram_ds.h"
 
 namespace Vmm {
@@ -52,7 +53,7 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
   if (err < 0 || phys_size < _size)
     {
       info.printf("RAM dataspace not contiguous, should not use DMA w/o IOMMU\n");
-      if (err >= 0 && _vm_start == ~0UL)
+      if (err >= 0 && _vm_start == Ram_base_identity_mapped)
         {
           _vm_start = phys_ram;
           _ident = true;
@@ -61,7 +62,7 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
   else
     {
       _cont = true;
-      if (_vm_start == ~0UL)
+      if (_vm_start == Ram_base_identity_mapped)
         {
           _vm_start = phys_ram;
           _ident = true;

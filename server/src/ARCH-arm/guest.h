@@ -13,6 +13,7 @@
 #include "device.h"
 #include "generic_guest.h"
 #include "gic.h"
+#include "ram_ds.h"
 #include "vcpu.h"
 
 namespace Vmm {
@@ -23,7 +24,7 @@ namespace Vmm {
 class Guest : public Generic_guest
 {
 public:
-  enum { Default_rambase = Ram_base_identity_mapped };
+  enum { Default_rambase = Ram_ds::Ram_base_identity_mapped };
 
   Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
 

@@ -29,8 +29,6 @@ namespace Vmm {
 class Generic_guest
 {
 public:
-  enum { Ram_base_identity_mapped = ~0UL };
-
   explicit Generic_guest(L4::Cap<L4Re::Dataspace> ram,
                          l4_addr_t vm_base, l4_addr_t boot_offset = 0);
 

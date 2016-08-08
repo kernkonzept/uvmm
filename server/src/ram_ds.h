@@ -20,6 +20,8 @@ namespace Vmm {
 class Ram_ds : public Vm_ram
 {
 public:
+  enum { Ram_base_identity_mapped = ~0UL };
+
   /**
    * Create a new RAM dataspace.
    *
