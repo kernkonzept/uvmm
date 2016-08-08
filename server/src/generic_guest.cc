@@ -97,8 +97,8 @@ Generic_guest::set_ramdisk_params(L4virtio::Ptr<void> addr, l4_size_t size)
   auto dt = device_tree();
 
   auto node = dt.path_offset("/chosen");
-  node.set_prop_address("linux,initrd-start", _ram.boot_addr(addr));
-  node.set_prop_address("linux,initrd-end", _ram.boot_addr(addr) + size);
+  node.set_prop_address("linux,initrd-start", addr.get());
+  node.set_prop_address("linux,initrd-end", addr.get() + size);
 
 }
 

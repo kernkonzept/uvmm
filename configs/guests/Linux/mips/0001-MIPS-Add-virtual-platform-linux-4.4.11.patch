@@ -1,4 +1,4 @@
-From abe578ee61f60e6039fb6c9e14ae99e7da830f4e Mon Sep 17 00:00:00 2001
+From babd3c04fbb493e1bb65f15fd5ae0cb032f99e52 Mon Sep 17 00:00:00 2001
 From: Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
 Date: Mon, 8 Aug 2016 10:27:28 +0200
 Subject: [PATCH] MIPS: Add virtual platform
@@ -12,7 +12,6 @@ virtualization environments.
  .../include/asm/mach-virt/cpu-feature-overrides.h  |  15 +++
  arch/mips/include/asm/mach-virt/dma-coherence.h    | 102 +++++++++++++++++++++
  arch/mips/include/asm/mach-virt/hypcall.h          |  96 +++++++++++++++++++
- arch/mips/include/asm/mach-virt/spaces.h           |  23 +++++
  arch/mips/include/asm/timex.h                      |   6 +-
  arch/mips/mach-virt/Makefile                       |   3 +
  arch/mips/mach-virt/Platform                       |   9 ++
@@ -21,12 +20,11 @@ virtualization environments.
  arch/mips/mach-virt/irq.c                          |  17 ++++
  arch/mips/mach-virt/setup.c                        |  95 +++++++++++++++++++
  arch/mips/mm/c-r4k.c                               |   2 +
- 15 files changed, 471 insertions(+), 3 deletions(-)
+ 14 files changed, 448 insertions(+), 3 deletions(-)
  create mode 100644 arch/mips/configs/mach_virt_defconfig
  create mode 100644 arch/mips/include/asm/mach-virt/cpu-feature-overrides.h
  create mode 100644 arch/mips/include/asm/mach-virt/dma-coherence.h
  create mode 100644 arch/mips/include/asm/mach-virt/hypcall.h
- create mode 100644 arch/mips/include/asm/mach-virt/spaces.h
  create mode 100644 arch/mips/mach-virt/Makefile
  create mode 100644 arch/mips/mach-virt/Platform
  create mode 100644 arch/mips/mach-virt/dma.c
@@ -333,35 +331,6 @@ index 0000000..8a7e881
 +	*a2 = _a2;
 +	return _a0;
 +}
-diff --git a/arch/mips/include/asm/mach-virt/spaces.h b/arch/mips/include/asm/mach-virt/spaces.h
-new file mode 100644
-index 0000000..d1bf595
---- /dev/null
-+++ b/arch/mips/include/asm/mach-virt/spaces.h
-@@ -0,0 +1,23 @@
-+/*
-+ * This file is subject to the terms and conditions of the GNU General Public
-+ * License.  See the file "COPYING" in the main directory of this archive
-+ * for more details.
-+ *
-+ * Copyright (C) 2016 Kernkonzept GmbH
-+ */
-+
-+#ifndef _ASM_VIRT_SPACES_H
-+#define _ASM_VIRT_SPACES_H
-+
-+
-+#ifdef CONFIG_BLK_DEV_INITRD
-+#define __early_init_dt_declare_initrd(__start, __end)			\
-+	do {								\
-+		initrd_start = (__start);				\
-+		initrd_end = (__end);					\
-+	} while (0)
-+#endif
-+
-+#include <asm/mach-generic/spaces.h>
-+
-+#endif /* _ASM_VIRT_SPACES_H */
 diff --git a/arch/mips/include/asm/timex.h b/arch/mips/include/asm/timex.h
 index b05bb70..3222504 100644
 --- a/arch/mips/include/asm/timex.h
