@@ -1,7 +1,7 @@
-From 0047ab73c23e408073e62d3e8d1466bb670a8069 Mon Sep 17 00:00:00 2001
+From d0f77f6d9e2e0ba3486010630b1fca2aab80d35a Mon Sep 17 00:00:00 2001
 From: Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
-Date: Fri, 29 Jul 2016 16:49:57 +0200
-Subject: [PATCH] MIPS: Add virtual platform
+Date: Mon, 8 Aug 2016 17:01:23 +0200
+Subject: [PATCH] MIPS: Add Virtual platform
 
 This adds a virtual platform to use as a guest in VZ-enabled
 virtualization environments.
@@ -10,23 +10,27 @@ virtualization environments.
  arch/mips/Kconfig                                  |  28 ++
  arch/mips/configs/mach_virt_defconfig              |  11 +
  .../include/asm/mach-virt/cpu-feature-overrides.h  |  15 +
+ arch/mips/include/asm/mach-virt/dma-coherence.h    | 101 ++++++
  arch/mips/include/asm/mach-virt/hypcall.h          |  96 ++++++
  arch/mips/include/asm/mach-virt/spaces.h           |  23 ++
  arch/mips/include/asm/timex.h                      |   6 +-
  arch/mips/mach-virt/Makefile                       |   3 +
  arch/mips/mach-virt/Platform                       |   9 +
+ arch/mips/mach-virt/dma.c                          |  53 +++
  arch/mips/mach-virt/early_printk.c                 |  13 +
  arch/mips/mach-virt/irq.c                          |  17 +
  arch/mips/mach-virt/setup.c                        |  95 ++++++
  arch/mips/mm/c-r4k.c                               |   2 +
  drivers/irqchip/irq-mips-gic.c                     | 354 ++++++---------------
- 14 files changed, 407 insertions(+), 266 deletions(-)
+ 16 files changed, 561 insertions(+), 266 deletions(-)
  create mode 100644 arch/mips/configs/mach_virt_defconfig
  create mode 100644 arch/mips/include/asm/mach-virt/cpu-feature-overrides.h
+ create mode 100644 arch/mips/include/asm/mach-virt/dma-coherence.h
  create mode 100644 arch/mips/include/asm/mach-virt/hypcall.h
  create mode 100644 arch/mips/include/asm/mach-virt/spaces.h
  create mode 100644 arch/mips/mach-virt/Makefile
  create mode 100644 arch/mips/mach-virt/Platform
+ create mode 100644 arch/mips/mach-virt/dma.c
  create mode 100644 arch/mips/mach-virt/early_printk.c
  create mode 100644 arch/mips/mach-virt/irq.c
  create mode 100644 arch/mips/mach-virt/setup.c
@@ -120,6 +124,113 @@ index 0000000..ded8a1a
 +#define cpu_has_nan_legacy	1
 +
 +#endif /* __ASM_MACH_VIRT_CPU_FEATURE_OVERRIDES_H */
+diff --git a/arch/mips/include/asm/mach-virt/dma-coherence.h b/arch/mips/include/asm/mach-virt/dma-coherence.h
+new file mode 100644
+index 0000000..0d8039a
+--- /dev/null
++++ b/arch/mips/include/asm/mach-virt/dma-coherence.h
+@@ -0,0 +1,101 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ *
++ * Copyright (C) 2016 Kernkonzept GmbH
++ */
++#pragma once
++
++#include <linux/mm.h>
++#include <linux/err.h>
++#include <linux/kernel.h>
++#include <linux/bug.h>
++#include <linux/io.h>
++#include <linux/dma-mapping.h>
++
++extern unsigned long l4vmm_gpa_start;
++extern unsigned long l4vmm_gpa_size;
++extern dma_addr_t l4vmm_dma_start;
++
++struct device;
++
++static inline dma_addr_t plat_map_gpa_to_dma(unsigned long gpa)
++{
++	if (likely(l4vmm_gpa_size)) {
++		if (likely(l4vmm_gpa_start <= gpa
++		           && gpa < l4vmm_gpa_start + l4vmm_gpa_size))
++			return gpa - l4vmm_gpa_start + l4vmm_dma_start;
++	}
++
++	pr_err("Failed to translate guest-physical 0x%lx to dma-addr\n",
++	       gpa);
++	BUG(); /* What else? If not here we'll go chaos sooner anyway */
++}
++
++static inline dma_addr_t plat_map_dma_mem(struct device *dev, void *addr,
++	size_t size)
++{
++	return plat_map_gpa_to_dma(virt_to_phys(addr));
++}
++
++static inline dma_addr_t plat_map_dma_mem_page(struct device *dev,
++	struct page *page)
++{
++	return plat_map_gpa_to_dma(page_to_phys(page));
++}
++
++static inline unsigned long plat_dma_addr_to_phys(struct device *dev,
++	dma_addr_t dma_addr)
++{
++	if (likely(l4vmm_gpa_size)) {
++		if (likely(l4vmm_dma_start <= dma_addr
++		           && dma_addr < l4vmm_dma_start + l4vmm_gpa_size))
++			return dma_addr - l4vmm_dma_start + l4vmm_gpa_start;
++	}
++
++	pr_err("%s: Do not know about dma_addr=%lx\n", __func__, (unsigned long) dma_addr);
++	BUG();
++}
++
++static inline void plat_unmap_dma_mem(struct device *dev, dma_addr_t dma_addr,
++	size_t size, enum dma_data_direction direction)
++{
++	if (0) pr_warn("%s\n", __func__);
++}
++
++static inline int plat_dma_supported(struct device *dev, u64 mask)
++{
++	/*
++	 * we fall back to GFP_DMA when the mask isn't all 1s,
++	 * so we can't guarantee allocations that must be
++	 * within a tighter range than GFP_DMA..
++	 */
++	if (mask < DMA_BIT_MASK(24))
++		return 0;
++
++	return 1;
++}
++
++static inline int plat_device_is_coherent(struct device *dev)
++{
++	return coherentio;
++}
++
++#ifndef plat_post_dma_flush
++static inline void plat_post_dma_flush(struct device *dev)
++{
++}
++#endif
++
++#ifdef CONFIG_SWIOTLB
++static inline dma_addr_t phys_to_dma(struct device *dev, phys_addr_t paddr)
++{
++	return plat_map_gpa_to_dma(paddr);
++}
++
++static inline phys_addr_t dma_to_phys(struct device *dev, dma_addr_t daddr)
++{
++	return daddr;
++}
++#endif
 diff --git a/arch/mips/include/asm/mach-virt/hypcall.h b/arch/mips/include/asm/mach-virt/hypcall.h
 new file mode 100644
 index 0000000..8a7e881
@@ -224,7 +335,7 @@ index 0000000..8a7e881
 +}
 diff --git a/arch/mips/include/asm/mach-virt/spaces.h b/arch/mips/include/asm/mach-virt/spaces.h
 new file mode 100644
-index 0000000..e1542fb
+index 0000000..d1bf595
 --- /dev/null
 +++ b/arch/mips/include/asm/mach-virt/spaces.h
 @@ -0,0 +1,23 @@
@@ -279,11 +390,11 @@ index b05bb70..3222504 100644
  		return read_c0_random();
 diff --git a/arch/mips/mach-virt/Makefile b/arch/mips/mach-virt/Makefile
 new file mode 100644
-index 0000000..4ae5b28
+index 0000000..bb4b020
 --- /dev/null
 +++ b/arch/mips/mach-virt/Makefile
 @@ -0,0 +1,3 @@
-+obj-y                        += setup.o irq.o
++obj-y                        += setup.o irq.o dma.o
 +
 +obj-$(CONFIG_EARLY_PRINTK)   += early_printk.o
 diff --git a/arch/mips/mach-virt/Platform b/arch/mips/mach-virt/Platform
@@ -301,6 +412,65 @@ index 0000000..52ddca7
 +load-$(CONFIG_MIPS_VIRT)	+= 0xffffffff80100000
 +
 +all-$(CONFIG_MIPS_VIRT)		:= $(COMPRESSION_FNAME).bin
+diff --git a/arch/mips/mach-virt/dma.c b/arch/mips/mach-virt/dma.c
+new file mode 100644
+index 0000000..9d86a2e
+--- /dev/null
++++ b/arch/mips/mach-virt/dma.c
+@@ -0,0 +1,53 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ *
++ * Copyright (C) 2016 Kernkonzept GmbH
++ */
++
++
++#include <linux/of.h>
++#include <linux/of_fdt.h>
++#include <linux/of_address.h>
++
++#include <asm/mach-virt/dma-coherence.h>
++
++unsigned long l4vmm_gpa_start;
++unsigned long l4vmm_gpa_size;
++dma_addr_t l4vmm_dma_start;
++
++/* For now, we just have a single contiguous physical region in the
++ * hypervisor */
++static int __init mips_virt_dma_init(void)
++{
++	struct device_node *np;
++	const __be32 *ranges = NULL;
++	int naddr, nsize, len;
++
++	l4vmm_gpa_size = 0;
++
++	np = of_find_node_by_name(NULL, "memory");
++	if (!np)
++		return 0;
++
++	naddr = of_n_addr_cells(np);
++	nsize = of_n_size_cells(np);
++
++	ranges = of_get_property(np, "dma-ranges", &len);
++
++	if (ranges && len >= (sizeof(*ranges) * (2 * naddr + nsize))) {
++		l4vmm_dma_start = of_read_number(ranges, naddr);
++		l4vmm_gpa_start = of_read_number(ranges + naddr, naddr);
++		l4vmm_gpa_size = of_read_number(ranges + 2 * naddr, nsize);
++
++		pr_info("DMA range for memory 0x%lx - 0x%lx set @ 0x%lx\n",
++		        l4vmm_gpa_start,
++		        l4vmm_gpa_start + l4vmm_gpa_size,
++		        (unsigned long) l4vmm_dma_start);
++	}
++
++	return 0;
++}
++
++fs_initcall(mips_virt_dma_init);
 diff --git a/arch/mips/mach-virt/early_printk.c b/arch/mips/mach-virt/early_printk.c
 new file mode 100644
 index 0000000..591ed45

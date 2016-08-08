@@ -82,6 +82,9 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
   assert(_vm_start != ~0UL);
   _offset = _local_start - _vm_start;
   info.printf("RAM: VM offset=%lx\n", _offset);
+
+  _phys_ram = phys_ram;
+  _phys_size = phys_size;
 }
 
 

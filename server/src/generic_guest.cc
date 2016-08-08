@@ -77,6 +77,14 @@ Generic_guest::update_device_tree(char const *cmd_line)
     }
   auto mem_node = dt.path_offset("/memory");
   mem_node.set_reg_val(_ram.vm_start(), _ram.size());
+
+  l4_addr_t dma_base;
+  l4_size_t dma_size;
+  _ram.dma_area(&dma_base, &dma_size);
+  int addr_cells = mem_node.get_address_cells();
+  mem_node.setprop("dma-ranges", dma_base, addr_cells);
+  mem_node.appendprop("dma-ranges", _ram.vm_start(), addr_cells);
+  mem_node.appendprop("dma-ranges", dma_size, mem_node.get_size_cells());
 }
 
 void

@@ -114,6 +114,27 @@ public:
       }
   }
 
+  void setprop(char const *name, l4_uint64_t value, unsigned cells) const
+  {
+    switch (cells)
+      {
+      case 1:
+        if (value >= (1ULL << 32))
+          L4Re::chksys(-L4_ERANGE, "Value too large for property\n");
+
+        setprop_u32(name, value);
+        break;
+
+      case 2:
+        setprop_u64(name, value);
+        break;
+
+      default:
+        L4Re::chksys(-L4_EINVAL, "Unexpected property value cell size");
+        break;
+    }
+  }
+
   void setprop_string(char const *name, char const *value) const
   {
     if (fdt_setprop_string(_tree, _node, name, value) < 0)
@@ -139,6 +160,27 @@ public:
         Err().printf("cannot append '0x%llx' to property '%s'\n", value, name);
         L4Re::chksys(-L4_EIO);
       }
+  }
+
+  void appendprop(char const *name, l4_uint64_t value, unsigned cells) const
+  {
+    switch (cells)
+      {
+      case 1:
+        if (value >= (1ULL << 32))
+          L4Re::chksys(-L4_ERANGE, "Value too large for property\n");
+
+        appendprop_u32(name, value);
+        break;
+
+      case 2:
+        appendprop_u64(name, value);
+        break;
+
+      default:
+        L4Re::chksys(-L4_EINVAL, "Unexpected property value cell size");
+        break;
+    }
   }
 
   bool is_enabled()
@@ -242,44 +284,12 @@ public:
   void
   set_reg_val(l4_uint64_t address, l4_uint64_t size, bool append = false) const
   {
-    switch (get_address_cells())
-      {
-      case 1:
-        if (address >= (1ULL << 32))
-          L4Re::chksys(-L4_ERANGE, "Value too large for address cell\n");
+    if (append)
+      appendprop("reg", address, get_address_cells());
+    else
+      setprop("reg", address, get_address_cells());
 
-        if (append)
-          appendprop_u32("reg", address);
-        else
-          setprop_u32("reg", address);
-        break;
-
-      case 2:
-        if (append)
-          appendprop_u64("reg", address);
-        else
-          setprop_u64("reg", address);
-        break;
-
-      default:
-        L4Re::chksys(-L4_EINVAL, "Unexpected value of #address cell\n");
-        break;
-    }
-
-    switch (get_size_cells())
-      {
-      case 1:
-        if (size >= (1ULL << 32))
-          L4Re::chksys(-L4_ERANGE, "Value too large for size cell\n");
-        appendprop_u32("reg", size);
-        break;
-      case 2:
-        appendprop_u64("reg", size);
-        break;
-      default:
-        L4Re::chksys(-L4_EINVAL, "Unexpected value of #size cell\n");
-        break;
-      }
+    appendprop("reg", size, get_size_cells());
   }
 
   /**

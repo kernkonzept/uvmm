@@ -65,10 +65,18 @@ public:
   L4virtio::Ptr<T> boot2guest_phys(l4_addr_t p) const noexcept
   { return L4virtio::Ptr<T>(p - _boot_offset); }
 
+  void dma_area(l4_addr_t *phys_base, l4_size_t *phys_size) const
+  {
+    *phys_base = _phys_ram;
+    *phys_size = _phys_size;
+  }
+
 private:
   L4::Cap<L4Re::Dataspace> _ram;
   L4Re::Util::Auto_cap<L4Re::Dma_space>::Cap _dma;
   l4_addr_t _boot_offset;
+  L4Re::Dma_space::Dma_addr _phys_ram;
+  l4_size_t _phys_size;
 };
 
 } // namespace
