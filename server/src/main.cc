@@ -71,8 +71,9 @@ static void scan_device_tree(Vmm::Guest *vmm, Vmm::Virt_bus *vbus)
       cxx::Ref_ptr<Vdev::Device> dev = Vdev::Factory::create_dev(vmm, vbus, node);
       if (!dev)
         {
-          if (node.get_prop<char>("reg", nullptr)
-              || node.get_prop<char>("interrupts", nullptr))
+            if (!node.get_prop<char>("l4vmm,force-enable", nullptr)
+                && (node.get_prop<char>("reg", nullptr)
+                    || node.get_prop<char>("interrupts", nullptr)))
             {
               Err().printf("Device '%.*s' needs resources which cannot be virtualised. Disabled.\n",
                            pathlen, path);
