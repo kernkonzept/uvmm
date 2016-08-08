@@ -106,10 +106,12 @@ Generic_guest::load_ramdisk_at(char const *ram_disk, L4virtio::Ptr<void> addr,
   if (size)
     *size = tmp;
 
-  // round to the next page to load anything else to a new page
-  auto res = l4_round_size(L4virtio::Ptr<void>(initrd.get() + tmp),
+  // Round to the next page to load anything else to a new page.
+  // Also add a page of padding. At least the MIPS Linux assumes
+  // there is free space for data structures after the initrd.
+  auto res = l4_round_size(L4virtio::Ptr<void>(initrd.get() + tmp + L4_PAGESIZE),
                            L4_PAGESHIFT);
-  info.printf("Loaded ramdisk image %s to [%llx:%llx] (%08x)\n", ram_disk,
+  info.printf("Loaded ramdisk image %s to [%llx:%llx] (%08zx)\n", ram_disk,
               initrd.get(), res.get() - 1, tmp);
   return res;
 }
