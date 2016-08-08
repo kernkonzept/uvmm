@@ -176,7 +176,7 @@ public:
     }
   }
 
-  bool is_enabled()
+  bool is_enabled() const
   {
     int lenp;
     char const *p = get_prop<char>("status", &lenp);
@@ -390,10 +390,10 @@ public:
   void add_to_size(l4_size_t padding) const
   { fdt_set_totalsize(_tree, fdt_totalsize(_tree) + padding); }
 
-  Node first_node()
+  Node first_node() const
   { return Node(_tree, 0); }
 
-  Node invalid_node()
+  Node invalid_node() const
   { return Node(_tree, -1); }
 
   /**
