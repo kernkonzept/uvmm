@@ -15,7 +15,7 @@ SRC_CC          = gic.cc main.cc ram_ds.cc generic_guest.cc guest.cc \
                   virt_bus.cc io_proxy.cc
 
 REQUIRES_LIBS   = libstdc++ libio-vbus libfdt
-PRIVATE_INCDIR  = $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
+PRIVATE_INCDIR  = $(SRC_DIR)/../include $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
 
 include $(L4DIR)/mk/prog.mk
 
