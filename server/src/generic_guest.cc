@@ -51,7 +51,7 @@ Generic_guest::create_cpu()
   return vcpu;
 }
 
-void
+L4virtio::Ptr<void>
 Generic_guest::load_device_tree_at(char const *name, L4virtio::Ptr<void> addr,
                                    l4_size_t padding)
 {
@@ -63,6 +63,10 @@ Generic_guest::load_device_tree_at(char const *name, L4virtio::Ptr<void> addr,
   dt.add_to_size(dt.size() / 4 + padding);
   Dbg().printf("Loaded device tree to %llx:%llx\n", _device_tree.get(),
                _device_tree.get() + dt.size());
+
+  // Round to the next page to load anything else to a new page.
+  return l4_round_size(L4virtio::Ptr<void>(addr.get() + dt.size()),
+                       L4_PAGESHIFT);
 }
 
 void
@@ -115,9 +119,7 @@ Generic_guest::load_ramdisk_at(char const *ram_disk, L4virtio::Ptr<void> addr,
     *size = tmp;
 
   // Round to the next page to load anything else to a new page.
-  // Also add a page of padding. At least the MIPS Linux assumes
-  // there is free space for data structures after the initrd.
-  auto res = l4_round_size(L4virtio::Ptr<void>(initrd.get() + tmp + L4_PAGESIZE),
+  auto res = l4_round_size(L4virtio::Ptr<void>(initrd.get() + tmp),
                            L4_PAGESHIFT);
   info.printf("Loaded ramdisk image %s to [%llx:%llx] (%08zx)\n", ram_disk,
               initrd.get(), res.get() - 1, tmp);

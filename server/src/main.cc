@@ -168,24 +168,24 @@ static int run(int argc, char *argv[])
   l4_addr_t entry;
   auto load_addr = vmm->load_linux_kernel(kernel_image, &entry);
 
-  l4_size_t rd_size = 0;
-  L4virtio::Ptr<void> rd_addr(0);
-
-  if (ram_disk)
-    {
-      rd_addr = load_addr;
-      load_addr = vmm->load_ramdisk_at(ram_disk, rd_addr, &rd_size);
-    }
-
   if (device_tree)
     {
-      vmm->load_device_tree_at(device_tree, load_addr, dtb_padding);
+      load_addr = vmm->load_device_tree_at(device_tree, load_addr, dtb_padding);
       vmm->update_device_tree(cmd_line);
-      vmm->set_ramdisk_params(rd_addr, rd_size);
 
       auto dt = vmm->device_tree();
       scan_device_tree(vmm, vbus.get());
       devices.init_devices(dt);
+    }
+
+  if (ram_disk)
+    {
+      l4_size_t rd_size = 0;
+      L4virtio::Ptr<void> rd_addr(load_addr);
+
+      vmm->load_ramdisk_at(ram_disk, rd_addr, &rd_size);
+      if (device_tree)
+        vmm->set_ramdisk_params(rd_addr, rd_size);
     }
 
   vmm->prepare_linux_run(vcpu, entry, kernel_image, cmd_line);

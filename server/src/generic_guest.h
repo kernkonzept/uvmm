@@ -80,8 +80,9 @@ public:
       }
   }
 
-  void load_device_tree_at(char const *src, L4virtio::Ptr<void> addr,
-                           l4_size_t padding);
+  L4virtio::Ptr<void> load_device_tree_at(char const *src,
+                                          L4virtio::Ptr<void> addr,
+                                          l4_size_t padding);
   // architecture specific device tree manipulation hook
   void update_device_tree(char const *cmd_line);
   void set_ramdisk_params(L4virtio::Ptr<void> addr, l4_size_t size);
