@@ -65,12 +65,16 @@ public:
     if (val >= 0)
       return val;
 
-    // Spec says, that the address/size cells attribute should be
-    // attached to the parent node, but Linux also checks the root
-    // node and returns a default value if it doesn find a valid
-    // attribute. We do the same here.
     if (val == -FDT_ERR_NOTFOUND)
       {
+        // The spec states, that the address/size cells attribute
+        // should be attached to each node that has children. If it is
+        // missing the caller should assume 2 for #addr-cells and 1
+        // for #size-cells (passed as parameter by the caller).
+        //
+        // It looks like some device trees assume the cells attributes
+        // of the root node as default, so we check the root node
+        // here, before returning the default value.
         auto root_node = Node(_tree, 0); // Tree::first_node()
         val = root_node.get_cells_attrib(name);
         if (val >= 0)
@@ -85,14 +89,10 @@ public:
   }
 
   size_t get_address_cells() const
-  {
-    return get_cells_attrib_default("#address-cells", Default_address_cells);
-  }
+  { return get_cells_attrib_default("#address-cells", Default_address_cells); }
 
   size_t get_size_cells() const
-  {
-    return get_cells_attrib_default("#size-cells", Default_size_cells);
-  }
+  { return get_cells_attrib_default("#size-cells", Default_size_cells); }
 
   void setprop_u32(char const *name, l4_uint32_t value) const
   {
@@ -256,6 +256,7 @@ public:
     prop += rsize * index;
     if (address)
       *address = get_prop_val(prop, addr_cells, check_range);
+
     prop += addr_cells;
     if (size)
       *size = get_prop_val(prop, size_cells, check_range);
@@ -266,11 +267,11 @@ public:
    *
    * \param[in] address  Address value to store in reg pair
    * \param[in] size     Size value to store in reg pair
+   * \param[in] append   true, if reg val is supposed to be appended
    *
    * This function throws an exception if "reg" property does not exist.
    */
-  void
-  set_reg_val(l4_uint64_t address, l4_uint64_t size, bool append = false) const
+  void set_reg_val(l4_uint64_t address, l4_uint64_t size, bool append = false) const
   {
     if (append)
       appendprop("reg", address, get_address_cells());
@@ -288,8 +289,7 @@ public:
    *
    * This function throws an exception if "reg" property does not exist.
    */
-  void
-  append_reg_val(l4_uint64_t address, l4_uint64_t size) const
+  void append_reg_val(l4_uint64_t address, l4_uint64_t size) const
   {
     set_reg_val(address, size, true);
   }
@@ -301,8 +301,7 @@ public:
    *
    * This function throws an exception if "reg" property does not exist.
    */
-  void
-  set_prop_address(char const *property, l4_addr_t address) const
+  void set_prop_address(char const *property, l4_addr_t address) const
   {
     switch (sizeof(address))
       {
