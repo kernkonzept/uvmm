@@ -21,8 +21,7 @@
 #include "irq.h"
 #include "vm_memmap.h"
 #include "ds_mmio_mapper.h"
-
-namespace Vdev { class Dt_node; }
+#include "device.h"
 
 namespace Vmm {
 

@@ -7,17 +7,16 @@
  */
 #pragma once
 
-#include <l4/re/error_helper>
-
-#include "debug.h"
+#include <l4/sys/l4int.h>
 
 extern "C" {
 #include <libfdt.h>
 }
 
-namespace Vdev {
+namespace Dtb {
 
-class Dt_node
+template<typename ERR>
+class Node
 {
   enum
   {
@@ -28,18 +27,18 @@ class Dt_node
   };
 
 public:
-  Dt_node(void *dt, int node) : _tree(dt), _node(node) {}
+  Node(void *dt, int node) : _tree(dt), _node(node) {}
 
   bool is_valid() const
   { return _node >= 0; }
 
-  Dt_node next_node() const
-  { return Dt_node(_tree, fdt_next_node(_tree, _node, nullptr)); }
+  Node next_node() const
+  { return Node(_tree, fdt_next_node(_tree, _node, nullptr)); }
 
-  Dt_node parent_node() const
-  { return Dt_node(_tree, fdt_parent_offset(_tree, _node)); }
+  Node parent_node() const
+  { return Node(_tree, fdt_parent_offset(_tree, _node)); }
 
-  char const *get_name(int *length)
+  char const *get_name(int *length = nullptr) const
   { return fdt_get_name(_tree, _node, length); }
 
   int get_cells_attrib(char const *name) const
@@ -72,7 +71,7 @@ public:
     // attribute. We do the same here.
     if (val == -FDT_ERR_NOTFOUND)
       {
-        auto root_node = Dt_node(_tree, 0); // Device_tree::first_node()
+        auto root_node = Node(_tree, 0); // Tree::first_node()
         val = root_node.get_cells_attrib(name);
         if (val >= 0)
           return val;
@@ -81,9 +80,8 @@ public:
           return default_cells;
       }
 
-    Err().printf("Unable to lookup #address-cells: %d\n", val);
-    L4Re::chksys(-L4_EIO);
-    return 0;
+    ERR(this, "Unable to lookup %s: %s", name, fdt_strerror(val));
+    return default_cells;
   }
 
   size_t get_address_cells() const
@@ -98,20 +96,18 @@ public:
 
   void setprop_u32(char const *name, l4_uint32_t value) const
   {
-    if (fdt_setprop_u32(_tree, _node, name, value) < 0)
-      {
-        Err().printf("cannot set property '%s' to '0x%x'\n", name, value);
-        L4Re::chksys(-L4_EIO);
-      }
+    int r = fdt_setprop_u32(_tree, _node, name, value);
+    if (r < 0)
+      ERR(this, "cannot set property '%s' to '0x%x': %s", name, value,
+          fdt_strerror(r));
   }
 
   void setprop_u64(char const *name, l4_uint64_t value) const
   {
-    if (fdt_setprop_u64(_tree, _node, name, value) < 0)
-      {
-        Err().printf("cannot set property '%s' to '0x%llx'\n", name, value);
-        L4Re::chksys(-L4_EIO);
-      }
+    int r = fdt_setprop_u64(_tree, _node, name, value);
+    if (r < 0)
+      ERR(this, "cannot set property '%s' to '0x%llx': %s", name, value,
+          fdt_strerror(r));
   }
 
   void setprop(char const *name, l4_uint64_t value, unsigned cells) const
@@ -120,7 +116,7 @@ public:
       {
       case 1:
         if (value >= (1ULL << 32))
-          L4Re::chksys(-L4_ERANGE, "Value too large for property\n");
+          ERR(this, "Value too large for property %s", name);
 
         setprop_u32(name, value);
         break;
@@ -130,36 +126,33 @@ public:
         break;
 
       default:
-        L4Re::chksys(-L4_EINVAL, "Unexpected property value cell size");
+        ERR(this, "Unexpected property value cell size: %u", cells);
         break;
     }
   }
 
   void setprop_string(char const *name, char const *value) const
   {
-    if (fdt_setprop_string(_tree, _node, name, value) < 0)
-      {
-        Err().printf("cannot set property '%s' to '%s'\n", name, value);
-        L4Re::chksys(-L4_EIO);
-      }
+    int r = fdt_setprop_string(_tree, _node, name, value);
+    if (r < 0)
+      ERR(this, "cannot set property '%s' to '%s'\n", name, value,
+          fdt_strerror(r));
   }
 
   void appendprop_u32(char const *name, l4_uint32_t value) const
   {
-    if (fdt_appendprop_u32(_tree, _node, name, value) < 0)
-      {
-        Err().printf("cannot append '0x%x' to property '%s'\n", value, name);
-        L4Re::chksys(-L4_EIO);
-      }
+    int r = fdt_appendprop_u32(_tree, _node, name, value);
+    if (r < 0)
+      ERR(this, "cannot append '0x%x' to property '%s': %s", value, name,
+          fdt_strerror(r));
   }
 
   void appendprop_u64(char const *name, l4_uint64_t value) const
   {
-    if (fdt_appendprop_u64(_tree, _node, name, value) < 0)
-      {
-        Err().printf("cannot append '0x%llx' to property '%s'\n", value, name);
-        L4Re::chksys(-L4_EIO);
-      }
+    int r = fdt_appendprop_u64(_tree, _node, name, value);
+    if (r < 0)
+      ERR(this, "cannot append '0x%llx' to property '%s': %s", value, name,
+          fdt_strerror(r));
   }
 
   void appendprop(char const *name, l4_uint64_t value, unsigned cells) const
@@ -168,7 +161,7 @@ public:
       {
       case 1:
         if (value >= (1ULL << 32))
-          L4Re::chksys(-L4_ERANGE, "Value too large for property\n");
+          ERR(this, "Value too large for property: %s", name);
 
         appendprop_u32(name, value);
         break;
@@ -178,7 +171,7 @@ public:
         break;
 
       default:
-        L4Re::chksys(-L4_EINVAL, "Unexpected property value cell size");
+        ERR(this, "Unexpected property value cell size %u", cells);
         break;
     }
   }
@@ -198,11 +191,9 @@ public:
 
   void get_path(char *buf, int buflen) const
   {
-    if (fdt_get_path(_tree, _node, buf, buflen) < 0)
-      {
-        Err().printf("cannot get path for node\n");
-        L4Re::chksys(-L4_EINVAL);
-      }
+    int r = fdt_get_path(_tree, _node, buf, buflen);
+    if (r < 0)
+      ERR(this, r, "cannot get path for node");
   }
 
   l4_uint32_t get_phandle() const
@@ -229,15 +220,12 @@ public:
         val = (l4_uint64_t(fdt32_to_cpu(*prop)) << 32)
               + fdt32_to_cpu(*(prop + 1));
         if (check_range && (sizeof(l4_addr_t) == 4) && (val >= (1ULL << 32)))
-            {
-              Err().printf("Specified value too large for 32bit systems.\n");
-              L4Re::chksys(-L4_ERANGE);
-            }
+          ERR(this, "property value too large for 32bit systems");
+
         break;
 
       default:
-        Err().printf("Invalid value for address/size cell: %d\n", size);
-        L4Re::chksys(-L4_ERANGE);
+        ERR(this, "Invalid value for address/size cell: %d", size);
         val = 0;
         break;
       }
@@ -347,28 +335,16 @@ public:
     int len;
     void const *prop = fdt_getprop(_tree, _node, name, &len);
     if (!prop)
-      {
-        char buf[256];
-        if (fdt_get_path(_tree, _node, buf, sizeof(buf)) < 0)
-          buf[0] = 0;
-        Err().printf("could not get '%s' property of %s: %d\n", name, buf, len);
-        L4Re::chksys(-L4_EINVAL);
-      }
+      ERR(this, "could not get '%s' property of %s: %d\n", name);
 
     if (len < (int) sizeof(T) * size)
-      {
-        char buf[256];
-        if (fdt_get_path(_tree, _node, buf, sizeof(buf)) < 0)
-          buf[0] = 0;
-        Err().printf("'%s' property of %s is too small (%d need %u)\n",
-                     name, buf, len, (unsigned) (sizeof(T) * size));
-        L4Re::chksys(-L4_ERANGE);
-      }
+      ERR(this, "property %s is too small (%d need %u)\n",
+          name, (unsigned) (sizeof(T) * size));
 
     return reinterpret_cast<T const *>(prop);
   }
 
-  Dt_node find_irq_parent() const
+  Node find_irq_parent() const
   {
     int node = _node;
 
@@ -384,10 +360,10 @@ public:
           node = fdt_parent_offset(_tree, node);
 
         if (node >= 0 && fdt_getprop(_tree, node, "#interrupt-cells", nullptr))
-          return Dt_node(_tree, node);
+          return Node(_tree, node);
       }
 
-    return Dt_node(_tree, -L4_ENODEV);
+    return Node(_tree, -1);
   }
 
 private:
@@ -395,15 +371,17 @@ private:
   int _node;
 };
 
-class Device_tree
+template<typename ERR>
+class Tree
 {
 public:
-  explicit Device_tree(void *dt) : _tree(dt) {}
+  typedef Dtb::Node<ERR> Node;
+  explicit Tree(void *dt) : _tree(dt) {}
 
   void check_tree()
   {
     if (fdt_check_header(_tree) < 0)
-      throw L4::Runtime_error(-L4_EINVAL, "Not a device tree");
+      ERR("Not a device tree");
   }
 
   unsigned size() const
@@ -412,27 +390,24 @@ public:
   void add_to_size(l4_size_t padding) const
   { fdt_set_totalsize(_tree, fdt_totalsize(_tree) + padding); }
 
-  Dt_node first_node()
-  { return Dt_node(_tree, 0); }
+  Node first_node()
+  { return Node(_tree, 0); }
 
-  Dt_node invalid_node()
-  { return Dt_node(_tree, -1); }
+  Node invalid_node()
+  { return Node(_tree, -1); }
 
   /**
    * Return the node at the given path.
    *
    * \throws No node could be found for the path.
    */
-  Dt_node path_offset(char const *path) const
+  Node path_offset(char const *path) const
   {
     int ret = fdt_path_offset(_tree, path);
     if (ret < 0)
-      {
-        Err().printf("cannot find node '%s'\n", path);
-        L4Re::chksys(-L4_ENOENT);
-      }
+      ERR("cannot find node '%s'\n", path);
 
-    return Dt_node(_tree, ret);
+    return Node(_tree, ret);
   }
 
   /**
@@ -441,10 +416,10 @@ public:
    * \return The node for the handle or an invalid node
    *         if phandle was not found.
    */
-  Dt_node phandle_offset(l4_uint32_t phandle) const
+  Node phandle_offset(l4_uint32_t phandle) const
   {
     int node = fdt_node_offset_by_phandle(_tree, phandle);
-    return Dt_node(_tree, node);
+    return Node(_tree, node);
   }
 
 private:
