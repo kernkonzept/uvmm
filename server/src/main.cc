@@ -60,7 +60,7 @@ static void scan_device_tree(Vmm::Guest *vmm, Vmm::Virt_bus *vbus)
        node = node.next_node())
     {
       // ignore nodes without compatible property or that are disabled
-      if (node.is_compatible("") < 0 || !node.is_enabled())
+      if (!node.has_prop("compatible") || !node.is_enabled())
         continue;
 
       int pathlen;

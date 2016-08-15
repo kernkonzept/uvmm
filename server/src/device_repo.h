@@ -59,7 +59,7 @@ public:
       {
         Dbg().printf("Init device '%s'.\n", d.path.c_str());
 
-        auto node = dt.invalid_node();
+        auto node = Dt_node();
         if (d.phandle != 0 && d.phandle != -1U)
           node = dt.phandle_offset(d.phandle);
 
@@ -75,4 +75,3 @@ private:
 };
 
 } // namespace
-

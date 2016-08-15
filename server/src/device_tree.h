@@ -27,16 +27,34 @@ class Node
   };
 
 public:
+  Node() : _node(-1) {}
   Node(void *dt, int node) : _tree(dt), _node(node) {}
 
   bool is_valid() const
   { return _node >= 0; }
 
-  Node next_node() const
-  { return Node(_tree, fdt_next_node(_tree, _node, nullptr)); }
+  /**
+   * Get the next node of this tree
+   *
+   * \param depth  Pointer to the depth of the current node; If not
+   *               null, depth will be updated to reflect the depth of
+   *               the returned node (unchanged for a sibling, depth +
+   *               1 for a child, depth - 1 for a sibling of the
+   *               parent).
+   *
+   * \return Next node of the tree or an error
+   */
+  Node next_node(int *depth = nullptr) const
+  { return Node(_tree, fdt_next_node(_tree, _node, depth)); }
 
   Node parent_node() const
   { return Node(_tree, fdt_parent_offset(_tree, _node)); }
+
+  bool is_root_node() const
+  { return _node == 0; };
+
+  bool has_children() const
+  { return fdt_first_subnode(_tree, _node) >= 0; }
 
   char const *get_name(int *length = nullptr) const
   { return fdt_get_name(_tree, _node, length); }
@@ -186,8 +204,14 @@ public:
     return lenp > 2 && (!strncmp(p, "okay", lenp) || !strcmp(p, "ok"));
   }
 
-  int is_compatible(const char *compatible) const
-  { return fdt_node_check_compatible(_tree, _node, compatible); }
+  bool has_prop(char const *name) const
+  { return fdt_getprop(_tree, _node, name, nullptr) != nullptr; }
+
+  bool has_compatible() const
+  { return has_prop("compatible"); }
+
+  bool is_compatible(char const *compatible) const
+  { return fdt_node_check_compatible(_tree, _node, compatible) == 0; }
 
   void get_path(char *buf, int buflen) const
   {
@@ -322,7 +346,7 @@ public:
   {
     void const *p = fdt_getprop(_tree, _node, name, size);
 
-    if (size)
+    if (p && size)
       *size /= sizeof(T);
 
     return reinterpret_cast<T const *>(p);
@@ -391,9 +415,6 @@ public:
 
   Node first_node() const
   { return Node(_tree, 0); }
-
-  Node invalid_node() const
-  { return Node(_tree, -1); }
 
   /**
    * Return the node at the given path.
