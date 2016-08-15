@@ -161,7 +161,13 @@ Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> &&dev,
 {
   l4_uint64_t base, size;
   node.get_reg_val(index, &base, &size);
-  _memmap[Region::ss(base, size)] = dev;
+
+  auto region = Region::ss(base, size);
+
+  if (_memmap.count(region) > 0)
+    L4Re::chksys(-L4_ENOMEM, "overlapping MMIO regions");
+
+  _memmap[region] = dev;
   Dbg().printf("New mmio mapping: @ %llx %llx\n", base, size);
 }
 } // namespace
