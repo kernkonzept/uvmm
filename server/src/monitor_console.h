@@ -53,10 +53,12 @@ public:
 
     do
       {
+        bool print_prompt = false;
         char cmd;
         r = _con->read(&cmd, 1);
-        if (r == 1)
+        if (r >= 1)
           {
+            print_prompt = true;
             switch (cmd)
               {
               case 'r':
@@ -67,9 +69,11 @@ public:
                 fputc('\n', _f);
                 _guest->show_state_interrupts(_f);
                 break;
-              case '\n':
               case '\r':
               case '\b':
+                print_prompt = false;
+                break;
+              case '\n':
                 break;
               default:
                 fprintf(_f, "\nMonitor: Unknown cmd\n");
@@ -77,7 +81,8 @@ public:
               };
           }
 
-        prompt();
+        if (print_prompt)
+          prompt();
       }
     while (r > 0);
     return 0;
