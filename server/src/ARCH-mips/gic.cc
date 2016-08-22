@@ -116,6 +116,7 @@ Dist::write_cpu(unsigned reg, l4_uint32_t value, unsigned cpu_id)
              cpu_id, value, reg);
 }
 
+/** disable interrupts */
 void
 Dist::reset_mask(unsigned reg, l4_uint32_t mask)
 {
@@ -136,6 +137,7 @@ Dist::reset_mask(unsigned reg, l4_uint32_t mask)
     }
 }
 
+/** enable interrupts */
 void
 Dist::set_mask(unsigned reg, l4_uint32_t mask)
 {
