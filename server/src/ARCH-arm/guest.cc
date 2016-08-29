@@ -118,6 +118,7 @@ struct F : Factory
 static F f;
 static Vdev::Device_type t1 = { "arm,cortex-a9-gic", nullptr, &f };
 static Vdev::Device_type t2 = { "arm,cortex-a15-gic", nullptr, &f };
+static Vdev::Device_type t3 = { "arm,cortex-a7-gic", nullptr, &f };
 
 struct F_timer : Factory
 {
