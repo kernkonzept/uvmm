@@ -10,6 +10,7 @@
 
 #include <l4/re/dataspace>
 #include <l4/util/util.h>
+#include <cstdio>
 
 #include "mmio_device.h"
 #include "vcpu.h"
@@ -18,6 +19,19 @@ class Ds_handler : public Vmm::Mmio_device
 {
   L4::Cap<L4Re::Dataspace> _ds;
   l4_addr_t _offset;
+
+  bool mergable(cxx::Ref_ptr<Mmio_device> other,
+                l4_addr_t start_other, l4_addr_t start_this) override
+  {
+    // same device type and same underlying dataspace?
+    auto dsh = dynamic_cast<Ds_handler *>(other.get());
+    if (!dsh || (_ds != dsh->_ds))
+      return false;
+
+    // reference the same part of the data space?
+    return (_offset + (start_other - start_this)) == dsh->_offset;
+  }
+
   bool access(l4_addr_t pfa, l4_addr_t offset, Vmm::Cpu vcpu,
               L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max)
   {
@@ -49,6 +63,18 @@ class Ds_handler : public Vmm::Mmio_device
         l4_sleep_forever();
       }
     return true;
+  }
+
+  char const *dev_info(char *buf, size_t size) override
+  {
+#ifndef MAP_OTHER
+    snprintf(buf, size, "mmio ds: [%lx - ?] -> [%lx:%lx - ?]",
+             _local_start, _ds.cap(), _offset);
+#else
+    snprintf(buf, size, "mmio ds: [? - ?] -> [%lx:%lx - ?]",
+             _ds.cap(), _offset);
+#endif
+    return buf;
   }
 
 #ifndef MAP_OTHER

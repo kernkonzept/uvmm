@@ -213,6 +213,10 @@ protected:
   enum { Nr_cpus = 1 };
   Cpu *_vcpu[Nr_cpus];
   L4::Cap<L4Re::Dataspace> _mmio_fallback;
+
+private:
+  void add_mmio_device(Region const &region,
+                       cxx::Ref_ptr<Vmm::Mmio_device> &&dev);
 };
 
 } // namespace
