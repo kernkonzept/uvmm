@@ -149,10 +149,7 @@ Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
   /*
    * Setup arguments for Mips boot protocol
    */
-  l4_addr_t end = has_device_tree()
-                  ? (_device_tree.get() + device_tree().size())
-                  : 1;
-  L4virtio::Ptr<l4_addr_t> prom_tab(l4_round_size(end, L4_PAGESHIFT));
+  L4virtio::Ptr<l4_addr_t> prom_tab(L4_PAGESIZE);
 
   size_t size = 2 * sizeof(l4_addr_t);
   L4virtio::Ptr<char> prom_buf(prom_tab.get() + size);
