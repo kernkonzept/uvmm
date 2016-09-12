@@ -902,18 +902,19 @@ public:
       }
   }
 
-  void irq_mmio_write(Irq_array::Irq const &irq, unsigned /*irq_id*/,
+  void irq_mmio_write(Irq_array::Irq const &irq, unsigned irq_id,
                       unsigned rgroup, l4_uint32_t value)
   {
+    (void)irq_id;
     switch (rgroup)
       {
       case R_group:    irq.group(value);               return;
-      case R_isenable: irq.enable(true);               return;
-      case R_icenable: irq.enable(false);              return;
-      case R_ispend:   irq.pending(true);              return;
-      case R_icpend:   irq.pending(false);             return;
-      case R_isactive: irq.active(true);               return;
-      case R_icactive: irq.active(false);              return;
+      case R_isenable: if (value) irq.enable(true);    return;
+      case R_icenable: if (value) irq.enable(false);   return;
+      case R_ispend:   if (value) irq.pending(true);   return;
+      case R_icpend:   if (value) irq.pending(false);  return;
+      case R_isactive: if (value) irq.active(true);    return;
+      case R_icactive: if (value) irq.active(false);   return;
       case R_prio:     irq.prio((value >> 3) & 0x1f);  return;
       case R_target:   irq.target(value);              return;
       case R_cfg:      irq.config(value);              return;
