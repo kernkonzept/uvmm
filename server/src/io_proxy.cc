@@ -58,7 +58,7 @@ struct F : Factory
     // so look for resources that require one of the two
     if (!node.get_prop<fdt32_t>("reg", nullptr)
         && !node.get_prop<fdt32_t>("interrupts", nullptr))
-    return nullptr;
+      return nullptr;
 
     auto *vd = vbus->find_unassigned_dev(node);
     if (!vd)
