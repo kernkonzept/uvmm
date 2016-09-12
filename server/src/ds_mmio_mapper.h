@@ -101,6 +101,14 @@ public:
                                                   | L4Re::Rm::Eager_map,
                                                   L4::Ipc::make_cap_rw(ds),
                                                   offset, L4_SUPERPAGESHIFT));
+    l4_addr_t page_offs = offset & ~L4_PAGEMASK;
+    if (page_offs)
+      {
+        auto tmp = l4_trunc_page(_local_start) + page_offs;
+        Dbg().printf("Region not page aligned, adjusting local_start: "
+                     "%lx -> %lx\n",  _local_start, tmp);
+        _local_start = tmp;
+      }
 #endif
   }
 };
