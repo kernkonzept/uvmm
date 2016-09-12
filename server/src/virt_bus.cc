@@ -36,7 +36,27 @@ Virt_bus::find_unassigned_dev(Vdev::Dt_node const &node)
 
       for (auto &iodev: _devices)
         if (!iodev.proxy && iodev.io_dev.is_compatible(hid) > 0)
-          return &iodev;
+          {
+            auto *regs = node.get_prop<fdt32_t>("reg", nullptr);
+            if (!regs)
+              return &iodev;
+
+            for (unsigned i = 0; i < iodev.dev_info.num_resources; ++i)
+              {
+                l4vbus_resource_t res;
+                L4Re::chksys(iodev.io_dev.get_resource(i, &res));
+
+                char const *resname = reinterpret_cast<char const *>(&res.id);
+
+                if (res.type != L4VBUS_RESOURCE_MEM || strncmp(resname, "reg0", 4))
+                  continue;
+
+                l4_uint64_t base, size;
+                node.get_reg_val(0, &base, &size);
+                if (base == res.start)
+                  return &iodev;
+              }
+          }
     }
 
   return 0;
