@@ -950,9 +950,9 @@ public:
     else
       {
         if (0)
-           printf("PI: id=%d %s%s %x %d %d\n",
+           printf("PI: id=%d %s%s target=%x cpu=%d prio=%d\n",
                   id, irq.pending() ? "pending " : "",
-                  irq.enabled() ? "enabled " : "",
+                  irq.enabled() ? "enabled" : "disabled",
                   (unsigned)irq.target(), (int)irq.cpu(), (int)irq.prio());
       }
   }
