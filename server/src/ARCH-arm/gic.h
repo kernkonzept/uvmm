@@ -605,7 +605,7 @@ Cpu::irq(unsigned irqn)
   if (irqn < Num_local)
     return _local_irq[irqn];
   else
-    return (*_spis)[irqn- Num_local];
+    return (*_spis)[irqn - Num_local];
 }
 
 inline Irq_array::Const_irq
