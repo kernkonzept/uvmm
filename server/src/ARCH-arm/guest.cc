@@ -191,6 +191,9 @@ Guest::run(Cpu vcpu)
   _gic->set_cpu(0, &vm->gic);
   vmm_current_cpu_id = 0;
 
+  Dbg(Dbg::Info).printf("Starting vmm @ 0x%lx (handler @ %p)\n",
+                        vcpu->r.ip, &vcpu_entry);
+
   L4::Cap<L4::Thread> myself;
   myself->vcpu_resume_commit(myself->vcpu_resume_start());
 }
