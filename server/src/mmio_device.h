@@ -7,6 +7,7 @@
  * Please see the COPYING-GPL-2 file for details.
  */
 #pragma once
+#include <typeinfo>
 
 #include <l4/cxx/ref_ptr>
 #include <l4/sys/task>
@@ -22,13 +23,23 @@ struct Mmio_device : public virtual Vdev::Dev_ref
 {
   virtual ~Mmio_device() = 0;
 
-  virtual bool mergable(cxx::Ref_ptr<Mmio_device> /* other */,
-                        l4_addr_t /* start_other */, l4_addr_t /* start_this */)
-  { return false; };
+  bool mergable(cxx::Ref_ptr<Mmio_device> other,
+                l4_addr_t start_other, l4_addr_t start_this)
+  {
+    if (typeid (*this) != typeid (*other.get()))
+      return false;
+    return _mergable(other, start_other, start_this);
+  };
   virtual bool access(l4_addr_t pfa, l4_addr_t offset, Cpu vcpu,
                       L4::Cap<L4::Task> vm_task, l4_addr_t s, l4_addr_t e) = 0;
   virtual char const *dev_info(char *buf, size_t size)
   { return strncpy(buf, typeid(*this).name(), size); };
+
+private:
+  virtual bool _mergable(cxx::Ref_ptr<Mmio_device> /* other */,
+                         l4_addr_t /* start_other */,
+                         l4_addr_t /* start_this */)
+  { return false; }
 };
 
 inline Mmio_device::~Mmio_device() = default;

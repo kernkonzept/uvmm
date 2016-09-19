@@ -20,8 +20,8 @@ class Ds_handler : public Vmm::Mmio_device
   L4::Cap<L4Re::Dataspace> _ds;
   l4_addr_t _offset;
 
-  bool mergable(cxx::Ref_ptr<Mmio_device> other,
-                l4_addr_t start_other, l4_addr_t start_this) override
+  bool _mergable(cxx::Ref_ptr<Mmio_device> other,
+                 l4_addr_t start_other, l4_addr_t start_this) override
   {
     // same device type and same underlying dataspace?
     auto dsh = dynamic_cast<Ds_handler *>(other.get());
