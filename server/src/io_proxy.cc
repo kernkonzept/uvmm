@@ -72,15 +72,28 @@ Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self,
   if (!self.get_prop<fdt32_t>("interrupts", nullptr))
     return;
 
+  cxx::Ref_ptr<Device> dev;
+
   auto irq_ctl = self.find_irq_parent();
-  if (!irq_ctl.is_valid())
-    L4Re::chksys(-L4_ENODEV, "No interupt handler found for virtio proxy.\n");
+  if (irq_ctl.is_valid())
+    dev = devs->device_from_node(irq_ctl);
+
+  if (!dev)
+    {
+      Err().printf("virtio proxy - '%s': irq parent %s not found\n",
+                   self.get_name(), irq_ctl.is_valid() ? "device" : "node");
+      throw L4::Runtime_error(-L4_ENODEV);
+    }
 
   // XXX need dynamic cast for Ref_ptr here
-  auto *ic = dynamic_cast<Gic::Ic *>(devs->device_from_node(irq_ctl).get());
+  auto *ic = dynamic_cast<Gic::Ic *>(dev.get());
 
   if (!ic)
-    L4Re::chksys(-L4_ENODEV, "No interupt handler found for IO passthrough.\n");
+    {
+      Dbg().printf("%s: Irqs are handled by %s, ignoring irq assignments\n",
+                   self.get_name(), irq_ctl.get_name());
+      return;
+    }
 
   auto const *devinfo = vbus->find_device(this);
   assert (devinfo);
