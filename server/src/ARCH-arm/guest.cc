@@ -50,7 +50,7 @@ namespace Vmm {
 
 Guest::Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
 : Generic_guest(ram, vm_base),
-  _gic(Vdev::make_device<Gic::Dist>(4, 2)), // 4 * 32 spis, 2 cpus
+  _gic(Vdev::make_device<Gic::Dist>(8, 2)), // 8 * 32 spis, 2 cpus
   _timer(Vdev::make_device<Vdev::Core_timer>())
 {
   if (_ram.vm_start() & ((1 << 27) - 1))
