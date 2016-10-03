@@ -215,10 +215,16 @@ Generic_guest::add_mmio_device(Region const &region,
 
 void
 Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> &&dev,
-                                    Vdev::Dt_node const &node, int index)
+                                    Vdev::Dt_node const &node, size_t index)
 {
-  l4_uint64_t base, size;
-  node.get_reg_val(index, &base, &size);
+  uint64_t base, size;
+  int res = node.get_reg_val(index, &base, &size);
+  if (res < 0)
+    {
+      Err().printf("Failed to read 'reg' from node %s: %s\n",
+                   node.get_name(), node.strerror(res));
+      throw L4::Runtime_error(-L4_EINVAL);
+    }
 
   auto region = Region::ss(base, size);
 

@@ -13,11 +13,14 @@ extern "C" {
 #include <libfdt.h>
 }
 
+#include "cell.h"
+
 namespace Dtb {
 
 template<typename ERR>
 class Node
 {
+public:
   enum
   {
     // Defaults according to include/linux/of.h, overridden with
@@ -25,6 +28,29 @@ class Node
     Default_address_cells = 1,
     Default_size_cells = 1,
   };
+  /** Additional error codes */
+  enum
+  {
+    ERR_BAD_INDEX = FDT_ERR_MAX + 1, /**< An index into a structured
+                                          property like "reg" or
+                                          "range" was out of range */
+    ERR_RANGE,                       /**< A cell value does not fit
+                                          into a 64bit value */
+    ERR_NOT_TRANSLATABLE             /**< A reg value could not be
+                                          translated and is a bus
+                                          local address */
+  };
+
+  static char const *strerror(int errval)
+  {
+    switch (errval)
+      {
+      case -ERR_BAD_INDEX:        return "Index out of range";
+      case -ERR_RANGE:            return "Value does not fit into 64bit value";
+      case -ERR_NOT_TRANSLATABLE: return "Reg entry is not translatable";
+      default:                    return fdt_strerror(errval);
+      }
+  }
 
 public:
   Node() : _node(-1) {}
@@ -259,31 +285,52 @@ public:
   /**
    * Get address/size pair from reg property
    *
-   * \param[in]  index        Index of pair
-   * \param[out] address      Store address in *address if address != 0
-   * \param[out] size         Store size in *size if size != 0
-   * \param[int] check_range  If true, check whether address/size fit into
-   *                          l4_addr_t
+   * \param[in]  index             Index of pair
+   * \param[out] address           Store address in *address if address != 0
+   * \param[out] size              Store size in *size if size != 0
+   * \param[int] check_range       If true, check whether address/size fit into
+   *                               l4_addr_t
+   * \retval -ERR_BAD_INDEX        node does not have a reg entry with the
+   *                               specified index
+   * \retval -ERR_RANGE            a reg value does not fit into a 64bit value
+   * \retval -ERR_NOT_TRANSLATABLE reg entry exists, but is not translatable
+   * \retval <0                    other fdt related errors
+   * \retval 0                     ok
    *
    * This function throws an exception if "reg" property does not exist
    * or the index is out of range
    */
-  void get_reg_val(int index, l4_uint64_t *address, l4_uint64_t *size,
-                   bool check_range = true) const
+  int get_reg_val(int index, l4_uint64_t *address, l4_uint64_t *size) const
   {
-    int addr_cells = get_address_cells();
-    int size_cells = get_size_cells();
+    size_t addr_cells = get_address_cells();
+    size_t size_cells = get_size_cells();
     int rsize = addr_cells + size_cells;
 
-    auto *prop = check_prop<fdt32_t>("reg", rsize * (index+1));
+    int prop_size;
+    auto *prop = get_prop<fdt32_t>("reg", &prop_size);
+    if (!prop && prop_size < 0)
+      return prop_size;
+
+    if (!prop)
+      return -FDT_ERR_INTERNAL;
+
+    if (prop_size < rsize * (index + 1))
+      return -ERR_BAD_INDEX;
 
     prop += rsize * index;
-    if (address)
-      *address = get_prop_val(prop, addr_cells, check_range);
 
-    prop += addr_cells;
+    Reg reg{Cell{prop, addr_cells}, Cell(prop + addr_cells, size_cells)};
+    bool res = translate_reg(&reg);
+
+    if (!reg.address.is_uint64() || !reg.size.is_uint64())
+      return -ERR_RANGE;
+
+    if (address)
+      *address = reg.address.get_uint64();
     if (size)
-      *size = get_prop_val(prop, size_cells, check_range);
+      *size = reg.size.get_uint64();
+
+    return res ? 0 : -ERR_NOT_TRANSLATABLE;
   }
 
   /**
@@ -341,6 +388,34 @@ public:
       }
   }
 
+  /**
+   * Translate a reg entry
+   *
+   * Reg entries are bus local information. To get an address valid on
+   * the "root bus" we have to traverse the tree and translate the reg
+   * entry using ranges properties. If we reach the root node, the
+   * translation was successfull and reg contains the translated
+   * address. If any of the intermediate nodes is unable to translate
+   * the reg, the translation fails and reg is not changed.
+   *
+   * \param[inout] reg Pointer to reg structures which shall be
+   *                   translated. If the translation was successful,
+   *                   *reg contains the translated values.
+   * \return True if the translation was successful.
+   */
+  bool translate_reg(Reg *reg) const
+  {
+    if (is_root_node())
+      return true;
+
+    Cell tmp{reg->address};
+    if (!translate_reg(&tmp, reg->size))
+      return false;
+
+    reg->address = tmp;
+    return true;
+  }
+
   template <typename T>
   T const *get_prop(char const *name, int *size) const
   {
@@ -390,6 +465,26 @@ public:
   }
 
 private:
+  /**
+   * Translate a (address, size) cell pair
+   *
+   * Reg entries are bus local information. To get an address valid on
+   * the "root bus" we have to traverse the tree and translate the reg
+   * entry using ranges properties. If we reach the root node, the
+   * translation was successfull and reg contains the translated
+   * address. If any of the intermediate nodes is unable to translate
+   * the reg, the translation fails and reg is not changed.
+   *
+   * \param[inout] address Pointer to address cell which shall be
+   *                       translated. If the translation was
+   *                       successful, *address contains the
+   *                       translated values.
+   * \param[in] size       Size cell describing the size of the region
+   * \return True if the translation was successful.
+   */
+
+  bool translate_reg(Cell *address, Cell const &size) const;
+
   void *_tree;
   int _node;
 };
@@ -445,5 +540,42 @@ public:
 private:
   void *_tree;
 };
+
+template<typename ERR>
+bool
+Node<ERR>::translate_reg(Cell *address, Cell const &size) const
+{
+  auto parent = parent_node();
+  if (parent.is_root_node())
+    return true;
+
+  int prop_size;
+  auto prop = parent.get_prop<fdt32_t>("ranges", &prop_size);
+  if (!prop)
+    return false; // no translation possible
+
+  if (!prop_size)
+    return true; // Ident mapping
+
+  auto child_addr = get_address_cells();
+  auto parent_addr = parent.get_address_cells();
+  auto child_size = get_size_cells();
+
+  unsigned range_size = child_addr + parent_addr + child_size;
+  if (prop_size % range_size != 0)
+    ERR("%s: Unexpected property size %d/%d/%d vs %d\n",
+        get_name(), child_addr, parent_addr, child_size,
+        prop_size);
+
+  for (auto end = prop + prop_size; prop < end; prop += range_size)
+    {
+      Range range{Cell(prop, child_addr),
+                  Cell(prop + child_addr, parent_addr),
+                  Cell(prop + child_addr + parent_addr, child_size)};
+      if (range.translate(address, size))
+        return parent.translate_reg(address, size);
+    }
+  return false;
+}
 
 }

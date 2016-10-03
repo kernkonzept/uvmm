@@ -209,7 +209,14 @@ struct F : Vdev::Factory
                                     Vdev::Dt_node const &node)
   {
     l4_uint64_t size;
-    node.get_reg_val(0, nullptr, &size);
+
+    int res = node.get_reg_val(0, nullptr, &size);
+    if (res < 0)
+      {
+        Err().printf("Failed to read 'reg' from node %s: %s\n",
+                     node.get_name(), node.strerror(res));
+        throw L4::Runtime_error(-L4_EINVAL);
+      }
 
     auto g = Vdev::make_device<Dist>(size);
     g->set_core_ic(vmm->core_ic().get());

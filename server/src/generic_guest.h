@@ -54,7 +54,7 @@ public:
   { _mmio_fallback = ds; }
 
   void register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> &&dev,
-                            Vdev::Dt_node const &node, int index = 0);
+                            Vdev::Dt_node const &node, size_t index = 0);
 
   L4virtio::Ptr<void> load_ramdisk_at(char const *ram_disk,
                                       L4virtio::Ptr<void> addr,

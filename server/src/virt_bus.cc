@@ -52,7 +52,9 @@ Virt_bus::find_unassigned_dev(Vdev::Dt_node const &node)
                   continue;
 
                 l4_uint64_t base, size;
-                node.get_reg_val(0, &base, &size);
+                if (node.get_reg_val(0, &base, &size) < 0)
+                  continue;
+
                 if (base == res.start)
                   return &iodev;
               }
