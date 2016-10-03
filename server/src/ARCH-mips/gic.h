@@ -66,8 +66,8 @@ class Dist
 public:
   Dist(l4_size_t size);
 
-  void init_device(Vdev::Device_lookup const *,
-                   Vdev::Dt_node const &) override
+  void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &,
+                   Vmm::Guest *, Vmm::Virt_bus *) override
   {}
 
   void set_core_ic(Mips_core_ic *core_ic)
@@ -108,12 +108,18 @@ public:
       _irq_array[irq]->ack();
   }
 
-  void bind_irq_source(unsigned irq, cxx::Ref_ptr<Irq_source> src) override
+  void bind_irq_source(unsigned irq, cxx::Ref_ptr<Irq_source> const &src) override
   {
     assert(irq < Num_irqs);
 
+    if (_sources[irq])
+      throw L4::Runtime_error(-L4_EEXIST);
+
     _sources[irq] = src;
   }
+
+  cxx::Ref_ptr<Irq_source> get_irq_source(unsigned irq) const override
+  { return _sources[irq]; }
 
   int dt_get_num_interrupts(Vdev::Dt_node const &node) override
   {

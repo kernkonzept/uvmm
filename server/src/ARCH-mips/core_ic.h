@@ -30,7 +30,8 @@ public:
   {}
 
   void init_device(Vdev::Device_lookup const *,
-                   Vdev::Dt_node const &) override
+                   Vdev::Dt_node const &,
+                   Vmm::Guest *, Vmm::Virt_bus *) override
   {}
 
   void set(unsigned irq) override
@@ -47,11 +48,14 @@ public:
       _irqvec &= ~(1UL << (irq - 2));
   }
 
-  void bind_irq_source(unsigned, cxx::Ref_ptr<Irq_source>) override
+  void bind_irq_source(unsigned, cxx::Ref_ptr<Irq_source> const &) override
   {
     L4Re::chksys(-L4_ENOSYS, "unmask not supported for Core IC. "
                              "Use GIC for devices that require EOI via IC.");
   }
+
+  cxx::Ref_ptr<Irq_source> get_irq_source(unsigned) const override
+  { return nullptr; }
 
   int dt_get_num_interrupts(Vdev::Dt_node const &node) override
   {

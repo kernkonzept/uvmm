@@ -29,7 +29,7 @@ class Irq_svr
   public L4::Irqep_t<Irq_svr>
 {
 public:
-  Irq_svr() {}
+  Irq_svr(unsigned io_irq) : _io_irq{io_irq} {}
 
   void set_sink(Gic::Ic *ic, unsigned irq)
   { _irq.rebind(ic, irq); }
@@ -37,14 +37,18 @@ public:
   void handle_irq()
   { _irq.inject(); }
 
-  void eoi()
+  void eoi() override
   {
     _irq.ack();
     obj_cap()->unmask();
   }
 
+  unsigned get_io_irq() const
+  { return _io_irq; }
+
 private:
   Vmm::Irq_sink _irq;
+  unsigned _io_irq;
 };
 
 class Io_proxy : public Device
@@ -54,21 +58,14 @@ public:
   : _dev(dev)
   {}
 
-  void add_irq_source(unsigned index, cxx::Ref_ptr<Irq_svr> svr)
-  {
-    assert(index < 10);
-
-    if (index >= _irqs.size())
-      _irqs.resize(index + 1);
-
-    _irqs[index] = svr;
-  }
-
-  void init_device(Device_lookup const *devs, Dt_node const &self) override;
+  void init_device(Device_lookup const *devs, Dt_node const &self,
+                   Vmm::Guest *vmm, Vmm::Virt_bus *vbus) override;
 
 private:
+  void bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
+                Dt_node const &self, unsigned dt_idx, unsigned io_irq);
+
   L4vbus::Device _dev;
-  std::vector<cxx::Ref_ptr<Irq_svr>> _irqs;
 };
 
 } // namespace

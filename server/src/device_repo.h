@@ -53,7 +53,7 @@ public:
   void add(char const *path, l4_uint32_t phandle, cxx::Ref_ptr<Device> dev)
   { _devices.push_back({path, phandle, dev}); }
 
-  void init_devices(Device_tree dt)
+  void init_devices(Device_tree dt, Vmm::Guest *vmm, Vmm::Virt_bus *vbus)
   {
     for (auto &d : _devices)
       {
@@ -66,7 +66,7 @@ public:
         if (!node.is_valid())
           node = dt.path_offset(d.path.c_str());
 
-        d.dev->init_device(this, node);
+        d.dev->init_device(this, node, vmm, vbus);
       }
   }
 

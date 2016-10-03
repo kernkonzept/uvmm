@@ -220,6 +220,7 @@ public:
     unsigned char target() const { return _p->target(); }
 
     void do_eoi() const { if (_c->eoi) _c->eoi->eoi(); }
+    cxx::Ref_ptr<Irq_source> get_source() const { return _c->eoi; }
 
     unsigned cpu() const { return _p->cpu(); }
     unsigned lr() const { return _c->lr; }
@@ -240,7 +241,7 @@ public:
   class Irq : public Const_irq
   {
   public:
-    void set_eoi(cxx::Ref_ptr<Irq_source> eoi) { _c->eoi = eoi; }
+    void set_eoi(cxx::Ref_ptr<Irq_source> const &eoi) { _c->eoi = eoi; }
     bool enable(bool ena) const
     {
       if (ena)
@@ -833,9 +834,15 @@ public:
     return _spis[spi];
   }
 
+  Irq_array::Const_irq spi(unsigned spi) const
+  {
+    assert (spi < tnlines * 32);
+    return _spis[spi];
+  }
+
   Irq_array::Irq ppi(unsigned ppi, unsigned cpu)
   {
-    assert (ppi < 32);
+    assert(ppi < Cpu::Num_local);
     return _cpu[cpu].irq(ppi);
   }
 
@@ -849,8 +856,15 @@ public:
 
   void clear(unsigned) override {}
 
-  void bind_irq_source(unsigned irq, cxx::Ref_ptr<Irq_source> src) override
-  { spi(irq - Cpu::Num_local).set_eoi(src); }
+  void bind_irq_source(unsigned irq, cxx::Ref_ptr<Irq_source> const &src) override
+  {
+    auto pin = spi(irq - Cpu::Num_local);
+    assert (!pin.get_source());
+    pin.set_eoi(src);
+  }
+
+  cxx::Ref_ptr<Irq_source> get_irq_source(unsigned irq) const override
+  { return spi(irq - Cpu::Num_local).get_source(); }
 
   int dt_get_num_interrupts(Vdev::Dt_node const &node)
   {
@@ -876,7 +890,8 @@ public:
   }
 
   void init_device(Vdev::Device_lookup const *,
-                   Vdev::Dt_node const &) override
+                   Vdev::Dt_node const &,
+                   Vmm::Guest *, Vmm::Virt_bus *) override
   {}
 
   Dist(unsigned tnlines, unsigned char cpus);

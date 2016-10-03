@@ -175,7 +175,7 @@ static int run(int argc, char *argv[])
 
       auto dt = vmm->device_tree();
       scan_device_tree(vmm, vbus.get());
-      devices.init_devices(dt);
+      devices.init_devices(dt, vmm, vbus.get());
     }
 
   if (ram_disk)

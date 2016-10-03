@@ -13,6 +13,11 @@
 #include "device_tree.h"
 #include "debug.h"
 
+namespace Vmm {
+  class Guest;
+  class Virt_bus;
+}
+
 namespace Vdev {
 
 struct Dt_error_hdl
@@ -81,7 +86,8 @@ struct Device_lookup;
 struct Device : public virtual Dev_ref
 {
   virtual ~Device() = 0;
-  virtual void init_device(Device_lookup const *devs, Dt_node const &node) = 0;
+  virtual void init_device(Device_lookup const *devs, Dt_node const &node,
+                           Vmm::Guest *vmm, Vmm::Virt_bus *vbus) = 0;
 };
 
 inline Device::~Device() = default;

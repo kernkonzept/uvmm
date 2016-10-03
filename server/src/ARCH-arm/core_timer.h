@@ -16,7 +16,8 @@ namespace Vdev {
 
 struct Core_timer : public Device, public Vmm::Irq_edge_sink
 {
-  void init_device(Device_lookup const *devs, Dt_node const &self) override
+  void init_device(Device_lookup const *devs, Dt_node const &self,
+                   Vmm::Guest *, Vmm::Virt_bus *) override
   {
     auto irq_ctl = self.find_irq_parent();
     if (!irq_ctl.is_valid())

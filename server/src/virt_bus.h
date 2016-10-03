@@ -69,6 +69,15 @@ public:
   { return _bus.is_valid(); }
 
   Devinfo *find_unassigned_dev(Vdev::Dt_node const &node);
+  Devinfo const *find_device(Vdev::Device const *proxy) const
+  {
+    for (auto const &i: _devices)
+      {
+        if (i.proxy == proxy)
+          return &i;
+      }
+    return nullptr;
+  }
 
   L4::Cap<L4Re::Dataspace> io_ds() const
   { return L4::cap_reinterpret_cast<L4Re::Dataspace>(_bus); }

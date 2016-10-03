@@ -17,7 +17,57 @@
 namespace Vdev {
 
 void
-Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self)
+Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
+                   Dt_node const &self, unsigned dt_idx, unsigned io_irq)
+{
+  auto dt_irq = ic->dt_get_interrupt(self, dt_idx);
+
+  Dbg().printf("IO device %p:'%s' - registering irq%d=0x%x -> 0x%x\n",
+               this, self.get_name(), dt_idx, io_irq, dt_irq);
+  if (!ic->get_irq_source(dt_irq))
+    {
+      auto irq_svr = Vdev::make_device<Vdev::Irq_svr>(io_irq);
+
+      L4Re::chkcap(vmm->registry()->register_irq_obj(irq_svr.get()));
+
+      // We have a 1:1 association, so if the irq is not bound yet we
+      // should be able to bind the icu irq
+      L4Re::chksys(vbus->icu()->bind(io_irq, irq_svr->obj_cap()));
+
+      // Point irq_svr to ic:dt_irq for upstream events (like
+      // interrupt delivery)
+      irq_svr->set_sink(ic, dt_irq);
+
+      // Point ic to irq_svr for downstream events (like eoi handling)
+      ic->bind_irq_source(dt_irq, irq_svr);
+
+      irq_svr->eoi();
+      return;
+    }
+
+  Dbg().printf("irq%d=0x%x -> 0x%x already registered\n",
+               dt_idx, io_irq, dt_irq);
+
+  // Ensure we have the correct binding of the currently registered
+  // source
+  auto irq_source = ic->get_irq_source(dt_irq);
+  auto other_svr = dynamic_cast<Irq_svr const *>(irq_source.get());
+  if (other_svr && (io_irq == other_svr->get_io_irq()))
+    return;
+
+  if (other_svr)
+    Err().printf("bind_irq: ic:0x%x -> 0x%x -- "
+                 "irq already bound to different io irq: 0x%x  \n",
+                 dt_irq, io_irq, other_svr->get_io_irq());
+  else
+    Err().printf("ic:0x%x is bound to a different irq type\n",
+                 dt_irq);
+  throw L4::Runtime_error(-L4_EEXIST);
+}
+
+void
+Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self,
+                      Vmm::Guest *vmm, Vmm::Virt_bus *vbus)
 {
   if (!self.get_prop<fdt32_t>("interrupts", nullptr))
     return;
@@ -32,16 +82,37 @@ Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self)
   if (!ic)
     L4Re::chksys(-L4_ENODEV, "No interupt handler found for IO passthrough.\n");
 
-  int numint = std::min(ic->dt_get_num_interrupts(self), (int) _irqs.size());
+  auto const *devinfo = vbus->find_device(this);
+  assert (devinfo);
 
-  for (int i = 0; i < numint; ++i)
+  int numint = ic->dt_get_num_interrupts(self);
+  for (unsigned i = 0; i < devinfo->dev_info.num_resources; ++i)
     {
-      if (_irqs[i])
+      l4vbus_resource_t res;
+
+      L4Re::chksys(_dev.get_resource(i, &res));
+
+      char const *resname = reinterpret_cast<char const *>(&res.id);
+      int id = resname[3] - '0';
+
+      // Interrupts: id must be 'irqX' where X is the index into
+      //             the device trees interrupts resource description
+      if (res.type == L4VBUS_RESOURCE_IRQ &&
+          !strncmp(resname, "irq", 3))
         {
-          auto irq = ic->dt_get_interrupt(self, i);
-          _irqs[i]->set_sink(ic, irq);
-          ic->bind_irq_source(irq, _irqs[i]);
-          _irqs[i]->eoi();
+          if (id < 0 || id > 9)
+            {
+              Err().printf("IO device '%.64s' has invalid irq resource id. "
+                           "Expected 'irq[0-9]', got '%.4s'\n",
+                           devinfo->dev_info.name, resname);
+              L4Re::chksys(-L4_EINVAL);
+            }
+
+          auto irq = res.start;
+          if (id < numint)
+            bind_irq(vmm, vbus, ic, self, id, irq);
+          else
+            Err().printf("Error: IO IRQ resource id (%d) is out of bounds\n", id);
         }
     }
 }
@@ -96,25 +167,6 @@ struct F : Factory
                                                          res.start);
 
             vmm->register_mmio_device(handler, node, id);
-          }
-
-        // Interrupts: id must be 'irqX' where X is the index into
-        //             the device trees interrupts resource description
-        if (res.type == L4VBUS_RESOURCE_IRQ &&
-            !strncmp(resname, "irq", 3) && id >= 0 && id <= 9)
-          {
-            if (id < 0 || id > 9)
-              {
-                Err().printf("IO device '%.64s' has invalid irq resource id. "
-                             "Expected 'irq[0-9]', got '%.4s'\n",
-                             vd->dev_info.name, resname);
-                L4Re::chksys(-L4_EINVAL);
-              }
-
-            auto svr = Vdev::make_device<Vdev::Irq_svr>();
-            L4Re::chkcap(vmm->registry()->register_irq_obj(svr.get()));
-            L4Re::chksys(vbus->icu()->bind(res.start, svr->obj_cap()));
-            proxy->add_irq_source(id, svr);
           }
       }
 

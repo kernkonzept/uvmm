@@ -43,11 +43,23 @@ struct Ic : public Vdev::Device
   /**
    * Register a device source for forwarding downstream events.
    *
-   * \param irq  Irq source to connect the listener to.
-   * \param src  Device source. Replaces any currently attached
-   *             listener. An empty pointer detaches the current source.
+   * Only one device source can be registered, throws a runtime
+   * exception if the irq source is already bound
+   *
+   * \param irq Irq number to connect the listener to.
+   * \param src Device source. If the irq is already bound it needs to
+   *            be the same device source as the already registered one.
    */
-  virtual void bind_irq_source(unsigned irq, cxx::Ref_ptr<Irq_source> src) = 0;
+  virtual void bind_irq_source(unsigned irq,
+                               cxx::Ref_ptr<Irq_source> const &src) = 0;
+
+  /**
+   * Get the irq source currently bound to irq
+   *
+   * \param irq Irq number
+   * \return Irq source currently bound to irq
+   */
+  virtual cxx::Ref_ptr<Irq_source> get_irq_source(unsigned irq) const = 0;
 
   /**
    * Determines the number of interrupts required for a device node
@@ -159,4 +171,3 @@ private:
 
 
 } // namespace
-

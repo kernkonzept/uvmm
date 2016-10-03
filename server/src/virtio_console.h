@@ -64,7 +64,8 @@ public:
   }
 
   void init_device(Vdev::Device_lookup const *devs,
-                   Vdev::Dt_node const &self) override
+                   Vdev::Dt_node const &self,
+                   Vmm::Guest *, Vmm::Virt_bus *) override
   {
     auto irq_ctl = self.find_irq_parent();
     if (!irq_ctl.is_valid())
