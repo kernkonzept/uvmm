@@ -50,8 +50,14 @@ public:
     return cxx::Ref_ptr<Device>();
   }
 
-  void add(char const *path, l4_uint32_t phandle, cxx::Ref_ptr<Device> dev)
-  { _devices.push_back({path, phandle, dev}); }
+  void add(Dt_node const &node, cxx::Ref_ptr<Device> dev)
+  {
+    char buf[1024];
+    l4_uint32_t phandle = node.get_phandle();
+    node.get_path(buf, sizeof(buf));
+
+    _devices.push_back({buf, phandle, dev});
+  }
 
   void init_devices(Device_tree dt, Vmm::Guest *vmm, Vmm::Virt_bus *vbus)
   {

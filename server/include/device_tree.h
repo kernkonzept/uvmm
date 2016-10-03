@@ -8,6 +8,7 @@
 #pragma once
 
 #include <l4/sys/l4int.h>
+#include <utility>
 
 extern "C" {
 #include <libfdt.h>
@@ -68,10 +69,29 @@ public:
    *               1 for a child, depth - 1 for a sibling of the
    *               parent).
    *
-   * \return Next node of the tree or an error
+   * \return Next node of the tree or an invalid node (node
+   *         offset equals the libfdt error)
    */
   Node next_node(int *depth = nullptr) const
   { return Node(_tree, fdt_next_node(_tree, _node, depth)); }
+
+  /**
+   * Get the first child node
+   *
+   * \return node The first child node or an invalid node (node offset
+   *              equals the libfdt error)
+   */
+  Node first_child_node() const
+  { return Node(_tree, fdt_first_subnode(_tree, _node)); }
+
+  /**
+   * Get the next sibling
+   *
+   * \return node The next sibling or an invalid node (node offset
+   *              equals the libfdt error)
+   */
+  Node sibling_node() const
+  { return Node(_tree, fdt_next_subnode(_tree, _node)); }
 
   Node parent_node() const
   { return Node(_tree, fdt_parent_offset(_tree, _node)); }
@@ -498,6 +518,11 @@ public:
     return Node(_tree, -1);
   }
 
+  template <typename PRE, typename POST>
+  void scan_recursive(int depth,
+                      PRE &&pre_order_cb, POST &&post_order_cb,
+                      bool skip_disabled = true) const;
+
 private:
   /**
    * Translate a (address, size) cell pair
@@ -516,7 +541,6 @@ private:
    * \param[in] size       Size cell describing the size of the region
    * \return True if the translation was successful.
    */
-
   bool translate_reg(Cell *address, Cell const &size) const;
 
   void *_tree;
@@ -570,6 +594,10 @@ public:
     int node = fdt_node_offset_by_phandle(_tree, phandle);
     return Node(_tree, node);
   }
+
+  template <typename PRE, typename POST>
+  void scan(PRE &&pre_order_cb, POST &&post_order_cb,
+            bool skip_disabled = true) const;
 
 private:
   void *_tree;
@@ -637,6 +665,69 @@ Node<ERR>::has_mmio_regs() const
         return true;
     }
   return false;
+}
+
+/**
+ * Traverse a subtree and invoke callbacks on all nodes
+ *
+ * This function traverses the sub-tree starting at node
+ * and invokes a pre-order and a post-order callback on
+ * each node. It considers the "enabled" state (ignores
+ * disabled nodes by default) and does not visit children
+ * of a node if the pre-order callback returns false.
+ *
+ * \param node           Device tree node the traversal shall start on
+ * \param pre_order_cb   A callback function invoked before traversing
+ *                       subtrees. The callback gets two arguments: the
+ *                       current node and the current depth in the tree
+ *                       (cb(Dtb::Node<ERR> const, int)). It should
+ *                       return true, if the traversal shall visit child
+ *                       nodes.
+ * \param post_order_cb  A callback function invoked after traversing
+ *                       the subtree. It gets the same arguments as the
+ *                       pre_order_cb, return values are ignored.
+ */
+template <typename ERR>
+template <typename PRE, typename POST>
+void
+Node<ERR>::scan_recursive(int depth,
+                          PRE &&pre_order_cb, POST &&post_order_cb,
+                          bool skip_disabled) const
+{
+  assert(is_valid());
+
+  if (skip_disabled && !is_enabled())
+    return;
+
+  if (!pre_order_cb(*this, depth))
+    return;
+
+  // scan child nodes
+  for (auto child_node = first_child_node();
+       child_node.is_valid();
+       child_node = child_node.sibling_node())
+    child_node.scan_recursive(depth + 1, std::forward<PRE>(pre_order_cb),
+                              std::forward<POST>(post_order_cb),
+                              skip_disabled);
+
+  post_order_cb(*this, depth);
+}
+
+/**
+ * Traverse the device tree and invoke callbacks on all nodes
+ *
+ * This function invokes scan_node on the root node of the tree.
+ */
+template <typename ERR>
+template <typename PRE, typename POST>
+inline void
+Tree<ERR>::scan(PRE &&pre_order_cb, POST &&post_order_cb,
+                bool skip_disabled) const
+{
+  auto first = first_node();
+  int depth = 0;
+  first.scan_recursive(depth, std::forward<PRE>(pre_order_cb),
+                       std::forward<POST>(post_order_cb), skip_disabled);
 }
 
 }

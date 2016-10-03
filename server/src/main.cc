@@ -52,40 +52,37 @@ __thread unsigned vmm_current_cpu_id;
 
 Vdev::Device_repository devices;
 
-static void scan_device_tree(Vmm::Guest *vmm, Vmm::Virt_bus *vbus)
+static bool
+node_cb(Vdev::Dt_node const &node, unsigned /* depth */, Vmm::Guest *vmm,
+        Vmm::Virt_bus *vbus)
 {
-  char path_buf[1024];
-
-  for (auto node = vmm->device_tree().first_node(); node.is_valid();
-       node = node.next_node())
+  cxx::Ref_ptr<Vdev::Device> dev = Vdev::Factory::create_dev(vmm, vbus, node);
+  if (dev)
     {
-      // ignore nodes without compatible property or that are disabled
-      if (!node.has_prop("compatible") || !node.is_enabled())
-        continue;
-
-      int pathlen;
-      char const *path = node.get_name(&pathlen);
-      if (!path)
-        continue;
-
-      cxx::Ref_ptr<Vdev::Device> dev = Vdev::Factory::create_dev(vmm, vbus, node);
-      if (!dev)
-        {
-            if (!node.get_prop<char>("l4vmm,force-enable", nullptr)
-                && (node.get_prop<char>("reg", nullptr)
-                    || node.get_prop<char>("interrupts", nullptr)))
-            {
-              Err().printf("Device '%.*s' needs resources which cannot be virtualised. Disabled.\n",
-                           pathlen, path);
-              node.setprop_string("status", "disabled");
-            }
-        }
-      else
-        {
-          node.get_path(path_buf, sizeof(path_buf));
-          devices.add(path_buf, node.get_phandle(), dev);
-        }
+      devices.add(node, dev);
+      return true;
     }
+
+  // Device creation failed. Since there is no return code telling us
+  // something about the reason we have to guess and to act
+  // accordingly. Currently we assume, that the creation of devices
+  // with special factory interfaces does not fail. If we have a node
+  // with resources, and device creation failed, we do not have enough
+  // resources to handle the device.
+  if (!node.needs_vbus_resources())
+    return true; // no error, just continue parsing the tree
+
+  if (node.has_prop("l4vmm,force-enable"))
+    {
+      Dbg().printf("Device creation for %s failed, 'l4vmm,force-enable' set\n",
+                   node.get_name());
+      return true;
+    }
+
+  Dbg().printf("Device creation for %s failed. Disabling device \n",
+               node.get_name());
+  node.setprop_string("status", "disabled");
+  return false;
 }
 
 
@@ -181,7 +178,12 @@ static int run(int argc, char *argv[])
       vmm->update_device_tree(cmd_line);
 
       auto dt = vmm->device_tree();
-      scan_device_tree(vmm, vbus.get());
+      auto vbus_val = vbus.get();
+      dt.scan([vmm, vbus_val] (Vdev::Dt_node const &node, unsigned depth)
+                { return node_cb(node, depth, vmm, vbus_val); },
+              [] (Vdev::Dt_node const &, unsigned)
+                {});
+
       devices.init_devices(dt, vmm, vbus.get());
     }
 
