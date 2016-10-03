@@ -154,4 +154,55 @@ Virt_bus::find_unassigned_device_by_hid(char const *hid)
 
   return nullptr;
 }
+
+void Virt_bus::print_resource(l4vbus_resource_t const &res, char const *prefix)
+{
+  union
+  {
+    l4_uint32_t id32;
+    char v[4];
+  } id;
+  id.id32 = res.id;
+
+  const char *types[] = { "Invalid", "IRQ", "Mem", "Port",
+                          "Bus", "GPIO", "DMA-Domain" };
+  const char *rtype = "Unknown";
+  if (res.type < cxx::array_size(types))
+    rtype = types[res.type];
+
+
+  Dbg(Dbg::Dev, Dbg::Info, "vbus").
+    printf("%s%c%c%c%c: 0x%012lx-0x%012lx %s flags=%x\n",
+           prefix,
+           isprint(id.v[0]) ? id.v[0] : '_',
+           isprint(id.v[1]) ? id.v[1] : '_',
+           isprint(id.v[2]) ? id.v[2] : '_',
+           isprint(id.v[3]) ? id.v[3] : '_',
+           res.start, res.end, rtype, res.flags);
+}
+
+void Virt_bus::show_bus()
+{
+  L4vbus::Device b(_bus, 0);
+  L4vbus::Device dev;
+  l4vbus_device_t dev_info;
+  Dbg d(Dbg::Dev, Dbg::Info, "vbus");
+
+  d.printf("Showing vbus contents:\n");
+  while (b.next_device(&dev, L4VBUS_MAX_DEPTH, &dev_info) == 0)
+    {
+      d.printf("%s with %d resources\n",
+               dev_info.name, dev_info.num_resources);
+
+      for (unsigned i = 0; i < dev_info.num_resources; ++i)
+        {
+          l4vbus_resource_t res;
+          if (dev.get_resource(i, &res))
+            continue;
+
+          print_resource(res, " ");
+        }
+    }
+}
+
 } // namespace

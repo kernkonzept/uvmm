@@ -194,6 +194,8 @@ public:
     _msis.set_msi_limit(max_msi);
 
     scan_bus();
+
+    show_bus();
   }
 
   virtual ~Virt_bus() = default;
@@ -268,6 +270,11 @@ public:
 
   L4::Cap<L4::Icu> icu() const override
   { return _icu; }
+
+  static void print_resource(l4vbus_resource_t const &res,
+                             const char *prefix = "");
+
+  void show_bus();
 
 private:
   void scan_bus();
