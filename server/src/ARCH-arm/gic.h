@@ -322,7 +322,7 @@ public:
         if (!p->enabled() || !p->pending())
           continue;
 
-        if (!p->target() & target_mask)
+        if (!(p->target() & target_mask))
           continue;
 
         if (p->cpu())
