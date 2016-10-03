@@ -389,6 +389,40 @@ public:
   }
 
   /**
+   * Check whether a node has irq resources associated
+   *
+   * This function checks whether the node has an "interrupts" property.
+   *
+   * \return True if there is an "interrupts" property.
+   */
+  bool has_irqs() const
+  { return get_prop<fdt32_t>("interrupts", nullptr) != nullptr; }
+
+
+  /**
+   * Check whether a node has mmio resources associated
+   *
+   * This function checks whether the node has "reg" properties and
+   * any of the reg property values are mapped to mmio resources on
+   * the root bus.
+   *
+   * \return True if there are mmio resources
+   */
+  bool has_mmio_regs() const;
+
+  /**
+   * Check whether a node has irq or mmio resources associated
+   *
+   * This function checks whether the node has "reg" or "interrupts"
+   * properties and any of the reg property values are mapped to mmio
+   * resources on the root bus.
+   *
+   * \return True if there are irq or mmio resources
+   */
+  bool needs_vbus_resources() const
+  { return has_irqs() || has_mmio_regs(); }
+
+  /**
    * Translate a reg entry
    *
    * Reg entries are bus local information. To get an address valid on
@@ -574,6 +608,33 @@ Node<ERR>::translate_reg(Cell *address, Cell const &size) const
                   Cell(prop + child_addr + parent_addr, child_size)};
       if (range.translate(address, size))
         return parent.translate_reg(address, size);
+    }
+  return false;
+}
+
+template<typename ERR>
+bool
+Node<ERR>::has_mmio_regs() const
+{
+  int prop_size;
+  auto prop = get_prop<fdt32_t>("reg", &prop_size);
+  if (!prop)
+    return false;
+
+  unsigned addr_cells = get_address_cells();
+  unsigned size_cells = get_size_cells();
+  unsigned reg_size = addr_cells + size_cells;
+  unsigned num_regs = prop_size/reg_size;
+
+  if (prop_size % reg_size != 0)
+    ERR(this, "Unexpected property size %d/%d vs %d\n",
+        addr_cells, size_cells, reg_size);
+
+  for (unsigned i = 0; i < num_regs; ++i, prop += reg_size)
+    {
+      Reg reg{Cell{prop, addr_cells}, Cell(prop + addr_cells, size_cells)};
+      if (translate_reg(&reg))
+        return true;
     }
   return false;
 }

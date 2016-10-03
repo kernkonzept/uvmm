@@ -125,10 +125,9 @@ struct F : Factory
                               Vmm::Virt_bus *vbus,
                               Dt_node const &node)
   {
-    // we can proxy memory and interrupts,
-    // so look for resources that require one of the two
-    if (!node.get_prop<fdt32_t>("reg", nullptr)
-        && !node.get_prop<fdt32_t>("interrupts", nullptr))
+    // we can proxy memory and interrupts, check whether resources are
+    // present
+    if (!node.needs_vbus_resources())
       return nullptr;
 
     auto *vd = vbus->find_unassigned_dev(node);
