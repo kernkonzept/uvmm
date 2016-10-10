@@ -16,6 +16,8 @@
 #include <l4/re/dataspace>
 #include <l4/re/error_helper>
 #include <l4/re/util/cap_alloc>
+#include <l4/re/inhibitor>
+#include <l4/vbus/vbus_inhibitor.h>
 
 #include "debug.h"
 #include "irq.h"
@@ -56,6 +58,9 @@ public:
     _icu = L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4::Icu>(),
                         "allocate ICU cap");
     L4Re::chksys(dev.vicu(_icu), "requesting ICU cap");
+
+    L4Re::chksys(bus->acquire(L4VBUS_INHIBITOR_SUSPEND, "VM running"));
+    L4Re::chksys(bus->acquire(L4VBUS_INHIBITOR_SHUTDOWN, "VM running"));
 
     scan_bus();
   }
