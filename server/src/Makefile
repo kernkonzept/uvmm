@@ -15,13 +15,13 @@ SRC_CC          = gic.cc main.cc ram_ds.cc generic_guest.cc guest.cc \
                   virt_bus.cc io_proxy.cc
 
 REQUIRES_LIBS   = libstdc++ libio-vbus libfdt
-CXXFLAGS       += -O3
 PRIVATE_INCDIR  = $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
 
 include $(L4DIR)/mk/prog.mk
 
 ifeq ($(ARCH),arm)
-CXXFLAGS := $(filter-out -march%,$(CXXFLAGS)) -mcpu=cortex-a15
+CARCHFLAGS := $(filter-out -march%,$(CARCHFLAGS)) -march=armv7-a
 endif
 
-CXXFLAGS := $(filter-out -fno-strict-aliasing,$(CXXFLAGS))
+# We do not want to have -fno-strict-aliasing
+OPTS := $(OPTS_DEBUG) -O3
