@@ -45,7 +45,7 @@ public:
   };
 
   Virtio_console(Vmm::Vm_ram *iommu, L4::Cap<L4::Vcon> con)
-  : Virtio::Dev(iommu, 0x44, 3), _con(con)
+  : Virtio::Dev(iommu, 0x44, L4VIRTIO_ID_CONSOLE), _con(con)
   {
     _q[0].config.num_max = 0x100;
     _q[1].config.num_max = 0x100;
