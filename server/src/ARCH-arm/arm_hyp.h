@@ -203,7 +203,7 @@ struct State
 inline State *
 vm_state(l4_vcpu_state_t *vcpu)
 {
-  return reinterpret_cast<State *>(reinterpret_cast<char *>(vcpu) + 0x400);
+  return reinterpret_cast<State *>(reinterpret_cast<char *>(vcpu) + L4_VCPU_OFFSET_EXT_STATE);
 }
 }
 }
