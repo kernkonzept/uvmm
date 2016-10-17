@@ -226,6 +226,152 @@ Guest::show_state_interrupts(FILE *)
 {
 }
 
+bool
+Guest::handle_psci_call(Cpu &vcpu)
+{
+  enum Psci_error_codes
+  {
+    SUCCESS            = 0,
+    NOT_SUPPORTED      = -1,
+    INVALID_PARAMETERS = -2,
+    DENIED             = -3,
+    ALREADY_ON         = -4,
+    ON_PENDING         = -5,
+    INTERNAL_FAILURE   = -6,
+    NOT_PRESENT        = -7,
+    DISABLED           = -8,
+    INVALID_ADDRESS    = -9,
+  };
+
+  enum Psci_functions
+  {
+    VERSION             = 0,
+    CPU_SUSPEND         = 1,
+    CPU_OFF             = 2,
+    CPU_ON              = 3,
+    AFFINITY_INFO       = 4,
+    MIGRATE             = 5,
+    MIGRATE_INFO        = 6,
+    MIGRATE_INFO_UP_CPU = 7,
+    SYSTEM_OFF          = 8,
+    SYSTEM_RESET        = 9,
+    FEATURES            = 10,
+    SYSTEM_SUSPEND      = 14,
+  };
+
+  enum Psci_migrate_info
+  {
+    TOS_UP_MIG_CAP     = 0,
+    TOS_NOT_UP_MIG_CAP = 1,
+    TOS_NOT_PRESENT_MP = 2,
+  };
+
+  if ((vcpu->r.r[0] & 0xbfffff00) != 0x84000000)
+    return false;
+
+  bool is64bit = vcpu->r.r[0] & 0x40000000;
+
+  if (is64bit && sizeof(long) == 4)
+    {
+      vcpu->r.r[0] = NOT_SUPPORTED;
+      return true;
+    }
+
+  unsigned func = vcpu->r.r[0] & 0xff;
+  switch (func)
+    {
+    case VERSION:
+      vcpu->r.r[0] = 0x00010000; // v1.0
+      break;
+
+    case CPU_SUSPEND:
+      vcpu->r.r[0] = NOT_SUPPORTED;
+      Err().printf("... PSCI CPU SUSPEND\n");
+      break;
+
+    case CPU_OFF:
+      vcpu->r.r[0] = NOT_SUPPORTED;
+      Err().printf("... PSCI CPU OFF\n");
+      break;
+
+    case CPU_ON:
+      vcpu->r.r[0] = NOT_SUPPORTED;
+      Err().printf("... PSCI CPU ON\n");
+      break;
+
+    case MIGRATE_INFO:
+      vcpu->r.r[0] = TOS_NOT_PRESENT_MP;
+      break;
+
+    case SYSTEM_OFF:
+      exit(0);
+
+    case FEATURES:
+        {
+          unsigned feat_func = vcpu->r.r[1] & 0xff;
+          switch (feat_func)
+            {
+            case CPU_SUSPEND:
+            case SYSTEM_SUSPEND:
+              vcpu->r.r[0] = 1 << 1;
+              break;
+            default:
+              vcpu->r.r[0] = NOT_SUPPORTED;
+              break;
+            };
+        }
+      break;
+
+    case SYSTEM_SUSPEND:
+        {
+          l4_addr_t entry_gpa = vcpu->r.r[1];
+          l4_umword_t context_id = vcpu->r.r[2];
+
+          if (entry_gpa & 1)
+            {
+              vcpu->r.r[0] = INVALID_ADDRESS;
+              return true;
+            }
+
+          // TODO: Check that all other cores are off
+          // if not:
+          if (0)
+            {
+              vcpu->r.r[0] = DENIED;
+              return true;
+            }
+
+          /*
+           * Do something suspendy here
+           */
+
+          memset(&vcpu->r, 0, sizeof(vcpu->r));
+          vcpu->r.ip    = entry_gpa;
+          vcpu->r.r[0]  = context_id;
+          vcpu->r.flags = 0x13;
+          vcpu.state()->vm_regs.sctlr &= ~1UL;
+        }
+      break;
+
+    default:
+      Err().printf("... Unknown PSCI function 0x%x called\n", func);
+      vcpu->r.r[0] = NOT_SUPPORTED;
+      break;
+    };
+
+  return true;
+}
+
+void
+Guest::dispatch_vm_call(Cpu &vcpu)
+{
+  if (handle_psci_call(vcpu))
+    return;
+
+  Err().printf("Unknown HVC call: a0=%lx a1=%lx ip=%lx\n",
+               vcpu->r.r[0], vcpu->r.r[1], vcpu->r.ip);
+}
+
 inline l4_msgtag_t
 Guest::handle_entry(Cpu vcpu)
 {
@@ -352,6 +498,10 @@ Guest::handle_entry(Cpu vcpu)
         }
 
       vcpu->r.ip += 2 << hsr.il();
+      break;
+
+    case 0x12:
+      dispatch_vm_call(vcpu);
       break;
 
     default:

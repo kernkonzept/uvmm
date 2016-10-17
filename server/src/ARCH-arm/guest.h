@@ -47,6 +47,9 @@ public:
   cxx::Ref_ptr<Vdev::Core_timer> timer() const
   { return _timer; }
 
+  void dispatch_vm_call(Cpu &vcpu);
+  bool handle_psci_call(Cpu &vcpu);
+
 private:
   cxx::Ref_ptr<Gic::Dist> _gic;
   cxx::Ref_ptr<Vdev::Core_timer> _timer;
