@@ -40,12 +40,20 @@ public:
   }
 
   unsigned get_vcpu_id() const
-  { return _s->user_data[0]; }
+  { return _s->user_data[Reg_vcpu_id]; }
 
   void set_vcpu_id(unsigned id)
-  { _s->user_data[0] = id; }
+  { _s->user_data[Reg_vcpu_id] = id; }
 
 protected:
+  enum User_data_regs
+  {
+    Reg_vcpu_id = 0,
+    Reg_arch_base
+  };
+
+  static_assert(Reg_arch_base <= 7, "Too many user_data registers used");
+
   explicit Generic_cpu(l4_vcpu_state_t *s) : _s(s) {}
 
   l4_vcpu_state_t *_s;
