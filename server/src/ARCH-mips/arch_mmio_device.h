@@ -32,41 +32,24 @@ struct Mmio_device_t : Mmio_device
     if (0)
       Dbg().printf("MMIO access @ 0x%lx (0x%lx) %s %u byte, instr: 0x%lx\n",
                    pfa, offset, insn.op_mem_store() ? "STORE" : "LOAD",
-                   (unsigned) insn.op_mem_width(), vcpu->r.bad_instr);
+                   (unsigned) insn.load_store_width(), vcpu->r.bad_instr);
 
-    if (insn.is_simple_load_store())
+    if (!insn.is_simple_load_store())
+      return false;
+
+    if (insn.op_mem_store())
       {
-        if (insn.op_mem_store())
-          {
-            dev()->write(offset, insn.op_mem_width(), vcpu->r.r[insn.rt()],
-                         vcpu.get_vcpu_id());
-          }
-        else
-          {
-            l4_uint32_t value = dev()->read(offset, insn.op_mem_width(),
-                                            vcpu.get_vcpu_id());
-
-            switch (insn.op_mem_width())
-              {
-              case 0:
-                if (insn.op_mem_unsigned())
-                  value = (l4_uint32_t) ((l4_uint8_t) value);
-                else
-                  value = (l4_int32_t) ((l4_int8_t) value);
-                break;
-              case 1:
-                if (insn.op_mem_unsigned())
-                  value = (l4_uint32_t) ((l4_uint16_t) value);
-                else
-                  value = (l4_int32_t) ((l4_int16_t) value);
-                break;
-              }
-
-            vcpu->r.r[insn.rt()] = value;
-          }
+        dev()->write(offset, insn.load_store_width(), vcpu->r.r[insn.rt()],
+                     vcpu.get_vcpu_id());
       }
     else
-      return false;
+      {
+        l4_umword_t value = dev()->read(offset, insn.load_store_width(),
+                                        vcpu.get_vcpu_id());
+
+        vcpu->r.r[insn.rt()] = reg_extend_width(value, insn.load_store_width(),
+                                                insn.op_mem_unsigned());
+      }
 
     vcpu.jump_instruction();
     return true;
@@ -102,33 +85,18 @@ struct Read_mapped_mmio_device_t : Mmio_device
 
     if (insn.op_mem_store())
       {
-        dev()->write(offset, insn.op_mem_width(), vcpu->r.r[insn.rt()],
+        dev()->write(offset, insn.load_store_width(), vcpu->r.r[insn.rt()],
                      vcpu.get_vcpu_id());
       }
     else
       {
         map_mmio(pfa, offset, vm_task, min, max);
 
-        l4_uint32_t value = dev()->read(offset, insn.op_mem_width(),
+        l4_umword_t value = dev()->read(offset, insn.load_store_width(),
                                         vcpu.get_vcpu_id());
 
-        switch (insn.op_mem_width())
-          {
-          case 0:
-            if (insn.op_mem_unsigned())
-              value = (l4_uint32_t) ((l4_uint8_t) value);
-            else
-              value = (l4_int32_t) ((l4_int8_t) value);
-            break;
-          case 1:
-            if (insn.op_mem_unsigned())
-              value = (l4_uint32_t) ((l4_uint16_t) value);
-            else
-              value = (l4_int32_t) ((l4_int16_t) value);
-            break;
-          }
-
-        vcpu->r.r[insn.rt()] = value;
+        vcpu->r.r[insn.rt()] = reg_extend_width(value, insn.load_store_width(),
+                                                insn.op_mem_unsigned());
       }
 
     vcpu.jump_instruction();

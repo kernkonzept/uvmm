@@ -63,7 +63,7 @@ struct Mmio_device_t : Mmio_device, Mmio_device_t_b
         // TODO: provide accessor for correct mode + register
         if (hsr.pf_write())
           {
-            mmio_msg.printf("write %08lx+%05lx (%d) value: %08lx (r=%d)\n",
+            mmio_msg.printf("write %08lx+%05lx (%d) value: %lx (r=%d)\n",
                             pfa - offset, offset,
                             (unsigned)hsr.pf_sas(), *gpr,
                             (unsigned)hsr.pf_srt());
@@ -71,25 +71,14 @@ struct Mmio_device_t : Mmio_device, Mmio_device_t_b
           }
         else
           {
-            l4_uint32_t res = static_cast<T*>(this)->read(offset, hsr.pf_sas(),
+            l4_umword_t res = static_cast<T*>(this)->read(offset, hsr.pf_sas(),
                                                           vcpu.get_vcpu_id());
-            if (hsr.pf_sse())
-              {
-                switch (hsr.pf_sas())
-                  {
-                  case 0:  res = (l4_int32_t)((l4_int8_t)res);
-                           break;
-                  case 1:  res = (l4_int32_t)((l4_int16_t)res);
-                           break;
-                  default: break;
-                  }
-              }
+            *gpr = reg_extend_width(res, hsr.pf_sas(), hsr.pf_sse());
 
-              mmio_msg.printf("read  %08lx+%05lx (%d) value: %08x (r=%d)\n",
-                              pfa - offset, offset,
-                              (unsigned)hsr.pf_sas(), res,
-                              (unsigned)hsr.pf_srt());
-            *gpr = res;
+            mmio_msg.printf("read  %08lx+%05lx (%d) value: %lx (r=%d)\n",
+                            pfa - offset, offset,
+                            (unsigned)hsr.pf_sas(), *gpr,
+                            (unsigned)hsr.pf_srt());
           }
       }
     else

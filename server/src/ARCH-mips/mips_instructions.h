@@ -87,10 +87,18 @@ struct Instruction
 
   bool is_simple_load_store() const
   {
-    return opcode_mem() && !op_mem_atomic()
-           && op_mem_width() != 2
-           && !(op_mem_unsigned() &&
-                (op_mem_store() || op_mem_width() == 4));
+    return (opcode_mem() && !op_mem_atomic()
+            && op_mem_width() != 2
+            && !(op_mem_unsigned() && op_mem_store()))
+           || ((opcode() & 0x37) == 0x37);
+  }
+
+  char load_store_width() const
+  {
+    if (op_mem_width() < 3)
+      return (char) op_mem_width();
+
+    return (3U + (char) op_mem_atomic());
   }
 
   int branch_offset() const
