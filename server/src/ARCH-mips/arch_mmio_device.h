@@ -65,7 +65,8 @@ template<typename BASE, typename T>
 struct Read_mapped_mmio_device_t : Mmio_device
 {
   Read_mapped_mmio_device_t(l4_size_t size)
-  : _ds(L4Re::chkcap(L4Re::Util::make_auto_del_cap<L4Re::Dataspace>()))
+  : _ds(L4Re::chkcap(L4Re::Util::make_auto_del_cap<L4Re::Dataspace>())),
+    _mapped_size(size)
   {
     auto *e = L4Re::Env::env();
     L4Re::chksys(e->mem_alloc()->alloc(size, _ds.get()));
@@ -90,7 +91,8 @@ struct Read_mapped_mmio_device_t : Mmio_device
       }
     else
       {
-        map_mmio(pfa, offset, vm_task, min, max);
+        if (offset < _mapped_size)
+          map_mmio(pfa, offset, vm_task, min, max);
 
         l4_umword_t value = dev()->read(offset, insn.load_store_width(),
                                         vcpu.get_vcpu_id());
@@ -135,6 +137,7 @@ private:
 
 protected:
   L4Re::Rm::Auto_region<T *> _mmio_region;
+  l4_size_t _mapped_size;
 };
 
 }

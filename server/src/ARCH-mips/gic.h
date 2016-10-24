@@ -87,14 +87,11 @@ class Dist
   };
 
 public:
-  Dist(l4_size_t size);
+  Dist(Mips_core_ic *core_ic);
 
   void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &,
                    Vmm::Guest *, Vmm::Virt_bus *) override
   {}
-
-  void set_core_ic(Mips_core_ic *core_ic)
-  { _core_ic = core_ic; }
 
   l4_umword_t read(unsigned reg, char size, unsigned cpu_id);
   void write(unsigned reg, char size, l4_umword_t value, unsigned cpu_id);

@@ -26,8 +26,9 @@ Dbg dbg(Dbg::Info, "GIC");
 namespace Gic {
 
 
-Dist::Dist(l4_size_t size)
-: Read_mapped_mmio_device_t(size)
+Dist::Dist(Mips_core_ic *core_ic)
+: Read_mapped_mmio_device_t(Gic_shared_size),
+  _core_ic(core_ic)
 {
   static_assert(L4_PAGESIZE <= 16 * 1024, "Maximum supported page size is 16k");
 
@@ -105,16 +106,18 @@ Dist::write(unsigned reg, char size, l4_umword_t value, unsigned cpu_id)
 l4_umword_t
 Dist::read_cpu(unsigned reg, char, unsigned cpu_id)
 {
-  dbg.printf("Local read from cpu %d ignored @ 0x%x\n",
-             cpu_id, reg);
+  if (0)
+    dbg.printf("Local read from cpu %d ignored @ 0x%x\n",
+               cpu_id, reg);
   return 0;
 }
 
 void
 Dist::write_cpu(unsigned reg, char, l4_umword_t value, unsigned cpu_id)
 {
-  dbg.printf("Local write to cpu %d ignored 0x%lx @ 0x%x\n",
-             cpu_id, value, reg);
+  if (0)
+    dbg.printf("Local write to cpu %d ignored 0x%lx @ 0x%x\n",
+               cpu_id, value, reg);
 }
 
 /** disable interrupts */
@@ -238,8 +241,7 @@ struct F : Vdev::Factory
         throw L4::Runtime_error(-L4_EINVAL);
       }
 
-    auto g = Vdev::make_device<Dist>(size);
-    g->set_core_ic(vmm->core_ic().get());
+    auto g = Vdev::make_device<Dist>(vmm->core_ic().get());
     vmm->register_mmio_device(g, node);
     return g;
   }
