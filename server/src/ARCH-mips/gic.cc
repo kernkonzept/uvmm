@@ -32,100 +32,109 @@ Dist::Dist(l4_size_t size)
   static_assert(L4_PAGESIZE <= 16 * 1024, "Maximum supported page size is 16k");
 
   // set up shared section
-  l4_uint32_t *sh = _mmio_region.get();
-  sh[Gic_sh_config] = ((Num_irqs >> 3) - 1) << 16;
-  sh[Gic_sh_revision] = 4 << 8; // 4.0, as reported by Baikal board
+  auto *cfg = gic_mem<Gic_config_reg>(Gic_sh_config);
+  cfg->raw = 0;
+  cfg->numint() = (Num_irqs >> 3) - 1;
+  cfg->pvps() = 0;
+
+  // set revision to 4.0, as reported by Baikal board
+  *gic_mem<l4_uint32_t>(Gic_sh_revision) = 4 << 8;
+
+  auto *sh = gic_mem<char>(0);
 
   memset(sh + Gic_sh_int_avail, 0xff, Num_irqs >> 3);
   memset(sh + Gic_sh_pend, 0, Num_irqs >> 3);
 }
 
-l4_uint32_t
+l4_umword_t
 Dist::read(unsigned reg, char size, unsigned cpu_id)
 {
-  if (reg >= Gic_core_other_base && reg < Gic_user_visible_base)
-    return read_cpu(reg - Gic_core_other_base, _other_cpu);
   if (reg < Gic_shared_base + Gic_shared_size)
-    return _mmio_region.get()[reg >> 2];
+    {
+      if (size == 3)
+        return *gic_mem<l4_uint64_t>(reg);
+      else
+        return *gic_mem<l4_uint32_t>(reg);
+    }
+
+  if (reg >= Gic_core_other_base && reg < Gic_user_visible_base)
+    return read_cpu(reg - Gic_core_other_base, size, _other_cpu);
   if (reg >= Gic_core_local_base && reg < Gic_core_other_base)
-    return read_cpu(reg - Gic_core_local_base, cpu_id);
+    return read_cpu(reg - Gic_core_local_base, size, cpu_id);
 
   dbg.printf("Reading unknown register @ 0x%x (%d)\n", reg, size);
   return 0;
 }
 
 void
-Dist::write(unsigned reg, char size, l4_uint32_t value, unsigned cpu_id)
+Dist::write(unsigned reg, char size, l4_umword_t value, unsigned cpu_id)
 {
   if (reg >= Gic_core_local_base && reg < Gic_core_other_base)
-    return write_cpu(reg - Gic_core_local_base, value, cpu_id);
+    return write_cpu(reg - Gic_core_local_base, size, value, cpu_id);
   if (reg >= Gic_core_other_base && reg < Gic_user_visible_base)
-    return write_cpu(reg - Gic_core_other_base, value, _other_cpu);
+    return write_cpu(reg - Gic_core_other_base, size, value, _other_cpu);
 
   // write must be to shared section
-  l4_uint32_t *sh = _mmio_region.get();
-  reg >>= 2;
-
   if (reg >= Gic_sh_pol && reg < Gic_sh_wedge)
     {
-      sh[reg] = value; // polarity, edge, dual configuration ignored
+      // polarity, edge, dual configuration ignored
+      gic_mem_set(reg, size, value);
     }
   else if (reg >= Gic_sh_rmask && reg < Gic_sh_smask)
     {
-      reset_mask(reg - Gic_sh_rmask, value);
+      reset_mask(reg - Gic_sh_rmask, size, value);
     }
   else if (reg >= Gic_sh_smask && reg < Gic_sh_mask)
     {
-      set_mask(reg - Gic_sh_smask, value);
+      set_mask(reg - Gic_sh_smask, size, value);
     }
   else if (reg >= Gic_sh_pin && reg < Gic_sh_pin + Num_irqs)
     {
-      sh[reg] = value;
-      setup_source(reg - Gic_sh_pin, sh[reg - Gic_sh_pin + Gic_sh_map],
-                   sh[reg]);
+      gic_mem_set(reg, size, value);
+      setup_source(pinreg_to_irq(reg));
     }
   else if (reg >= Gic_sh_map && reg < Gic_sh_map + Num_irqs)
     {
-      sh[reg] = value;
-      setup_source(reg - Gic_sh_map, sh[reg],
-                   sh[reg - Gic_sh_map + Gic_sh_pin]);
-    }
-  else if (reg == Gic_vb_dint_send)
-    {
-      sh[reg] = value;
+      gic_mem_set(reg, size, value);
+      setup_source(mapreg_to_irq(reg));
     }
   else
-    dbg.printf("Writing ignored 0x%x @ 0x%x (%d)\n", value, reg, size);
+    dbg.printf("Writing ignored 0x%lx @ 0x%x (%d)\n", value, reg, size);
 }
 
-l4_uint32_t
-Dist::read_cpu(unsigned reg, unsigned cpu_id)
+l4_umword_t
+Dist::read_cpu(unsigned reg, char, unsigned cpu_id)
 {
-  if (reg < Gic_local_size)
-    return _mmio_region.get()[(reg + Gic_core_local_base) >> 2];
-
   dbg.printf("Local read from cpu %d ignored @ 0x%x\n",
              cpu_id, reg);
   return 0;
 }
 
 void
-Dist::write_cpu(unsigned reg, l4_uint32_t value, unsigned cpu_id)
+Dist::write_cpu(unsigned reg, char, l4_umword_t value, unsigned cpu_id)
 {
-  dbg.printf("Local write to cpu %d ignored 0x%x @ 0x%x\n",
+  dbg.printf("Local write to cpu %d ignored 0x%lx @ 0x%x\n",
              cpu_id, value, reg);
 }
 
 /** disable interrupts */
 void
-Dist::reset_mask(unsigned reg, l4_uint32_t mask)
+Dist::reset_mask(unsigned reg, char size, l4_umword_t mask)
 {
-  l4_uint32_t *sh = _mmio_region.get();
+  l4_umword_t pending;
 
-  sh[Gic_sh_mask + reg] &= ~mask;
+  if (size == 3)
+    {
+      *gic_mem<l4_uint64_t>(Gic_sh_mask + reg) &= ~mask;
+      pending = mask & *gic_mem<l4_uint64_t>(Gic_sh_pend + reg);
+    }
+  else
+    {
+      *gic_mem<l4_uint32_t>(Gic_sh_mask + reg) &= ~mask;
+      pending = mask & *gic_mem<l4_uint32_t>(Gic_sh_pend + reg);
+    }
 
-  l4_uint32_t pending = mask & sh[Gic_sh_pend + reg];
-  int irq = reg * 32;
+  int irq = reg * 8;
 
   while (pending)
     {
@@ -139,26 +148,31 @@ Dist::reset_mask(unsigned reg, l4_uint32_t mask)
 
 /** enable interrupts */
 void
-Dist::set_mask(unsigned reg, l4_uint32_t mask)
+Dist::set_mask(unsigned reg, char size, l4_umword_t mask)
 {
-  l4_uint32_t *sh = _mmio_region.get();
+  if (size == 3)
+    *gic_mem<l4_uint64_t>(Gic_sh_mask + reg) |= mask;
+  else
+    *gic_mem<l4_uint32_t>(Gic_sh_mask + reg) |= mask;
 
-  sh[Gic_sh_mask + reg] |= mask;
-  l4_uint32_t pending = mask;
-  int irq = reg * 32;
+  l4_umword_t pending = mask;
+  int irq = reg * 8;
 
-  // clear interrupts, where necessary
-  for (int i = 0; mask && i < 32; ++i)
+  // notify interrupt sources where necessary
+  for (int i = 0; mask && i < 8 * (1 << size); ++i)
     {
       if ((mask & 1) && _sources[irq + i])
         _sources[irq + i]->eoi();
       mask >>= 1;
     }
 
-  pending &= sh[Gic_sh_pend + reg];
+  if (size == 3)
+    pending &= *gic_mem<l4_uint64_t>(Gic_sh_pend + reg);
+  else
+    pending &= *gic_mem<l4_uint32_t>(Gic_sh_pend + reg);
 
   // reinject any interrupts that are still pending
-  for (int i = 0; pending && i < 32; ++i)
+  for (int i = 0; pending && i < 8 * (1 << size); ++i)
     {
       if (pending & 1)
         _irq_array[irq + i]->inject();
@@ -167,36 +181,42 @@ Dist::set_mask(unsigned reg, l4_uint32_t mask)
 }
 
 void
-Dist::setup_source(unsigned irq, l4_uint32_t cpu, l4_uint32_t pin)
+Dist::setup_source(unsigned irq)
 {
-  (void)cpu; // TODO
+  auto vp = *gic_mem<l4_uint32_t>(irq_to_mapreg(irq));
+  dbg.printf("IRQ %d setup source: for VP %d\n", irq, vp);
+  if (!(vp & 0x1f))
+    {
+      _irq_array[irq].reset();
+      return;
+    }
+
+  //TODO cpu
+  auto pin = *gic_mem<Gic_pin_reg>(irq_to_pinreg(irq));
+
+  dbg.printf("GIC irq 0x%x: setting source for CPU %d to pin 0x%lx\n",
+             irq, 0, pin.raw);
 
   // only int pins at the moment
-  if (pin & (1 << 31) && (pin & 0x1f) < 6)
-    _irq_array[irq] = cxx::make_unique<Vmm::Irq_sink>(_core_ic, (pin & 0x1f) + 2);
-  else
-    _irq_array[irq].reset();
+  if (pin.pin() && pin.map() < 6)
+    _irq_array[irq] = cxx::make_unique<Vmm::Irq_sink>(_core_ic,
+                                                      pin.map() + 2);
+   else
+     _irq_array[irq].reset();
 }
 
 void
 Dist::show_state(FILE *f)
 {
-  l4_uint32_t *sh = _mmio_region.get();
-
   fprintf(f, " Interrupts available: %d\n", Num_irqs);
 
   for (unsigned i = 0; i < Num_irqs; ++i)
     {
-      if (!_irq_array[i])
-        continue;
-
-      unsigned reg = i >> 5;
-      l4_uint32_t mask = 1 << (i & 0x1f);
-
-      fprintf(f, " Int %d => core IC %u  %s/%s\n",
-              i, (sh[Gic_sh_pin + i] & 0x1f) + 2,
-              (mask & sh[Gic_sh_mask + reg]) ? "on" : "off",
-              (mask & sh[Gic_sh_pend + reg]) ? "pending" : "low");
+      if (_irq_array[i])
+        fprintf(f, " Int %d => core IC %u  %s/%s\n",
+                i, gic_mem<Gic_pin_reg>(Gic_sh_pin + i * 4)->map() + 2,
+                irq_mask()[i] ? "on" : "off",
+                irq_pending()[i] ? "pending" : "low");
     }
 }
 
