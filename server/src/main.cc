@@ -88,6 +88,22 @@ static void scan_device_tree(Vmm::Guest *vmm, Vmm::Virt_bus *vbus)
     }
 }
 
+
+static cxx::Ref_ptr<Monitor_console>
+create_monitor(Vmm::Guest *vmm)
+{
+  const char * const capname = "mon";
+  auto mon_con_cap = L4Re::Env::env()->get_cap<L4::Vcon>(capname);
+  if (!mon_con_cap)
+    return nullptr;
+
+  auto moncon = cxx::make_ref_obj<Monitor_console>(capname, mon_con_cap, vmm);
+  moncon->register_obj(vmm->registry());
+
+  return moncon;
+}
+
+
 static char const *const options = "+k:d:p:r:c:b:";
 static struct option const loptions[] =
   {
@@ -151,19 +167,10 @@ static int run(int argc, char *argv[])
   auto vbus = cxx::make_ref_obj<Vmm::Virt_bus>(vbus_cap);
   auto vmm = Vmm::Guest::create_instance(ram, rambase);
   auto vcpu = vmm->create_cpu();
+  auto mon = create_monitor(vmm);
 
   vmm->set_fallback_mmio_ds(vbus->io_ds());
 
-    {
-      const char * const capname = "mon";
-      auto mon_con_cap = L4Re::Env::env()->get_cap<L4::Vcon>(capname);
-      if (mon_con_cap)
-        {
-          Monitor_console *moncon = new Monitor_console(capname,
-                                                        mon_con_cap, vmm);
-          moncon->register_obj(vmm->registry());
-        }
-    }
 
   l4_addr_t entry;
   auto load_addr = vmm->load_linux_kernel(kernel_image, &entry);

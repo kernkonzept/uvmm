@@ -6,13 +6,17 @@
  */
 #pragma once
 
-
+#include <l4/cxx/ref_ptr>
 #include <l4/cxx/ipc_server>
 #include <l4/cxx/ipc_stream>
 
 #include <l4/sys/vcon>
 
-class Monitor_console : private L4::Server_object_t<L4::Vcon>
+#include "generic_guest.h"
+
+class Monitor_console
+: private L4::Server_object_t<L4::Vcon>,
+  public cxx::Ref_obj
 {
   FILE *_f;
 
