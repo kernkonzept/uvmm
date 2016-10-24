@@ -217,7 +217,7 @@ void
 Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> &&dev,
                                     Vdev::Dt_node const &node, size_t index)
 {
-  uint64_t base, size;
+  l4_uint64_t base, size;
   int res = node.get_reg_val(index, &base, &size);
   if (res < 0)
     {
