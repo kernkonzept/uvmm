@@ -39,6 +39,12 @@ public:
     Dbg(Dbg::Info).printf("VCPU mapped @ %p and enabled\n", _s);
   }
 
+  unsigned get_vcpu_id() const
+  { return _s->user_data[0]; }
+
+  void set_vcpu_id(unsigned id)
+  { _s->user_data[0] = id; }
+
 protected:
   explicit Generic_cpu(l4_vcpu_state_t *s) : _s(s) {}
 

@@ -32,12 +32,6 @@ public:
   Arm::State *state()
   { return reinterpret_cast<Arm::State *>((char *)_s + L4_VCPU_OFFSET_EXT_STATE); }
 
-  unsigned get_vcpu_id() const
-  { return *(reinterpret_cast<unsigned char const *>(_s) + 0x208); }
-
-  void set_vcpu_id(unsigned id)
-  { *(reinterpret_cast<unsigned char *>(_s) + 0x208) = id; }
-
   Arm::Hsr hsr() const
   { return Arm::Hsr(_s->r.err); }
 };
