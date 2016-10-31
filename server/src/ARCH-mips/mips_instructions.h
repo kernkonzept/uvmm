@@ -93,12 +93,34 @@ struct Instruction
            || ((opcode() & 0x37) == 0x37);
   }
 
+  /**
+   * Return width of a load/store operation.
+   *
+   * \pre The instruction is a load/store operation.
+   *
+   * \retval 0  Byte width (8bit).
+   * \retval 1  Half-word width (16bit).
+   * \retval 2  Word width (32bit).
+   * \retval 3  Double-word width (64bit).
+   */
   char load_store_width() const
   {
-    if (op_mem_width() < 3)
-      return (char) op_mem_width();
-
-    return (3U + (char) op_mem_atomic());
+    switch (opcode())
+      {
+      case Op::Lb:
+      case Op::Lbu:
+      case Op::Sb:
+        return 0;
+      case Op::Lh:
+      case Op::Lhu:
+      case Op::Sh:
+        return 1;
+      case Op::Ld:
+      case Op::Sd:
+        return 3;
+      default:
+        return 2;
+      }
   }
 
   int branch_offset() const

@@ -50,6 +50,13 @@ Dist::Dist(Mips_core_ic *core_ic)
 l4_umword_t
 Dist::read(unsigned reg, char size, unsigned cpu_id)
 {
+  if (size < 2)
+    {
+      Dbg().printf("WARNING: read @0x%x with unsupported width %d ignored\n",
+                   reg, 8 << size);
+      return 0;
+    }
+
   if (reg < Gic_shared_base + Gic_shared_size)
     {
       if (size == 3)
@@ -70,6 +77,13 @@ Dist::read(unsigned reg, char size, unsigned cpu_id)
 void
 Dist::write(unsigned reg, char size, l4_umword_t value, unsigned cpu_id)
 {
+  if (size < 2)
+    {
+      Dbg().printf("WARNING: write @0x%x with unsupported width %d ignored\n",
+                   reg, 8 << size);
+      return;
+    }
+
   if (reg >= Gic_core_local_base && reg < Gic_core_other_base)
     return write_cpu(reg - Gic_core_local_base, size, value, cpu_id);
   if (reg >= Gic_core_other_base && reg < Gic_user_visible_base)
@@ -134,7 +148,7 @@ Dist::reset_mask(unsigned reg, char size, l4_umword_t mask)
   else
     {
       *gic_mem<l4_uint32_t>(Gic_sh_mask + reg) &= ~mask;
-      pending = mask & *gic_mem<l4_uint32_t>(Gic_sh_pend + reg);
+      pending = ((l4_uint32_t) mask) & *gic_mem<l4_uint32_t>(Gic_sh_pend + reg);
     }
 
   int irq = reg * 8;
@@ -162,7 +176,7 @@ Dist::set_mask(unsigned reg, char size, l4_umword_t mask)
   int irq = reg * 8;
 
   // notify interrupt sources where necessary
-  for (int i = 0; mask && i < 8 * (1 << size); ++i)
+  for (int i = 0; mask && i < (8 << size); ++i)
     {
       if ((mask & 1) && _sources[irq + i])
         _sources[irq + i]->eoi();
@@ -175,7 +189,7 @@ Dist::set_mask(unsigned reg, char size, l4_umword_t mask)
     pending &= *gic_mem<l4_uint32_t>(Gic_sh_pend + reg);
 
   // reinject any interrupts that are still pending
-  for (int i = 0; pending && i < 8 * (1 << size); ++i)
+  for (int i = 0; pending && i < (8 << size); ++i)
     {
       if (pending & 1)
         _irq_array[irq + i]->inject();
