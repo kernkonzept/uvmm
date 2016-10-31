@@ -142,27 +142,24 @@ private:
     l4_timeout_t to = L4_IPC_NEVER;
     auto *s = vcpu.state();
 
-    if (s->g_status & 1) // interrupts enabled
-      {
-        l4_uint32_t kcnt;
-        asm volatile("rdhwr\t%0, $2" : "=r"(kcnt)); // timer counter
+    l4_uint32_t kcnt;
+    asm volatile("rdhwr\t%0, $2" : "=r"(kcnt)); // timer counter
 
-        s->update_state(L4_VM_MOD_CAUSE | L4_VM_MOD_COMPARE);
+    s->update_state(L4_VM_MOD_CAUSE | L4_VM_MOD_COMPARE);
 
-        if (s->g_cause & (1UL << 30))
-          return Jump_instr; // there was a timer interrupt
+    if (s->g_cause & (1UL << 30))
+      return Jump_instr; // there was a timer interrupt
 
-        auto *kip = l4re_kip();
-        l4_uint32_t gcnt = kcnt + (l4_uint32_t) s->guest_timer_offset;
-        l4_uint32_t diff;
-        if (gcnt < s->g_compare)
-          diff = s->g_compare - gcnt;
-        else
-          diff = (0xffffffff - gcnt) + s->g_compare;
-        diff /= (kip->frequency_cpu / 1000);
+    auto *kip = l4re_kip();
+    l4_uint32_t gcnt = kcnt + (l4_uint32_t) s->guest_timer_offset;
+    l4_uint32_t diff;
+    if (gcnt < s->g_compare)
+      diff = s->g_compare - gcnt;
+    else
+      diff = (0xffffffff - gcnt) + s->g_compare;
+    diff /= (kip->frequency_cpu / 1000);
 
-        l4_rcv_timeout(l4_timeout_abs_u(l4_kip_clock(kip) + diff, 8, utcb), &to);
-      }
+    l4_rcv_timeout(l4_timeout_abs_u(l4_kip_clock(kip) + diff, 8, utcb), &to);
 
     wait_for_ipc(utcb, to);
 
