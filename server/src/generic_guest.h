@@ -87,6 +87,15 @@ public:
   void update_device_tree(char const *cmd_line);
   void set_ramdisk_params(L4virtio::Ptr<void> addr, l4_size_t size);
 
+  void __attribute__((noreturn)) halt_vm()
+  {
+    // XXX Only halts the current CPU. For the SMP case some
+    // further signaling might be required.
+    Err().printf("VM entered a fatal state. Halting.\n");
+    for (;;)
+      wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+  }
+
 protected:
   /**
    * Load the binary with the given name.
@@ -191,15 +200,6 @@ protected:
     l4_msgtag_t tag = l4_ipc_wait(utcb, &src, to);
     if (!tag.has_error())
       handle_ipc(tag, src, utcb);
-  }
-
-  void __attribute__((noreturn)) halt_vm()
-  {
-    // XXX Only halts the current CPU. For the SMP case some
-    // further signaling might be required.
-    Err().printf("VM entered a fatal state. Halting.\n");
-    for(;;)
-      wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
   }
 
   static Dbg warn()

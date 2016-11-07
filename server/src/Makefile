@@ -14,6 +14,13 @@ SRC_CC          = gic.cc main.cc ram_ds.cc generic_guest.cc guest.cc \
                   dev_sysctl.cc \
                   virt_bus.cc io_proxy.cc
 
+ifeq ($(ARCH),mips)
+SRC_CC        += guest_entry.cc
+CXXFLAGS_guest_entry.cc = -msoft-float
+
+LDFLAGS       += --no-warn-mismatch
+endif
+
 REQUIRES_LIBS   = libstdc++ libio-vbus libfdt
 PRIVATE_INCDIR  = $(SRC_DIR)/../include $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
 

@@ -6,20 +6,9 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
-#include <l4/cxx/static_container>
-
 #include "device_factory.h"
 #include "guest.h"
-
-static cxx::Static_container<Vmm::Guest> guest;
-
-void handler(l4_vcpu_state_t *vcpu);
-
-void __attribute__((flatten))
-handler(l4_vcpu_state_t *vcpu)
-{
-  guest->handle_entry(Vmm::Cpu(vcpu));
-}
+#include "guest_entry.h"
 
 namespace {
 
@@ -43,13 +32,6 @@ Guest::Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
     _proc_id = 0x0001a82c; // P5600
   else
     _proc_id = 0x0001a700; // M5150
-}
-
-Guest *
-Guest::create_instance(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
-{
-  guest.construct(ram, vm_base);
-  return guest;
 }
 
 void
@@ -190,6 +172,8 @@ Guest::run(Cpu vcpu)
 {
   _vcpu[0] = &vcpu;
 
+  vcpu.alloc_fpu_state();
+
   l4_umword_t sp;
   asm ("move %0, $sp" : "=r" (sp));
 
@@ -198,7 +182,7 @@ Guest::run(Cpu vcpu)
                       | L4_VCPU_F_IRQ
                       | L4_VCPU_F_PAGE_FAULTS
                       | L4_VCPU_F_EXCEPTIONS;
-  vcpu->entry_ip = (l4_umword_t)&handler;
+  vcpu->entry_ip = (l4_umword_t)&c_vcpu_entry;
   vcpu->entry_sp = sp & ~0xfUL;
 
   auto *s = vcpu.state();
@@ -214,8 +198,8 @@ Guest::run(Cpu vcpu)
                   | L4_VM_MOD_CFG
                   | L4_VM_MOD_XLAT);
 
-  info().printf("Starting vmm @ 0x%lx (handler @ %p with stack @ %lx)\n",
-                vcpu->r.ip, &handler, sp);
+  info().printf("Starting vmm @ 0x%lx (handler @ %lx, stack @ %lx)\n",
+                vcpu->r.ip, vcpu->entry_ip, sp);
 
   L4::Cap<L4::Thread> myself;
   auto e = l4_error(myself->vcpu_resume_commit(myself->vcpu_resume_start()));
@@ -240,13 +224,6 @@ Guest::dispatch_hypcall(Hypcall_code hypcall_code, Cpu &vcpu)
 void
 Guest::handle_entry(Cpu vcpu)
 {
-  if (!(vcpu->r.status & (1UL << 3)))
-    {
-      Err().printf("Exception in entry handler. Halting. IP = 0x%lx\n",
-                   vcpu->r.ip);
-      halt_vm();
-    }
-
   auto *utcb = l4_utcb();
   unsigned cause = (vcpu->r.cause >> 2) & 0x1F;
   auto *s = vcpu.state();
@@ -332,12 +309,6 @@ Guest::handle_entry(Cpu vcpu)
 
   process_pending_ipc(vcpu, utcb);
   _core_ic->update_vcpu(vcpu);
-
-  L4::Cap<L4::Thread> myself;
-  auto e = l4_error(myself->vcpu_resume_commit(myself->vcpu_resume_start()));
-
-  Err().printf("VM restart failed with %ld\n", e);
-  halt_vm();
 }
 
 namespace {

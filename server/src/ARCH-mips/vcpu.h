@@ -17,6 +17,16 @@
 
 namespace Vmm {
 
+struct Fpu_state
+{
+#if __mips_fpr == 64
+  l4_uint64_t regs[32];
+#else
+  l4_uint64_t regs[16];
+#endif
+  l4_umword_t status;
+};
+
 struct State : l4_vm_state_t
 {
   void set_modified(l4_umword_t bits)
@@ -149,12 +159,34 @@ public:
     enter_kdebug("STOP");
   }
 
-  unsigned get_vcpu_id() const
-  { return 0; } // TODO implement
+  Fpu_state *fpu_state() const
+  { return reinterpret_cast<Fpu_state *>(_s->user_data[Reg_fpu_state]); }
+
+  void alloc_fpu_state() const
+  {
+    _s->user_data[Reg_fpu_state]
+      = reinterpret_cast<l4_umword_t>(new Fpu_state());
+  }
+
+  void free_fpu_state() const
+  {
+    if (fpu_state())
+      {
+        delete fpu_state();
+        _s->user_data[Reg_fpu_state] = 0;
+      }
+  }
 
   State *state()
   { return reinterpret_cast<State *>((char *)_s + L4_VCPU_OFFSET_EXT_STATE); }
 
+private:
+  enum Arch_data_regs {
+      Reg_fpu_state = Reg_arch_base,
+      Reg_arch_end
+  };
+
+  static_assert(Reg_arch_end <= 7, "Too many user_data registers used");
 };
 
 } // namespace
