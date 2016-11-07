@@ -37,6 +37,12 @@ enum Special
   Sp_jr = 8, Sp_jalr = 9
 };
 
+enum Special3
+{
+  Sp3_cachee = 0x1b,
+  Sp3_cache = 0x25
+};
+
 enum Regimm
 {
   Bltz = 0, Bgez, Bltzl, Bgezl,
@@ -84,6 +90,13 @@ struct Instruction
 
   bool is_wait() const
   { return opcode() == Op::Cop0 && cop0_co() && func() == 0x20 ; }
+
+  bool is_cache_op() const
+  {
+    return opcode() == Op::Cache
+           || (sizeof(l4_umword_t) == 8 && opcode() == Op::Special3
+               && (func() == Op::Sp3_cache || func() == Op::Sp3_cachee));
+  }
 
   bool is_simple_load_store() const
   {

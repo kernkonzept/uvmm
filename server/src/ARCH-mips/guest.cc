@@ -291,6 +291,8 @@ Guest::handle_entry(Cpu vcpu)
               ret = handle_gpsi_mtc0(vcpu, insn);
             else if (insn.is_wait())
               ret = handle_wait(vcpu, utcb);
+            else if (insn.is_cache_op())
+              ret = Jump_instr; // cache coherence handled by Fiasco
             break;
 
           case 1: // software field change

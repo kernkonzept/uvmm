@@ -100,10 +100,18 @@ private:
       case L4_VM_CP0_CONFIG_6:
       case L4_VM_CP0_CONFIG_7:
         return Jump_instr; // XXX config registers are read-only atm
-      case L4_VM_CP0_MAAR_0:
+      case L4_VM_CP0_MAAR_0: // XXX MAAR and parity are not supported
       case L4_VM_CP0_MAAR_1:
       case L4_VM_CP0_ERR_CTL:
-        return Jump_instr; // XXX MAAR and parity are not supported
+      case L4_VM_CP0_TAG_LO_0: // cache tagging ignored
+      case L4_VM_CP0_DATA_LO_0:
+      case L4_VM_CP0_TAG_LO_1:
+      case L4_VM_CP0_DATA_LO_1:
+      case L4_VM_CP0_TAG_HI_0:
+      case L4_VM_CP0_DATA_HI_0:
+      case L4_VM_CP0_TAG_HI_1:
+      case L4_VM_CP0_DATA_HI_1:
+        return Jump_instr;
       }
 
     return -L4_EINVAL;
