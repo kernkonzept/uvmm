@@ -397,7 +397,7 @@ Irq_array::Pending::consume(unsigned char cpu)
         return false; // not for our CPU
 
       if (prio_bfm_t::get(old) >= 0x1f)
-        return false; // never used because prio >= ilde prio
+        return false; // never used because prio >= idle prio
     }
   while (!mp_cas(&_state, old, old & ~pending_bfm_t::Mask));
   return is_pending_and_enabled(old);
