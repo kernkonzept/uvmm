@@ -87,25 +87,36 @@ Dist::write(unsigned reg, char size, l4_umword_t value, unsigned cpu_id)
     return write_cpu(reg - Gic_core_other_base, size, value, _other_cpu);
 
   // write must be to shared section
-  if (reg >= Gic_sh_pol && reg < Gic_sh_wedge)
+  if (reg == Gic_sh_wedge)
+    {
+      Gic_wedge_reg wedge(value);
+      if (wedge.irq() < Num_irqs)
+        {
+          if (wedge.rw())
+            set(wedge.irq());
+          else
+            clear(wedge.irq());
+        }
+    }
+  else if (reg >= Gic_sh_rmask && reg < Gic_sh_rmask + Num_irqs / 8)
+    {
+      reset_mask(reg - Gic_sh_rmask, size, value);
+    }
+  else if (reg >= Gic_sh_smask && reg < Gic_sh_smask + Num_irqs / 8)
+    {
+      set_mask(reg - Gic_sh_smask, size, value);
+    }
+  else if (reg >= Gic_sh_pol && reg < Gic_sh_wedge)
     {
       // polarity, edge, dual configuration ignored
       gic_mem_set(reg, size, value);
     }
-  else if (reg >= Gic_sh_rmask && reg < Gic_sh_smask)
-    {
-      reset_mask(reg - Gic_sh_rmask, size, value);
-    }
-  else if (reg >= Gic_sh_smask && reg < Gic_sh_mask)
-    {
-      set_mask(reg - Gic_sh_smask, size, value);
-    }
-  else if (reg >= Gic_sh_pin && reg < Gic_sh_pin + Num_irqs)
+  else if (reg >= Gic_sh_pin && reg < irq_to_pinreg(Num_irqs))
     {
       gic_mem_set(reg, size, value);
       setup_source(pinreg_to_irq(reg));
     }
-  else if (reg >= Gic_sh_map && reg < Gic_sh_map + Num_irqs)
+  else if (reg >= Gic_sh_map && reg < irq_to_mapreg(Num_irqs))
     {
       gic_mem_set(reg, size, value);
       setup_source(mapreg_to_irq(reg));
@@ -133,6 +144,8 @@ Dist::write_cpu(unsigned reg, char, l4_umword_t value, unsigned cpu_id)
 void
 Dist::reset_mask(unsigned reg, char size, l4_umword_t mask)
 {
+  assert(reg * 8 < Num_irqs);
+
   l4_umword_t pending;
 
   if (size == 3)
@@ -162,6 +175,8 @@ Dist::reset_mask(unsigned reg, char size, l4_umword_t mask)
 void
 Dist::set_mask(unsigned reg, char size, l4_umword_t mask)
 {
+  assert(reg * 8 < Num_irqs);
+
   if (size == 3)
     *gic_mem<l4_uint64_t>(Gic_sh_mask + reg) |= mask;
   else
@@ -195,6 +210,8 @@ Dist::set_mask(unsigned reg, char size, l4_umword_t mask)
 void
 Dist::setup_source(unsigned irq)
 {
+  assert(irq < Num_irqs);
+
   auto vp = *gic_mem<l4_uint32_t>(irq_to_mapreg(irq));
   if (!(vp & 0x1f))
     {

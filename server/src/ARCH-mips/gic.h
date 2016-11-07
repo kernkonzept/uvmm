@@ -34,6 +34,7 @@ class Dist
   // The P5600 spec says there is a maximum of 256 irqs but the
   // data structures can accomodate up to 512. Only then the system breaks.
   static_assert(Num_irqs <= 512, "Maximum supported irqs is 512");
+  static_assert(Num_irqs % 8 == 0, "Number of IRQs must be a multipe of 8");
 
   enum Mips_gic_registers
   {
@@ -84,6 +85,15 @@ class Dist
     CXX_BITFIELD_MEMBER(30, 30, nmi, raw);
     CXX_BITFIELD_MEMBER(8, 15, gid, raw);
     CXX_BITFIELD_MEMBER(0, 5, map, raw);
+  };
+
+  struct Gic_wedge_reg
+  {
+    l4_umword_t raw;
+    CXX_BITFIELD_MEMBER(31, 31, rw, raw);
+    CXX_BITFIELD_MEMBER(0, 7, irq, raw);
+
+    explicit Gic_wedge_reg(l4_umword_t value) : raw(value) {}
   };
 
 public:
@@ -166,10 +176,10 @@ private:
    * Map registers spaced at 0x20 byte intervals.
    */
   unsigned irq_to_mapreg(unsigned irq) const
-  { return Gic_sh_map + (irq << 5); }
+  { return Gic_sh_map + irq * 0x20; }
 
   unsigned mapreg_to_irq(unsigned offset) const
-  { return (offset - Gic_sh_map) >> 5; }
+  { return (offset - Gic_sh_map) / 0x20; }
 
   cxx::Bitmap_base irq_mask() const
   { return cxx::Bitmap_base(gic_mem<void>(Gic_sh_mask)); }
@@ -183,10 +193,10 @@ private:
    * Pin registers spaced at 4 byte intervals.
    */
   unsigned irq_to_pinreg(unsigned irq) const
-  { return Gic_sh_pin + (irq << 2); }
+  { return Gic_sh_pin + irq * 4; }
 
   unsigned pinreg_to_irq(unsigned offset) const
-  { return (offset - Gic_sh_pin) >> 2; }
+  { return (offset - Gic_sh_pin) / 4; }
 
   template <typename T>
   T *gic_mem(unsigned offset) const
