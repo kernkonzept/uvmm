@@ -214,8 +214,8 @@ Guest::run(Cpu vcpu)
                   | L4_VM_MOD_CFG
                   | L4_VM_MOD_XLAT);
 
-  Dbg(Dbg::Info).printf("Starting vmm @ 0x%lx (handler @ %p with stack @ %lx)\n",
-                        vcpu->r.ip, &handler, sp);
+  info().printf("Starting vmm @ 0x%lx (handler @ %p with stack @ %lx)\n",
+                vcpu->r.ip, &handler, sp);
 
   L4::Cap<L4::Thread> myself;
   auto e = l4_error(myself->vcpu_resume_commit(myself->vcpu_resume_start()));
@@ -252,9 +252,9 @@ Guest::handle_entry(Cpu vcpu)
   auto *s = vcpu.state();
   unsigned exccode = (s->guest_ctl_0 >> 2) & 0x1f;
 
-  if (0 && (cause != 27 || exccode != 2))
-    Dbg(Dbg::Info).printf("VMM Entry. IP = 0x%lx, cause: 0x%lx(%d), ctl0: 0x%lx\n",
-                        vcpu->r.ip, vcpu->r.cause, cause, s->guest_ctl_0);
+  if ((cause != 27 || exccode != 2))
+    trace().printf("VMM Entry. IP = 0x%lx, cause: 0x%lx(%d), ctl0: 0x%lx\n",
+                   vcpu->r.ip, vcpu->r.cause, cause, s->guest_ctl_0);
 
   switch (cause)
     {
@@ -306,7 +306,7 @@ Guest::handle_entry(Cpu vcpu)
             break;
 
           case 9: // hardware field change
-            Dbg().printf("Hardware change @ IP 0x%lx\n", vcpu->r.ip);
+            info().printf("Hardware change ignored @ IP 0x%lx\n", vcpu->r.ip);
             ret = 0; // ignored
             break;
           case 10:

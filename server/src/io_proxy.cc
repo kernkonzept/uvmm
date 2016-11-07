@@ -16,14 +16,17 @@
 
 namespace Vdev {
 
+static Dbg info(Dbg::Dev, Dbg::Info, "ioproxy");
+static Dbg warn(Dbg::Dev, Dbg::Warn, "ioproxy");
+
 void
 Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
                    Dt_node const &self, unsigned dt_idx, unsigned io_irq)
 {
   auto dt_irq = ic->dt_get_interrupt(self, dt_idx);
 
-  Dbg().printf("IO device %p:'%s' - registering irq%d=0x%x -> 0x%x\n",
-               this, self.get_name(), dt_idx, io_irq, dt_irq);
+  info.printf("IO device %p:'%s' - registering irq%d=0x%x -> 0x%x\n",
+              this, self.get_name(), dt_idx, io_irq, dt_irq);
   if (!ic->get_irq_source(dt_irq))
     {
       auto irq_svr = Vdev::make_device<Vdev::Irq_svr>(io_irq);
@@ -45,8 +48,8 @@ Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
       return;
     }
 
-  Dbg().printf("irq%d=0x%x -> 0x%x already registered\n",
-               dt_idx, io_irq, dt_irq);
+  warn.printf("irq%d=0x%x -> 0x%x already registered\n",
+              dt_idx, io_irq, dt_irq);
 
   // Ensure we have the correct binding of the currently registered
   // source
@@ -90,8 +93,8 @@ Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self,
 
   if (!ic)
     {
-      Dbg().printf("%s: Irqs are handled by %s, ignoring irq assignments\n",
-                   self.get_name(), irq_ctl.get_name());
+      info.printf("%s: Irqs are handled by %s, ignoring irq assignments\n",
+                  self.get_name(), irq_ctl.get_name());
       return;
     }
 
@@ -171,8 +174,8 @@ struct F : Factory
                 L4Re::chksys(-L4_EINVAL);
               }
 
-            Dbg().printf("Adding MMIO resource 0x%lx/0x%lx\n",
-                         res.start, res.end);
+            info.printf("Adding MMIO resource 0x%lx/0x%lx\n",
+                        res.start, res.end);
 
             auto handler = Vdev::make_device<Ds_handler>(vbus->io_ds(), 0,
                                                          res.end - res.start + 1,

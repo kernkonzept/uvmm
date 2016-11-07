@@ -63,7 +63,7 @@ public:
   {
     for (auto &d : _devices)
       {
-        Dbg().printf("Init device '%s'.\n", d.path.c_str());
+        Dbg(Dbg::Dev, Dbg::Trace).printf("Init device '%s'.\n", d.path.c_str());
 
         auto node = Dt_node();
         if (d.phandle != 0 && d.phandle != -1U)

@@ -60,8 +60,7 @@ private:
     l4_umword_t *val = &(vcpu->r.r[insn.rt()]);
     unsigned reg = (insn.rd() << 3) | (insn.func() & 0x7);
 
-    if (0)
-      Dbg().printf("MFC0 for 0x%x in register %d (0x%lx)\n",
+    trace().printf("MFC0 for 0x%x in register %d (0x%lx)\n",
                    reg, (unsigned) insn.rt(), *val);
 
     switch (reg)
@@ -86,8 +85,8 @@ private:
     (void) vcpu;
     unsigned reg = (insn.rd() << 3) | (insn.func() & 0x7);
 
-    if (0)
-    Dbg().printf("MTC0 for 0x%x in register %u \n", reg, (unsigned) insn.rt());
+    trace().printf("MTC0 for 0x%x in register %u \n",
+                   reg, (unsigned) insn.rt());
 
     switch (reg)
       {
@@ -123,8 +122,8 @@ private:
     unsigned reg = (insn.rd() << 3) | (insn.func() & 0x7);
     auto *s = vcpu.state();
 
-    Dbg().printf("MTC0(soft) for 0x%x in register %d (0x%lx) \n",
-                 reg, (unsigned) insn.rt(), val);
+    trace().printf("MTC0(soft) for 0x%x in register %d (0x%lx) \n",
+                   reg, (unsigned) insn.rt(), val);
 
     switch (reg)
       {

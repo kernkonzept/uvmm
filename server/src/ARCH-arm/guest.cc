@@ -54,14 +54,14 @@ Guest::Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
   _timer(Vdev::make_device<Vdev::Core_timer>())
 {
   if (_ram.vm_start() & ((1 << 27) - 1))
-    Dbg().printf(
+    warn().printf(
       "\033[01;31mWARNING: Guest memory not 128MB aligned!\033[m\n"
       "       If you run Linux as a guest, Linux will likely fail to boot\n"
       "       as it assumes a 128MB alignment of its memory.\n"
       "       Current guest RAM alignment is only %dMB\n",
       (1 << __builtin_ctz(_ram.vm_start())) >> 20);
   else if (_ram.vm_start() & ~0xf0000000)
-    Dbg(Dbg::Info).printf(
+    warn().printf(
         "WARNING: Guest memory not 256MB aligned!\n"
         "       If you run Linux as a guest, you might hit a bug\n"
         "       in the arch/arm/boot/compressed/head.S code\n"
@@ -87,7 +87,6 @@ struct F : Factory
                                     Vmm::Virt_bus *vbus,
                                     Vdev::Dt_node const &node)
   {
-    Dbg info;
     if (!vbus->io_ds())
       {
         Err().printf("ERROR: ARM GIC virtualization does not work without passing GICD via the vbus\n");
@@ -106,7 +105,8 @@ struct F : Factory
     L4Re::chksys(vdev.get_resource(0, &res),
                  "getting memory resource");
 
-    info.printf("ARM GIC: %08lx-%08lx\n", res.start, res.end);
+    Dbg(Dbg::Irq, Dbg::Info, "GIC").printf("ARM GIC: %08lx-%08lx\n",
+                                           res.start, res.end);
 
     auto g2 = Vdev::make_device<Ds_handler>(vbus->io_ds(), 0,
                                             res.end - res.start + 1, res.start);
@@ -153,8 +153,8 @@ Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
   if (def_end.get() < end.get())
     L4Re::chksys(-L4_ENOMEM, "Not enough space to run Linux");
 
-  Dbg().printf("Linux end at %llx, reserving space up to :%llx\n",
-               end.get(), def_end.get());
+  info().printf("Linux end at %llx, reserving space up to :%llx\n",
+                end.get(), def_end.get());
   return def_end;
 }
 
@@ -191,8 +191,8 @@ Guest::run(Cpu vcpu)
   _gic->set_cpu(0, &vm->gic);
   vmm_current_cpu_id = 0;
 
-  Dbg(Dbg::Info).printf("Starting vmm @ 0x%lx (handler @ %p)\n",
-                        vcpu->r.ip, &vcpu_entry);
+  info().printf("Starting vmm @ 0x%lx (handler @ %p)\n",
+                vcpu->r.ip, &vcpu_entry);
 
   L4::Cap<L4::Thread> myself;
   myself->vcpu_resume_commit(myself->vcpu_resume_start());

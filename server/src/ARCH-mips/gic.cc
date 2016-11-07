@@ -17,14 +17,11 @@
 #include "debug.h"
 #include "gic.h"
 
-namespace {
-
-Dbg dbg(Dbg::Info, "GIC");
-
-} // namespace
+static Dbg trace(Dbg::Irq, Dbg::Trace, "GIC");
+static Dbg warn(Dbg::Irq, Dbg::Warn, "GIC");
+static Dbg dbg(Dbg::Irq, Dbg::Info, "GIC");
 
 namespace Gic {
-
 
 Dist::Dist(Mips_core_ic *core_ic)
 : Read_mapped_mmio_device_t(Gic_shared_size),
@@ -52,8 +49,8 @@ Dist::read(unsigned reg, char size, unsigned cpu_id)
 {
   if (size < 2)
     {
-      Dbg().printf("WARNING: read @0x%x with unsupported width %d ignored\n",
-                   reg, 8 << size);
+      warn.printf("WARNING: read @0x%x with unsupported width %d ignored\n",
+                  reg, 8 << size);
       return 0;
     }
 
@@ -79,8 +76,8 @@ Dist::write(unsigned reg, char size, l4_umword_t value, unsigned cpu_id)
 {
   if (size < 2)
     {
-      Dbg().printf("WARNING: write @0x%x with unsupported width %d ignored\n",
-                   reg, 8 << size);
+      warn.printf("WARNING: write @0x%x with unsupported width %d ignored\n",
+                  reg, 8 << size);
       return;
     }
 
@@ -120,8 +117,7 @@ Dist::write(unsigned reg, char size, l4_umword_t value, unsigned cpu_id)
 l4_umword_t
 Dist::read_cpu(unsigned reg, char, unsigned cpu_id)
 {
-  if (0)
-    dbg.printf("Local read from cpu %d ignored @ 0x%x\n",
+  trace.printf("Local read from cpu %d ignored @ 0x%x\n",
                cpu_id, reg);
   return 0;
 }
@@ -129,8 +125,7 @@ Dist::read_cpu(unsigned reg, char, unsigned cpu_id)
 void
 Dist::write_cpu(unsigned reg, char, l4_umword_t value, unsigned cpu_id)
 {
-  if (0)
-    dbg.printf("Local write to cpu %d ignored 0x%lx @ 0x%x\n",
+  trace.printf("Local write to cpu %d ignored 0x%lx @ 0x%x\n",
                cpu_id, value, reg);
 }
 
@@ -201,7 +196,6 @@ void
 Dist::setup_source(unsigned irq)
 {
   auto vp = *gic_mem<l4_uint32_t>(irq_to_mapreg(irq));
-  dbg.printf("IRQ %d setup source: for VP %d\n", irq, vp);
   if (!(vp & 0x1f))
     {
       _irq_array[irq].reset();
@@ -211,8 +205,8 @@ Dist::setup_source(unsigned irq)
   //TODO cpu
   auto pin = *gic_mem<Gic_pin_reg>(irq_to_pinreg(irq));
 
-  dbg.printf("GIC irq 0x%x: setting source for CPU %d to pin 0x%lx\n",
-             irq, 0, pin.raw);
+  trace.printf("GIC irq 0x%x: setting source for CPU %d to pin 0x%lx\n",
+               irq, 0, pin.raw);
 
   // only int pins at the moment
   if (pin.pin() && pin.map() < 6)

@@ -13,8 +13,6 @@
 #include "debug.h"
 #include "vcpu.h"
 
-static Dbg mmio_msg(Dbg::Mmio, "mmio");
-
 namespace Vmm {
 
 struct Mmio_device_t_b
@@ -57,16 +55,17 @@ struct Mmio_device_t : Mmio_device, Mmio_device_t_b
     l4_umword_t *gpr;
     if (this->decode_mmio(hsr, &gpr, vcpu))
       {
+        Dbg trace(Dbg::Mmio, Dbg::Trace, "mmio");
         // skip insn
         vcpu->r.ip += 2 << hsr.il();
 
         // TODO: provide accessor for correct mode + register
         if (hsr.pf_write())
           {
-            mmio_msg.printf("write %08lx+%05lx (%d) value: %lx (r=%d)\n",
-                            pfa - offset, offset,
-                            (unsigned)hsr.pf_sas(), *gpr,
-                            (unsigned)hsr.pf_srt());
+            trace.printf("write %08lx+%05lx (%d) value: %lx (r=%d)\n",
+                         pfa - offset, offset,
+                         (unsigned)hsr.pf_sas(), *gpr,
+                         (unsigned)hsr.pf_srt());
             static_cast<T *>(this)->write(offset, hsr.pf_sas(), *gpr, vcpu.get_vcpu_id());
           }
         else
@@ -75,10 +74,10 @@ struct Mmio_device_t : Mmio_device, Mmio_device_t_b
                                                           vcpu.get_vcpu_id());
             *gpr = reg_extend_width(res, hsr.pf_sas(), hsr.pf_sse());
 
-            mmio_msg.printf("read  %08lx+%05lx (%d) value: %lx (r=%d)\n",
-                            pfa - offset, offset,
-                            (unsigned)hsr.pf_sas(), *gpr,
-                            (unsigned)hsr.pf_srt());
+            trace.printf("read  %08lx+%05lx (%d) value: %lx (r=%d)\n",
+                         pfa - offset, offset,
+                         (unsigned)hsr.pf_sas(), *gpr,
+                         (unsigned)hsr.pf_srt());
           }
       }
     else

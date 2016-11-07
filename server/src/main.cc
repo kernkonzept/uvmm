@@ -52,6 +52,9 @@ __thread unsigned vmm_current_cpu_id;
 
 Vdev::Device_repository devices;
 
+static Dbg info(Dbg::Core, Dbg::Info, "main");
+static Dbg warn(Dbg::Core, Dbg::Warn, "main");
+
 static bool
 node_cb(Vdev::Dt_node const &node, unsigned /* depth */, Vmm::Guest *vmm,
         Vmm::Virt_bus *vbus)
@@ -74,13 +77,14 @@ node_cb(Vdev::Dt_node const &node, unsigned /* depth */, Vmm::Guest *vmm,
 
   if (node.has_prop("l4vmm,force-enable"))
     {
-      Dbg().printf("Device creation for %s failed, 'l4vmm,force-enable' set\n",
-                   node.get_name());
+      warn.printf("Device creation for %s failed, 'l4vmm,force-enable' set\n",
+                  node.get_name());
       return true;
     }
 
-  Dbg().printf("Device creation for %s failed. Disabling device \n",
-               node.get_name());
+  warn.printf("Device creation for %s failed. Disabling device \n",
+              node.get_name());
+
   node.setprop_string("status", "disabled");
   return false;
 }
@@ -101,7 +105,91 @@ create_monitor(Vmm::Guest *vmm)
 }
 
 
-static char const *const options = "+k:d:p:r:c:b:";
+static int
+verbosity_mask_from_string(char const *str, unsigned *mask)
+{
+  if (strcmp("quiet", str) == 0)
+    {
+      *mask = Dbg::Quiet;
+      return 0;
+    }
+  if (strcmp("warn", str) == 0)
+    {
+      *mask = Dbg::Warn;
+      return 0;
+    }
+  if (strcmp("info", str) == 0)
+    {
+      *mask = Dbg::Warn | Dbg::Info;
+      return 0;
+    }
+  if (strcmp("trace", str) == 0)
+    {
+      *mask = Dbg::Warn | Dbg::Info | Dbg::Trace;
+      return 0;
+    }
+
+  return -L4_ENOENT;
+}
+
+/**
+ * Set debug level according to a verbosity string.
+ *
+ * The string may either set a global verbosity level:
+ *   quiet, warn, info, trace
+ *
+ * Or it may set the verbosity level for a component:
+ *
+ *   <component>=<level>
+ *
+ * where component is one of: guest, core, cpu, mmio, irq, dev
+ * and level the same as above.
+ *
+ * To change the verbosity of multiple components repeat
+ * the verbosity switch.
+ *
+ * Example:
+ *
+ *  uvmm -d info -d irq=trace
+ *
+ *    Sets verbosity for all components to info except for
+ *    IRQ handling which is set to trace.
+ *
+ *  uvmm -d trace -d dev=warn -d mmio=warn
+ *
+ *    Enables tracing for all components except devices
+ *    and mmio.
+ *
+ */
+static void
+set_verbosity(char const *str)
+{
+  unsigned mask;
+  if (verbosity_mask_from_string(str, &mask) == 0)
+    {
+      Dbg::set_verbosity(mask);
+      return;
+    }
+
+  static char const *const components[] =
+    { "guest", "core", "cpu", "mmio", "irq", "dev" };
+
+  static_assert(std::extent<decltype(components)>::value == Dbg::Max_component,
+                "Component names must match 'enum Component'.");
+
+  for (unsigned i = 0; i < Dbg::Max_component; ++i)
+    {
+      auto len = strlen(components[i]);
+      if (strncmp(components[i], str, len) == 0 && str[len] == '='
+          && verbosity_mask_from_string(str + len + 1, &mask) == 0)
+        {
+          Dbg::set_verbosity(i, mask);
+          return;
+        }
+    }
+}
+
+static char const *const options = "+k:d:p:r:c:b:v:q";
 static struct option const loptions[] =
   {
     { "kernel",   1, NULL, 'k' },
@@ -110,18 +198,18 @@ static struct option const loptions[] =
     { "ramdisk",  1, NULL, 'r' },
     { "cmdline",  1, NULL, 'c' },
     { "rambase",  1, NULL, 'b' },
+    { "verbosity", 1, NULL, 'v' },
+    { "quiet",    0, NULL, 'q' },
     { 0, 0, 0, 0}
   };
 
 static int run(int argc, char *argv[])
 {
   L4Re::Env const *e = L4Re::Env::env();
-  Dbg info;
-  Dbg warn(Dbg::Warn);
 
-  Dbg::set_level(0xffff);
+  Dbg::set_verbosity(Dbg::Warn);
 
-  info.printf("Hello out there.\n");
+  warn.printf("Hello out there.\n");
 
   char const *cmd_line     = nullptr;
   char const *kernel_image = "rom/zImage";
@@ -146,6 +234,13 @@ static int run(int argc, char *argv[])
           break;
         case 'p':
           dtb_padding = strtoul(optarg, nullptr, 0);
+          break;
+        case 'q':
+          // quiet actually means guest output only
+          Dbg::set_level(Dbg::Guest);
+          break;
+        case 'v':
+          set_verbosity(optarg);
           break;
         default:
           Err().printf("unknown command-line option\n");

@@ -61,8 +61,8 @@ Generic_guest::load_device_tree_at(char const *name, L4virtio::Ptr<void> addr,
   dt.check_tree();
   // use 1.25 * size + padding for the time being
   dt.add_to_size(dt.size() / 4 + padding);
-  Dbg().printf("Loaded device tree to %llx:%llx\n", _device_tree.get(),
-               _device_tree.get() + dt.size());
+  info().printf("Loaded device tree to %llx:%llx\n", _device_tree.get(),
+                _device_tree.get() + dt.size());
 
   // Round to the next page to load anything else to a new page.
   return l4_round_size(L4virtio::Ptr<void>(addr.get() + dt.size()),
@@ -110,8 +110,6 @@ L4virtio::Ptr<void>
 Generic_guest::load_ramdisk_at(char const *ram_disk, L4virtio::Ptr<void> addr,
                                l4_size_t *size)
 {
-  Dbg info(Dbg::Info);
-
   l4_size_t tmp;
   auto initrd = _ram.load_file(ram_disk, addr, &tmp);
 
@@ -121,8 +119,8 @@ Generic_guest::load_ramdisk_at(char const *ram_disk, L4virtio::Ptr<void> addr,
   // Round to the next page to load anything else to a new page.
   auto res = l4_round_size(L4virtio::Ptr<void>(initrd.get() + tmp),
                            L4_PAGESHIFT);
-  info.printf("Loaded ramdisk image %s to [%llx:%llx] (%08zx)\n", ram_disk,
-              initrd.get(), res.get() - 1, tmp);
+  info().printf("Loaded ramdisk image %s to [%llx:%llx] (%08zx)\n", ram_disk,
+                initrd.get(), res.get() - 1, tmp);
   return res;
 }
 
@@ -230,6 +228,6 @@ Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> &&dev,
 
   add_mmio_device(region, cxx::move(dev));
 
-  Dbg().printf("New mmio mapping: @ %llx %llx\n", base, size);
+  info().printf("New mmio mapping: @ %llx %llx\n", base, size);
 }
 } // namespace

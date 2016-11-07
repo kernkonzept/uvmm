@@ -27,7 +27,7 @@ enum {
 };
 
 Gic::Dist::Dist(unsigned tnlines, unsigned char cpus)
-: gicd_info(Dbg::Gicd, "GICD"), ctlr(0), tnlines(tnlines), cpus(cpus),
+: gicd_info(Dbg::Irq, Dbg::Info, "GICD"), ctlr(0), tnlines(tnlines), cpus(cpus),
   _active_grp0_cpus(0), _active_grp1_cpus(0),
   _spis(tnlines * 32)
 {

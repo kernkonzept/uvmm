@@ -17,17 +17,62 @@ struct Err : L4Re::Util::Err
 
 struct Dbg : L4Re::Util::Dbg
 {
-  enum
+  /// Verbosity level per component.
+  enum Verbosity : unsigned long
   {
-    Info = 1,
-    Warn = 2,
-
-    Mmio   = 0x10000,
-    Gicd   = 0x20000,
-    Vm_bus = 0x40000,
+    Quiet = 0,
+    Warn = 1,
+    Info = 2,
+    Trace = 4,
   };
 
-  Dbg(unsigned long lvl = Info, char const *subsys = "")
-  : L4Re::Util::Dbg(lvl, "VMM", subsys)
+  enum
+  {
+    Verbosity_shift = 3, /// Bits per component for verbosity
+    Verbosity_mask = (1UL << Verbosity_shift) - 1
+  };
+
+  /**
+   * Different components for which the verbosity can be set independently.
+   */
+  enum Component
+  {
+    Guest = 0,
+    Core,
+    Cpu,
+    Mmio,
+    Irq,
+    Dev,
+    Max_component
+  };
+
+  static_assert(Max_component * Verbosity_shift <= sizeof(level) * 8,
+                "Too many components for level mask");
+
+  /**
+   * Set the verbosity for all components to the given levels.
+   *
+   * \param mask  Mask of verbositity levels.
+   */
+  static void set_verbosity(unsigned mask)
+  {
+    for (unsigned i = 0; i < Max_component; ++i)
+      set_verbosity(i, mask);
+  }
+
+  /**
+   * Set the verbosity of a single component to the given level.
+   *
+   * \param c     Component for which to set verbosity.
+   * \param mask  Mask of verbositity levels.
+   */
+  static void set_verbosity(unsigned c, unsigned mask)
+  {
+    level &= ~(Verbosity_mask << (Verbosity_shift * c));
+    level |= mask << (Verbosity_shift * c);
+  }
+
+  Dbg(Component c = Core, Verbosity v = Warn, char const *subsys = "")
+  : L4Re::Util::Dbg(v << (Verbosity_shift * c), "VMM", subsys)
   {}
 };

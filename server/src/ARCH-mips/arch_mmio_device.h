@@ -18,8 +18,6 @@
 #include "vcpu.h"
 #include "mips_instructions.h"
 
-static Dbg mmio_msg(Dbg::Mmio, "mmio");
-
 namespace Vmm {
 
 template<typename T>
@@ -29,10 +27,10 @@ struct Mmio_device_t : Mmio_device
               L4::Cap<L4::Task>, l4_addr_t, l4_addr_t)
   {
     Mips::Instruction insn(vcpu->r.bad_instr);
-    if (0)
-      Dbg().printf("MMIO access @ 0x%lx (0x%lx) %s %u byte, instr: 0x%lx\n",
-                   pfa, offset, insn.op_mem_store() ? "STORE" : "LOAD",
-                   (unsigned) insn.load_store_width(), vcpu->r.bad_instr);
+    Dbg(Dbg::Mmio, Dbg::Trace, "mmio")
+      .printf("MMIO access @ 0x%lx (0x%lx) %s %u byte, instr: 0x%lx\n",
+              pfa, offset, insn.op_mem_store() ? "STORE" : "LOAD",
+              (unsigned) insn.load_store_width(), vcpu->r.bad_instr);
 
     if (!insn.is_simple_load_store())
       return false;

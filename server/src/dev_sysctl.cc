@@ -35,7 +35,8 @@ struct System_controller : public Device
     switch (reg)
       {
       case 0:
-        Dbg().printf("Shutdown (%d) requested\n", value);
+        Dbg(Dbg::Dev, Dbg::Info, "sysctl")
+          .printf("Shutdown (%d) requested\n", value);
         exit(value);
       }
   }

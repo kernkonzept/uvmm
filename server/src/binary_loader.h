@@ -48,8 +48,9 @@ public:
           l4_addr_t dest = ram->boot2ram(ph.paddr());
           if (dest > ram->size() || dest + ph.memsz() > ram->size())
             L4Re::chksys(-L4_ERANGE, "Binary outside VM RAM region");
-          Dbg().printf("Copy in ELF binary section @0x%lx from 0x%lx/0x%lx\n",
-                       dest, ph.offset(), ph.filesz());
+          Dbg(Dbg::Mmio, Dbg::Info, "bin")
+            .printf("Copy in ELF binary section @0x%lx from 0x%lx/0x%lx\n",
+                    dest, ph.offset(), ph.filesz());
           L4Re::chksys(ram->ram()->copy_in(dest, _ds.get(),
                                            ph.offset(), ph.filesz()));
         }

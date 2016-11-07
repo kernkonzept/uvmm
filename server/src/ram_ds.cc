@@ -23,7 +23,7 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
   _dma(L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4Re::Dma_space>())),
   _boot_offset(boot_offset)
 {
-  Dbg info(Dbg::Info);
+  Dbg info(Dbg::Mmio, Dbg::Info, "ram");
 
   _vm_start = vm_base;
   _size = ram->size();
@@ -52,7 +52,8 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
 
   if (err < 0 || phys_size < _size)
     {
-      info.printf("RAM dataspace not contiguous, should not use DMA w/o IOMMU\n");
+      Dbg warn(Dbg::Mmio, Dbg::Warn, "ram");
+      warn.printf("RAM dataspace not contiguous, should not use DMA w/o IOMMU\n");
       if (err >= 0 && _vm_start == Ram_base_identity_mapped)
         {
           _vm_start = phys_ram;
@@ -92,7 +93,7 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
 L4virtio::Ptr<void>
 Ram_ds::load_file(char const *name, l4_addr_t offset, l4_size_t *_size)
 {
-  Dbg info(Dbg::Info, "file");
+  Dbg info(Dbg::Mmio, Dbg::Info, "file");
 
   info.printf("load: %s -> %lx\n", name, offset);
   int fd = open(name, O_RDONLY);

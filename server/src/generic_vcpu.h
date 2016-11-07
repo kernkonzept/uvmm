@@ -36,7 +36,7 @@ public:
       L4Re::chksys(-L4_ENODEV);
     }
 
-    Dbg(Dbg::Info).printf("VCPU mapped @ %p and enabled\n", _s);
+    trace().printf("VCPU mapped @ %p and enabled\n", _s);
   }
 
   unsigned get_vcpu_id() const
@@ -51,6 +51,15 @@ protected:
     Reg_vcpu_id = 0,
     Reg_arch_base
   };
+
+  static Dbg warn()
+  { return Dbg(Dbg::Cpu, Dbg::Warn); }
+
+  static Dbg info()
+  { return Dbg(Dbg::Cpu, Dbg::Info); }
+
+  static Dbg trace()
+  { return Dbg(Dbg::Cpu, Dbg::Trace); }
 
   static_assert(Reg_arch_base <= 7, "Too many user_data registers used");
 

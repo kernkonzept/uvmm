@@ -105,8 +105,9 @@ public:
     if (page_offs)
       {
         auto tmp = l4_trunc_page(_local_start) + page_offs;
-        Dbg().printf("Region not page aligned, adjusting local_start: "
-                     "%lx -> %lx\n",  _local_start, tmp);
+        Dbg(Dbg::Mmio, Dbg::Warn)
+          .printf("Region not page aligned, adjusting local_start: %lx -> %lx\n",
+                  _local_start, tmp);
         _local_start = tmp;
       }
 #endif

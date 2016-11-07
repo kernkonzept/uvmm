@@ -74,9 +74,9 @@ public:
           reinterpret_cast<l4_addr_t>(_ram.access(_device_tree));
         l4_addr_t ds_end = ds_start + device_tree().size();
         l4_cache_clean_data(ds_start, ds_end);
-        Dbg().printf("Cleaning caches [%lx-%lx] ([%lx+%llx])\n",
-                     ds_start, ds_end, _ram.local_start(),
-                     _device_tree.get());
+        trace().printf("Cleaning caches [%lx-%lx] ([%lx+%llx])\n",
+                       ds_start, ds_end, _ram.local_start(),
+                       _device_tree.get());
       }
   }
 
@@ -201,6 +201,15 @@ protected:
     for(;;)
       wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
   }
+
+  static Dbg warn()
+  { return Dbg(Dbg::Core, Dbg::Warn); }
+
+  static Dbg info()
+  { return Dbg(Dbg::Core, Dbg::Info); }
+
+  static Dbg trace()
+  { return Dbg(Dbg::Core, Dbg::Trace); }
 
   L4Re::Util::Br_manager _bm;
   L4Re::Util::Object_registry _registry;

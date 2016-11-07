@@ -53,8 +53,9 @@ public:
     l4_vcon_attr_t attr;
     if (l4_error(con->get_attr(&attr)) != L4_EOK)
       {
-        Dbg(Dbg::Warn).printf("WARNING: Cannot set console attributes. "
-                              "Output may not work as expected.\n");
+        Dbg(Dbg::Dev, Dbg::Warn, "cons")
+          .printf("WARNING: Cannot set console attributes. "
+                  "Output may not work as expected.\n");
         return;
       }
 

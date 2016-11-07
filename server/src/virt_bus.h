@@ -31,9 +31,6 @@ class Guest;
 
 class Virt_bus : public cxx::Ref_obj
 {
-private:
-  Dbg dbg;
-
 public:
   struct Devinfo
   {
@@ -43,11 +40,11 @@ public:
   };
 
   explicit Virt_bus(L4::Cap<L4vbus::Vbus> bus)
-  : dbg(Dbg::Vm_bus, "vmbus"), _bus(bus)
+  : _bus(bus)
   {
     if (!bus.is_valid())
       {
-        Dbg(Dbg::Warn, "vmbus")
+        Dbg(Dbg::Dev, Dbg::Warn, "vmbus")
           .printf("'vbus' capability not found. Hardware access not possible for VM.\n");
         return;
       }
