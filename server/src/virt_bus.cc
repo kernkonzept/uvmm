@@ -28,11 +28,15 @@ Virt_bus::scan_bus()
 Virt_bus::Devinfo *
 Virt_bus::find_unassigned_dev(Vdev::Dt_node const &node)
 {
+  if (!node.has_compatible())
+    return nullptr;
+
   int num_compatible = node.stringlist_count("compatible");
 
-  for (int i = 0; i < num_compatible; ++i)
+  for (int c = 0; c < num_compatible; ++c)
     {
-      auto *hid = node.stringlist_get("compatible", i, nullptr);
+      auto *hid = node.stringlist_get("compatible", c, nullptr);
+      assert(hid);
 
       for (auto &iodev: _devices)
         if (!iodev.proxy && iodev.io_dev.is_compatible(hid) > 0)
@@ -61,7 +65,7 @@ Virt_bus::find_unassigned_dev(Vdev::Dt_node const &node)
           }
     }
 
-  return 0;
+  return nullptr;
 }
 
 } // namespace
