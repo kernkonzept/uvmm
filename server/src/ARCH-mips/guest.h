@@ -90,6 +90,16 @@ private:
 
     switch (reg)
       {
+      case L4_VM_CP0_COUNT:
+        {
+          l4_uint32_t newcnt = vcpu->r.r[insn.rt()];
+          l4_uint32_t kcnt;
+          asm volatile("rdhwr\t%0, $2" : "=r"(kcnt)); // timer counter
+
+          vcpu.state()->guest_timer_offset = (l4_int32_t) (newcnt - kcnt);
+          vcpu.state()->set_modified(L4_VM_MOD_GTOFFSET);
+          return Jump_instr;
+        }
       case L4_VM_CP0_CONFIG_0:
       case L4_VM_CP0_CONFIG_1:
       case L4_VM_CP0_CONFIG_2:
@@ -146,27 +156,38 @@ private:
 
   int handle_wait(Cpu vcpu, l4_utcb_t *utcb)
   {
-    l4_timeout_t to = L4_IPC_NEVER;
     auto *s = vcpu.state();
-
-    l4_uint32_t kcnt;
-    asm volatile("rdhwr\t%0, $2" : "=r"(kcnt)); // timer counter
-
-    s->update_state(L4_VM_MOD_CAUSE | L4_VM_MOD_COMPARE);
-
-    if (s->g_cause & (1UL << 30))
-      return Jump_instr; // there was a timer interrupt
-
     auto *kip = l4re_kip();
-    l4_uint32_t gcnt = kcnt + (l4_uint32_t) s->guest_timer_offset;
-    l4_uint32_t diff;
-    if (gcnt < s->g_compare)
-      diff = s->g_compare - gcnt;
-    else
-      diff = (0xffffffff - gcnt) + s->g_compare;
-    diff /= (kip->frequency_cpu / 1000);
 
-    l4_rcv_timeout(l4_timeout_abs_u(l4_kip_clock(kip) + diff, 8, utcb), &to);
+    l4_cpu_time_t kip_time;
+    // get kip time and hardware in sync
+    do
+      {
+        kip_time = l4_kip_clock(kip);
+        s->update_state(L4_VM_MOD_CAUSE | L4_VM_MOD_COMPARE);
+
+        if (s->g_cause & (1UL << 30))
+          return Jump_instr; // there was a timer interrupt
+
+        l4_mb();
+      }
+    while (kip_time != l4_kip_clock(kip));
+
+    l4_uint32_t gcnt = s->saved_cause_timestamp
+                       + (l4_int32_t) s->guest_timer_offset;
+    l4_uint32_t diff;
+    l4_uint32_t cmp = s->g_compare;
+    if (gcnt < cmp)
+      diff = cmp - gcnt;
+    else
+      diff = (0xffffffff - gcnt) + cmp;
+
+    diff = ((diff + kip->frequency_cpu - 1) / kip->frequency_cpu) * 1000;
+    // make sure the timer interrupt has passed on the Fiasco clock tick
+    diff += kip->scheduler_granularity;
+
+    l4_timeout_t to;
+    l4_rcv_timeout(l4_timeout_abs_u(kip_time + diff, 8, utcb), &to);
 
     wait_for_ipc(utcb, to);
 
