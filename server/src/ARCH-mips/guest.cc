@@ -172,6 +172,7 @@ Guest::run(Cpu vcpu)
 {
   _vcpu[0] = &vcpu;
 
+  vcpu.set_vcpu_id(0);
   vcpu.alloc_fpu_state();
 
   l4_umword_t sp;
@@ -321,7 +322,8 @@ struct F : Factory
                                     Vmm::Virt_bus *,
                                     Vdev::Dt_node const &)
   {
-    return vmm->core_ic();
+    // Device tree only sees the IC for core 0.
+    return vmm->core_ic()->get_ic(0);
   }
 };
 
