@@ -32,21 +32,39 @@ struct Mmio_device_t : Mmio_device
               pfa, offset, insn.op_mem_store() ? "STORE" : "LOAD",
               (unsigned) insn.load_store_width(), vcpu->r.bad_instr);
 
-    if (!insn.is_simple_load_store())
-      return false;
+    l4_uint64_t value;
+    char width;
+    bool is_store = insn.op_mem_store();
 
-    if (insn.op_mem_store())
+    if (insn.is_simple_load_store())
       {
-        dev()->write(offset, insn.load_store_width(), vcpu->r.r[insn.rt()],
-                     vcpu.get_vcpu_id());
+        width = insn.load_store_width();
+
+        if (is_store)
+          value = vcpu->r.r[insn.rt()];
+      }
+    else if (insn.is_fp_load_store())
+      {
+        width = insn.op_fp_dc1() ? 3 : 2;
+
+        if (is_store)
+          value = vcpu.fpu_state()->read(insn.rt());
       }
     else
-      {
-        l4_umword_t value = dev()->read(offset, insn.load_store_width(),
-                                        vcpu.get_vcpu_id());
+      return false;
 
-        vcpu->r.r[insn.rt()] = reg_extend_width(value, insn.load_store_width(),
-                                                insn.op_mem_unsigned());
+    if (is_store)
+      dev()->write(offset, width, value, vcpu.get_vcpu_id());
+    else
+      value = dev()->read(offset, width, vcpu.get_vcpu_id());
+
+    if (!is_store)
+      {
+        if (insn.is_simple_load_store())
+          vcpu->r.r[insn.rt()] = reg_extend_width(value, width,
+                                                  insn.op_mem_unsigned());
+        else
+          vcpu.fpu_state()->write(insn.rt(), width, value);
       }
 
     vcpu.jump_instruction();
@@ -78,25 +96,44 @@ struct Read_mapped_mmio_device_t : Mmio_device
               L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max)
   {
     Mips::Instruction insn(vcpu->r.bad_instr);
+    l4_uint64_t value;
+    char width;
+    bool is_store = insn.op_mem_store();
 
-    if (!insn.is_simple_load_store())
+    if (insn.is_simple_load_store())
+      {
+        width = insn.load_store_width();
+
+        if (is_store)
+          value = vcpu->r.r[insn.rt()];
+      }
+    else if (insn.is_fp_load_store())
+      {
+        width = insn.op_fp_dc1() ? 3 : 2;
+
+        if (is_store)
+          value = vcpu.fpu_state()->read(insn.rt());
+      }
+    else
       return false;
 
-    if (insn.op_mem_store())
-      {
-        dev()->write(offset, insn.load_store_width(), vcpu->r.r[insn.rt()],
-                     vcpu.get_vcpu_id());
-      }
+    if (is_store)
+      dev()->write(offset, width, value, vcpu.get_vcpu_id());
     else
       {
         if (offset < _mapped_size)
           map_mmio(pfa, offset, vm_task, min, max);
 
-        l4_umword_t value = dev()->read(offset, insn.load_store_width(),
-                                        vcpu.get_vcpu_id());
+        value = dev()->read(offset, width, vcpu.get_vcpu_id());
+      }
 
-        vcpu->r.r[insn.rt()] = reg_extend_width(value, insn.load_store_width(),
-                                                insn.op_mem_unsigned());
+    if (!is_store)
+      {
+        if (insn.is_simple_load_store())
+          vcpu->r.r[insn.rt()] = reg_extend_width(value, width,
+                                                  insn.op_mem_unsigned());
+        else
+          vcpu.fpu_state()->write(insn.rt(), width, value);
       }
 
     vcpu.jump_instruction();

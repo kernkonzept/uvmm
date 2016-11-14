@@ -76,6 +76,8 @@ struct Instruction
   CXX_BITFIELD_MEMBER_RO(25, 25, cop0_co, raw);
   // for J/JAL
   CXX_BITFIELD_MEMBER_RO( 0, 25, instr_index, raw);
+  // for FP ops
+  CXX_BITFIELD_MEMBER_RO(28, 28, op_fp_dc1, raw);
 
   Instruction(l4_uint32_t inst) : raw(inst) {}
 
@@ -106,6 +108,12 @@ struct Instruction
            || ((opcode() & 0x37) == 0x37);
   }
 
+  bool is_fp_load_store() const
+  {
+    return opcode() == Op::Lwc1 || opcode() == Op::Sdc1
+           || opcode() == Op::Ldc1 || opcode() == Op::Sdc1;
+  }
+
   /**
    * Return width of a load/store operation.
    *
@@ -130,6 +138,8 @@ struct Instruction
         return 1;
       case Op::Ld:
       case Op::Sd:
+      case Op::Ldc1:
+      case Op::Sdc1:
         return 3;
       default:
         return 2;

@@ -20,8 +20,39 @@ namespace Vmm {
 struct Fpu_state
 {
 #if __mips_fpr == 64
+  l4_uint64_t read(unsigned fpnr)
+  { return regs[fpnr]; }
+
+  void write(unsigned fpnr, char, l4_uint64_t value)
+  { regs[fpnr] = value; }
+
   l4_uint64_t regs[32];
 #else
+
+  l4_uint64_t read(unsigned fpnr)
+  {
+    // registers are numbered by 32bit but saved in 64bit
+    // so for odd FPU register numbers return the upper 32bits.
+    return regs[fpnr >> 1] >> (32 * (fpnr & 1));
+  }
+
+  void write(unsigned fpnr, char size, l4_uint64_t value)
+  {
+    if (size == 3)
+      regs[fpnr >> 1] = value;
+    else
+      {
+        // write the 32bit value in the upper or lower part of the
+        // saved 64bit value
+        value &= 0xffffffff;
+        // Mask for the 64bit register: upper 32 bit for even FPU registers,
+        // lower 32 bit for odd FPU registers.
+        l4_uint64_t regmask = (0xffffffffULL << (32 * (~fpnr & 1)));
+        regs[fpnr >> 1] = (regmask & regs[fpnr >> 1])
+                          | (value << (32 * (fpnr & 1)));
+      }
+  }
+
   l4_uint64_t regs[16];
 #endif
   l4_umword_t status;
