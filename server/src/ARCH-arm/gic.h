@@ -18,7 +18,7 @@
 #include <cstdio>
 
 #include "debug.h"
-#include "arch_mmio_device.h"
+#include "mmio_device.h"
 #include "irq.h"
 
 extern __thread unsigned vmm_current_cpu_id;

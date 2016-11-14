@@ -8,7 +8,7 @@
  */
 #pragma once
 
-#include "arch_mmio_device.h"
+#include "mmio_device.h"
 #include "debug.h"
 #include "irq.h"
 #include "virtio_dev.h"

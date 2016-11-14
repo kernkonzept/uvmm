@@ -7,6 +7,8 @@
  */
 #pragma once
 
+#include <cassert>
+
 #include <l4/re/error_helper>
 #include <l4/sys/kdebug.h>
 #include <l4/sys/thread_mips.h>
@@ -188,6 +190,46 @@ public:
 
     Err().printf("Guest exception in branch delay slot. Instruction not implemented @ IP 0x%lx\n", _s->r.ip);
     enter_kdebug("STOP");
+  }
+
+  Mem_access decode_mmio() const
+  {
+    Mips::Instruction insn(_s->r.bad_instr);
+    Mem_access m;
+
+    m.access = insn.op_mem_store() ? Mem_access::Store : Mem_access::Load;
+
+    if (insn.is_simple_load_store())
+      {
+        m.width = insn.load_store_width();
+
+        if (m.access == Mem_access::Store)
+          m.value = _s->r.r[insn.rt()];
+      }
+    else if (insn.is_fp_load_store())
+      {
+        m.width = insn.op_fp_dc1() ? Mem_access::Wd64 : Mem_access::Wd32;
+
+        if (m.access == Mem_access::Store)
+          m.value = fpu_state()->read(insn.rt());
+      }
+    else
+      m.access = Mem_access::Other;
+
+    return m;
+  }
+
+  void writeback_mmio(Mem_access const &m) const
+  {
+    assert(m.access == Mem_access::Load);
+
+    Mips::Instruction insn(_s->r.bad_instr);
+
+    if (insn.is_simple_load_store())
+      _s->r.r[insn.rt()]
+        = reg_extend_width(m.value, m.width, insn.op_mem_unsigned());
+    else
+      fpu_state()->write(insn.rt(), m.width, m.value);
   }
 
   Fpu_state *fpu_state() const

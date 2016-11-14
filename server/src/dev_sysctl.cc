@@ -7,7 +7,7 @@
  */
 #include <cstdlib>
 
-#include "arch_mmio_device.h"
+#include "mmio_device.h"
 #include "debug.h"
 #include "device.h"
 #include "device_factory.h"

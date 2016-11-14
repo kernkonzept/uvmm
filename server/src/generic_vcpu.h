@@ -18,6 +18,31 @@
 
 namespace Vmm {
 
+/**
+ * Describes a load/store instruction.
+ */
+struct Mem_access
+{
+  enum Kind
+  {
+    Load,  /// load from memory
+    Store, /// store to memory
+    Other  /// unknown instruction
+  };
+
+  enum Width
+  {
+    Wd8 = 0,  // Byte access
+    Wd16 = 1, // Half-word access
+    Wd32 = 2, // Word access
+    Wd64 = 3, // Double word access
+  };
+
+  l4_uint64_t value;
+  Kind access;
+  char width;
+};
+
 class Generic_cpu
 {
 public:
@@ -64,6 +89,28 @@ protected:
   static_assert(Reg_arch_base <= 7, "Too many user_data registers used");
 
   explicit Generic_cpu(l4_vcpu_state_t *s) : _s(s) {}
+
+  static l4_umword_t reg_extend_width(l4_umword_t value, char size, bool signext)
+  {
+    if (signext)
+      {
+        switch (size)
+          {
+          case 0: return (l4_mword_t)((l4_int8_t)value);
+          case 1: return (l4_mword_t)((l4_int16_t)value);
+          case 2: return (l4_mword_t)((l4_int32_t)value);
+          default: return value;
+          }
+      }
+
+    switch (size)
+      {
+      case 0: return (l4_umword_t)((l4_uint8_t)value);
+      case 1: return (l4_umword_t)((l4_uint16_t)value);
+      case 2: return (l4_umword_t)((l4_uint32_t)value);
+      default: return value;
+      }
+  }
 
   l4_vcpu_state_t *_s;
 };

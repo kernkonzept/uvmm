@@ -27,7 +27,7 @@
 #include <l4/l4virtio/virtqueue>
 #include <l4/l4virtio/virtio_block.h>
 
-#include "arch_mmio_device.h"
+#include "mmio_device.h"
 #include "irq.h"
 #include "vm_ram.h"
 

@@ -16,7 +16,7 @@
 #include "irq.h"
 #include "core_ic.h"
 #include "device_tree.h"
-#include "arch_mmio_device.h"
+#include "mmio_device.h"
 #include "vcpu.h"
 
 namespace Gic {
