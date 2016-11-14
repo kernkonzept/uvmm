@@ -18,7 +18,8 @@ struct F : Factory
     char const *cap_name = node.get_prop<char>("l4vmm,virtiocap", &cap_name_len);
     if (!cap_name)
       {
-        Err().printf("'l4vmm,virtiocap' property missing from virtio device.\n");
+        Dbg(Dbg::Dev, Dbg::Warn, "virtio")
+          .printf("'l4vmm,virtiocap' property missing for virtio proxy device.\n");
         return nullptr;
       }
 
@@ -27,8 +28,9 @@ struct F : Factory
     auto cap = L4Re::Env::env()->get_cap<L4virtio::Device>(cap_name, cap_name_len);
     if (!cap)
       {
-        Err().printf("'l4vmm,virtiocap' property: capability %.*s is invalid.\n",
-                     cap_name_len, cap_name);
+        Dbg(Dbg::Dev, Dbg::Warn, "virtio")
+          .printf("'l4vmm,virtiocap' property: capability %.*s is invalid.\n",
+                  cap_name_len, cap_name);
         return nullptr;
       }
 
