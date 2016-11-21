@@ -28,6 +28,8 @@ public:
 
   Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
 
+  void update_device_tree(char const *cmd_line);
+
   L4virtio::Ptr<void> load_linux_kernel(char const *kernel, l4_addr_t *entry);
 
   void prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
@@ -51,6 +53,8 @@ public:
   bool handle_psci_call(Cpu &vcpu);
 
 private:
+  void arm_update_device_tree();
+
   cxx::Ref_ptr<Gic::Dist> _gic;
   cxx::Ref_ptr<Vdev::Core_timer> _timer;
   bool guest_64bit = false;

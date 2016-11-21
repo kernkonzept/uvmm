@@ -115,6 +115,55 @@ static Vdev::Device_type tt2 = { "arm,armv8-timer", nullptr, &ftimer };
 
 } // namespace
 
+static Dt_node
+get_psci_node(Device_tree const &dt)
+{
+  char const *compats[] = { "arm,psci", "arm,psci-0.2", "arm,psci-1.0" };
+
+  for (auto compat : compats)
+    {
+      auto node = dt.first_compatible_node(compat);
+      if (node.is_valid())
+        return node;
+    }
+  return Dt_node();
+}
+
+void
+Guest::arm_update_device_tree()
+{
+  auto dt = device_tree();
+  Dt_node parent;
+  Dt_node node = get_psci_node(dt);
+
+  if (node.is_valid())
+    {
+      parent = node.parent_node();
+      if (node.del_node() < 0)
+        {
+          Err().printf("Failed to delete %s, unable to set psci methods\n",
+                       node.get_name());
+          return;
+        }
+    }
+  else
+    parent = dt.first_node();
+
+  node = parent.add_subnode("psci");
+  if (!node.is_valid())
+    return;
+
+  node.setprop_string("compatible", "arm,psci-0.2");
+  node.setprop_string("method", "hvc");
+}
+
+void
+Guest::update_device_tree(char const *cmd_line)
+{
+  Guest::Generic_guest::update_device_tree(cmd_line);
+  arm_update_device_tree();
+}
+
 L4virtio::Ptr<void>
 Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
 {
