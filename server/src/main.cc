@@ -150,12 +150,12 @@ verbosity_mask_from_string(char const *str, unsigned *mask)
  *
  * Example:
  *
- *  uvmm -d info -d irq=trace
+ *  uvmm -D info -D irq=trace
  *
  *    Sets verbosity for all components to info except for
  *    IRQ handling which is set to trace.
  *
- *  uvmm -d trace -d dev=warn -d mmio=warn
+ *  uvmm -D trace -D dev=warn -D mmio=warn
  *
  *    Enables tracing for all components except devices
  *    and mmio.
@@ -189,7 +189,7 @@ set_verbosity(char const *str)
     }
 }
 
-static char const *const options = "+k:d:p:r:c:b:v:q";
+static char const *const options = "+k:d:p:r:c:b:vqD:";
 static struct option const loptions[] =
   {
     { "kernel",   1, NULL, 'k' },
@@ -198,7 +198,8 @@ static struct option const loptions[] =
     { "ramdisk",  1, NULL, 'r' },
     { "cmdline",  1, NULL, 'c' },
     { "rambase",  1, NULL, 'b' },
-    { "verbosity", 1, NULL, 'v' },
+    { "debug",    1, NULL, 'D' },
+    { "verbose",  0, NULL, 'v' },
     { "quiet",    0, NULL, 'q' },
     { 0, 0, 0, 0}
   };
@@ -206,10 +207,9 @@ static struct option const loptions[] =
 static int run(int argc, char *argv[])
 {
   L4Re::Env const *e = L4Re::Env::env();
+  unsigned long verbosity = Dbg::Warn;
 
-  Dbg::set_verbosity(Dbg::Warn);
-
-  warn.printf("Hello out there.\n");
+  Dbg::set_verbosity(verbosity);
 
   char const *cmd_line     = nullptr;
   char const *kernel_image = "rom/zImage";
@@ -237,9 +237,15 @@ static int run(int argc, char *argv[])
           break;
         case 'q':
           // quiet actually means guest output only
-          Dbg::set_level(Dbg::Guest);
+          verbosity = Dbg::Quiet;
+          Dbg::set_verbosity(verbosity);
+          Dbg::set_verbosity(Dbg::Guest, Dbg::Warn);
           break;
         case 'v':
+          verbosity = (verbosity << 1) | 1;
+          Dbg::set_verbosity(verbosity);
+          break;
+        case 'D':
           set_verbosity(optarg);
           break;
         default:
@@ -247,6 +253,8 @@ static int run(int argc, char *argv[])
           return 1;
         }
     }
+
+  warn.printf("Hello out there.\n");
 
   // get RAM data space and attach it to our (VMMs) address space
   auto ram = L4Re::chkcap(e->get_cap<L4Re::Dataspace>("ram"),

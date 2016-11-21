@@ -69,7 +69,7 @@ struct Dbg : L4Re::Util::Dbg
   static void set_verbosity(unsigned c, unsigned mask)
   {
     level &= ~(Verbosity_mask << (Verbosity_shift * c));
-    level |= mask << (Verbosity_shift * c);
+    level |= (mask & Verbosity_mask) << (Verbosity_shift * c);
   }
 
   Dbg(Component c = Core, Verbosity v = Warn, char const *subsys = "")
