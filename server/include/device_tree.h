@@ -61,6 +61,30 @@ public:
   { return _node >= 0; }
 
   /**
+   * Add a subnode
+   *
+   * \param name Name of the new subnode
+   *
+   * \return New node or an invalid node (node offset equals the
+   *         libfdt error)
+   */
+  Node add_subnode(char const *name)
+  { return Node(_tree, fdt_add_subnode(_tree, _node, name)); }
+
+  /**
+   * Delete a node
+   *
+   * \return 0 on success, negative fdt_error otherwise
+   */
+  int del_node()
+  {
+    int res = fdt_del_node(_tree, _node);
+    if (res == 0)
+      _node = -1; // invalidate node
+    return res;
+  }
+
+  /**
    * Get the next node of this tree
    *
    * \param depth  Pointer to the depth of the current node; If not
@@ -74,6 +98,17 @@ public:
    */
   Node next_node(int *depth = nullptr) const
   { return Node(_tree, fdt_next_node(_tree, _node, depth)); }
+
+  /**
+   * Get the next compatible node of this tree
+   *
+   * \param  compatible 'compatible' string to match against
+   *
+   * \return Next compatible node of the tree or an invalid node (node
+   *         offset equals the libfdt error)
+   */
+  Node next_compatible_node(char const *compatible) const
+  { return Node(_tree, fdt_node_offset_by_compatible(_tree, _node, compatible)); }
 
   /**
    * Get the first child node
@@ -239,6 +274,16 @@ public:
         break;
     }
   }
+
+  /**
+   * Delete a property of this node
+   *
+   * \param name Name of the property to delete
+   *
+   * \return 0 on success, libfdt error codes otherwise
+   */
+  int delprop(char const *name)
+  { return fdt_delprop(_tree, _node, name); }
 
   bool is_enabled() const
   {
@@ -568,6 +613,17 @@ public:
 
   Node first_node() const
   { return Node(_tree, 0); }
+
+  /**
+   * Get the first compatible node of this tree
+   *
+   * \param  compatible 'compatible' string to match against
+   *
+   * \return First compatible node of the tree or an invalid node (node
+   *         offset equals the libfdt error)
+   */
+  Node first_compatible_node(char const *compatible) const
+  { return Node(_tree, fdt_node_offset_by_compatible(_tree, -1, compatible)); }
 
   /**
    * Return the node at the given path.
