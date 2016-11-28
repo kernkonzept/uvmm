@@ -52,7 +52,7 @@ struct Dbg : L4Re::Util::Dbg
   /**
    * Set the verbosity for all components to the given levels.
    *
-   * \param mask  Mask of verbositity levels.
+   * \param mask  Mask of verbosity levels.
    */
   static void set_verbosity(unsigned mask)
   {
@@ -64,7 +64,7 @@ struct Dbg : L4Re::Util::Dbg
    * Set the verbosity of a single component to the given level.
    *
    * \param c     Component for which to set verbosity.
-   * \param mask  Mask of verbositity levels.
+   * \param mask  Mask of verbosity levels.
    */
   static void set_verbosity(unsigned c, unsigned mask)
   {
