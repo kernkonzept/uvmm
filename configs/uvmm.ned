@@ -41,17 +41,16 @@ vmm.start_vm{
   fdt="rom/virt-omap5.dtb",
   --bootargs=common_bootargs .. " ip=192.168.1.1:::255.255.255.0:server:eth0 root=/dev/sda1",
   bootargs=common_bootargs .. " ramdisk_size=9100 root=/dev/ram",
-  prio=0xa, cpus=0x1
+  prio=nil, cpus=0x1
 };
 
 vmm.start_vm{
   id=2,
   mem=128,
-  mem_align=ram_align,
-  vbus=io_busses.vm_hw,
+  vbus=io_busses.vm_nohw,
   net=net_ports.net1,
   rd="rom/ramdisk-arm.rd",
   fdt="rom/virt-omap5.dtb",
   bootargs=common_bootargs .. " ramdisk_size=9100 root=/dev/ram",
-  prio=0xa, cpus=0x1
+  prio=nil, cpus=0x1
 };
