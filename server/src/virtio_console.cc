@@ -1,3 +1,5 @@
+#include <cstring>
+
 #include "virtio_console.h"
 #include "device_factory.h"
 #include "guest.h"
@@ -15,7 +17,25 @@ struct F : Factory
                               Dt_node const &node)
   {
     Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual console\n");
-    auto c = make_device<Virtio_console_mmio>(&vmm->ram(), L4Re::Env::env()->log());
+    int cap_name_len;
+    L4::Cap<L4::Vcon> cap = L4Re::Env::env()->log();
+
+    char const *cap_name = node.get_prop<char>("l4vmm,virtiocap", &cap_name_len);
+    if (cap_name)
+      {
+        cap_name_len = strnlen(cap_name, cap_name_len);
+
+        cap = L4Re::Env::env()->get_cap<L4::Vcon>(cap_name, cap_name_len);
+        if (!cap)
+          {
+            Dbg(Dbg::Dev, Dbg::Warn, "virtio")
+              .printf("'l4vmm,virtiocap' property: capability %.*s is invalid.\n",
+                      cap_name_len, cap_name);
+            return nullptr;
+          }
+      }
+
+    auto c = make_device<Virtio_console_mmio>(&vmm->ram(), cap);
     c->register_obj(vmm->registry());
     vmm->register_mmio_device(c, node);
     return c;
