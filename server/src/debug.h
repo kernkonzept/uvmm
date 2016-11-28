@@ -43,6 +43,8 @@ struct Dbg : L4Re::Util::Dbg
     Mmio,
     Irq,
     Dev,
+    Pm,
+    Vbus_event,
     Max_component
   };
 

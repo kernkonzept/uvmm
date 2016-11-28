@@ -19,6 +19,8 @@
 #include "ds_mmio_mapper.h"
 #include "ram_ds.h"
 #include "vm_memmap.h"
+#include "pm.h"
+#include "vbus_event.h"
 
 #include <cstdio>
 
@@ -85,6 +87,7 @@ public:
     // XXX Only halts the current CPU. For the SMP case some
     // further signaling might be required.
     Err().printf("VM entered a fatal state. Halting.\n");
+    pm.free_inhibitors();
     for (;;)
       wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
   }
@@ -184,6 +187,8 @@ public:
   Ram_ds _ram;
   L4Re::Util::Auto_cap<L4::Task>::Cap _task;
   L4virtio::Ptr<void> _device_tree;
+  Pm pm;
+  Vbus_event vbus_event;
 
 protected:
   L4::Cap<L4Re::Dataspace> _mmio_fallback;

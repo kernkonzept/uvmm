@@ -56,9 +56,6 @@ public:
                         "allocate ICU cap");
     L4Re::chksys(dev.vicu(_icu), "requesting ICU cap");
 
-    L4Re::chksys(bus->acquire(L4VBUS_INHIBITOR_SUSPEND, "VM running"));
-    L4Re::chksys(bus->acquire(L4VBUS_INHIBITOR_SHUTDOWN, "VM running"));
-
     scan_bus();
   }
 

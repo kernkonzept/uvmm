@@ -42,6 +42,7 @@
 #include "device_factory.h"
 #include "guest.h"
 #include "monitor_console.h"
+#include "pm.h"
 #include "ram_ds.h"
 #include "virt_bus.h"
 #include "vcpu_array.h"
@@ -192,7 +193,7 @@ set_verbosity(char const *str)
     }
 
   static char const *const components[] =
-    { "guest", "core", "cpu", "mmio", "irq", "dev" };
+    { "guest", "core", "cpu", "mmio", "irq", "dev", "pm", "vbus_event" };
 
   static_assert(std::extent<decltype(components)>::value == Dbg::Max_component,
                 "Component names must match 'enum Component'.");
@@ -209,6 +210,7 @@ set_verbosity(char const *str)
     }
 }
 
+static int use_wakeup_inhibitor = 0;
 static char const *const options = "+k:d:p:r:c:b:vqD:";
 static struct option const loptions[] =
   {
@@ -221,6 +223,7 @@ static struct option const loptions[] =
     { "debug",    1, NULL, 'D' },
     { "verbose",  0, NULL, 'v' },
     { "quiet",    0, NULL, 'q' },
+    { "wakeup-on-system-resume", 0, &use_wakeup_inhibitor, 1},
     { 0, 0, 0, 0}
   };
 
@@ -286,6 +289,7 @@ static int run(int argc, char *argv[])
 
   auto vbus = cxx::make_ref_obj<Vmm::Virt_bus>(vbus_cap);
   auto vmm = Vmm::Guest::create_instance(ram, rambase);
+  vmm->pm.use_wakeup_inhibitor(use_wakeup_inhibitor);
   auto vcpus = Vdev::make_device<Vmm::Vcpu_array>();
   auto mon = create_monitor(vmm, vcpus);
 

@@ -17,6 +17,7 @@
 #include "guest.h"
 #include "guest_subarch.h"
 #include "irq.h"
+#include "pm.h"
 
 static cxx::unique_ptr<Vmm::Guest> guest;
 
@@ -372,6 +373,7 @@ Guest::handle_psci_call(Cpu &vcpu)
       break;
 
     case SYSTEM_OFF:
+      pm.shutdown();
       exit(0);
 
     case PSCI_FEATURES:
@@ -409,9 +411,11 @@ Guest::handle_psci_call(Cpu &vcpu)
               return true;
             }
 
-          /*
-           * Do something suspendy here
-           */
+          /* Go to sleep */
+          if (pm.suspend())
+            wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+          /* Back alive */
+          pm.resume();
 
           memset(&vcpu->r, 0, sizeof(vcpu->r));
           vcpu->r.ip    = entry_gpa;
