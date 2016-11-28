@@ -245,18 +245,24 @@ Guest::handle_psci_call(Cpu &vcpu)
 
   enum Psci_functions
   {
-    VERSION             = 0,
-    CPU_SUSPEND         = 1,
-    CPU_OFF             = 2,
-    CPU_ON              = 3,
-    AFFINITY_INFO       = 4,
-    MIGRATE             = 5,
-    MIGRATE_INFO        = 6,
-    MIGRATE_INFO_UP_CPU = 7,
-    SYSTEM_OFF          = 8,
-    SYSTEM_RESET        = 9,
-    FEATURES            = 10,
-    SYSTEM_SUSPEND      = 14,
+    PSCI_VERSION          = 0,
+    CPU_SUSPEND           = 1,
+    CPU_OFF               = 2,
+    CPU_ON                = 3,
+    AFFINITY_INFO         = 4,
+    MIGRATE               = 5,
+    MIGRATE_INFO_TYPE     = 6,
+    MIGRATE_INFO_UP_CPU   = 7,
+    SYSTEM_OFF            = 8,
+    SYSTEM_RESET          = 9,
+    PSCI_FEATURES         = 10,
+    CPU_FREEZE            = 11,
+    CPU_DEFAULT_SUSPEND   = 12,
+    NODE_HW_STATE         = 13,
+    SYSTEM_SUSPEND        = 14,
+    PSCI_SET_SUSPEND_MODE = 15,
+    PSCI_STAT_RESIDENCY   = 16,
+    PSCI_STAT_COUNT       = 17,
   };
 
   enum Psci_migrate_info
@@ -280,7 +286,7 @@ Guest::handle_psci_call(Cpu &vcpu)
   unsigned func = vcpu->r.r[0] & 0xff;
   switch (func)
     {
-    case VERSION:
+    case PSCI_VERSION:
       vcpu->r.r[0] = 0x00010000; // v1.0
       break;
 
@@ -299,14 +305,14 @@ Guest::handle_psci_call(Cpu &vcpu)
       Err().printf("... PSCI CPU ON\n");
       break;
 
-    case MIGRATE_INFO:
+    case MIGRATE_INFO_TYPE:
       vcpu->r.r[0] = TOS_NOT_PRESENT_MP;
       break;
 
     case SYSTEM_OFF:
       exit(0);
 
-    case FEATURES:
+    case PSCI_FEATURES:
         {
           unsigned feat_func = vcpu->r.r[1] & 0xff;
           switch (feat_func)
