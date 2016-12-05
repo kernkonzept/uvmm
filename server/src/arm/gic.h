@@ -93,7 +93,7 @@ private:
     { return clear_pe(pending_bfm_t::Mask); }
 
     bool consume(unsigned char cpu);
-    bool eoi(unsigned char cpu);
+    bool eoi(unsigned char cpu, bool pending);
     void kick_from_cpu(unsigned char cpu);
     bool take_on_cpu(unsigned char cpu, unsigned char min_prio,
                      bool make_pending);
@@ -110,7 +110,12 @@ private:
   struct Context
   {
     cxx::Ref_ptr<Irq_source> eoi;
+    /*
+     * Keeps track of the used lr, uses 0 for "no link register
+     * assigned" (see #get_empty_lr())
+     */
     unsigned char lr;
+    Context() : eoi(0), lr(0) {};
   };
 
   cxx::unique_ptr<Pending[]> _pending;
@@ -192,7 +197,7 @@ public:
 
     using Const_irq::prio;
     void prio(unsigned char p) const { _p->prio(p); }
-    bool eoi(unsigned cpu) const { return _p->eoi(cpu); }
+    bool eoi(unsigned cpu, bool pending) const { return _p->eoi(cpu, pending); }
     using Const_irq::active;
     void active(bool act) const { _p->active(act); }
     using Const_irq::group;
@@ -201,6 +206,7 @@ public:
     void config(unsigned char cfg) const { _p->config(cfg); }
 
     void set_lr(unsigned idx) const { _c->lr = idx; }
+    void clear_lr() const { set_lr(0); }
 
     using Const_irq::target;
     bool target(unsigned char tgt) const  { return _p->target(tgt); }
@@ -316,7 +322,7 @@ Irq_array::Pending::consume(unsigned char cpu)
 }
 
 inline bool
-Irq_array::Pending::eoi(unsigned char cpu)
+Irq_array::Pending::eoi(unsigned char cpu, bool pending)
 {
   assert (cpu < 8);
   assert (this->cpu() == cpu + 1);
@@ -324,9 +330,11 @@ Irq_array::Pending::eoi(unsigned char cpu)
   // ok, the assumption is that this IRQ is on CPU cpu
   // and we are currently running on CPU cpu, so this
   // this->cpu() cannot change here
+  l4_uint32_t mask = pending ? ~active_bfm_t::Mask
+                             : ~(cpu_bfm_t::Mask | active_bfm_t::Mask);
   l4_uint32_t old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
   while (!__atomic_compare_exchange_n(&_state, &old,
-                                      old & ~(cpu_bfm_t::Mask | active_bfm_t::Mask),
+                                      old & mask,
                                       true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
     ;
   return false;
@@ -504,6 +512,12 @@ public:
 
   Irq_array::Irq local_irq(unsigned irqn) { return _local_irq[irqn]; }
 
+  /*
+   * Get empty list register
+   *
+   * \return Returns 0 if no empty list register is available, (lr_idx
+   *         + 1) otherwise
+   */
   unsigned get_empty_lr() const
   { return __builtin_ffs(_vgic->elsr[0]); }
 
@@ -633,7 +647,7 @@ Cpu::handle_eois()
     return;
 
   unsigned ridx = 0;
-  // currently we use up to 32 list registers
+  // currently we use up to 4 (Num_lrs) list registers
   l4_uint32_t eisr = _vgic->eisr[ridx];
   if (!eisr)
     return;
@@ -644,10 +658,15 @@ Cpu::handle_eois()
         continue;
 
       Irq_array::Irq c = irq(_vgic->lr[i].vid());
-      _vgic->lr[i] = Vmm::Arm::Gic_h::Lr(0);
-      _vgic->elsr[ridx] |= (1 << i); // maintain our SW state
+      bool pending = _vgic->lr[i].pending();
+      if (!pending)
+        {
+          c.clear_lr();
+          _vgic->lr[i] = Vmm::Arm::Gic_h::Lr(0);
+          _vgic->elsr[ridx] |= (1 << i); // maintain our SW state
+        }
       c.do_eoi();
-      c.eoi(vmm_current_cpu_id);
+      c.eoi(vmm_current_cpu_id, pending);
     }
 
   // all EOIs are handled
@@ -670,7 +689,10 @@ Cpu::add_pending_irq(unsigned lr, Irq_array::Irq const &irq,
   new_lr.cpuid() = src_cpu;
   new_lr.prio()  = irq.prio();
   new_lr.grp1()  = irq.group();
-  irq.set_lr(lr);
+
+  // uses 0 for "no link register assigned" (see #get_empty_lr())
+  irq.set_lr(lr + 1);
+
   _vgic->lr[lr] = new_lr;
   _vgic->elsr[0] &= ~(1UL << lr);
   return true;
@@ -684,9 +706,28 @@ Cpu::inject(Irq_array::Irq const &irq, unsigned irq_id, unsigned src_cpu)
 
   handle_eois();
 
+  // check whether the irq is already in a list register
+  unsigned lr_idx = irq.lr();
+  if (lr_idx)
+    {
+      --lr_idx;
+      assert(lr_idx < Num_lrs);
+
+      if (_vgic->lr[lr_idx].vid() == irq_id)
+        {
+          if (!irq.take_on_cpu(vmm_current_cpu_id, 0xff, true))
+            return false;
+
+          _vgic->lr[lr_idx].pending() = 1;
+          return true;
+        }
+      else
+        irq.clear_lr();
+    }
+
   // look for an empty list register
-  unsigned lr_idx = get_empty_lr();
-  // currently we use up to 32 list registers
+  lr_idx = get_empty_lr();
+  // currently we use up to 4 (Num_lrs) list registers
   if (!lr_idx)
     {
       Lr lowest(0);
