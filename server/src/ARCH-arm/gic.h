@@ -571,6 +571,10 @@ public:
   void write_clear_sgi_pend(unsigned reg, l4_uint32_t value);
   void handle_eois();
   bool add_pending_irq(unsigned lr, Irq_array::Irq const &irq, unsigned irq_id, unsigned src_cpu = 0);
+
+  unsigned find_pending_irq(unsigned char target_mask, unsigned char min_prio)
+  { return _local_irq.find_pending_irq(target_mask, min_prio, 0, Num_local); }
+
   bool inject(Irq_array::Irq const &irq, unsigned irq_id, unsigned src_cpu = 0);
   void handle_maintenance_irq(unsigned current_cpu);
 
@@ -742,7 +746,8 @@ Cpu::inject(Irq_array::Irq const &irq, unsigned irq_id, unsigned src_cpu)
 
       if (!lr_idx)
         {
-          printf("VGIC full: ");
+          printf("VGIC full while trying to inject irq 0x%x : ",
+                 irq_id);
           for (unsigned i = 0; i < Num_lrs; ++i)
             printf("%d: %x ", i, _vgic->lr[i].raw);
           printf("\n");
@@ -1026,14 +1031,20 @@ public:
         if (!empty_lr)
           return true;
 
-        int spi = _spis.find_pending_irq(1 << current_cpu,
-                                         pmask, 0, tnlines * 32);
-        if (spi < 0)
-          return c->pending_irqs();
+        int irq_id = c->find_pending_irq(1 << current_cpu, pmask);
+        if (irq_id < 0)
+          {
+            irq_id = _spis.find_pending_irq(1 << current_cpu,
+                                            pmask, 0, tnlines * 32);
+            if (irq_id < 0)
+              return c->pending_irqs();
+
+            irq_id += Cpu::Num_local;
+          }
         if (0)
           gicd_info.printf("Try to inject: irq=%d on cpu=%d... ",
-                           spi + 32, current_cpu);
-        bool ok = c->add_pending_irq(empty_lr - 1, _spis[spi], spi + 32);
+                           irq_id, current_cpu);
+        bool ok = c->add_pending_irq(empty_lr - 1, c->irq(irq_id), irq_id);
         if (0)
           gicd_info.printf("%s\n", ok ? "OK" : "FAILED");
       }
