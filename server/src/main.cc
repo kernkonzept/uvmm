@@ -30,9 +30,6 @@
 #include <l4/re/util/cap_alloc>
 #include <l4/re/debug>
 
-#include <l4/sys/thread>
-#include <l4/sys/task>
-
 #include <l4/cxx/utils>
 #include <l4/cxx/ipc_stream>
 #include <l4/cxx/ipc_server>
@@ -47,8 +44,7 @@
 #include "monitor_console.h"
 #include "ram_ds.h"
 #include "virt_bus.h"
-
-__thread unsigned vmm_current_cpu_id;
+#include "vcpu_array.h"
 
 Vdev::Device_repository devices;
 
@@ -57,9 +53,31 @@ static Dbg warn(Dbg::Core, Dbg::Warn, "main");
 
 static bool
 node_cb(Vdev::Dt_node const &node, unsigned /* depth */, Vmm::Guest *vmm,
-        Vmm::Virt_bus *vbus)
+        cxx::Ref_ptr<Vmm::Vcpu_array> cpus, Vmm::Virt_bus *vbus)
 {
-  cxx::Ref_ptr<Vdev::Device> dev = Vdev::Factory::create_dev(vmm, vbus, node);
+  cxx::Ref_ptr<Vdev::Device> dev;
+  char const *devtype = node.get_prop<char>("device_type", nullptr);
+  if (devtype && strcmp("cpu", devtype) == 0)
+    {
+      // Cpu devices need to be treated specially because they
+      // use a different factory.
+      auto *cpuid = node.get_prop<fdt32_t>("reg", nullptr);
+      if (!cpuid)
+        {
+          Err().printf("Cpu has missing reg property. Ignored.\n");
+          return true;
+        }
+
+      // If a compatible property exists, it may be used to specify
+      // the reported CPU type (if supported by architecture). Without
+      // compatible property, the default is used.
+      auto const *compatible = node.get_prop<char>("compatible", nullptr);
+
+      dev = cpus->create_vcpu(fdt32_to_cpu(cpuid[0]), compatible);
+    }
+  else
+    dev = Vdev::Factory::create_dev(vmm, vbus, node);
+
   if (dev)
     {
       devices.add(node, dev);
@@ -91,14 +109,15 @@ node_cb(Vdev::Dt_node const &node, unsigned /* depth */, Vmm::Guest *vmm,
 
 
 static cxx::Ref_ptr<Monitor_console>
-create_monitor(Vmm::Guest *vmm)
+create_monitor(Vmm::Guest *vmm, cxx::Ref_ptr<Vmm::Vcpu_array> const &cpus)
 {
   const char * const capname = "mon";
   auto mon_con_cap = L4Re::Env::env()->get_cap<L4::Vcon>(capname);
   if (!mon_con_cap)
     return nullptr;
 
-  auto moncon = cxx::make_ref_obj<Monitor_console>(capname, mon_con_cap, vmm);
+  auto moncon = cxx::make_ref_obj<Monitor_console>(capname, mon_con_cap,
+                                                   vmm, cpus);
   moncon->register_obj(vmm->registry());
 
   return moncon;
@@ -266,8 +285,8 @@ static int run(int argc, char *argv[])
 
   auto vbus = cxx::make_ref_obj<Vmm::Virt_bus>(vbus_cap);
   auto vmm = Vmm::Guest::create_instance(ram, rambase);
-  auto vcpu = vmm->create_cpu();
-  auto mon = create_monitor(vmm);
+  auto vcpus = Vdev::make_device<Vmm::Vcpu_array>();
+  auto mon = create_monitor(vmm, vcpus);
 
   vmm->set_fallback_mmio_ds(vbus->io_ds());
 
@@ -282,8 +301,8 @@ static int run(int argc, char *argv[])
 
       auto dt = vmm->device_tree();
       auto vbus_val = vbus.get();
-      dt.scan([vmm, vbus_val] (Vdev::Dt_node const &node, unsigned depth)
-                { return node_cb(node, depth, vmm, vbus_val); },
+      dt.scan([vmm, vcpus, vbus_val] (Vdev::Dt_node const &node, unsigned depth)
+                { return node_cb(node, depth, vmm, vcpus, vbus_val); },
               [] (Vdev::Dt_node const &, unsigned)
                 {});
 
@@ -300,9 +319,9 @@ static int run(int argc, char *argv[])
         vmm->set_ramdisk_params(rd_addr, rd_size);
     }
 
-  vmm->prepare_linux_run(vcpu, entry, kernel_image, cmd_line);
+  vmm->prepare_linux_run(vcpus->vcpu(0), entry, kernel_image, cmd_line);
   vmm->cleanup_ram_state();
-  vmm->run(vcpu);
+  vmm->run(vcpus);
 
   Err().printf("ERROR: we must never reach this....\n");
   return 0;

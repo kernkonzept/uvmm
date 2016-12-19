@@ -14,7 +14,7 @@
 #include "generic_guest.h"
 #include "gic.h"
 #include "ram_ds.h"
-#include "vcpu.h"
+#include "vcpu_array.h"
 
 namespace Vmm {
 
@@ -32,14 +32,14 @@ public:
 
   void prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
                          char const *cmd_line);
-  void run(Cpu vcpu);
+  void run(cxx::Ref_ptr<Vcpu_array> cpus);
+  void reset_vcpu(Cpu vcpu);
 
   l4_msgtag_t handle_entry(Cpu vcpu);
 
   static Guest *create_instance(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
 
-  void show_state_registers(FILE *) override;
-  void show_state_interrupts(FILE *) override;
+  void show_state_interrupts(FILE *, Cpu) {}
 
   cxx::Ref_ptr<Gic::Dist> gic() const
   { return _gic; }

@@ -17,10 +17,8 @@
 #include "debug.h"
 #include "device_tree.h"
 #include "ds_mmio_mapper.h"
-#include "irq.h"
 #include "ram_ds.h"
 #include "vm_memmap.h"
-#include "vcpu.h"
 
 #include <cstdio>
 
@@ -34,8 +32,6 @@ public:
 
   virtual ~Generic_guest() = default;
 
-  Cpu create_cpu();
-
   Vdev::Device_tree device_tree() const
   { return Vdev::Device_tree(_ram.access(_device_tree)); }
 
@@ -44,9 +40,6 @@ public:
 
   Ram_ds &ram()
   { return _ram; }
-
-  virtual void show_state_registers(FILE *f) = 0;
-  virtual void show_state_interrupts(FILE *f) = 0;
 
   L4Re::Util::Object_registry *registry() { return &_registry; }
 
@@ -219,8 +212,6 @@ protected:
   L4virtio::Ptr<void> _device_tree;
 
 protected:
-  enum { Nr_cpus = 1 };
-  Cpu *_vcpu[Nr_cpus];
   L4::Cap<L4Re::Dataspace> _mmio_fallback;
 
 private:

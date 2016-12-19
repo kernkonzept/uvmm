@@ -14,7 +14,7 @@
 #include "debug.h"
 #include "generic_guest.h"
 #include "core_ic.h"
-#include "vcpu.h"
+#include "vcpu_array.h"
 #include "irq.h"
 #include "vmprint.h"
 #include "mips_instructions.h"
@@ -44,13 +44,17 @@ public:
   void prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
                          char const *cmd_line);
 
-  void run(Cpu vcpu);
+  void run(cxx::Ref_ptr<Vcpu_array> cpus);
 
+  void reset_vcpu(Cpu vcpu);
   int dispatch_hypcall(Hypcall_code hypcall_code, Cpu &vcpu);
   void handle_entry(Cpu vcpu);
 
-  void show_state_registers(FILE *) override;
-  void show_state_interrupts(FILE *) override;
+  void show_state_interrupts(FILE *f, Cpu vcpu)
+  {
+    if (_core_ic)
+      _core_ic->show_state(f, vcpu);
+  }
 
   static Guest *create_instance(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
 

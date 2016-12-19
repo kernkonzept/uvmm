@@ -32,25 +32,6 @@ Generic_guest::Generic_guest(L4::Cap<L4Re::Dataspace> ram,
   l4_debugger_set_object_name(_task.get().cap(), "vm-task");
 }
 
-Cpu
-Generic_guest::create_cpu()
-{
-  auto *e = L4Re::Env::env();
-  l4_addr_t vcpu_addr = 0x10000000;
-
-  L4Re::chksys(e->rm()->reserve_area(&vcpu_addr, L4_PAGESIZE,
-                                     L4Re::Rm::Search_addr));
-  L4Re::chksys(e->task()->add_ku_mem(l4_fpage(vcpu_addr, L4_PAGESHIFT,
-                                              L4_FPAGE_RWX)),
-               "kumem alloc");
-
-  Cpu vcpu = Cpu((l4_vcpu_state_t *)vcpu_addr);
-  vcpu.thread_attach();
-  vcpu->user_task = _task.get().cap();
-
-  return vcpu;
-}
-
 L4virtio::Ptr<void>
 Generic_guest::load_device_tree_at(char const *name, L4virtio::Ptr<void> addr,
                                    l4_size_t padding)

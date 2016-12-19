@@ -117,6 +117,8 @@ private:
  */
 class Mips_core_ic : public virtual Vdev::Dev_ref
 {
+  enum { Max_ics = 32 };
+
   struct Hw_int_reg
   {
     l4_umword_t raw;
@@ -124,17 +126,22 @@ class Mips_core_ic : public virtual Vdev::Dev_ref
   };
 
 public:
-  Mips_core_ic()
-  {
-    // XXX single-core system at the moment, so one core IC only
-    _core_ics[0] = Vdev::make_device<Gic::Vcpu_ic>();
-  }
-
+  Mips_core_ic() = default;
   virtual ~Mips_core_ic() = default;
+
+  void create_ics(unsigned num_ics)
+  {
+    assert(num_ics <= Max_ics);
+    // start up one core IC per vcpu
+    for (unsigned i = 0; i < num_ics; ++i)
+      _core_ics[i] = Vdev::make_device<Gic::Vcpu_ic>();
+
+    Dbg(Dbg::Irq, Dbg::Info).printf("Core IC created for %u cores\n", num_ics);
+  }
 
   cxx::Ref_ptr<Gic::Vcpu_ic> get_ic(unsigned cpuid) const
   {
-    assert(cpuid < 32);
+    assert(cpuid < Max_ics);
     return _core_ics[cpuid];
   }
 
@@ -142,7 +149,7 @@ public:
   {
     unsigned cpuid = vcpu.get_vcpu_id();
 
-    assert(cpuid < 32);
+    assert(cpuid < Max_ics);
     assert(_core_ics[cpuid]);
 
     auto irqvec = _core_ics[cpuid]->irq_vector();
@@ -165,7 +172,7 @@ public:
   }
 
 private:
-  cxx::Ref_ptr<Gic::Vcpu_ic> _core_ics[32];
+  cxx::Ref_ptr<Gic::Vcpu_ic> _core_ics[Max_ics];
 };
 
 } // namespace

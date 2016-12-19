@@ -8,6 +8,7 @@ TARGET          = uvmm
 SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   ARCH-$(ARCH)/gic.cc \
                   ARCH-$(ARCH)/guest.cc \
+                  ARCH-$(ARCH)/vcpu_array.cc \
                   device_factory.cc \
                   virtio_console.cc \
                   virtio_proxy.cc \

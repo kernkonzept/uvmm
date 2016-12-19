@@ -18,6 +18,8 @@
 
 static cxx::unique_ptr<Vmm::Guest> guest;
 
+__thread unsigned vmm_current_cpu_id;
+
 extern "C" void vcpu_entry(l4_vcpu_state_t *vcpu);
 
 asm
@@ -173,10 +175,18 @@ Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const * /* kernel */,
 }
 
 void
-Guest::run(Cpu vcpu)
+Guest::run(cxx::Ref_ptr<Vcpu_array> cpus)
 {
-  _vcpu[0] = &vcpu;
+  auto vcpu = cpus->vcpu(0);
 
+  vcpu.thread_attach();
+  reset_vcpu(vcpu);
+}
+
+void
+Guest::reset_vcpu(Cpu vcpu)
+{
+  vcpu->user_task = _task.get().cap();
   vcpu->saved_state =  L4_VCPU_F_FPU_ENABLED
                          | L4_VCPU_F_USER_MODE
                          | L4_VCPU_F_IRQ
@@ -188,42 +198,13 @@ Guest::run(Cpu vcpu)
 
   vm->vm_regs.hcr &= ~(1 << 27);
   vm->vm_regs.hcr |= 1 << 13;
-  _gic->set_cpu(0, &vm->gic);
-  vmm_current_cpu_id = 0;
+  _gic->set_cpu(vcpu.get_vcpu_id(), &vm->gic);
 
   info().printf("Starting vmm @ 0x%lx (handler @ %p)\n",
                 vcpu->r.ip, &vcpu_entry);
 
   L4::Cap<L4::Thread> myself;
   myself->vcpu_resume_commit(myself->vcpu_resume_start());
-}
-
-void
-Guest::show_state_registers(FILE *mon)
-{
-  for (int i = 0; i < Nr_cpus; ++i)
-    {
-      //if (i != current_cpu())
-      //  interrupt_vcpu(i);
-
-      Cpu v = *_vcpu[i];
-      fprintf(mon, "CPU %d:\n", i);
-      fprintf(mon, "pc=%08lx lr=%08lx sp=%08lx flags=%08lx\n",
-              v->r.ip, v->r.lr, v->r.sp, v->r.flags);
-      fprintf(mon, " r0=%08lx  r1=%08lx  r2=%08lx  r3=%08lx\n",
-              v->r.r[0], v->r.r[1], v->r.r[2], v->r.r[3]);
-      fprintf(mon, " r4=%08lx  r5=%08lx  r6=%08lx  r7=%08lx\n",
-              v->r.r[4], v->r.r[5], v->r.r[6], v->r.r[7]);
-      fprintf(mon, " r8=%08lx  r9=%08lx r10=%08lx r11=%08lx\n",
-              v->r.r[8], v->r.r[9], v->r.r[10], v->r.r[11]);
-      fprintf(mon, "r12=%08lx\n",
-              v->r.r[12]);
-    }
-}
-
-void
-Guest::show_state_interrupts(FILE *)
-{
 }
 
 bool
