@@ -65,7 +65,8 @@ private:
 
     switch (reg)
       {
-      case L4_VM_CP0_PROC_ID: *val = _proc_id; break;
+      case L4_VM_CP0_GLOBAL_NUMBER: *val = vcpu.get_vcpu_id() << 8; break;
+      case L4_VM_CP0_PROC_ID: *val = vcpu.proc_id(); break;
       case L4_VM_CP0_SRS_CTL: *val = 0; break;
       case L4_VM_CP0_CMGCR_BASE: // virtual CM not supported
       case L4_VM_CP0_MAAR_0:
@@ -196,7 +197,6 @@ private:
 
   Guest_print_buffer _hypcall_print;
   cxx::Ref_ptr<Gic::Mips_core_ic> _core_ic;
-  l4_umword_t _proc_id;
 };
 
 

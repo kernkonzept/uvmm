@@ -23,15 +23,6 @@ Guest::Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
 : Guest::Generic_guest(ram, vm_base, sign_ext(0x80000000)),
   _core_ic(Vdev::make_device<Gic::Mips_core_ic>())
 {
-  // TODO Fiasco should be exporting the proc ID for us. For the
-  //      moment just derive it from the platform.
-  auto *platform = l4re_kip()->platform_info.name;
-  if (sizeof(l4_addr_t) == 8)
-    _proc_id = 0x00010000; // generic 64bit CPU
-  else if (strcmp(platform, "baikal_t") == 0)
-    _proc_id = 0x0001a82c; // P5600
-  else
-    _proc_id = 0x0001a700; // M5150
 }
 
 void
@@ -171,9 +162,11 @@ Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
 void
 Guest::run(Cpu vcpu)
 {
+  enum { Mips_default_procid = 0x00010000 }; // MIPS QEMU generic
   _vcpu[0] = &vcpu;
 
   vcpu.set_vcpu_id(0);
+  vcpu.set_proc_id(Mips_default_procid);
   vcpu.alloc_fpu_state();
 
   l4_umword_t sp;

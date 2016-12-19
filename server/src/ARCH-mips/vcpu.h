@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cassert>
+#include <cstring>
 
 #include <l4/re/error_helper>
 #include <l4/sys/kdebug.h>
@@ -250,12 +251,19 @@ public:
       }
   }
 
+  l4_umword_t proc_id() const
+  { return _s->user_data[Reg_proc_id]; }
+
+  void set_proc_id(l4_umword_t id) const
+  { _s->user_data[Reg_proc_id] = id; }
+
   State *state()
   { return reinterpret_cast<State *>((char *)_s + L4_VCPU_OFFSET_EXT_STATE); }
 
 private:
   enum Arch_data_regs {
       Reg_fpu_state = Reg_arch_base,
+      Reg_proc_id,
       Reg_arch_end
   };
 
