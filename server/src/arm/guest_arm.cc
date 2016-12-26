@@ -228,7 +228,6 @@ Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const * /* kernel 
     {
       // Set up the VCPU state as expected by Linux entry
       vcpu->r.flags = 0x000001c5;
-      vcpu->r.sp    = 0;
       vcpu->r.r[0]  = has_device_tree() ? _device_tree.get() : 0;
       vcpu->r.r[1]  = 0;
       vcpu->r.r[2]  = 0;
@@ -238,7 +237,6 @@ Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const * /* kernel 
     {
       // Set up the VCPU state as expected by Linux entry
       vcpu->r.flags = 0x000001d3;
-      vcpu->r.sp    = 0;
       vcpu->r.r[0]  = 0;
       vcpu->r.r[1]  = ~0UL;
       vcpu->r.r[2]  = has_device_tree() ? _device_tree.get() : 0;
