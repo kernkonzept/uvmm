@@ -199,8 +199,8 @@ Guest::run(Cpu vcpu)
                   | L4_VM_MOD_CFG
                   | L4_VM_MOD_XLAT);
 
-  info().printf("Starting vmm @ 0x%lx (handler @ %lx, stack @ %lx)\n",
-                vcpu->r.ip, vcpu->entry_ip, sp);
+  info().printf("Starting vmm @ 0x%lx (handler @ %lx with stack @ %lx)\n",
+                vcpu->r.ip, vcpu->entry_ip, vcpu->entry_sp);
 
   L4::Cap<L4::Thread> myself;
   auto e = l4_error(myself->vcpu_resume_commit(myself->vcpu_resume_start()));
