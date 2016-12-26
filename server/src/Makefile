@@ -3,11 +3,11 @@ L4DIR  ?= $(PKGDIR)/../..
 
 include $(L4DIR)/mk/Makeconf
 
-vpath %.cc $(SRC_DIR)/ARCH-$(ARCH)
-
 SYSTEMS         = arm-l4f mips-l4f
 TARGET          = uvmm
-SRC_CC          = gic.cc main.cc ram_ds.cc generic_guest.cc guest.cc \
+SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
+                  ARCH-$(ARCH)/gic.cc \
+                  ARCH-$(ARCH)/guest.cc \
                   device_factory.cc \
                   virtio_console.cc \
                   virtio_proxy.cc \
@@ -15,7 +15,7 @@ SRC_CC          = gic.cc main.cc ram_ds.cc generic_guest.cc guest.cc \
                   virt_bus.cc io_proxy.cc
 
 ifeq ($(ARCH),mips)
-SRC_CC        += guest_entry.cc
+SRC_CC        += ARCH-$(ARCH)/guest_entry.cc
 CXXFLAGS_guest_entry.cc = -msoft-float
 
 LDFLAGS       += --no-warn-mismatch
