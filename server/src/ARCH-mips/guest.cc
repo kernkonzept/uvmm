@@ -148,7 +148,8 @@ Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
       _ram.access(prom_tab)[1] = _ram.boot_addr(prom_buf);
     }
 
-  l4_cache_clean_data(reinterpret_cast<l4_addr_t>(_ram.access(prom_tab)), size);
+  l4_cache_clean_data(reinterpret_cast<l4_addr_t>(_ram.access(prom_tab)),
+                      reinterpret_cast<l4_addr_t>(_ram.access(prom_tab)) + size);
 
   // Initial register setup:
   //  a0 - number of kernel arguments
