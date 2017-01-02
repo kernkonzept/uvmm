@@ -33,7 +33,7 @@ Dist::Dist(Mips_core_ic *core_ic)
   auto *cfg = gic_mem<Gic_config_reg>(Gic_sh_config);
   cfg->raw = 0;
   cfg->numint() = (Num_irqs >> 3) - 1;
-  cfg->pvps() = 0;
+  cfg->pvps() = Num_vpes;
 
   // set revision to 4.0, as reported by Baikal board
   *gic_mem<l4_uint32_t>(Gic_sh_revision) = 4 << 8;
@@ -47,6 +47,8 @@ Dist::Dist(Mips_core_ic *core_ic)
 l4_umword_t
 Dist::read(unsigned reg, char size, unsigned cpu_id)
 {
+  assert(cpu_id < Num_vpes);
+
   if (size < 2)
     {
       warn.printf("WARNING: read @0x%x with unsupported width %d ignored\n",
@@ -62,10 +64,11 @@ Dist::read(unsigned reg, char size, unsigned cpu_id)
         return *gic_mem<l4_uint32_t>(reg);
     }
 
-  if (reg >= Gic_core_other_base && reg < Gic_user_visible_base)
-    return read_cpu(reg - Gic_core_other_base, size, _other_cpu);
   if (reg >= Gic_core_local_base && reg < Gic_core_other_base)
     return read_cpu(reg - Gic_core_local_base, size, cpu_id);
+  if (reg >= Gic_core_other_base && reg < Gic_user_visible_base)
+    return read_cpu(reg - Gic_core_other_base, size,
+                    _vcpu_info[cpu_id].other_cpu);
 
   dbg.printf("Reading unknown register @ 0x%x (%d)\n", reg, size);
   return 0;
@@ -74,6 +77,8 @@ Dist::read(unsigned reg, char size, unsigned cpu_id)
 void
 Dist::write(unsigned reg, char size, l4_umword_t value, unsigned cpu_id)
 {
+  assert(cpu_id < Num_vpes);
+
   if (size < 2)
     {
       warn.printf("WARNING: write @0x%x with unsupported width %d ignored\n",
@@ -82,9 +87,16 @@ Dist::write(unsigned reg, char size, l4_umword_t value, unsigned cpu_id)
     }
 
   if (reg >= Gic_core_local_base && reg < Gic_core_other_base)
-    return write_cpu(reg - Gic_core_local_base, size, value, cpu_id);
+    {
+      write_cpu(reg - Gic_core_local_base, size, value, cpu_id);
+      return;
+    }
   if (reg >= Gic_core_other_base && reg < Gic_user_visible_base)
-    return write_cpu(reg - Gic_core_other_base, size, value, _other_cpu);
+    {
+      write_cpu(reg - Gic_core_other_base, size, value,
+                _vcpu_info[cpu_id].other_cpu);
+      return;
+    }
 
   // write must be to shared section
   if (reg == Gic_sh_wedge)
@@ -128,16 +140,44 @@ Dist::write(unsigned reg, char size, l4_umword_t value, unsigned cpu_id)
 l4_umword_t
 Dist::read_cpu(unsigned reg, char, unsigned cpu_id)
 {
-  trace.printf("Local read from cpu %d ignored @ 0x%x\n",
-               cpu_id, reg);
+  if (cpu_id >= 32)
+    {
+      dbg.printf("unknown VPE id %d. Read ignored @ 0x%x\n", cpu_id, reg);
+      return 0;
+    }
+
+  switch (reg)
+    {
+    case Gic_loc_other_addr:
+      return _vcpu_info[cpu_id].other_cpu;
+    case Gic_loc_ident:
+      return cpu_id;
+    }
+
+  trace.printf("Local read from cpu %d ignored @ 0x%x\n", cpu_id, reg);
   return 0;
 }
 
 void
 Dist::write_cpu(unsigned reg, char, l4_umword_t value, unsigned cpu_id)
 {
-  trace.printf("Local write to cpu %d ignored 0x%lx @ 0x%x\n",
-               cpu_id, value, reg);
+  if (cpu_id >= 32)
+    {
+      dbg.printf("unknown VPE id %d. Write ignored 0x%lx @ 0x%x\n", cpu_id,
+                 value, reg);
+      return;
+    }
+
+  switch (reg)
+    {
+    case Gic_loc_other_addr:
+      if (value < Num_vpes)
+        _vcpu_info[cpu_id].other_cpu = value;
+      return;
+    }
+
+  trace.printf("Local write to cpu %d ignored 0x%lx @ 0x%x\n", cpu_id, value,
+               reg);
 }
 
 /** disable interrupts */
@@ -147,6 +187,8 @@ Dist::reset_mask(unsigned reg, char size, l4_umword_t mask)
   assert(reg * 8 < Num_irqs);
 
   l4_umword_t pending;
+
+  std::lock_guard<std::mutex> lock(_lock);
 
   if (size == 3)
     {
@@ -176,6 +218,24 @@ void
 Dist::set_mask(unsigned reg, char size, l4_umword_t mask)
 {
   assert(reg * 8 < Num_irqs);
+  int irq = reg * 8;
+
+  // narrow mask down to register width
+  if ((8UL << size) < 8 * sizeof(l4_umword_t))
+    mask &= (1UL << (8 << size)) - 1;
+
+  // Notify interrupt sources where necessary.
+  // Needs to be done before taking the lock as the IRQ source
+  // may want to clear a pending interrupt.
+  l4_umword_t eoibits = mask;
+  for (int i = 0; eoibits; ++i)
+    {
+      if ((eoibits & 1) && _sources[irq + i])
+        _sources[irq + i]->eoi();
+      eoibits >>= 1;
+    }
+
+  std::lock_guard<std::mutex> lock(_lock);
 
   if (size == 3)
     *gic_mem<l4_uint64_t>(Gic_sh_mask + reg) |= mask;
@@ -183,23 +243,13 @@ Dist::set_mask(unsigned reg, char size, l4_umword_t mask)
     *gic_mem<l4_uint32_t>(Gic_sh_mask + reg) |= mask;
 
   l4_umword_t pending = mask;
-  int irq = reg * 8;
-
-  // notify interrupt sources where necessary
-  for (int i = 0; mask && i < (8 << size); ++i)
-    {
-      if ((mask & 1) && _sources[irq + i])
-        _sources[irq + i]->eoi();
-      mask >>= 1;
-    }
-
   if (size == 3)
     pending &= *gic_mem<l4_uint64_t>(Gic_sh_pend + reg);
   else
     pending &= *gic_mem<l4_uint32_t>(Gic_sh_pend + reg);
 
   // reinject any interrupts that are still pending
-  for (int i = 0; pending && i < (8 << size); ++i)
+  for (int i = 0; pending; ++i)
     {
       if (pending & 1)
         _irq_array[irq + i]->inject();
@@ -212,6 +262,8 @@ Dist::setup_source(unsigned irq)
 {
   assert(irq < Num_irqs);
 
+  std::lock_guard<std::mutex> lock(_lock);
+
   auto vp = *gic_mem<l4_uint32_t>(irq_to_mapreg(irq));
   if (!(vp & 0x1f))
     {
@@ -219,18 +271,21 @@ Dist::setup_source(unsigned irq)
       return;
     }
 
-  //TODO cpu
+  unsigned cpuid = 0;
+  for (; !(vp & 1); ++cpuid, vp >>= 1)
+    ;
+
+  auto ic = _core_ic->get_ic(cpuid);
   auto pin = *gic_mem<Gic_pin_reg>(irq_to_pinreg(irq));
 
-  trace.printf("GIC irq 0x%x: setting source for CPU %d to pin 0x%lx\n",
-               irq, 0, pin.raw);
+  trace.printf("GIC irq 0x%x: setting source for CPU %d to pin 0x%lx (IC %p)\n",
+               irq, cpuid, pin.raw, ic.get());
 
   // only int pins at the moment
-  if (pin.pin() && pin.map() < 6)
-    _irq_array[irq] = cxx::make_unique<Vmm::Irq_sink>(_core_ic->get_ic(0).get(),
-                                                      pin.map() + 2);
-   else
-     _irq_array[irq].reset();
+  if (ic && pin.pin() && pin.map() < 6)
+    _irq_array[irq] = cxx::make_unique<Vmm::Irq_sink>(ic.get(), pin.map() + 2);
+  else
+    _irq_array[irq].reset();
 }
 
 void

@@ -9,6 +9,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <mutex>
 
 #include <l4/cxx/bitfield>
 
@@ -36,7 +37,8 @@ class Vcpu_ic : public Ic
   };
 
 public:
-  Vcpu_ic() : _irqvec(0)
+  Vcpu_ic(Vmm::Cpu vcpu)
+  : _cpu(vcpu), _irqvec(0)
   {
     for (size_t i = Min_irq; i <= Max_irq; ++i)
       _pending[i - Min_irq] = 0;
@@ -49,15 +51,23 @@ public:
   void set(unsigned irq) override
   {
     assert(Min_irq <= irq && irq <= Max_irq);
+    std::lock_guard<std::mutex> lock(_lock);
     if (++_pending[irq - Min_irq] == 1)
-      _irqvec |= 1UL << (irq - Min_irq);
+      {
+        _irqvec |= 1UL << (irq - Min_irq);
+        _cpu.ping();
+      }
   }
 
   void clear(unsigned irq) override
   {
     assert(Min_irq <= irq && irq <= Max_irq);
+    std::lock_guard<std::mutex> lock(_lock);
     if (--_pending[irq - Min_irq] == 0)
-      _irqvec &= ~(1UL << (irq - Min_irq));
+      {
+        _irqvec &= ~(1UL << (irq - Min_irq));
+        _cpu.ping();
+      }
   }
 
   void bind_irq_source(unsigned, cxx::Ref_ptr<Irq_source> const &) override
@@ -85,8 +95,11 @@ public:
     return fdt32_to_cpu(prop[irq]);
   }
 
-  l4_uint32_t irq_vector() const
-  { return _irqvec; }
+  l4_uint32_t irq_vector()
+  {
+    std::lock_guard<std::mutex> lock(_lock);
+    return _irqvec;
+  }
 
   void show_state(FILE *f, Vmm::Cpu vcpu)
   {
@@ -103,10 +116,12 @@ public:
   }
 
 private:
+  Vmm::Cpu _cpu;
   /// Cached output pending array.
   l4_uint32_t _irqvec;
   /// Count for each interrupt the number of incomming sources.
   int _pending[Max_irq - Min_irq + 1];
+  std::mutex _lock;
 };
 
 /**
@@ -129,14 +144,11 @@ public:
   Mips_core_ic() = default;
   virtual ~Mips_core_ic() = default;
 
-  void create_ics(unsigned num_ics)
+  void create_ic(unsigned i, Vmm::Cpu vcpu)
   {
-    assert(num_ics <= Max_ics);
+    assert(i <= Max_ics);
     // start up one core IC per vcpu
-    for (unsigned i = 0; i < num_ics; ++i)
-      _core_ics[i] = Vdev::make_device<Gic::Vcpu_ic>();
-
-    Dbg(Dbg::Irq, Dbg::Info).printf("Core IC created for %u cores\n", num_ics);
+    _core_ics[i] = Vdev::make_device<Gic::Vcpu_ic>(vcpu);
   }
 
   cxx::Ref_ptr<Gic::Vcpu_ic> get_ic(unsigned cpuid) const

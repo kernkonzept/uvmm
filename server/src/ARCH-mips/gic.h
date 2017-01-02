@@ -7,6 +7,8 @@
  */
 #pragma once
 
+#include <mutex>
+
 #include <l4/cxx/bitmap>
 #include <l4/cxx/unique_ptr>
 #include <l4/re/dataspace>
@@ -28,7 +30,8 @@ class Dist
   enum Config
   {
     Num_irqs = 128, // maximum irq supported by Linux 3.19
-    Cfg_words = Num_irqs >> 5 // 32 irq config bits per word
+    Cfg_words = Num_irqs >> 5, // 32 irq config bits per word
+    Num_vpes = 32  // number of VPEs the GIC can handle
   };
 
   // The P5600 spec says there is a maximum of 256 irqs but the
@@ -63,6 +66,9 @@ class Dist
     Gic_sh_pend = 0x480,
     Gic_sh_pin = 0x500,
     Gic_sh_map = 0x2000,
+
+    Gic_loc_other_addr = 0x80,
+    Gic_loc_ident = 0x88,
   };
 
   struct Gic_config_reg
@@ -96,6 +102,11 @@ class Dist
     explicit Gic_wedge_reg(l4_umword_t value) : raw(value) {}
   };
 
+  struct Cpu_info
+  {
+    unsigned other_cpu = 0;
+  };
+
 public:
   Dist(Mips_core_ic *core_ic);
 
@@ -109,6 +120,7 @@ public:
   void set(unsigned irq) override
   {
     assert(irq < Num_irqs);
+    std::lock_guard<std::mutex> lock(_lock);
 
     if (!_irq_array[irq])
       return;
@@ -122,6 +134,7 @@ public:
   void clear(unsigned irq) override
   {
     assert(irq < Num_irqs);
+    std::lock_guard<std::mutex> lock(_lock);
 
     if (!_irq_array[irq])
       return;
@@ -168,8 +181,6 @@ public:
   void show_state(FILE *);
 
 private:
-  unsigned _other_cpu = 1;
-
   /**
    * Return offset of map register for the given IRQ.
    *
@@ -219,6 +230,8 @@ private:
   cxx::unique_ptr<Vmm::Irq_sink> _irq_array[Num_irqs];
   // registered device callbacks for configuration and eoi
   cxx::Ref_ptr<Irq_source> _sources[Num_irqs];
+  Cpu_info _vcpu_info[Num_vpes];
+  std::mutex _lock;
 };
 
 } // namespace
