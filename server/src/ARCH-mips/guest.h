@@ -11,9 +11,10 @@
 #include <l4/vbus/vbus>
 #include <l4/l4virtio/l4virtio>
 
+#include "cm.h"
+#include "core_ic.h"
 #include "debug.h"
 #include "generic_guest.h"
-#include "core_ic.h"
 #include "vcpu_array.h"
 #include "irq.h"
 #include "vmprint.h"
@@ -44,7 +45,7 @@ public:
   void prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
                          char const *cmd_line);
 
-  void run(cxx::Ref_ptr<Vcpu_array> cpus);
+  void run(cxx::Ref_ptr<Vcpu_array> const &cpus);
 
   void reset_vcpu(Cpu vcpu);
   int dispatch_hypcall(Hypcall_code hypcall_code, Cpu &vcpu);
@@ -69,10 +70,18 @@ private:
 
     switch (reg)
       {
-      case L4_VM_CP0_GLOBAL_NUMBER: *val = vcpu.get_vcpu_id() << 8; break;
-      case L4_VM_CP0_PROC_ID: *val = vcpu.proc_id(); break;
-      case L4_VM_CP0_SRS_CTL: *val = 0; break;
-      case L4_VM_CP0_CMGCR_BASE: // virtual CM not supported
+      case L4_VM_CP0_GLOBAL_NUMBER:
+        *val = vcpu.get_vcpu_id() << 8;
+        break;
+      case L4_VM_CP0_PROC_ID:
+        *val = vcpu.proc_id();
+        break;
+      case L4_VM_CP0_SRS_CTL:
+        *val = 0;
+        break;
+      case L4_VM_CP0_CMGCR_BASE:
+        *val = Vdev::Coherency_manager::mem_region().start >> 4;
+        break;
       case L4_VM_CP0_MAAR_0:
       case L4_VM_CP0_MAAR_1:
       case L4_VM_CP0_ERR_CTL:
@@ -201,6 +210,7 @@ private:
 
   Guest_print_buffer _hypcall_print;
   cxx::Ref_ptr<Gic::Mips_core_ic> _core_ic;
+  cxx::Ref_ptr<Vdev::Coherency_manager> _cm;
 };
 
 

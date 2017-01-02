@@ -26,6 +26,9 @@ public:
   /// Maximum number of supported CPUs.
   enum { Max_cpus = SIZE };
 
+  /// pointer to startup code for VCPU thread
+  typedef void *(*Vcpu_start_proc) (void *);
+
   Vcpu_array_t()
   {
     // Per default a single-core system is created.

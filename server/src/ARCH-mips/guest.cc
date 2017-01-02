@@ -21,8 +21,10 @@ namespace Vmm {
 
 Guest::Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
 : Guest::Generic_guest(ram, vm_base, sign_ext(0x80000000)),
-  _core_ic(Vdev::make_device<Gic::Mips_core_ic>())
+  _core_ic(Vdev::make_device<Gic::Mips_core_ic>()),
+  _cm(Vdev::make_device<Vdev::Coherency_manager>(&_memmap))
 {
+  _memmap[_cm->mem_region()] = _cm;
 }
 
 void
@@ -88,9 +90,10 @@ Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
 }
 
 void
-Guest::run(cxx::Ref_ptr<Vcpu_array> cpus)
+Guest::run(cxx::Ref_ptr<Vcpu_array> const &cpus)
 {
   _core_ic->create_ics(cpus->max_cpuid() + 1);
+  _cm->register_cpus(cpus);
 
   auto vcpu = cpus->vcpu(0);
 
