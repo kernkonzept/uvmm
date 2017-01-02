@@ -228,10 +228,12 @@ Vcpu_dev::start_vcpu(l4_addr_t bev_base)
       trace.printf("Using Core reset base 0x%lx\n", _reset_base);
     }
 
+  _vcpu.state()->g_status |= (1 << 2) | (1 << 22); // ERL, BEV
+  _vcpu.ping();
+
   // consider it officially done
-  // XXX should that bedone in reset code?
-  _status.seq_state() = Seq_coherent;
-  _status.coh_en() = 1;
+  // XXX should that be done in reset code?
+  set_coherent();
 }
 
 void

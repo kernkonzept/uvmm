@@ -57,7 +57,8 @@ node_cb(Vdev::Dt_node const &node, unsigned /* depth */, Vmm::Guest *vmm,
 {
   cxx::Ref_ptr<Vdev::Device> dev;
   char const *devtype = node.get_prop<char>("device_type", nullptr);
-  if (devtype && strcmp("cpu", devtype) == 0)
+  bool is_cpu_dev = devtype && strcmp("cpu", devtype) == 0;
+  if (is_cpu_dev)
     {
       // Cpu devices need to be treated specially because they
       // use a different factory.
@@ -90,7 +91,7 @@ node_cb(Vdev::Dt_node const &node, unsigned /* depth */, Vmm::Guest *vmm,
   // with special factory interfaces does not fail. If we have a node
   // with resources, and device creation failed, we do not have enough
   // resources to handle the device.
-  if (!node.needs_vbus_resources())
+  if (!is_cpu_dev && !node.needs_vbus_resources())
     return true; // no error, just continue parsing the tree
 
   if (node.has_prop("l4vmm,force-enable"))

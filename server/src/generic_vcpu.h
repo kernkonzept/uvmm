@@ -8,9 +8,13 @@
  */
 #pragma once
 
+#include <cstdio>
+
 #include <l4/re/error_helper>
 #include <l4/re/rm>
+#include <l4/re/util/cap_alloc>
 #include <l4/re/util/kumem_alloc>
+#include <l4/sys/debugger.h>
 #include <l4/sys/thread>
 #include <l4/sys/vcpu.h>
 
@@ -61,6 +65,18 @@ public:
       L4Re::chksys(-L4_ENODEV);
     }
 
+    char threadname[8];
+    snprintf(threadname, 8, "vcpu%d", get_vcpu_id());
+    threadname[7] = '\0';
+    l4_debugger_set_object_name(thread.cap(), threadname);
+
+    auto ipi = L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4::Irq>(),
+                            "allocate vcpu notification interrupt");
+    L4Re::Env::env()->factory()->create(ipi);
+    ipi->attach(0, thread);
+
+    _s->user_data[Reg_ipi_irq] = ipi.cap();
+
     trace().printf("VCPU mapped @ %p and enabled\n", _s);
   }
 
@@ -70,10 +86,14 @@ public:
   void set_vcpu_id(unsigned id)
   { _s->user_data[Reg_vcpu_id] = id; }
 
+  void ping()
+  { L4::Cap<L4::Irq>(_s->user_data[Reg_ipi_irq])->trigger(); }
+
 protected:
   enum User_data_regs
   {
     Reg_vcpu_id = 0,
+    Reg_ipi_irq,
     Reg_arch_base
   };
 

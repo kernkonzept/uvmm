@@ -95,11 +95,37 @@ Guest::run(cxx::Ref_ptr<Vcpu_array> const &cpus)
   _core_ic->create_ics(cpus->max_cpuid() + 1);
   _cm->register_cpus(cpus);
 
+  cpus->powerup_cpus(&powerup_handler);
+
   auto vcpu = cpus->vcpu(0);
 
   vcpu.thread_attach();
   reset_vcpu(vcpu);
 }
+
+void
+Guest::powerup_vcpu(Cpu vcpu)
+{
+  auto utcb = l4_utcb();
+
+  vcpu.thread_attach();
+
+  vcpu.state()->g_status = 0;
+
+  for (;;)
+    {
+      l4_umword_t label;
+      l4_ipc_wait(utcb, &label, L4_IPC_NEVER);
+
+      // check if guest status has been set
+      // indicating that a startup really is requested
+      if (vcpu.state()->g_status)
+        break;
+    }
+
+  reset_vcpu(vcpu);
+}
+
 
 void
 Guest::reset_vcpu(Cpu vcpu)

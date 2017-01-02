@@ -11,3 +11,5 @@
 
 /// Entry point for guest exits.
 void c_vcpu_entry(l4_vcpu_state_t *vcpu);
+/// Entry point for newly created vcpu threads.
+void *powerup_handler(void *vcpu);

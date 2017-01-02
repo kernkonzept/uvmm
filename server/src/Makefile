@@ -22,7 +22,7 @@ CXXFLAGS_guest_entry.cc = -msoft-float
 LDFLAGS       += --no-warn-mismatch
 endif
 
-REQUIRES_LIBS   = libstdc++ libio-vbus libfdt
+REQUIRES_LIBS   = libstdc++ libio-vbus libfdt libpthread
 PRIVATE_INCDIR  = $(SRC_DIR)/../include $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
 
 include $(L4DIR)/mk/prog.mk

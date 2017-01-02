@@ -46,6 +46,7 @@ public:
                          char const *cmd_line);
 
   void run(cxx::Ref_ptr<Vcpu_array> const &cpus);
+  void powerup_vcpu(Cpu vcpu);
 
   void reset_vcpu(Cpu vcpu);
   int dispatch_hypcall(Hypcall_code hypcall_code, Cpu &vcpu);

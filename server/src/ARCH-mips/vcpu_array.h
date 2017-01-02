@@ -74,8 +74,9 @@ public:
   };
 
 
-  Vcpu_dev(unsigned id, l4_addr_t vcpu_baseaddr)
+  Vcpu_dev(unsigned id, l4_addr_t vcpu_baseaddr, unsigned phys_id)
   : _vcpu(Cpu((l4_vcpu_state_t *) vcpu_baseaddr)),
+    _phys_cpu_id(phys_id),
     _core_other(0)
   {
     _vcpu.set_vcpu_id(id);
@@ -103,6 +104,9 @@ public:
 
   void set_last_command(unsigned cmd)
   { _status.cmd() = cmd; }
+
+  unsigned sched_cpu() const
+  { return _phys_cpu_id; }
 
   l4_umword_t read_cm_reg(unsigned reg)
   {
@@ -138,11 +142,19 @@ public:
       }
   }
 
+  void set_coherent()
+  {
+    _status.seq_state() = Seq_coherent;
+    _status.coh_en() = 1;
+  }
+
   void start_vcpu(l4_addr_t bev_base);
   void stop_vcpu();
 
 private:
   Cpu _vcpu;
+  /// physical CPU to run on (offset into scheduling mask)
+  unsigned _phys_cpu_id;
   /// CPC state: local status register
   Local_status_reg _status;
   /// CM state: reset address register
@@ -191,6 +203,11 @@ public:
     Core_other_base = 0x4000,
     Control_block_size = 0x2000
   };
+
+  Vcpu_array()
+  {
+    _cpus[0]->set_coherent();
+  }
 
   void show_state_registers(FILE *f);
 

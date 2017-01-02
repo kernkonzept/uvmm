@@ -7,8 +7,14 @@
  */
 #pragma once
 
+#include <pthread.h>
+#include <pthread-l4.h>
+
+#include <l4/re/env>
 #include <l4/re/rm>
+#include <l4/sys/scheduler>
 #include <l4/sys/task>
+#include <l4/sys/debugger.h>
 
 #include "debug.h"
 #include "device.h"
@@ -22,6 +28,57 @@ namespace Vmm {
 template <typename VCPU, unsigned SIZE>
 class Vcpu_array_t : public virtual Vdev::Dev_ref
 {
+  /**
+   * Helper class that distributes threads evenly to all available
+   * physical CPUs.
+   *
+   * Exactly one VCPU is assigned per physical CPU. If more VCPUs
+   * are requested, they remain disabled.
+   */
+  class Vcpu_placement
+  {
+  public:
+    enum : unsigned { Invalid_id = ~0U };
+
+    Vcpu_placement() : _next_id(0), _offset(0)
+    {
+      auto scheduler = L4Re::Env::env()->scheduler();
+      _cs = l4_sched_cpu_set(_offset, 0);
+      L4Re::chksys(scheduler->info(&_max_cpus, &_cs));
+    }
+
+    unsigned next_free()
+    {
+      if (_next_id > _max_cpus)
+        return Invalid_id;
+
+      auto scheduler = L4Re::Env::env()->scheduler();
+      while (!(_cs.map & (1UL << _next_id)))
+        {
+          ++_next_id;
+          if (_next_id > _max_cpus)
+            return Invalid_id;
+          l4_umword_t new_offset = _next_id / (sizeof(l4_umword_t) * 8);
+          if (new_offset != _offset)
+            {
+              _offset = new_offset;
+              _cs = l4_sched_cpu_set(_offset, 0);
+              L4Re::chksys(scheduler->info(&_max_cpus, &_cs));
+            }
+        }
+
+      unsigned ret = _next_id++;
+
+      return ret;
+    }
+
+  private:
+    l4_sched_cpu_set_t _cs;
+    unsigned _next_id;
+    l4_umword_t _offset;
+    l4_umword_t _max_cpus;
+  };
+
 public:
   /// Maximum number of supported CPUs.
   enum { Max_cpus = SIZE };
@@ -35,6 +92,7 @@ public:
     // Other CPUs can be added via the device tree configuration.
     // It also allows to configure a more specific CPU type.
     create_vcpu(0);
+    assert(_cpus[0]);
   }
 
   virtual ~Vcpu_array_t() = default;
@@ -75,6 +133,11 @@ public:
 
     if (!_cpus[id])
       {
+        unsigned cpu_mask = _placement.next_free();
+
+        if (cpu_mask == Vcpu_placement::Invalid_id)
+          return nullptr;
+
         auto *e = L4Re::Env::env();
         l4_addr_t vcpu_addr = 0x10000000;
 
@@ -86,7 +149,7 @@ public:
 
         Dbg(Dbg::Cpu, Dbg::Info).printf("Created VCPU %d @ %lx\n", id, vcpu_addr);
 
-        _cpus[id] = Vdev::make_device<VCPU>(id, vcpu_addr);
+        _cpus[id] = Vdev::make_device<VCPU>(id, vcpu_addr, cpu_mask);
       }
 
     if (compatible)
@@ -95,7 +158,57 @@ public:
     return _cpus[id];
   }
 
+  /**
+   * Create a thread for all vcpus except the initial one.
+   *
+   * Vcpus are scheduled round-robin on the available CPUs.
+   */
+  void powerup_cpus(Vcpu_start_proc proc)
+  {
+    pthread_attr_t pattr;
+    L4Re::chksys(pthread_attr_init(&pattr));
+    pattr.create_flags |= PTHREAD_L4_ATTR_NO_START;
+
+    schedule_vcpu(0, pthread_self());
+    char vcpu_name[7];
+    strcpy(vcpu_name, "vcpu00");
+    l4_debugger_set_object_name(pthread_l4_cap(pthread_self()), vcpu_name);
+
+    for (unsigned i = 1; i < Max_cpus; ++i)
+      {
+        if (!_cpus[i])
+          continue;
+
+        pthread_t thread;
+        auto r = pthread_create(&thread, &pattr, proc,
+                                (void *) *(_cpus[i]->vcpu()));
+        if (i < 100)
+          {
+            sprintf(vcpu_name, "vcpu%02d", i);
+            l4_debugger_set_object_name(pthread_l4_cap(thread), vcpu_name);
+          }
+        if (r != 0)
+          L4Re::chksys(-L4_ENOMEM, "Cannot start vcpu thread");
+
+        schedule_vcpu(i, thread);
+      }
+
+    L4Re::chksys(pthread_attr_destroy(&pattr));
+  }
+
+private:
+  void schedule_vcpu(unsigned id, pthread_t thread)
+  {
+    assert(_cpus[id]);
+    l4_sched_param_t sp = l4_sched_param(2);
+    sp.affinity = l4_sched_cpu_set(_cpus[id]->sched_cpu(), 0);
+
+    auto sched = L4Re::Env::env()->scheduler();
+    L4Re::chksys(sched->run_thread(Pthread::L4::cap(thread), sp));
+  }
+
 protected:
+  Vcpu_placement _placement;
   cxx::Ref_ptr<VCPU> _cpus[Max_cpus];
 
 };
