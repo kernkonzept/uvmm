@@ -57,26 +57,29 @@ public:
     _device = srvcap;
 
     _host_irq = L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4::Irq>(),
-                             "Cannot allocate host irq");
+                             "Allocating cap for host irq");
 
     _config_cap = L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>(),
-                               "Cannot allocate cap for config dataspace");
-
-    auto *e = L4Re::Env::env();
-    L4Re::chksys(e->rm()->attach(&_config, L4_PAGESIZE, L4Re::Rm::Search_addr,
-                                 L4::Ipc::make_cap_rw(_config_cap.get()), 0,
-                                 L4_PAGESHIFT),
-                 "Cannot attach config dataspace");
+                               "Allocating cap for config dataspace");
 
     L4Re::chksys(_device->register_iface(guest_irq, _host_irq.get(),
                                          _config_cap.get()),
-                 "Error registering interface with device");
+                 "Registering interface with device");
+
+    _config_page_size = L4Re::chksys(_config_cap->size(),
+                                     "Determining size of virtio config page");
+
+    auto *e = L4Re::Env::env();
+    L4Re::chksys(e->rm()->attach(&_config, _config_page_size,
+                                 L4Re::Rm::Search_addr,
+                                 L4::Ipc::make_cap_rw(_config_cap.get())),
+                 "Attaching config dataspace");
 
     if (memcmp(&_config->magic, "virt", 4) != 0)
       L4Re::chksys(-L4_ENODEV, "Device config has wrong magic value");
 
     if (_config->version != 1)
-      L4Re::chksys(-L4_ENODEV, "Invalid virtio version, must be 1");
+      L4Re::chksys(-L4_ENODEV, "Require virtio version of 1");
   }
 
 
@@ -119,6 +122,9 @@ public:
 
   l4_uint32_t read(unsigned reg)
   {
+    if (reg >= _config_page_size)
+      return 0;
+
     switch (reg >> 2)
       {
       case 0: return *reinterpret_cast<l4_uint32_t const *>("virt");
@@ -139,8 +145,9 @@ public:
 
   void write(unsigned reg, l4_uint32_t value)
   {
-    // XXX make sure we don't write outside config page because the
-    // driver side screwed up
+    if (reg >= _config_page_size)
+      return;
+
     switch (reg >> 2)
       {
       case 20:
@@ -207,7 +214,7 @@ private:
   unsigned _queue_sel = 0;
   unsigned _host_feat_sel = 0;
   unsigned _guest_feat_sel = 0;
-
+  unsigned _config_page_size = 0;
 };
 
 } } // namespace
@@ -217,13 +224,20 @@ namespace Vdev {
 class Virtio_proxy : public L4::Irqep_t<Virtio_proxy>, public Device
 {
 private:
-  // -- network specific
-  L4virtio::Driver::Virtqueue _txq;
+  /**
+   * Number of no-notify queue.
+   *
+   * A no-notify-queue requests no_notify_host when busy. Useful in
+   * particualar for send queues in network devices. Enable via
+   * device tree configuration l4vmm,no-notify = <queue-id>;
+   */
+  unsigned _nnq_id;
+  L4virtio::Driver::Virtqueue _nnq;
   Vmm::Vm_ram *_iommu;
-  // -------------------
+
 public:
   Virtio_proxy(Vmm::Vm_ram *iommu)
-  : _iommu(iommu) {}
+  : _nnq_id(-1U), _iommu(iommu) {}
 
   void init_device(Vdev::Device_lookup const *devs,
                    Vdev::Dt_node const &self,
@@ -240,28 +254,52 @@ public:
       L4Re::chksys(-L4_ENODEV, "Interupt handler for virtio proxy has bad type.\n");
 
     _irq.rebind(ic, ic->dt_get_interrupt(self, 0));
+
+    int sz;
+    auto const *prop = self.get_prop<fdt32_t>("l4vmm,no-notify", &sz);
+    if (prop && sz > 0)
+      _nnq_id = fdt32_to_cpu(*prop);
   }
 
-  l4_uint32_t read(unsigned reg, char, unsigned)
-  { return _dev.read(reg); }
+  l4_umword_t read(unsigned reg, char sz, unsigned)
+  {
+    if (reg < 0x100)
+      return _dev.read(reg);
+
+    // device private memory
+    l4_addr_t offset = reg - 0x100 + _dev.device_config()->dev_cfg_offset;
+
+    if (offset < _dev.device_config()->queues_offset)
+      {
+        char *cfgptr = _dev.device_config()->device_config<char>() + reg - 0x100;
+        switch (sz)
+          {
+          case 0: return *reinterpret_cast<l4_uint8_t *>(cfgptr);
+          case 1: return *reinterpret_cast<l4_uint16_t *>(cfgptr);
+          case 2: return *reinterpret_cast<l4_uint32_t *>(cfgptr);
+          default: return *reinterpret_cast<l4_uint64_t *>(cfgptr);
+          }
+      }
+
+    return 0;
+  }
 
   void write(unsigned reg, char, l4_uint32_t value, unsigned)
   {
     switch (reg >> 2)
       {
       case 16:
-        // -- network specific
-        if (_dev.selected_queue() == 1)
+        if (_dev.selected_queue() == _nnq_id)
           {
             auto *q = _dev.queue_config(1);
-            _txq.setup(q->num, q->align,
+            _nnq.setup(q->num, q->align,
                        _iommu->access(L4virtio::Ptr<void>(value * _dev.page_size())));
           }
         break;
 
       case 20:
-        // -- network specific
-        _txq.no_notify_host(true);
+        if (_nnq.ready())
+          _nnq.no_notify_host(true);
         break;
 
       case 25:
@@ -276,10 +314,12 @@ public:
   void register_obj(REG *registry, L4::Cap<L4virtio::Device> host,
                     L4::Cap<L4Re::Dataspace> ram, l4_addr_t ram_base)
   {
-    L4::Cap<L4::Irq> guest_irq = L4Re::chkcap(registry->register_irq_obj(this));
+    L4::Cap<L4::Irq> guest_irq = L4Re::chkcap(registry->register_irq_obj(this),
+                                              "Registering guest IRQ in proxy");
 
     _dev.driver_connect(host, guest_irq);
-    L4Re::chksys(_dev.register_ds(ram, 0, ram->size(), ram_base));
+    L4Re::chksys(_dev.register_ds(ram, 0, ram->size(), ram_base),
+                 "Registering RAM for virtio proxy");
   }
 
   void handle_irq()
