@@ -5,57 +5,27 @@
 /dts-v1/;
 /include/ "skeleton.dtsi"
 /include/ "syscon.dtsi"
+/include/ "ic-arm.dtsi"
+/include/ "vmm-devices-arm.dtsi"
 
 / {
-	model = "L4 VM";
-	compatible = "l4,virt", "linux,dummy-virt";
+    model = "L4 VM";
+    compatible = "l4,virt", "linux,dummy-virt";
 
-	interrupt-parent = <&gic>;
+    interrupt-parent = <&gic>;
 
-	chosen {
-	};
+    timer {
+      compatible = "arm,cortex-a15-timer", "arm,armv7-timer";
+      interrupts = <1 13 0xf08>,
+                   <1 14 0xf08>,
+                   <1 11 0xf08>,
+                   <1 10 0xf08>;
+      clock-frequency = <6144000>;
+      always-on;
+    };
 
-	aliases {
-	};
-
-	gic: interrupt-controller {
-		compatible = "arm,cortex-a15-gic", "arm,cortex-a9-gic";
-		#interrupt-cells = <3>;
-		#address-cells = <0>;
-		interrupt-controller;
-		reg = <0x48211000 0x1000>,
-		      <0x48212000 0x100>;
-	};
-
-	timer {
-		compatible = "arm,cortex-a15-timer",
-			     "arm,armv7-timer";
-		interrupts = <1 13 0xf08>,
-			     <1 14 0xf08>,
-			     <1 11 0xf08>,
-			     <1 10 0xf08>;
-		clock-frequency = <6144000>;
-		always-on;
-	};
-
-	virtio_net@30010000 {
-		compatible = "virtio,mmio";
-		reg = <0x30010000 0x100>;
-		interrupts = <0 123 0>;
-		l4vmm,vdev = "proxy";
-                l4vmm,virtiocap = "net";
-	};
-
-	virtio_uart@30020000 {
-		compatible = "virtio,mmio";
-		reg = <0x30020000 0x100>;
-		interrupts = <0 122 0>;
-		l4vmm,vdev = "console";
-	};
-
-	syscon {
-		l4syscon: syscon {
-			reg = <0x30030000 0x04>;
-		};
-        };
+    icsoc {
+        ranges = <0x0 0x48210000 0x3000>;
+    };
 };
+

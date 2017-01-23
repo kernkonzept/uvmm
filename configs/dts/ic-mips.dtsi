@@ -1,0 +1,32 @@
+/**
+ * Basic interrupt controllers for MIPS: core IC and GIC.
+ */
+
+
+/ {
+    cpu_intc: cpu_intc {
+      #address-cells = <0>;
+      compatible = "mti,cpu-interrupt-controller";
+
+      interrupt-controller;
+      #interrupt-cells = <1>;
+    };
+
+    soc {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        compatible = "simple-bus";
+        ranges;
+
+        gic: interrupt-controller {
+            compatible = "mti,gic";
+
+            reg = <0x1bdc0000 0x20000>;
+
+            mti,reserved-cpu-vectors = <7>;
+
+            interrupt-controller;
+            #interrupt-cells = <3>;
+        };
+    };
+};

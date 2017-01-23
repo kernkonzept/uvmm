@@ -1,0 +1,21 @@
+/*
+ * GIC for ARM guests.
+ */
+
+/ {
+    icsoc {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        compatible = "simple-bus";
+        ranges;
+
+        gic: interrupt-controller {
+            compatible = "arm,cortex-a15-gic", "arm,cortex-a9-gic";
+            #interrupt-cells = <3>;
+            #address-cells = <0>;
+            interrupt-controller;
+            reg = <0x1000 0x1000>,
+                  <0x2000 0x100>;
+            };
+    };
+};

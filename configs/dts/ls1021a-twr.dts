@@ -7,9 +7,7 @@
  * (at your option) any later version.
  */
 
-#ifndef INCLUDE_LS1021a_TWR
 /dts-v1/;
-#endif
 
 #include "ls1021a.dtsi"
 

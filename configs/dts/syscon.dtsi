@@ -1,12 +1,18 @@
+/**
+ * L4 uvmm system management console. Provides reboot and poweroff hooks
+ * towards the vmm.
+ */
+
 / {
 	syscon {
 		#address-cells = <1>;
 		#size-cells = <1>;
 		compatible = "simple-bus";
-		ranges;
+		ranges = <0x0 0x30030000 0x4>;
 		
 		l4syscon: syscon {
 			compatible = "syscon", "syscon-l4vmm";
+			reg = <0x0 0x4>;
 			little-endian;
 		};
 		

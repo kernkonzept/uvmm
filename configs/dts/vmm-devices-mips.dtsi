@@ -1,0 +1,33 @@
+/**
+ * Basic set of VMM virtual devices for MIPS guests.
+ *
+ *  * console device
+ *  * network virtio proxy device
+ */
+
+/ {
+    l4vmm {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        compatible = "simple-bus";
+        ranges = <0x0 0x30000000 0x21000>;
+
+        virtio_uart@20000 {
+            compatible = "virtio,mmio";
+            reg = <0x20000 0x100>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 3 4>;
+            l4vmm,vdev = "console";
+        };
+
+        virtio_net@10000 {
+            compatible = "virtio,mmio";
+            reg = <0x10000 0x200>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 4 4>;
+            l4vmm,vdev = "proxy";
+            l4vmm,virtiocap = "net";
+            l4vmm,no-notify = <1>;
+        };
+    };
+};
