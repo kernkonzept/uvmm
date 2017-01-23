@@ -193,13 +193,14 @@ public:
   ~Device()
   {
     _device->set_status(0); // reset
-    for (l4_uint32_t i = 0; i < _config->num_queues; ++i)
-      {
-        _config->queues()[i].num = 0;
-        _config->queues()[i].pfn = 0;
-        _config->queues()[i].align = 0;
-        _device->config_queue(i);
-      }
+    if (_config.get())
+      for (l4_uint32_t i = 0; i < _config->num_queues; ++i)
+        {
+          _config->queues()[i].num = 0;
+          _config->queues()[i].pfn = 0;
+          _config->queues()[i].align = 0;
+          _device->config_queue(i);
+        }
   }
 
 protected:
