@@ -354,7 +354,7 @@ Guest::handle_psci_call(Cpu &vcpu)
           memset(&vcpu->r, 0, sizeof(vcpu->r));
           vcpu->r.ip    = entry_gpa;
           vcpu->r.r[0]  = context_id;
-          vcpu->r.flags = 0x13;
+          vcpu->r.flags = 0x1d3;
           vcpu.state()->vm_regs.sctlr &= ~1UL;
         }
       break;
