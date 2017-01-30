@@ -70,7 +70,7 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
         }
     }
 
-  info.printf("RAM: @ %lx size=%x (%c%c)\n",
+  info.printf("RAM: @ 0x%lx size=0x%x (%c%c)\n",
               _vm_start, (unsigned) _size, _cont ? 'c' : '-', _ident ? 'i' : '-');
 
   _local_start = 0;
@@ -79,11 +79,11 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
                                  L4::Ipc::make_cap_rw(ram), 0,
                                  L4_SUPERPAGESHIFT));
   _local_end = _local_start + _size;
-  info.printf("RAM: VMM mapping @ %lx size=%x\n", _local_start, (unsigned)_size);
+  info.printf("RAM: VMM mapping @ 0x%lx size=0x%x\n", _local_start, (unsigned)_size);
 
   assert(_vm_start != ~0UL);
   _offset = _local_start - _vm_start;
-  info.printf("RAM: VM offset=%lx\n", _offset);
+  info.printf("RAM: VM offset=0x%lx\n", _offset);
 
   _phys_ram = phys_ram;
   _phys_size = phys_size;
@@ -95,7 +95,7 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file, l4_addr_t offset, l4_siz
 {
   Dbg info(Dbg::Mmio, Dbg::Info, "file");
 
-  info.printf("load: @ offset %lx\n", offset);
+  info.printf("load: @ offset 0x%lx\n", offset);
   if (!file)
     L4Re::chksys(-L4_EINVAL);
 
@@ -107,7 +107,7 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file, l4_addr_t offset, l4_siz
       L4Re::chksys(-L4_EINVAL);
     }
 
-  info.printf("copy in: to %lx-%lx\n", offset, offset + fsize);
+  info.printf("copy in: to 0x%lx-0x%lx\n", offset, offset + fsize);
 
   L4Re::chksys(_ram->copy_in(offset, file, 0, fsize), "copy in");
   if (_size)
@@ -121,7 +121,7 @@ Ram_ds::load_file(char const *name, l4_addr_t offset, l4_size_t *_size)
 {
   Dbg info(Dbg::Mmio, Dbg::Info, "file");
 
-  info.printf("load: %s -> %lx\n", name, offset);
+  info.printf("load: %s -> 0x%lx\n", name, offset);
   int fd = open(name, O_RDONLY);
   if (fd < 0)
     {
