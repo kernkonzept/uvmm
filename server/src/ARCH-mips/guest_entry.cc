@@ -160,14 +160,6 @@ c_vcpu_entry(l4_vcpu_state_t *vcpu)
   guest->halt_vm();
 }
 
-void *
-powerup_handler(void *vcpu)
-{
-  guest->powerup_vcpu(Vmm::Cpu(reinterpret_cast<l4_vcpu_state_t *>(vcpu)));
-  return 0;
-}
-
-
 Vmm::Guest *
 Vmm::Guest::create_instance(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
 {

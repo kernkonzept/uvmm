@@ -11,6 +11,7 @@
 #include <l4/vbus/vbus>
 #include <l4/l4virtio/l4virtio>
 
+#include "cpc.h"
 #include "cm.h"
 #include "core_ic.h"
 #include "debug.h"
@@ -46,9 +47,7 @@ public:
                          char const *cmd_line);
 
   void run(cxx::Ref_ptr<Vcpu_array> const &cpus);
-  void powerup_vcpu(Cpu vcpu);
 
-  void reset_vcpu(Cpu vcpu);
   int dispatch_hypcall(Hypcall_code hypcall_code, Cpu &vcpu);
   void handle_entry(Cpu vcpu);
 
@@ -212,6 +211,7 @@ private:
   Guest_print_buffer _hypcall_print;
   cxx::Ref_ptr<Gic::Mips_core_ic> _core_ic;
   cxx::Ref_ptr<Vdev::Coherency_manager> _cm;
+  cxx::Ref_ptr<Vdev::Mips_cpc> _cpc;
 };
 
 

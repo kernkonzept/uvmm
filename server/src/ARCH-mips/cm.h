@@ -11,7 +11,7 @@
 
 #include "mmio_device.h"
 #include "vm_memmap.h"
-#include "vcpu_array.h"
+#include "cpc.h"
 
 namespace Vdev {
 
@@ -72,7 +72,7 @@ public:
 
   static Region mem_region() { return Region::ss(Base_address, Cm_size); }
 
-  void register_cpus(cxx::Ref_ptr<Vmm::Vcpu_array> const &cpus) { _cpc = cpus; }
+  void register_cpc(cxx::Ref_ptr<Vdev::Mips_cpc> const &cpc) { _cpc = cpc; }
 
   l4_umword_t read(unsigned reg, char, unsigned cpuid)
   {
@@ -169,7 +169,7 @@ public:
                         (l4_addr_t)_cpc_base.base_addr());
 
               (*_memmap)[Region::ss(_cpc_base.base_addr(),
-                                    Vmm::Vcpu_array::Cpc_size)] = _cpc;
+                                    Mips_cpc::Cpc_size)] = _cpc;
             }
           break;
         }
@@ -184,7 +184,7 @@ public:
   }
 
 private:
-  cxx::Ref_ptr<Vmm::Vcpu_array> _cpc;
+  cxx::Ref_ptr<Vdev::Mips_cpc> _cpc;
   Vm_mem *_memmap;
   l4_addr_t _gic_base;
   Cpc_base_addr_reg _cpc_base;

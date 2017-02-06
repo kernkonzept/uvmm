@@ -19,7 +19,6 @@
 #include "core_ic.h"
 #include "device_tree.h"
 #include "mmio_device.h"
-#include "vcpu.h"
 
 namespace Gic {
 

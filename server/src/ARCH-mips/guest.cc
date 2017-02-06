@@ -22,9 +22,11 @@ namespace Vmm {
 Guest::Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
 : Guest::Generic_guest(ram, vm_base, sign_ext(0x80000000)),
   _core_ic(Vdev::make_device<Gic::Mips_core_ic>()),
-  _cm(Vdev::make_device<Vdev::Coherency_manager>(&_memmap))
+  _cm(Vdev::make_device<Vdev::Coherency_manager>(&_memmap)),
+  _cpc(Vdev::make_device<Vdev::Mips_cpc>())
 {
   _memmap[_cm->mem_region()] = _cm;
+  _cm->register_cpc(_cpc);
 }
 
 void
@@ -97,79 +99,18 @@ Guest::run(cxx::Ref_ptr<Vcpu_array> const &cpus)
     if (cpus->vcpu_exists(i))
       _core_ic->create_ic(i, cpus->vcpu(i));
 
-  _cm->register_cpus(cpus);
-
-  cpus->powerup_cpus(&powerup_handler);
-
-  auto vcpu = cpus->vcpu(0);
-
-  vcpu.thread_attach();
-  reset_vcpu(vcpu);
-}
-
-void
-Guest::powerup_vcpu(Cpu vcpu)
-{
-  auto utcb = l4_utcb();
-
-  vcpu.thread_attach();
-
-  vcpu.state()->g_status = 0;
-
-  for (;;)
+  _cpc->register_cpus(cpus);
+  for (auto cpu: *cpus.get())
     {
-      l4_umword_t label;
-      l4_ipc_wait(utcb, &label, L4_IPC_NEVER);
+      if (!cpu)
+        continue;
 
-      // check if guest status has been set
-      // indicating that a startup really is requested
-      if (vcpu.state()->g_status)
-        break;
+      cpu->vcpu()->user_task = _task.cap();
+      cpu->powerup_cpu();
     }
 
-  reset_vcpu(vcpu);
-}
-
-
-void
-Guest::reset_vcpu(Cpu vcpu)
-{
-  vcpu->user_task = _task.get().cap();
-
-  l4_umword_t sp;
-  asm ("move %0, $sp" : "=r" (sp));
-
-  vcpu->saved_state = L4_VCPU_F_FPU_ENABLED
-                      | L4_VCPU_F_USER_MODE
-                      | L4_VCPU_F_IRQ
-                      | L4_VCPU_F_PAGE_FAULTS
-                      | L4_VCPU_F_EXCEPTIONS;
-  vcpu->entry_ip = (l4_umword_t)&c_vcpu_entry;
-  vcpu->entry_sp = sp & ~0xfUL;
-  vcpu->r.status |= 8;
-
-  auto *s = vcpu.state();
-  // disable trapping of CF1&2, CG and GT, enable ctl2
-  s->guest_ctl_0 |= 0x3000083;
-  s->guest_ctl_0_ext |= 0x10; // CGI
-  l4_umword_t cca = s->g_cfg[0] & 7UL;
-  s->g_seg_ctl[0] = 0x00200010;
-  s->g_seg_ctl[1] = 0x00000002 | (cca << 16);
-  s->g_seg_ctl[2] = 0x04300030 | (cca << 16) | cca;
-  s->g_ebase = (s->g_ebase & ~0x3ffUL) | vcpu.get_vcpu_id();
-  s->set_modified(L4_VM_MOD_GUEST_CTL_0
-                  | L4_VM_MOD_GUEST_CTL_0_EXT
-                  | L4_VM_MOD_CFG
-                  | L4_VM_MOD_EBASE
-                  | L4_VM_MOD_XLAT);
-
-  info().printf("Starting vcpu %d @ 0x%lx (handler @ %lx with stack @ %lx)\n",
-                vcpu.get_vcpu_id(), vcpu->r.ip, vcpu->entry_ip, vcpu->entry_sp);
-
-  L4::Cap<L4::Thread> myself;
-  auto e = l4_error(myself->vcpu_resume_commit(myself->vcpu_resume_start()));
-
-  Err().printf("VMM exited with %ld\n", e);
+  cpus->cpu(0)->set_coherent();
+  cpus->cpu(0)->startup();
 }
 
 int
