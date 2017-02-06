@@ -22,8 +22,19 @@ public:
   bool pf_write() const
   { return hsr().pf_write(); }
 
-  l4_utcb_t *saved_utcb() const
-  { return *reinterpret_cast<l4_utcb_t **>((char *)_s + L4_VCPU_OFFSET_EXT_INFOS); }
+  static l4_uint64_t cntvct()
+  {
+    l4_uint64_t x;
+    asm volatile ("mrrc p15, 1, %Q0, %R0, c14" : "=r"(x));
+    return x;
+  }
+
+  static l4_uint64_t cntv_cval()
+  {
+    l4_uint64_t x;
+    asm volatile ("mrrc p15, 3, %Q0, %R0, c14" : "=r"(x));
+    return x;
+  }
 
   void thread_attach()
   {
@@ -40,6 +51,32 @@ public:
   void jump_instruction() const
   { _s->r.ip += 2 << hsr().il(); }
 
+  l4_umword_t get_gpr(unsigned x) const
+  {
+    if (L4_UNLIKELY(x > 14))
+      return 0;
+
+    switch (x)
+      {
+      case 14: return _s->r.lr;
+      case 13: return _s->r.sp;
+      default: return _s->r.r[x];
+      }
+  }
+
+  void set_gpr(unsigned x, l4_umword_t value) const
+  {
+    if (L4_UNLIKELY(x > 14))
+      return;
+
+    switch (x)
+      {
+      case 14: _s->r.lr = value; break;
+      case 13: _s->r.sp = value; break;
+      default: _s->r.r[x] = value; break;
+      }
+  }
+
   Mem_access decode_mmio() const
   {
     Mem_access m;
@@ -54,20 +91,7 @@ public:
     m.access = hsr().pf_write() ? Mem_access::Store : Mem_access::Load;
 
     if (m.access == Mem_access::Store)
-      {
-        switch (hsr().pf_srt())
-          {
-          case 13:
-            m.value = _s->r.sp;
-            break;
-          case 14:
-            m.value = _s->r.lr;
-            break;
-          default:
-            m.value = _s->r.r[hsr().pf_srt()];
-            break;
-          }
-      }
+      m.value = get_gpr(hsr().pf_srt());
 
     return m;
   }
@@ -77,19 +101,7 @@ public:
     assert(m.access == Mem_access::Load);
 
     l4_umword_t v = reg_extend_width(m.value, hsr().pf_sas(), hsr().pf_sse());
-
-    switch (hsr().pf_srt())
-      {
-      case 13:
-        _s->r.sp = v;
-        break;
-      case 14:
-        _s->r.lr = v;
-        break;
-      default:
-        _s->r.r[hsr().pf_srt()] = v;
-        break;
-      }
+    set_gpr(hsr().pf_srt(), v);
   }
 };
 

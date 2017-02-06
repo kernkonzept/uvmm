@@ -22,6 +22,7 @@ static cxx::unique_ptr<Vmm::Guest> guest;
 __thread unsigned vmm_current_cpu_id;
 
 extern "C" void vcpu_entry(l4_vcpu_state_t *vcpu);
+typedef void (*Entry)(Vmm::Cpu vcpu);
 
 asm
 (
@@ -29,25 +30,27 @@ asm
  "  mov    r6, sp                 \n"
  "  bic    sp, #7                 \n"
  "  sub    sp, sp, #16            \n"
+ "  mov    r4, r0                 \n"
  "  mrc    p15, 0, r5, c13, c0, 2 \n"
- "  stmia  sp, {r4, r5, r6, lr}   \n"
- "  bl     c_vcpu_entry           \n"
+ "  ldr    r2, [r0, #0x200]       \n"  // L4_VCPU_OFFSET_EXT_INFOS
+ "  ldr    r3, [r0, #0x24]        \n"  // vcpu->r.err
+ "  mcr    p15, 0, r2, c13, c0, 2 \n"
+ "  lsr    r3, r3, #24            \n"
+ "  bic    r3, r3, #3             \n"
+ "  movw   r8, #:lower16:vcpu_entries      \n"
+ "  movt   r8, #:upper16:vcpu_entries      \n"
+ "  add    r8, r8, r3             \n"
+ "  ldr    r8, [r8]               \n"
+ "  blx    r8                     \n"
+ "  mov    r0, r4                 \n"
+ "  bl     prepare_guest_entry    \n"
  "  movw   r2, #0xf803            \n"
  "  movt   r2, #0xffff            \n"
  "  mov    r3, #0                 \n"
- "  mov    r5, sp                 \n"
- "  ldmia  r5, {r4, r6, sp, lr}   \n"
- "  mcr    p15, 0, r6, c13, c0, 2 \n"
+ "  mov    sp, r6                 \n"
+ "  mcr    p15, 0, r5, c13, c0, 2 \n"
  "  mov    pc, #" L4_stringify(L4_SYSCALL_INVOKE) " \n"
 );
-
-extern "C" l4_msgtag_t c_vcpu_entry(l4_vcpu_state_t *vcpu_state);
-
-l4_msgtag_t __attribute__((flatten))
-c_vcpu_entry(l4_vcpu_state_t *vcpu)
-{
-  return guest->handle_entry(Vmm::Cpu(vcpu));
-}
 
 namespace Vmm {
 
@@ -56,7 +59,7 @@ Guest::Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
   _gic(Vdev::make_device<Gic::Dist>(8, 2)), // 8 * 32 spis, 2 cpus
   _timer(Vdev::make_device<Vdev::Core_timer>())
 {
-  if (_ram.vm_start() & ((1 << 27) - 1))
+  if (_ram.vm_start() & ((1UL << 27) - 1))
     warn().printf(
       "\033[01;31mWARNING: Guest memory not 128MB aligned!\033[m\n"
       "       If you run Linux as a guest, Linux will likely fail to boot\n"
@@ -173,7 +176,7 @@ Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const * /* kernel */,
                          char const * /* cmd_line */)
 {
   // Set up the VCPU state as expected by Linux entry
-  vcpu->r.flags = 0x00000013;
+  vcpu->r.flags = 0x0000001d3;
   vcpu->r.sp    = 0;
   vcpu->r.r[0]  = 0;
   vcpu->r.r[1]  = ~0UL;
@@ -205,9 +208,16 @@ Guest::reset_vcpu(Cpu vcpu)
 
   auto *vm = vcpu.state();
 
-  vm->vm_regs.hcr &= ~(1 << 27);
-  vm->vm_regs.hcr |= 1 << 13;
+  // we set FB, and BSU to inner sharable to tolerate migrations
+  vm->vm_regs.hcr = 0x30023f; // VM, PTW, AMO, IMO, FMO, FB, SWIO, TIDCP, TAC
+  vm->vm_regs.hcr |= 1UL << 10; // BUS = inner sharable
+  vm->vm_regs.hcr |= 3UL << 13; // Trap WFI and WFE
+
+  // set C, I, CP15BEN
+  vm->vm_regs.sctlr = (1UL << 5) | (1UL << 2) | (1UL << 12);
+
   _gic->set_cpu(vcpu.get_vcpu_id(), &vm->gic);
+  vmm_current_cpu_id = vcpu.get_vcpu_id();
 
   info().printf("Starting vmm @ 0x%lx (handler @ %p)\n",
                 vcpu->r.ip, &vcpu_entry);
@@ -358,160 +368,211 @@ Guest::handle_psci_call(Cpu &vcpu)
   return true;
 }
 
-void
-Guest::dispatch_vm_call(Cpu &vcpu)
+static void dispatch_vm_call(Cpu vcpu)
 {
-  if (handle_psci_call(vcpu))
+  if (guest->handle_psci_call(vcpu))
     return;
 
   Err().printf("Unknown HVC call: a0=%lx a1=%lx ip=%lx\n",
                vcpu->r.r[0], vcpu->r.r[1], vcpu->r.ip);
 }
 
-inline l4_msgtag_t
-Guest::handle_entry(Cpu vcpu)
+static void
+guest_unknown_fault(Cpu vcpu)
 {
-  auto *utcb = vcpu.saved_utcb();
-  asm volatile("mcr p15, 0, %0, c13, c0, 2" : : "r"(utcb));
-  auto hsr = vcpu.hsr();
+  Err().printf("unknown trap: err=%lx ec=0x%x ip=%lx\n",
+               vcpu->r.err, (int)vcpu.hsr().ec(), vcpu->r.ip);
+  guest->halt_vm();
+}
 
-  switch (hsr.ec())
+static void
+guest_memory_fault(Cpu vcpu)
+{
+    if (!guest->handle_mmio(vcpu->r.pfa, vcpu))
+      {
+        Err().printf("cannot handle VM memory access @ %lx ip=%lx\n",
+                     vcpu->r.pfa, vcpu->r.ip);
+        guest->halt_vm();
+      }
+}
+
+static void
+guest_wfx(Cpu vcpu)
+{
+  vcpu->r.ip += 2 << vcpu.hsr().il();
+  if (vcpu.hsr().wfe_trapped()) // WFE
+    return;
+
+  if (guest->gic()->schedule_irqs(vmm_current_cpu_id))
+    return;
+
+  l4_timeout_t to = L4_IPC_NEVER;
+  auto *vm = vcpu.state();
+
+  auto *utcb = l4_utcb();
+  if ((vm->cntv_ctl & 3) == 1) // timer enabled and not masked
     {
-    case 0x20: // insn abt
-      // fall through
-    case 0x24: // data abt
-      if (!handle_mmio(vcpu->r.pfa, vcpu))
-        {
-          Err().printf("cannot handle VM memory access @ %lx ip=%lx\n",
-                       vcpu->r.pfa, vcpu->r.ip);
-          halt_vm();
-        }
-      break;
+      // calculate the timeout based on the VTIMER values !
+      auto cnt = vcpu.cntvct();
+      auto cmp = vcpu.cntv_cval();
 
-    case 0x3d: // VIRTUAL PPI
-      switch (hsr.svc_imm())
-        {
-        case 0: // VGIC IRQ
-          _gic->handle_maintenance_irq(vmm_current_cpu_id);
-          break;
-        case 1: // VTMR IRQ
-          _timer->inject();
-          break;
-        default:
-          Err().printf("unknown virtual PPI: %d\n", (int)hsr.svc_imm());
-          break;
-        }
-      break;
+      if (cmp <= cnt)
+        return;
 
-    case 0x3f: // IRQ
-      handle_ipc(vcpu->i.tag, vcpu->i.label, utcb);
-      break;
-
-    case 0x01: // WFI, WFE
-      if (hsr.wfe_trapped()) // WFE
-        {
-          // yield
-        }
-      else // WFI
-        {
-          if (_gic->schedule_irqs(vmm_current_cpu_id))
-            {
-              vcpu->r.ip += 2 << hsr.il();
-              break;
-            }
-
-          l4_timeout_t to = L4_IPC_NEVER;
-          auto *vm = vcpu.state();
-
-          if ((vm->cntv_ctl & 3) == 1) // timer enabled and not masked
-            {
-              // calculate the timeout based on the VTIMER values !
-              l4_uint64_t cnt, cmp;
-              asm volatile ("mrrc p15, 1, %Q0, %R0, c14" : "=r"(cnt));
-              asm volatile ("mrrc p15, 3, %Q0, %R0, c14" : "=r"(cmp));
-
-              if (cmp <= cnt)
-                {
-                  vcpu->r.ip += 2 << hsr.il();
-                  break;
-                }
-
-              l4_uint64_t diff = (cmp - cnt) / 24;
-              if (0)
-                printf("diff=%lld\n", diff);
-              l4_rcv_timeout(l4_timeout_abs_u(l4_kip_clock(l4re_kip()) + diff, 8, utcb), &to);
-            }
-
-          wait_for_ipc(utcb, to);
-
-          // skip insn
-          vcpu->r.ip += 2 << hsr.il();
-        }
-      break;
-
-    case 0x05: // MCR/MRC CP 14
-
-      if (   hsr.mcr_opc1() == 0
-          && hsr.mcr_crn() == 0
-          && hsr.mcr_crm() == 1
-          && hsr.mcr_opc2() == 0
-          && hsr.mcr_read()) // DCC Status
-        {
-          // printascii in Linux is doing busyuart which wants to see a
-          // busy flag to quit its loop while waituart does not want to
-          // see a busy flag; this little trick makes it work
-          static l4_umword_t flip;
-          flip ^= 1 << 29;
-          vcpu->r.r[hsr.mcr_rt()] = flip;
-        }
-      else if (   hsr.mcr_opc1() == 0
-               && hsr.mcr_crn() == 0
-               && hsr.mcr_crm() == 5
-               && hsr.mcr_opc2() == 0) // DCC Get/Put
-        {
-          if (hsr.mcr_read())
-            vcpu->r.r[hsr.mcr_rt()] = 0;
-          else
-            putchar(vcpu->r.r[hsr.mcr_rt()]);
-        }
-      else
-        {
-          if (   hsr.mcr_opc1() == 0
-              && hsr.mcr_crn() == 0
-              && hsr.mcr_crm() == 0
-              && hsr.mcr_opc2() == 0
-              && hsr.mcr_read())
-            printf("Unhandled DCC request: Non-ARMv7 guest?\n");
-
-          printf("%08lx: %s p14, %d, r%d, c%d, c%d, %d (hsr=%08lx)\n",
-                 vcpu->r.ip, hsr.mcr_read() ? "MRC" : "MCR",
-                 (unsigned)hsr.mcr_opc1(),
-                 (unsigned)hsr.mcr_rt(),
-                 (unsigned)hsr.mcr_crn(),
-                 (unsigned)hsr.mcr_crm(),
-                 (unsigned)hsr.mcr_opc2(),
-                 (l4_umword_t)hsr.raw());
-        }
-
-      vcpu->r.ip += 2 << hsr.il();
-      break;
-
-    case 0x12:
-      dispatch_vm_call(vcpu);
-      break;
-
-    default:
-      Err().printf("unknown trap: err=%lx ec=0x%x ip=%lx\n",
-                   vcpu->r.err, (int)hsr.ec(), vcpu->r.ip);
-      halt_vm();
+      l4_uint64_t diff = (cmp - cnt) / 24;
+      if (0)
+        printf("diff=%lld\n", diff);
+      l4_rcv_timeout(l4_timeout_abs_u(l4_kip_clock(l4re_kip()) + diff, 8, utcb), &to);
     }
 
-  process_pending_ipc(vcpu, utcb);
+  guest->wait_for_ipc(utcb, to);
+}
 
-  _gic->schedule_irqs(vmm_current_cpu_id);
+static void guest_ppi(Cpu vcpu)
+{
+  switch (vcpu.hsr().svc_imm())
+    {
+    case 0: // VGIC IRQ
+      guest->gic()->handle_maintenance_irq(vmm_current_cpu_id);
+      break;
+    case 1: // VTMR IRQ
+      guest->timer()->inject();
+      break;
+    default:
+      Err().printf("unknown virtual PPI: %d\n", (int)vcpu.hsr().svc_imm());
+      break;
+    }
+}
 
+static void guest_irq(Cpu vcpu)
+{
+  guest->handle_ipc(vcpu->i.tag, vcpu->i.label, l4_utcb());
+}
+
+static void guest_mcr_access(Cpu vcpu)
+{
+  auto hsr = vcpu.hsr();
+  if (   hsr.mcr_opc1() == 0
+      && hsr.mcr_crn() == 0
+      && hsr.mcr_crm() == 1
+      && hsr.mcr_opc2() == 0
+      && hsr.mcr_read()) // DCC Status
+    {
+      // printascii in Linux is doing busyuart which wants to see a
+      // busy flag to quit its loop while waituart does not want to
+      // see a busy flag; this little trick makes it work
+      static l4_umword_t flip;
+      flip ^= 1 << 29;
+      vcpu.set_gpr(hsr.mcr_rt(), flip);
+    }
+  else if (   hsr.mcr_opc1() == 0
+           && hsr.mcr_crn() == 0
+           && hsr.mcr_crm() == 5
+           && hsr.mcr_opc2() == 0) // DCC Get/Put
+    {
+      if (hsr.mcr_read())
+        vcpu.set_gpr(hsr.mcr_rt(), 0);
+      else
+        putchar(vcpu.get_gpr(hsr.mcr_rt()));
+    }
+  else
+    {
+      if (   hsr.mcr_opc1() == 0
+          && hsr.mcr_crn() == 0
+          && hsr.mcr_crm() == 0
+          && hsr.mcr_opc2() == 0
+          && hsr.mcr_read())
+        printf("Unhandled DCC request: Non-ARMv7 guest?\n");
+
+      printf("%08lx: %s p14, %d, r%d, c%d, c%d, %d (hsr=%08lx)\n",
+             vcpu->r.ip, hsr.mcr_read() ? "MRC" : "MCR",
+             (unsigned)hsr.mcr_opc1(),
+             (unsigned)hsr.mcr_rt(),
+             (unsigned)hsr.mcr_crn(),
+             (unsigned)hsr.mcr_crm(),
+             (unsigned)hsr.mcr_opc2(),
+             (l4_umword_t)hsr.raw());
+    }
+
+  vcpu->r.ip += 2 << hsr.il();
+}
+
+extern "C" l4_msgtag_t prepare_guest_entry(Cpu vcpu)
+{
+  auto *utcb = l4_utcb();
+  guest->process_pending_ipc(vcpu, utcb);
+  guest->gic()->schedule_irqs(vmm_current_cpu_id);
   L4::Cap<L4::Thread> myself;
   return myself->vcpu_resume_start(utcb);
 }
 
 } // namespace
+
+using namespace Vmm;
+Entry vcpu_entries[64] =
+{
+  [0x00] = guest_unknown_fault,
+  [0x01] = guest_wfx,
+  [0x02] = guest_unknown_fault,
+  [0x03] = guest_unknown_fault,
+  [0x04] = guest_unknown_fault,
+  [0x05] = guest_mcr_access,
+  [0x06] = guest_unknown_fault,
+  [0x07] = guest_unknown_fault,
+  [0x08] = guest_unknown_fault,
+  [0x09] = guest_unknown_fault,
+  [0x0a] = guest_unknown_fault,
+  [0x0b] = guest_unknown_fault,
+  [0x0c] = guest_unknown_fault,
+  [0x0d] = guest_unknown_fault,
+  [0x0e] = guest_unknown_fault,
+  [0x0f] = guest_unknown_fault,
+  [0x10] = guest_unknown_fault,
+  [0x11] = guest_unknown_fault,
+  [0x12] = dispatch_vm_call,
+  [0x13] = guest_unknown_fault,
+  [0x14] = guest_unknown_fault,
+  [0x15] = guest_unknown_fault,
+  [0x16] = guest_unknown_fault,
+  [0x17] = guest_unknown_fault,
+  [0x18] = guest_unknown_fault,
+  [0x19] = guest_unknown_fault,
+  [0x1a] = guest_unknown_fault,
+  [0x1b] = guest_unknown_fault,
+  [0x1c] = guest_unknown_fault,
+  [0x1d] = guest_unknown_fault,
+  [0x1e] = guest_unknown_fault,
+  [0x1f] = guest_unknown_fault,
+  [0x20] = guest_memory_fault,
+  [0x21] = guest_unknown_fault,
+  [0x22] = guest_unknown_fault,
+  [0x23] = guest_unknown_fault,
+  [0x24] = guest_memory_fault,
+  [0x25] = guest_unknown_fault,
+  [0x26] = guest_unknown_fault,
+  [0x27] = guest_unknown_fault,
+  [0x28] = guest_unknown_fault,
+  [0x29] = guest_unknown_fault,
+  [0x2a] = guest_unknown_fault,
+  [0x2b] = guest_unknown_fault,
+  [0x2c] = guest_unknown_fault,
+  [0x2d] = guest_unknown_fault,
+  [0x2e] = guest_unknown_fault,
+  [0x2f] = guest_unknown_fault,
+  [0x30] = guest_unknown_fault,
+  [0x31] = guest_unknown_fault,
+  [0x32] = guest_unknown_fault,
+  [0x33] = guest_unknown_fault,
+  [0x34] = guest_unknown_fault,
+  [0x35] = guest_unknown_fault,
+  [0x36] = guest_unknown_fault,
+  [0x37] = guest_unknown_fault,
+  [0x38] = guest_unknown_fault,
+  [0x39] = guest_unknown_fault,
+  [0x3a] = guest_unknown_fault,
+  [0x3b] = guest_unknown_fault,
+  [0x3c] = guest_unknown_fault,
+  [0x3d] = guest_ppi,
+  [0x3e] = guest_unknown_fault,
+  [0x3f] = guest_irq
+};

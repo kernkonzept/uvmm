@@ -89,7 +89,6 @@ public:
       wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
   }
 
-protected:
   void handle_ipc(l4_msgtag_t tag, l4_umword_t label, l4_utcb_t *utcb)
   {
     l4_msgtag_t r = _registry.dispatch(tag, label, utcb);
