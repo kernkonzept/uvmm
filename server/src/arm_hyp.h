@@ -42,6 +42,19 @@ public:
   CXX_BITFIELD_MEMBER( 1,  4, mcr_crm, _raw);
   CXX_BITFIELD_MEMBER( 0,  0, mcr_read, _raw);
 
+  CXX_BITFIELD_MEMBER(20, 21, msr_op0, _raw);
+  CXX_BITFIELD_MEMBER(17, 19, msr_op2, _raw);
+  CXX_BITFIELD_MEMBER(14, 16, msr_op1, _raw);
+  CXX_BITFIELD_MEMBER(10, 13, msr_crn, _raw);
+  CXX_BITFIELD_MEMBER( 5,  9, msr_rt, _raw);
+  CXX_BITFIELD_MEMBER( 1,  4, msr_crm, _raw);
+  CXX_BITFIELD_MEMBER( 0,  0, msr_read, _raw);
+  unsigned msr_sysreg() const { return _raw & 0x00fffc1e; }
+  static constexpr unsigned
+  msr_sysreg(unsigned op0, unsigned op1, unsigned crn,
+             unsigned crm, unsigned op2)
+  { return (op0 << 20) | (op1 << 14) | (crn << 10) | (crm << 1); }
+
   CXX_BITFIELD_MEMBER(12, 19, ldc_imm, _raw);
   CXX_BITFIELD_MEMBER( 5,  8, ldc_rn, _raw);
   CXX_BITFIELD_MEMBER( 4,  4, ldc_offset_form, _raw);
@@ -57,7 +70,9 @@ public:
   CXX_BITFIELD_MEMBER(24, 24, pf_isv, _raw);
   CXX_BITFIELD_MEMBER(22, 23, pf_sas, _raw);
   CXX_BITFIELD_MEMBER(21, 21, pf_sse, _raw);
-  CXX_BITFIELD_MEMBER(16, 19, pf_srt, _raw);
+  CXX_BITFIELD_MEMBER(16, 20, pf_srt, _raw);
+  CXX_BITFIELD_MEMBER(15, 15, pf_sf, _raw);
+  CXX_BITFIELD_MEMBER(14, 14, pf_ar, _raw);
   CXX_BITFIELD_MEMBER( 9,  9, pf_ea, _raw);
   CXX_BITFIELD_MEMBER( 8,  8, pf_cache_maint, _raw);
   CXX_BITFIELD_MEMBER( 7,  7, pf_s1ptw, _raw);
@@ -150,59 +165,18 @@ namespace Gic_h {
   };
 }
 
-struct State
+template< unsigned LREGS >
+struct Gic_t
 {
-  struct Per_mode_regs
-  {
-    l4_umword_t sp;
-    l4_umword_t lr;
-    l4_umword_t spsr;
-  };
-
-  struct Regs
-  {
-    l4_uint32_t hcr;
-
-    l4_uint64_t ttbr0;
-    l4_uint64_t ttbr1;
-    l4_uint32_t ttbcr;
-    l4_uint32_t sctlr;
-    l4_uint32_t dacr;
-    l4_uint32_t fcseidr;
-    l4_uint32_t contextidr;
-    l4_uint32_t cntkctl;
-  };
-
-  template< unsigned LREGS >
-  struct Gic_t
-  {
-    Gic_h::Hcr hcr;
-    Gic_h::Vtr vtr;
-    Gic_h::Vmcr vmcr;
-    Gic_h::Misr misr;
-    l4_uint32_t eisr[2];
-    l4_uint32_t elsr[2];
-    l4_uint32_t apr;
-    Gic_h::Lr lr[LREGS];
-  };
-
-  typedef Gic_t<4> Gic;
-
-  Regs vm_regs;
-  Regs host_regs;
-  Gic  gic;
-
-  l4_uint64_t cntvoff;
-
-  l4_uint64_t cntv_cval;
-  l4_uint32_t cntkctl;
-  l4_uint32_t cntv_ctl;
+  Gic_h::Hcr hcr;
+  Gic_h::Vtr vtr;
+  Gic_h::Vmcr vmcr;
+  Gic_h::Misr misr;
+  l4_uint32_t eisr[2];
+  l4_uint32_t elsr[2];
+  l4_uint32_t apr;
+  Gic_h::Lr lr[LREGS];
 };
 
-inline State *
-vm_state(l4_vcpu_state_t *vcpu)
-{
-  return reinterpret_cast<State *>(reinterpret_cast<char *>(vcpu) + L4_VCPU_OFFSET_EXT_STATE);
-}
 }
 }

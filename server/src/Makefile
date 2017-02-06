@@ -3,20 +3,20 @@ L4DIR  ?= $(PKGDIR)/../..
 
 include $(L4DIR)/mk/Makeconf
 
-SYSTEMS         = arm-l4f mips-l4f
+SYSTEMS         = arm-l4f mips-l4f arm64-l4f
 TARGET          = uvmm
 SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   vcpu_array.cc generic_cpu.cc \
                   ARCH-$(ARCH)/cpu.cc \
-                  ARCH-$(ARCH)/gic.cc \
-                  ARCH-$(ARCH)/guest.cc \
                   device_factory.cc \
                   virtio_console.cc \
                   virtio_proxy.cc \
                   dev_sysctl.cc \
                   virt_bus.cc io_proxy.cc
 
-SRC_CC-mips   += ARCH-mips/cpc.cc
+SRC_CC-arm   = arm/gic.cc arm/guest_arm.cc
+SRC_CC-arm64 = arm/gic.cc arm/guest_arm.cc
+SRC_CC-mips  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc
 
 ifeq ($(ARCH),mips)
 SRC_CC        += ARCH-$(ARCH)/guest_entry.cc
@@ -30,6 +30,9 @@ SRC_CC        += $(SRC_CC-$(ARCH))
 REQUIRES_LIBS   = libstdc++ libio-vbus libfdt libpthread
 
 PRIVATE_INCDIR  = $(SRC_DIR)/../include $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
+PRIVATE_INCDIR-arm += $(SRC_DIR)/arm
+PRIVATE_INCDIR-arm64 += $(SRC_DIR)/arm
+PRIVATE_INCDIR += $(PRIVATE_INCDIR-$(ARCH))
 
 include $(L4DIR)/mk/prog.mk
 

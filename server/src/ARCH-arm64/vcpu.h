@@ -9,7 +9,7 @@
 
 #include <cassert>
 
-#include "aarch32_hyp.h"
+#include "aarch64_hyp.h"
 #include "generic_vcpu.h"
 
 namespace Vmm {
@@ -25,21 +25,32 @@ public:
   static l4_uint64_t cntvct()
   {
     l4_uint64_t x;
-    asm volatile ("mrrc p15, 1, %Q0, %R0, c14" : "=r"(x));
+    asm volatile ("mrs %0, CNTVCT_EL0" : "=r"(x));
     return x;
   }
 
   static l4_uint64_t cntv_cval()
   {
     l4_uint64_t x;
-    asm volatile ("mrrc p15, 3, %Q0, %R0, c14" : "=r"(x));
+    asm volatile ("mrs %0, CNTV_CVAL_EL0" : "=r"(x));
     return x;
+  }
+
+  void *saved_tls() const
+  { return reinterpret_cast<void **>((char *)_s + L4_VCPU_OFFSET_EXT_INFOS)[1]; }
+
+  l4_utcb_t *restore_on_entry() const
+  {
+    asm volatile("msr TPIDR_EL0, %0" : : "r"(saved_tls()));
+    return reinterpret_cast<l4_utcb_t **>((char *)_s + L4_VCPU_OFFSET_EXT_INFOS)[0]; 
   }
 
   void thread_attach()
   {
     control_ext(L4::Cap<L4::Thread>());
-    *reinterpret_cast<l4_utcb_t **>((char *)_s + L4_VCPU_OFFSET_EXT_INFOS) = l4_utcb();
+    void **x = reinterpret_cast<void **>((char *)_s + L4_VCPU_OFFSET_EXT_INFOS);
+    x[0] = l4_utcb();
+    asm volatile ("mrs %0, TPIDR_EL0" : "=r"(x[1]));
   }
 
   Arm::State *state()
@@ -53,35 +64,23 @@ public:
 
   l4_umword_t get_gpr(unsigned x) const
   {
-    if (L4_UNLIKELY(x > 14))
+    if (x < 31)
+      return _s->r.r[x];
+    else
       return 0;
-
-    switch (x)
-      {
-      case 14: return _s->r.lr;
-      case 13: return _s->r.sp;
-      default: return _s->r.r[x];
-      }
   }
 
   void set_gpr(unsigned x, l4_umword_t value) const
   {
-    if (L4_UNLIKELY(x > 14))
-      return;
-
-    switch (x)
-      {
-      case 14: _s->r.lr = value; break;
-      case 13: _s->r.sp = value; break;
-      default: _s->r.r[x] = value; break;
-      }
+    if (x < 31)
+      _s->r.r[x] = value;
   }
 
   Mem_access decode_mmio() const
   {
     Mem_access m;
 
-    if (!hsr().pf_isv() || hsr().pf_srt() > 14)
+    if (!hsr().pf_isv())
       {
         m.access = Mem_access::Other;
         return m;

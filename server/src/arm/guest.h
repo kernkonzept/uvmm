@@ -53,6 +53,7 @@ public:
 private:
   cxx::Ref_ptr<Gic::Dist> _gic;
   cxx::Ref_ptr<Vdev::Core_timer> _timer;
+  bool guest_64bit = false;
 };
 
 } // namespace

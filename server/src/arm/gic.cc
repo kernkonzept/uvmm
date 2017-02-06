@@ -88,7 +88,7 @@ Gic::Dist::read(unsigned reg, char size, unsigned cpu_id)
                   break;
               }
 
-            gicd_info.printf("read (%x:%d) val=%08x\n", reg, g - reg_group, v);
+            gicd_info.printf("read (%x:%zd) val=%08x\n", reg, g - reg_group, v);
             return v;
           }
       return 0;
@@ -121,7 +121,7 @@ Gic::Dist::write(unsigned reg, char size, l4_uint32_t value, unsigned cpu_id)
            --g)
         if (reg >= g->base)
           {
-            gicd_info.printf("write (%x:%d) val = %08x\n",
+            gicd_info.printf("write (%x:%zd) val = %08x\n",
                              reg, g - reg_group, value);
             unsigned irq_s = (reg - g->base) << g->shift;
             unsigned irq_e = irq_s + ((1 << size) << g->shift);

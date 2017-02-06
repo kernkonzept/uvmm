@@ -23,104 +23,6 @@
 
 extern __thread unsigned vmm_current_cpu_id;
 
-inline
-unsigned char
-atomic_or(unsigned char *l, unsigned char bits)
-{
-  unsigned char old;
-  unsigned long tmp, ret;
-
-  asm volatile (
-      "1:                                 \n"
-      "ldrexb  %[old], [%[mem]]           \n"
-      "orr     %[v], %[old], %[orval]     \n"
-      "strexb  %[ret], %[v], [%[mem]]     \n"
-      "teq     %[ret], #0                 \n"
-      "bne     1b                         \n"
-      : [old] "=&r" (old), [v] "=&r" (tmp), [ret] "=&r" (ret), "+Q" (*l)
-      : [mem] "r" (l), [orval] "Ir" (bits)
-      : "cc");
-  return old;
-}
-
-inline
-unsigned char
-atomic_and(unsigned char *l, unsigned char bits)
-{
-  unsigned char old;
-  unsigned long tmp, ret;
-
-  asm volatile (
-      "1:                                 \n"
-      "ldrexb  %[old], [%[mem]]           \n"
-      "and     %[v], %[old], %[andval]    \n"
-      "strexb  %[ret], %[v], [%[mem]]     \n"
-      "teq     %[ret], #0                 \n"
-      "bne     1b                         \n"
-      : [old] "=&r" (old), [v] "=&r" (tmp), [ret] "=&r" (ret), "+Q" (*l)
-      : [mem] "r" (l), [andval] "Ir" (bits)
-      : "cc");
-  return old;
-}
-
-inline bool
-mp_cas(unsigned char *m, unsigned char o, unsigned char n)
-{
-  unsigned long tmp, res;
-
-  asm volatile
-    ("mov      %[res], #1           \n"
-     "1:                            \n"
-     "ldrb     %[tmp], [%[m]]       \n"
-     "teq      %[tmp], %[o]         \n"
-     "bne      2f                   \n"
-     "ldrexb   %[tmp], [%[m]]       \n"
-     "teq      %[tmp], %[o]         \n"
-     "strexbeq %[res], %[n], [%[m]] \n"
-     "teq      %[res], #1           \n"
-     "beq      1b                   \n"
-     "2:                            \n"
-     : [tmp] "=&r" (tmp), [res] "=&r" (res), "+m" (*m)
-     : [n] "r" (n), [m] "r" (m), [o] "r" (o)
-     : "cc");
-
-  // res == 0 is ok
-  // res == 1 is failed
-
-  return !res;
-}
-
-inline bool
-mp_cas(l4_uint32_t *m, l4_uint32_t o, l4_uint32_t n)
-{
-  l4_uint32_t tmp, res;
-
-  asm volatile
-    ("mov      %[res], #1           \n"
-     "1:                            \n"
-     "ldr      %[tmp], [%[m]]       \n"
-     "teq      %[tmp], %[o]         \n"
-     "bne      2f                   \n"
-     "ldrex    %[tmp], [%[m]]       \n"
-     "teq      %[tmp], %[o]         \n"
-     "strexeq  %[res], %[n], [%[m]] \n"
-     "teq      %[res], #1           \n"
-     "beq      1b                   \n"
-     "2:                            \n"
-     : [tmp] "=&r" (tmp), [res] "=&r" (res), "+m" (*m)
-     : [n] "r" (n), [m] "r" (m), [o] "r" (o)
-     : "cc");
-
-  // res == 0 is ok
-  // res == 1 is failed
-
-  return !res;
-}
-
-inline void mp_wmb()
-{ __asm__ __volatile__ ("" : : : "memory"); }
-
-
 namespace Gic {
 
 class Irq_array
@@ -354,14 +256,13 @@ public:
 inline bool
 Irq_array::Pending::set_pe(unsigned char set)
 {
-  l4_uint32_t old, nv;
+  l4_uint32_t old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
   do
     {
-      nv = old = cxx::access_once(&_state);
       if (old & set)
         return false;
     }
-  while (!mp_cas(&_state, old, nv | set));
+  while (!__atomic_compare_exchange_n(&_state, &old, old | set, true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
   return is_pending_or_enabled(old);
 }
 
@@ -372,14 +273,13 @@ Irq_array::Pending::set_pe(unsigned char set)
 inline bool
 Irq_array::Pending::clear_pe(unsigned char clear)
 {
-  l4_uint32_t old, nv;
+  l4_uint32_t old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
   do
     {
-      nv = old = cxx::access_once(&_state);
       if (!(old & clear))
         return false;
     }
-  while (!mp_cas(&_state, old, nv & ~clear));
+  while (!__atomic_compare_exchange_n(&_state, &old, old & ~clear, true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
   return is_pending_and_enabled(old);
 }
 
@@ -388,18 +288,18 @@ Irq_array::Pending::consume(unsigned char cpu)
 {
   assert (cpu < 8);
   cpu += target_bfm_t::Lsb;
-  l4_uint32_t old;
+  l4_uint32_t old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
   do
     {
-      old = cxx::access_once(&_state);
-
       if (!(old & (1UL << cpu)))
         return false; // not for our CPU
 
       if (prio_bfm_t::get(old) >= 0x1f)
         return false; // never used because prio >= idle prio
     }
-  while (!mp_cas(&_state, old, old & ~pending_bfm_t::Mask));
+  while (!__atomic_compare_exchange_n(&_state, &old,
+                                      old & ~pending_bfm_t::Mask,
+                                      true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
   return is_pending_and_enabled(old);
 }
 
@@ -412,10 +312,11 @@ Irq_array::Pending::eoi(unsigned char cpu)
   // ok, the assumption is that this IRQ is on CPU cpu
   // and we are currently running on CPU cpu, so this
   // this->cpu() cannot change here
-  l4_uint32_t old;
-  do
-    old = cxx::access_once(&_state);
-  while (!mp_cas(&_state, old, old & ~(cpu_bfm_t::Mask | active_bfm_t::Mask)));
+  l4_uint32_t old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
+  while (!__atomic_compare_exchange_n(&_state, &old,
+                                      old & ~(cpu_bfm_t::Mask | active_bfm_t::Mask),
+                                      true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+    ;
   return false;
 }
 
@@ -427,10 +328,11 @@ Irq_array::Pending::kick_from_cpu(unsigned char cpu)
   // ok, the assumption is that this IRQ is on CPU cpu
   // and we are currently running on CPU cpu, so this
   // this->cpu() cannot change here
-  l4_uint32_t old;
-  do
-    old = cxx::access_once(&_state);
-  while (!mp_cas(&_state, old, (old & ~cpu_bfm_t::Mask) | pending_bfm_t::Mask));
+  l4_uint32_t old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
+  while (!__atomic_compare_exchange_n(&_state, &old,
+                                      (old & ~cpu_bfm_t::Mask) | pending_bfm_t::Mask,
+                                      true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+    ;
 }
 
 
@@ -439,11 +341,10 @@ Irq_array::Pending::take_on_cpu(unsigned char cpu, unsigned char min_prio,
                                 bool make_pending)
 {
   assert (cpu < 8);
-  l4_uint32_t old, nv;
+  l4_uint32_t old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
+  l4_uint32_t nv;
   do
     {
-      old = cxx::access_once(&_state);
-
       if (cpu_bfm_t::get(old) != 0)
         return false; // already on a different CPU
 
@@ -460,82 +361,88 @@ Irq_array::Pending::take_on_cpu(unsigned char cpu, unsigned char min_prio,
       if (make_pending)
         nv = (nv & ~pending_bfm_t::Mask) | active_bfm_t::Mask;
     }
-  while (!mp_cas(&_state, old, nv));
+  while (!__atomic_compare_exchange_n(&_state, &old, nv,
+                                      true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
   return true;
 }
 
 inline bool
 Irq_array::Pending::prio(unsigned char p)
 {
-  l4_uint32_t old, nv;
+  l4_uint32_t old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
+  l4_uint32_t nv;
   do
     {
-      old = cxx::access_once(&_state);
       nv = prio_bfm_t::set_dirty(old, p);
       if (old == nv)
         return false;
     }
-  while (!mp_cas(&_state, old, nv));
+  while (!__atomic_compare_exchange_n(&_state, &old, nv,
+                                      true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
   return true;
 }
 
 inline bool
 Irq_array::Pending::active(bool a)
 {
-  l4_uint32_t old, nv;
+  l4_uint32_t old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
+  l4_uint32_t nv;
   do
     {
-      old = cxx::access_once(&_state);
       nv = active_bfm_t::set_dirty(old, a);
       if (nv == old)
         return false;
     }
-  while (!mp_cas(&_state, old, nv));
+  while (!__atomic_compare_exchange_n(&_state, &old, nv,
+                                      true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
   return true;
 }
 
 inline bool
 Irq_array::Pending::group(bool grp1)
 {
-  l4_uint32_t old, nv;
+  l4_uint32_t old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
+  l4_uint32_t nv;
   do
     {
-      old = cxx::access_once(&_state);
       nv = group_bfm_t::set_dirty(old, grp1);
       if (nv == old)
         return false;
     }
-  while (!mp_cas(&_state, old, nv));
+  while (!__atomic_compare_exchange_n(&_state, &old, nv,
+                                      true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
   return true;
 }
 
 inline bool
 Irq_array::Pending::config(unsigned cfg)
 {
-  l4_uint32_t old, nv;
+  l4_uint32_t old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
+  l4_uint32_t nv;
   do
     {
-      old = cxx::access_once(&_state);
       nv = config_bfm_t::set_dirty(old, cfg);
       if (old == nv)
         return false;
     }
-  while (!mp_cas(&_state, old, nv));
+  while (!__atomic_compare_exchange_n(&_state, &old, nv,
+                                      true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
   return true;
 }
 
 inline bool
 Irq_array::Pending::target(unsigned char tgt)
 {
-  l4_uint32_t old, nv;
+  l4_uint32_t old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
+  l4_uint32_t nv;
   do
     {
-      old = cxx::access_once(&_state);
       nv = target_bfm_t::set_dirty(old, tgt);
       if (old == nv)
         return false;
     }
-  while (!mp_cas(&_state, old, nv));
+  while (!__atomic_compare_exchange_n(&_state, &old, nv,
+                                      true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
   return true;
 }
 
@@ -1058,28 +965,28 @@ public:
     Vmm::Arm::Gic_h::Hcr &hcr = c->vgic()->hcr;
     if (misr.grp0_e())
       {
-        atomic_or(&_active_grp0_cpus, (1UL << current_cpu));
+        __atomic_or_fetch(&_active_grp0_cpus, (1UL << current_cpu), __ATOMIC_SEQ_CST);
         hcr.vgrp0_eie() = 0;
         hcr.vgrp0_die() = 1;
       }
 
     if (misr.grp0_d())
       {
-        atomic_and(&_active_grp0_cpus, ~(1UL << current_cpu));
+        __atomic_and_fetch(&_active_grp0_cpus, ~(1UL << current_cpu), __ATOMIC_SEQ_CST);
         hcr.vgrp0_eie() = 1;
         hcr.vgrp0_die() = 0;
       }
 
     if (misr.grp1_e())
       {
-        atomic_or(&_active_grp1_cpus, (1UL << current_cpu));
+        __atomic_or_fetch(&_active_grp1_cpus, (1UL << current_cpu), __ATOMIC_SEQ_CST);
         hcr.vgrp1_eie() = 0;
         hcr.vgrp1_die() = 1;
       }
 
     if (misr.grp1_d())
       {
-        atomic_and(&_active_grp1_cpus, ~(1UL << current_cpu));
+        __atomic_and_fetch(&_active_grp1_cpus, ~(1UL << current_cpu), __ATOMIC_SEQ_CST);
         hcr.vgrp1_eie() = 1;
         hcr.vgrp1_die() = 0;
       }

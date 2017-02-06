@@ -13,9 +13,10 @@
 #include <l4/vbus/vbus>
 
 #include "binary_loader.h"
-#include "irq.h"
-#include "guest.h"
 #include "device_factory.h"
+#include "guest.h"
+#include "guest_subarch.h"
+#include "irq.h"
 
 static cxx::unique_ptr<Vmm::Guest> guest;
 
@@ -23,34 +24,6 @@ __thread unsigned vmm_current_cpu_id;
 
 extern "C" void vcpu_entry(l4_vcpu_state_t *vcpu);
 typedef void (*Entry)(Vmm::Cpu vcpu);
-
-asm
-(
- "vcpu_entry:                     \n"
- "  mov    r6, sp                 \n"
- "  bic    sp, #7                 \n"
- "  sub    sp, sp, #16            \n"
- "  mov    r4, r0                 \n"
- "  mrc    p15, 0, r5, c13, c0, 2 \n"
- "  ldr    r2, [r0, #0x200]       \n"  // L4_VCPU_OFFSET_EXT_INFOS
- "  ldr    r3, [r0, #0x24]        \n"  // vcpu->r.err
- "  mcr    p15, 0, r2, c13, c0, 2 \n"
- "  lsr    r3, r3, #24            \n"
- "  bic    r3, r3, #3             \n"
- "  movw   r8, #:lower16:vcpu_entries      \n"
- "  movt   r8, #:upper16:vcpu_entries      \n"
- "  add    r8, r8, r3             \n"
- "  ldr    r8, [r8]               \n"
- "  blx    r8                     \n"
- "  mov    r0, r4                 \n"
- "  bl     prepare_guest_entry    \n"
- "  movw   r2, #0xf803            \n"
- "  movt   r2, #0xffff            \n"
- "  mov    r3, #0                 \n"
- "  mov    sp, r6                 \n"
- "  mcr    p15, 0, r5, c13, c0, 2 \n"
- "  mov    pc, #" L4_stringify(L4_SYSCALL_INVOKE) " \n"
-);
 
 namespace Vmm {
 
@@ -148,8 +121,20 @@ Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
     *entry = image.load_as_elf(&_ram);
   else
     {
-      enum { Default_entry =  0x208000 };
-      *entry = image.load_as_raw(&_ram, Default_entry);
+      char const *h = reinterpret_cast<char const *>(image.get_header());
+      if (Guest_64bit_supported
+          && h[0] == 'M' && h[1] == 'Z'
+          && h[0x40] == 'P' && h[0x41] == 'E')
+        {
+          l4_uint32_t l = reinterpret_cast<l4_uint32_t const *>(h)[2];
+          *entry = image.load_as_raw(&_ram, l);
+          this->guest_64bit = true;
+        }
+      else
+        {
+          enum { Default_entry =  0x208000 };
+          *entry = image.load_as_raw(&_ram, Default_entry);
+        }
     }
 
   auto end = image.get_upper_bound();
@@ -175,13 +160,26 @@ void
 Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const * /* kernel */,
                          char const * /* cmd_line */)
 {
-  // Set up the VCPU state as expected by Linux entry
-  vcpu->r.flags = 0x0000001d3;
-  vcpu->r.sp    = 0;
-  vcpu->r.r[0]  = 0;
-  vcpu->r.r[1]  = ~0UL;
-  vcpu->r.r[2]  = has_device_tree() ? _device_tree.get() : 0;
-  vcpu->r.r[3]  = 0;
+  if (Guest_64bit_supported && guest_64bit)
+    {
+      // Set up the VCPU state as expected by Linux entry
+      vcpu->r.flags = 0x000001c5;
+      vcpu->r.sp    = 0;
+      vcpu->r.r[0]  = has_device_tree() ? _device_tree.get() : 0;
+      vcpu->r.r[1]  = 0;
+      vcpu->r.r[2]  = 0;
+      vcpu->r.r[3]  = 0;
+    }
+  else
+    {
+      // Set up the VCPU state as expected by Linux entry
+      vcpu->r.flags = 0x000001d3;
+      vcpu->r.sp    = 0;
+      vcpu->r.r[0]  = 0;
+      vcpu->r.r[1]  = ~0UL;
+      vcpu->r.r[2]  = has_device_tree() ? _device_tree.get() : 0;
+      vcpu->r.r[3]  = 0;
+    }
   vcpu->r.ip    = entry;
 }
 
@@ -215,6 +213,7 @@ Guest::reset_vcpu(Cpu vcpu)
 
   // set C, I, CP15BEN
   vm->vm_regs.sctlr = (1UL << 5) | (1UL << 2) | (1UL << 12);
+  vm->arch_setup(guest_64bit);
 
   _gic->set_cpu(vcpu.get_vcpu_id(), &vm->gic);
   vmm_current_cpu_id = vcpu.get_vcpu_id();
@@ -497,7 +496,8 @@ static void guest_mcr_access(Cpu vcpu)
   vcpu->r.ip += 2 << hsr.il();
 }
 
-extern "C" l4_msgtag_t prepare_guest_entry(Cpu vcpu)
+extern "C" l4_msgtag_t prepare_guest_entry(Cpu vcpu);
+l4_msgtag_t prepare_guest_entry(Cpu vcpu)
 {
   auto *utcb = l4_utcb();
   guest->process_pending_ipc(vcpu, utcb);
@@ -535,7 +535,7 @@ Entry vcpu_entries[64] =
   [0x15] = guest_unknown_fault,
   [0x16] = guest_unknown_fault,
   [0x17] = guest_unknown_fault,
-  [0x18] = guest_unknown_fault,
+  [0x18] = guest_msr_access,
   [0x19] = guest_unknown_fault,
   [0x1a] = guest_unknown_fault,
   [0x1b] = guest_unknown_fault,
