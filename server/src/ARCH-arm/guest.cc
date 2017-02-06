@@ -12,6 +12,7 @@
 #include <l4/re/error_helper>
 #include <l4/vbus/vbus>
 
+#include "binary_loader.h"
 #include "irq.h"
 #include "guest.h"
 #include "device_factory.h"
@@ -139,9 +140,16 @@ static Vdev::Device_type tt = { "arm,armv7-timer", nullptr, &ftimer };
 L4virtio::Ptr<void>
 Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
 {
-  enum { Default_entry =  0x208000 };
-  *entry = _ram.vm_start() + Default_entry;
-  auto end = load_binary_at(kernel, Default_entry, entry);
+  Boot::Binary_ds image(kernel);
+  if (image.is_elf_binary())
+    *entry = image.load_as_elf(&_ram);
+  else
+    {
+      enum { Default_entry =  0x208000 };
+      *entry = image.load_as_raw(&_ram, Default_entry);
+    }
+
+  auto end = image.get_upper_bound();
 
   /* If the kernel relocates itself it either decompresses itself
    * directly to the final adress or it moves itself behind the end of

@@ -38,6 +38,9 @@ public:
                   l4_addr_t boot_offset = 0);
 
   L4virtio::Ptr<void>
+  load_file(L4::Cap<L4Re::Dataspace> const &file, l4_addr_t offset, l4_size_t *_size = 0);
+
+  L4virtio::Ptr<void>
   load_file(char const *name, l4_addr_t offset, l4_size_t *_size = 0);
 
   L4virtio::Ptr<void>

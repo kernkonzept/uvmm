@@ -6,6 +6,7 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
+#include "binary_loader.h"
 #include "device_factory.h"
 #include "guest.h"
 #include "guest_entry.h"
@@ -42,9 +43,16 @@ Guest::update_device_tree(char const *cmd_line)
 L4virtio::Ptr<void>
 Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
 {
-  *entry = _ram.boot_addr(0x100400);
-  return l4_round_size(load_binary_at(kernel, 0x100000, entry),
-                       L4_LOG2_SUPERPAGESIZE);
+  Boot::Binary_ds image(kernel);
+  if (image.is_elf_binary())
+    *entry = image.load_as_elf(&_ram);
+  else
+    {
+      image.load_as_raw(&_ram, 0x100000);
+      *entry = _ram.boot_addr(0x100400);
+    }
+
+  return l4_round_size(image.get_upper_bound(), L4_LOG2_SUPERPAGESIZE);
 }
 
 void

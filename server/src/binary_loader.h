@@ -6,6 +6,7 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
+#include <l4/sys/cache.h>
 #include <l4/re/dataspace>
 #include <l4/re/util/cap_alloc>
 #include <l4/re/util/env_ns>
@@ -24,6 +25,8 @@ public:
   : _ds(L4Re::chkcap(L4Re::Util::Env_ns().query<L4Re::Dataspace>(name),
                      "Kernel binary not found", -L4_EIO))
   {
+    _loaded_range_vmm.start = 0;
+    _loaded_range_vmm.end = 0;
     // Map the first page which should contain all headers necessary
     // to interpret the binary.
     auto *e = L4Re::Env::env();
@@ -42,12 +45,23 @@ public:
   {
     auto const *eh = as_elf_header();
 
-    eh->iterate_phdr([this,ram](Ldr::Elf_phdr ph) {
+    l4_addr_t img_start = (l4_addr_t)(-1L);
+    l4_addr_t img_end = 0;
+
+    eh->iterate_phdr([this,ram,&img_start,&img_end](Ldr::Elf_phdr ph) {
       if (ph.type() == PT_LOAD)
         {
           l4_addr_t dest = ram->boot2ram(ph.paddr());
           if (dest > ram->size() || dest + ph.memsz() > ram->size())
             L4Re::chksys(-L4_ERANGE, "Binary outside VM RAM region");
+
+          l4_addr_t gupper = ph.paddr() + ph.memsz();
+          if (gupper > img_end)
+            img_end = gupper;
+
+          if (ph.paddr() < img_start)
+            img_start = ph.paddr();
+
           Dbg(Dbg::Mmio, Dbg::Info, "bin")
             .printf("Copy in ELF binary section @0x%lx from 0x%lx/0x%lx\n",
                     dest, ph.offset(), ph.filesz());
@@ -56,31 +70,33 @@ public:
         }
     });
 
+    _loaded_range_vmm.start = (l4_addr_t)ram->access(ram->boot2guest_phys<void>(img_start));
+    _end = ram->boot2guest_phys<void>(img_end);
+    _loaded_range_vmm.end =   (l4_addr_t)ram->access(_end);
     return eh->entry();
   }
 
-
-  void elf_addr_bounds(l4_addr_t *lower, l4_addr_t *upper) const
+  l4_addr_t load_as_raw(Vmm::Ram_ds *ram, l4_addr_t ram_offset)
   {
-    *lower = -1UL;
-    *upper = 0;
+    l4_size_t sz;
+    L4virtio::Ptr<void> start = ram->load_file(_ds.get(), ram_offset, &sz);
+    _end = L4virtio::Ptr<void>(start.get() + sz);
+    _loaded_range_vmm.start = (l4_addr_t)ram->access(start);
+    _loaded_range_vmm.end =   (l4_addr_t)ram->access(_end);
+    return ram->vm_start() + ram_offset;
+  }
 
-    auto const *eh = as_elf_header();
-    unsigned n = eh->num_phdrs();
+  void const *get_header() const
+  { return _header.get(); }
 
-    for (unsigned i = 0; i < n; ++i)
-      {
-        auto ph = eh->phdr(i);
-        if (ph.type() == PT_LOAD)
-          {
-            l4_addr_t u = ph.paddr() + ph.memsz();
-            if (u > *upper)
-              *upper = u;
+  L4virtio::Ptr<void> get_upper_bound()
+  { return _end; }
 
-            if (ph.paddr() < *lower)
-              *lower = ph.paddr();
-          }
-      }
+  ~Binary_ds()
+  {
+    if (_loaded_range_vmm.start !=0 && _loaded_range_vmm.end != 0)
+      l4_cache_coherent(_loaded_range_vmm.start,
+                        _loaded_range_vmm.end);
   }
 
 private:
@@ -89,6 +105,13 @@ private:
 
   L4Re::Util::Auto_cap<L4Re::Dataspace>::Cap _ds;
   L4Re::Rm::Auto_region<char *> _header;
+  L4virtio::Ptr<void> _end;
+  struct Region
+  {
+    l4_addr_t start, end;
+  };
+
+  Region _loaded_range_vmm;
 };
 
 } // namespace

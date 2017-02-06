@@ -10,7 +10,6 @@
 #include <l4/sys/debugger.h>
 
 #include "generic_guest.h"
-#include "binary_loader.h"
 
 namespace Vmm {
 
@@ -103,36 +102,6 @@ Generic_guest::load_ramdisk_at(char const *ram_disk, L4virtio::Ptr<void> addr,
   info().printf("Loaded ramdisk image %s to [%llx:%llx] (%08zx)\n", ram_disk,
                 initrd.get(), res.get() - 1, tmp);
   return res;
-}
-
-L4virtio::Ptr<void>
-Generic_guest::load_binary_at(char const *kernel, l4_addr_t offset,
-                              l4_addr_t *entry)
-{
-  L4virtio::Ptr<void> start, end;
-  Boot::Binary_ds kbin(kernel);
-
-  if (kbin.is_elf_binary())
-    {
-      *entry = kbin.load_as_elf(&_ram);
-
-      l4_addr_t lstart, lend;
-      kbin.elf_addr_bounds(&lstart, &lend);
-
-      start = _ram.boot2guest_phys<void>(lstart);
-      end = _ram.boot2guest_phys<void>(lend);
-    }
-  else
-    {
-      l4_size_t sz;
-      start = _ram.load_file(kernel, offset, &sz);
-      end = L4virtio::Ptr<void>(start.get() + sz);
-    }
-
-  l4_cache_coherent((unsigned long) _ram.access(start),
-                    (unsigned long) _ram.access(end));
-
-  return end;
 }
 
 static void

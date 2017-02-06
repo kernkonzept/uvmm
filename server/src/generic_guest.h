@@ -90,31 +90,6 @@ public:
   }
 
 protected:
-  /**
-   * Load the binary with the given name.
-   *
-   * \param kernel      File name of the binary to load. May point to an
-   *                    ELF file or a simple binary blob.
-   * \param offset      For binary blobs, start address where to put the
-   *                    binary.
-   * \param entry[out]  Returns entry address as given in ELF header.
-   *                    Unchanged for binary blobs.
-   *
-   * \return  Highest guest physical address used by binary.
-   *          (Note that for ELF binaries there may be unused sections
-   *           between start and end.)
-   *
-   * If the binary is an ELF binary it will be loaded to the address
-   * stated in the program headers. Otherwise the binary blob will
-   * be copied to the address given in start.
-   *
-   * This function also checks that the binary fits into available
-   * ram, does not overlap with the device tree and synchronises
-   * the Icaches.
-   */
-  L4virtio::Ptr<void> load_binary_at(char const *kernel, l4_addr_t offset,
-                                     l4_addr_t *entry);
-
   void handle_ipc(l4_msgtag_t tag, l4_umword_t label, l4_utcb_t *utcb)
   {
     l4_msgtag_t r = _registry.dispatch(tag, label, utcb);
