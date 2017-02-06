@@ -109,27 +109,34 @@ Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self,
       L4Re::chksys(_dev.get_resource(i, &res));
 
       char const *resname = reinterpret_cast<char const *>(&res.id);
-      int id = resname[3] - '0';
 
       // Interrupts: id must be 'irqX' where X is the index into
       //             the device trees interrupts resource description
-      if (res.type == L4VBUS_RESOURCE_IRQ &&
-          !strncmp(resname, "irq", 3))
-        {
-          if (id < 0 || id > 9)
-            {
-              Err().printf("IO device '%.64s' has invalid irq resource id. "
-                           "Expected 'irq[0-9]', got '%.4s'\n",
-                           devinfo->dev_info.name, resname);
-              L4Re::chksys(-L4_EINVAL);
-            }
+      if (res.type != L4VBUS_RESOURCE_IRQ)
+        continue;
 
-          auto irq = res.start;
-          if (id < numint)
-            bind_irq(vmm, vbus, ic, self, id, irq);
-          else
-            Err().printf("Error: IO IRQ resource id (%d) is out of bounds\n", id);
+      if (strncmp(resname, "irq", 3))
+        {
+          warn.printf("IRQ resource '%s' of device '%.64s' ignored. "
+                      "Should be named 'irq[0-9]'.\n",
+                      resname, devinfo->dev_info.name);
+          continue;
         }
+
+      int id = resname[3] - '0';
+      if (id < 0 || id > 9)
+        {
+          Err().printf("IO device '%.64s' has invalid irq resource id. "
+                       "Expected 'irq[0-9]', got '%.4s'\n",
+                       devinfo->dev_info.name, resname);
+          L4Re::chksys(-L4_EINVAL);
+        }
+
+      auto irq = res.start;
+      if (id < numint)
+        bind_irq(vmm, vbus, ic, self, id, irq);
+      else
+        Err().printf("Error: IO IRQ resource id (%d) is out of bounds\n", id);
     }
 }
 
@@ -160,29 +167,37 @@ struct F : Factory
         L4Re::chksys(vd->io_dev.get_resource(i, &res));
 
         char const *resname = reinterpret_cast<char const *>(&res.id);
-        int id = resname[3] - '0';
 
         // MMIO memory: id must be 'regX' where X is the index into the
         //              device tree's 'reg' resource description
-        if (res.type == L4VBUS_RESOURCE_MEM && !strncmp(resname, "reg", 3))
+        if (res.type != L4VBUS_RESOURCE_MEM)
+          continue;
+
+        if (strncmp(resname, "reg", 3))
           {
-            if (id < 0 || id > 9)
-              {
-                Err().printf("IO device '%.64s' has invalid mmio resource id. "
-                             "Expected 'reg[0-9]', got '%.4s'.\n",
-                             vd->dev_info.name, resname);
-                L4Re::chksys(-L4_EINVAL);
-              }
-
-            info.printf("Adding MMIO resource 0x%lx/0x%lx\n",
-                        res.start, res.end);
-
-            auto handler = Vdev::make_device<Ds_handler>(vbus->io_ds(), 0,
-                                                         res.end - res.start + 1,
-                                                         res.start);
-
-            vmm->register_mmio_device(handler, node, id);
+            warn.printf("MMIO resource '%s' of device '%.64s' ignored. "
+                       "Should be named 'reg[0-9]'.\n",
+                       resname, vd->dev_info.name);
+            continue;
           }
+
+        int id = resname[3] - '0';
+        if (id < 0 || id > 9)
+          {
+            Err().printf("IO device '%.64s' has invalid mmio resource id. "
+                         "Expected 'reg[0-9]', got '%.4s'.\n",
+                         vd->dev_info.name, resname);
+            L4Re::chksys(-L4_EINVAL);
+          }
+
+        info.printf("Adding MMIO resource 0x%lx/0x%lx\n",
+                    res.start, res.end);
+
+        auto handler = Vdev::make_device<Ds_handler>(vbus->io_ds(), 0,
+                                                     res.end - res.start + 1,
+                                                     res.start);
+
+        vmm->register_mmio_device(handler, node, id);
       }
 
     return proxy;
