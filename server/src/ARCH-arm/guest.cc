@@ -201,6 +201,7 @@ Guest::reset_vcpu(Cpu vcpu)
                          | L4_VCPU_F_PAGE_FAULTS
                          | L4_VCPU_F_EXCEPTIONS;
   vcpu->entry_ip = (l4_umword_t) &vcpu_entry;
+  asm volatile ("mov %0, sp" : "=r"(vcpu->entry_sp));
 
   auto *vm = vcpu.state();
 

@@ -170,8 +170,7 @@ struct State
     l4_uint32_t dacr;
     l4_uint32_t fcseidr;
     l4_uint32_t contextidr;
-
-    Per_mode_regs svc;
+    l4_uint32_t cntkctl;
   };
 
   template< unsigned LREGS >
