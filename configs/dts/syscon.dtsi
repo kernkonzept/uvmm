@@ -4,7 +4,7 @@
  */
 
 / {
-	syscon {
+	vmm-syscon {
 		#address-cells = <1>;
 		#size-cells = <1>;
 		compatible = "simple-bus";

@@ -47,7 +47,7 @@
         ranges = <0x0  0x0 0x0  0xffffffff>;
     };
 
-    syscon {
+    vmm-syscon {
         ranges = <0x0  0x0 0x30030000  0x4>;
     };
 #endif
