@@ -53,7 +53,10 @@ public:
   static constexpr unsigned
   msr_sysreg(unsigned op0, unsigned op1, unsigned crn,
              unsigned crm, unsigned op2)
-  { return (op0 << 20) | (op1 << 14) | (crn << 10) | (crm << 1); }
+  {
+    return   (op0 << 20) | (op2 << 17) | (op1 << 14)
+           | (crn << 10) | (crm << 1);
+  }
 
   CXX_BITFIELD_MEMBER(12, 19, ldc_imm, _raw);
   CXX_BITFIELD_MEMBER( 5,  8, ldc_rn, _raw);
