@@ -387,12 +387,12 @@ guest_unknown_fault(Cpu vcpu)
 static void
 guest_memory_fault(Cpu vcpu)
 {
-    if (!guest->handle_mmio(vcpu->r.pfa, vcpu))
-      {
-        Err().printf("cannot handle VM memory access @ %lx ip=%lx\n",
-                     vcpu->r.pfa, vcpu->r.ip);
-        guest->halt_vm();
-      }
+  if (!guest->handle_mmio(vcpu->r.pfa, vcpu))
+    {
+      Err().printf("cannot handle VM memory access @ %lx ip=%lx\n",
+                   vcpu->r.pfa, vcpu->r.ip);
+      guest->halt_vm();
+    }
 }
 
 static void
