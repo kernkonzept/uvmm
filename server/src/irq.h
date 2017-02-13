@@ -95,7 +95,7 @@ namespace Vmm {
 class Irq_sink
 {
 public:
-  Irq_sink() : _ic(nullptr) {}
+  Irq_sink() : _ic(nullptr), _state(false) {}
 
   Irq_sink(Gic::Ic *ic, unsigned irq)
   : _irq(irq), _ic(ic), _state(false)
