@@ -201,6 +201,9 @@ struct Read_mapped_mmio_device_t : Mmio_device
   void map_mmio(l4_addr_t pfa, l4_addr_t offset, L4::Cap<L4::Task> vm_task,
                 l4_addr_t min, l4_addr_t max)
   {
+#ifdef MAP_OTHER
+    auto res = _ds->map(offset, 0, pfa, min, max, vm_task);
+#else
     unsigned char ps = L4_PAGESHIFT;
 
     if (l4_trunc_size(pfa, L4_SUPERPAGESHIFT) >= min
@@ -211,11 +214,12 @@ struct Read_mapped_mmio_device_t : Mmio_device
     l4_addr_t base = l4_trunc_size(local_addr() + offset, ps);
     l4_touch_ro((void *)base, 1 << ps);
 
-    auto res = vm_task->map(L4Re::This_task,
-                            l4_fpage(base, ps, L4_FPAGE_RX),
-                            l4_trunc_size(pfa, ps));
+    auto res = l4_error(vm_task->map(L4Re::This_task,
+                                     l4_fpage(base, ps, L4_FPAGE_RX),
+                                     l4_trunc_size(pfa, ps)));
+#endif
 
-    if (l4_error(res) < 0)
+    if (res < 0)
       Err().printf("Could not map to mmio address %lx. Ignored.\n", pfa);
   }
 
