@@ -463,7 +463,7 @@ public:
   unsigned get_empty_lr() const
   { return __builtin_ffs(_vgic->elsr[0]); }
 
-  bool pending_irqs() const { return _vgic->elsr[0] != 0xf; }
+  bool pending_irqs() const { return _vgic->elsr[0] != (1 << Num_lrs) - 1; }
 
   Irq_array::Irq irq(unsigned irqn);
   Irq_array::Const_irq irq(unsigned irqn) const;
