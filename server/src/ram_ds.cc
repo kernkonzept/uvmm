@@ -133,6 +133,7 @@ Ram_ds::load_file(char const *name, l4_addr_t offset, l4_size_t *_size)
   if (!file)
     {
       Err().printf("bad file descriptor: %s\n", name);
+      close(fd);
       errno = EBADF;
       L4Re::chksys(-L4_EINVAL);
     }
@@ -141,6 +142,7 @@ Ram_ds::load_file(char const *name, l4_addr_t offset, l4_size_t *_size)
   if (!f)
     {
       Err().printf("could not get data space for %s\n", name);
+      close(fd);
       errno = EINVAL;
       L4Re::chksys(-L4_EINVAL);
     }
