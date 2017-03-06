@@ -124,15 +124,27 @@ Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
   else
     {
       char const *h = reinterpret_cast<char const *>(image.get_header());
+
+      *entry = ~0ul;
+
       if (Guest_64bit_supported
-          && h[0] == 'M' && h[1] == 'Z'
-          && h[0x40] == 'P' && h[0x41] == 'E')
+          && h[0x38] == 'A' && h[0x39] == 'R'
+          && h[0x3A] == 'M' && h[0x3B] == '\x64') // Linux header ARM\x64
         {
-          l4_uint32_t l = reinterpret_cast<l4_uint32_t const *>(h)[2];
+          l4_uint64_t l = *reinterpret_cast<l4_uint64_t const *>(&h[8]);
+          // Bytes 0xc-0xf have the size
           *entry = image.load_as_raw(&_ram, l);
           this->guest_64bit = true;
         }
-      else
+      else if (   h[0x24] == 0x18 && h[0x25] == 0x28
+               && h[0x26] == 0x6f && h[0x27] == 0x01) // Linux magic
+        {
+          l4_uint32_t l = *reinterpret_cast<l4_uint32_t const *>(&h[0x28]);
+          // Bytes 0x2c-0x2f have the zImage size
+          *entry = image.load_as_raw(&_ram, l);
+        }
+
+      if (*entry == ~0ul)
         {
           enum { Default_entry =  0x208000 };
           *entry = image.load_as_raw(&_ram, Default_entry);
