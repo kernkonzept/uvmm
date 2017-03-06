@@ -420,7 +420,7 @@ guest_wfx(Cpu vcpu)
       if (cmp <= cnt)
         return;
 
-      l4_uint64_t diff = (cmp - cnt) / 24;
+      l4_uint64_t diff = guest->timer()->get_micro_seconds(cmp - cnt);
       if (0)
         printf("diff=%lld\n", diff);
       l4_rcv_timeout(l4_timeout_abs_u(l4_kip_clock(l4re_kip()) + diff, 8, utcb), &to);

@@ -22,6 +22,13 @@ public:
   bool pf_write() const
   { return hsr().pf_write(); }
 
+  static l4_uint32_t cntfrq()
+  {
+    l4_uint32_t x;
+    asm volatile ("mrs %0, CNTFRQ_EL0" : "=r"(x));
+    return x;
+  }
+
   static l4_uint64_t cntvct()
   {
     l4_uint64_t x;
