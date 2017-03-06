@@ -92,7 +92,8 @@ static void guest_msr_access(Vcpu_ptr vcpu)
       break;
 
     default:
-      print_mrs_msr(vcpu, hsr);
+      if (0)
+        print_mrs_msr(vcpu, hsr);
       break;
     }
 
