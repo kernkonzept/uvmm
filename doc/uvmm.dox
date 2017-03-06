@@ -1,0 +1,43 @@
+// vi:ft=c
+/**
+ * \page l4re_servers L4Re Servers
+ *
+ *  - \subpage l4re_servers_uvmm
+ *
+ * \page l4re_servers_uvmm Uvmm, the virtual machine monitor
+ *
+ * How to enable guest suspend/resume
+ * ----------------------------------
+ *
+ * \note Currently only supported on ARM. It should work fine with Linux
+ * version 4.4 or newer.
+ *
+ * Uvmm (partially) implements the power state coordination interface (PSCI),
+ * which is the standard ARM power management interface. To make use of this
+ * interface, you have to announce its availablity to the guest operating
+ * system via the device tree like so:
+ *
+ * \code
+ *     psci {
+ *           compatible = "arm,psci-0.2";
+ *           method = "hvc";
+ *     };
+ * \endcode
+ *
+ * The Linux guest must be configured with at least these options:
+ *
+ * \code
+ *     CONFIG_SUSPEND=y
+ *     CONFIG_ARM_PSCI=y
+ * \endcode
+ *
+ * How to communicate power management (PM) events
+ * -----------------------------------------------
+ *
+ * Uvmm can be instructed to inform a PM manager of PM events through the
+ * L4::Platform_control interface. To that end, uvmm may be equipped with a
+ * 'pfc' cap. On suspend, uvmm will call l4_platform_ctl_system_suspend().
+ *
+ * The 'pfc' cap can also be implemented by IO. In that case the guest can
+ * start a machine suspend/shutdown/reboot.
+ */
