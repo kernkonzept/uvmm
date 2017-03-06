@@ -14,6 +14,7 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   virtio_device_proxy.cc \
                   dev_sysctl.cc \
                   virt_bus.cc io_proxy.cc \
+                  mmio_proxy.cc \
                   pm.cc vbus_event.cc
 
 SRC_CC-arm   = arm/gic.cc arm/guest_arm.cc
