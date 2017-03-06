@@ -12,9 +12,11 @@
 #include "debug.h"
 #include "irq.h"
 #include "virtio_dev.h"
+#include "virtio_event_connector.h"
 
 #include <l4/cxx/ipc_server>
 #include <l4/cxx/ipc_stream>
+#include <l4/cxx/type_traits>
 
 #include <l4/sys/vcon>
 
@@ -22,8 +24,9 @@
 
 namespace Vdev {
 
-class Virtio_console :
-  public Virtio::Dev,
+template <typename DEV>
+class Virtio_console
+: public Virtio::Dev,
   private L4::Server_object_t<L4::Vcon>
 {
   typedef L4virtio::Svr::Virtqueue::Desc Desc;
@@ -69,17 +72,10 @@ public:
                    Vdev::Dt_node const &self,
                    Vmm::Guest *, Vmm::Virt_bus *) override
   {
-    auto irq_ctl = self.find_irq_parent();
-    if (!irq_ctl.is_valid())
-      L4Re::chksys(-L4_ENODEV, "No interupt handler found for virtio console.\n");
-
-    // XXX need dynamic cast for Ref_ptr here
-    auto *ic = dynamic_cast<Gic::Ic *>(devs->device_from_node(irq_ctl).get());
-
-    if (!ic)
-      L4Re::chksys(-L4_ENODEV, "Interupt handler for virtio console has bad type.\n");
-
-    _irq.rebind(ic, ic->dt_get_interrupt(self, 0));
+    int err = dev()->event_connector()->init_irqs(devs, self);
+    if (err < 0)
+      Dbg(Dbg::Dev, Dbg::Warn, "virtio")
+        .printf("Cannot connect virtio IRQ: %d\n", err);
   }
 
   void reset()
@@ -90,8 +86,11 @@ public:
 
   virtual void kick()
   {
-    handle_input();
-    auto *q = &_q[1];
+    Virtio::Event_set ev;
+
+    handle_input(&ev);
+    int const q_idx = 1;
+    auto *q = &_q[q_idx];
 
     auto r = q->next_avail();
     if (r)
@@ -110,12 +109,11 @@ public:
 
         q->consumed(r);
         _irq_status |= 1;
-        _irq.inject();
+        ev.set(q->event_index);
       }
-  }
 
-  virtual void irq_ack(int)
-  { _irq.ack(); }
+    dev()->event_connector()->send_events(cxx::move(ev));
+  }
 
   l4_uint32_t host_feature(unsigned id)
   {
@@ -155,11 +153,10 @@ public:
   }
 
 
-  void handle_input()
+  void handle_input(Virtio::Event_set *ev)
   {
-    auto *q = &_q[0];
-
-    l4_uint32_t irqs = 0;
+    int const q_idx = 0;
+    auto *q = &_q[q_idx];
 
     while (1)
       {
@@ -204,18 +201,14 @@ public:
         if ((unsigned)r <= p.len)
           {
             q->consumed(req, r);
-            irqs = true;
+            _irq_status |= 1;
+            ev->set(q->event_index);
             break;
           }
 
         q->consumed(req, p.len);
-        irqs = true;
-      }
-
-    if (irqs)
-      {
         _irq_status |= 1;
-        _irq.inject();
+        ev->set(q->event_index);
       }
   }
 
@@ -227,25 +220,34 @@ public:
 
   int dispatch(l4_umword_t /*obj*/, L4::Ipc::Iostream &/*ios*/)
   {
-    handle_input();
+    Virtio::Event_set ev;
+    handle_input(&ev);
+    dev()->event_connector()->send_events(cxx::move(ev));
     return 0;
   }
 
 private:
   Virtio::Virtqueue _q[2];
   L4::Cap<L4::Vcon> _con;
-  Vmm::Irq_sink _irq;
+
+  DEV *dev() { return static_cast<DEV *>(this); }
 };
 
-struct Virtio_console_mmio
-: Virtio_console,
-  Vmm::Mmio_device_t<Virtio_console_mmio>,
-  Virtio::Mmio_connector<Virtio_console_mmio>
+class Virtio_console_mmio
+: public Virtio_console<Virtio_console_mmio>,
+  public Vmm::Mmio_device_t<Virtio_console_mmio>,
+  public Virtio::Mmio_connector<Virtio_console_mmio>
 {
+public:
   Virtio_console_mmio(Vmm::Vm_ram *iommu,
                       L4::Cap<L4::Vcon> con = L4Re::Env::env()->log())
   : Virtio_console(iommu, con)
   {}
+
+  Virtio::Event_connector_irq *event_connector() { return &_evcon; }
+
+private:
+  Virtio::Event_connector_irq _evcon;
 };
 
 }

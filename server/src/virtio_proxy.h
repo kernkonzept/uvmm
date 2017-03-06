@@ -22,6 +22,7 @@
 
 #include <l4/cxx/ipc_stream>
 #include <l4/cxx/ipc_server>
+#include <l4/cxx/type_traits>
 
 #include <l4/l4virtio/l4virtio>
 #include <l4/l4virtio/virtqueue>
@@ -29,6 +30,7 @@
 
 #include "mmio_device.h"
 #include "irq.h"
+#include "virtio_event_connector.h"
 #include "vm_ram.h"
 
 namespace L4virtio { namespace Driver {
@@ -203,6 +205,8 @@ public:
         }
   }
 
+  l4_uint32_t irq_status() const { return _config->irq_status; }
+
 protected:
   L4::Cap<L4virtio::Device> _device;
   L4Re::Rm::Auto_region<L4virtio::Device::Config_hdr *> _config;
@@ -222,7 +226,10 @@ private:
 
 namespace Vdev {
 
-class Virtio_proxy : public L4::Irqep_t<Virtio_proxy>, public Device
+template <typename DEV>
+class Virtio_proxy
+: public L4::Irqep_t<Virtio_proxy<DEV>>,
+  public Device
 {
 private:
   /**
@@ -244,17 +251,10 @@ public:
                    Vdev::Dt_node const &self,
                    Vmm::Guest *, Vmm::Virt_bus *) override
   {
-    auto irq_ctl = self.find_irq_parent();
-    if (!irq_ctl.is_valid())
-      L4Re::chksys(-L4_ENODEV, "No interupt handler found for virtio proxy.\n");
-
-    // XXX need dynamic cast for Ref_ptr here
-    auto *ic = dynamic_cast<Gic::Ic *>(devs->device_from_node(irq_ctl).get());
-
-    if (!ic)
-      L4Re::chksys(-L4_ENODEV, "Interupt handler for virtio proxy has bad type.\n");
-
-    _irq.rebind(ic, ic->dt_get_interrupt(self, 0));
+    int err = dev()->event_connector()->init_irqs(devs, self);
+    if (err < 0)
+      Dbg(Dbg::Dev, Dbg::Warn, "virtio")
+        .printf("Cannot connect virtio IRQ: %d\n", err);
 
     int sz;
     auto const *prop = self.get_prop<fdt32_t>("l4vmm,no-notify", &sz);
@@ -304,7 +304,7 @@ public:
         break;
 
       case 25:
-        _irq.ack();
+        dev()->event_connector()->clear_events(value);
         break;
       }
 
@@ -324,19 +324,40 @@ public:
   }
 
   void handle_irq()
-  {  _irq.inject(); }
+  {
+    Virtio::Event_set ev;
+    // FIXME: our L4 transport supports just a single IRQ, so trigger event 1
+    //        for all queues until we implemented per-queue events.
+    //        And use event index 0 for config events.
+    auto s = 1; // FIXME: correctly set irq_status in devices: _dev.irq_status();
+    if (s & 1)
+      ev.set(1); // set event index 1 for all queue events
+
+    if (s & 2)
+      ev.set(0);
+
+    dev()->event_connector()->send_events(cxx::move(ev));
+  }
 
 private:
-  Vmm::Irq_sink _irq;
+  DEV *dev() { return static_cast<DEV *>(this); }
 
   L4virtio::Driver::Device _dev;
 };
 
-struct Virtio_proxy_mmio : Virtio_proxy, Vmm::Mmio_device_t<Virtio_proxy_mmio>
+class Virtio_proxy_mmio
+: public Virtio_proxy<Virtio_proxy_mmio>,
+  public Vmm::Mmio_device_t<Virtio_proxy_mmio>
 {
+public:
   Virtio_proxy_mmio(Vmm::Vm_ram *iommu)
   : Virtio_proxy(iommu)
   {}
+
+  Virtio::Event_connector_irq *event_connector() { return &_evcon; }
+
+private:
+  Virtio::Event_connector_irq _evcon;
 };
 
 }

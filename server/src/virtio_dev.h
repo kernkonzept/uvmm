@@ -29,6 +29,7 @@ public:
   typedef l4virtio_config_queue_t Queue_config;
 
   Queue_config config;
+  l4_uint16_t event_index = 0;
 
   Virtqueue()
   { memset(&config, 0, sizeof(config)); }
@@ -38,6 +39,39 @@ public:
 
 };
 
+struct Event_set
+{
+  l4_uint64_t e = 0;
+  void reset() { e = 0; };
+  void set(l4_uint16_t index)
+  {
+    if (index < sizeof(e) * 8)
+      e |= 1ULL << index;
+  }
+};
+
+/**
+ * Abstract interface for virtio event handling.
+ *
+ * \note This interface is currently just for the sake of documentation.
+ */
+class Event_if
+{
+public:
+  /**
+   * Inject the given set of events into the VM.
+   *
+   * \param ev  Set of pending events to be injected into the guest.
+   */
+  virtual void send_events(Event_set &&ev) = 0;
+
+  /**
+   * Acknowledge via the virtio irq_ack register.
+   *
+   * \param mask  The value written to the virtio irq_ack register.
+   */
+  virtual void clear_events(unsigned mask) = 0;
+};
 
 class Dev : public Vdev::Device
 {
@@ -51,6 +85,7 @@ protected:
   l4_uint32_t _irq_status;
   Status _status;
   l4_uint32_t _guest_features[8];
+  l4_uint16_t _config_event_index = 0;
 
   Vmm::Vm_ram *_iommu;
 
@@ -65,7 +100,6 @@ public:
   virtual l4_uint32_t read_config(unsigned /*reg*/) { return 0; }
   virtual void write_config(unsigned /*reg*/, l4_uint32_t /*value*/) {}
   virtual void kick() = 0;
-  virtual void irq_ack(int /*value*/) {}
   virtual l4_uint32_t host_feature(unsigned /*id*/) { return 0; }
   virtual Virtqueue *queue(unsigned idx) = 0;
   virtual void reset() {}
@@ -192,7 +226,7 @@ public:
         break;
 
       case 25:
-        dev()->irq_ack(value);
+        dev()->event_connector()->clear_events(value);
         break;
 
       case 28:
