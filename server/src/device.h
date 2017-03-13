@@ -69,8 +69,11 @@ public:
   : BASE(cxx::forward<Args>(args)...), _ref_cnt(0)
   {}
 
-  void add_ref() const noexcept override { ++_ref_cnt; }
-  int remove_ref() const noexcept override { return --_ref_cnt; }
+  void add_ref() const noexcept override
+  { __atomic_add_fetch(&_ref_cnt, 1, __ATOMIC_ACQUIRE); }
+
+  int remove_ref() const noexcept override
+  { return __atomic_sub_fetch(&_ref_cnt, 1, __ATOMIC_RELEASE); }
 };
 
 template< typename T, typename... Args >
