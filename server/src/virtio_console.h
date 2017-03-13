@@ -112,7 +112,7 @@ public:
   {
     switch (id)
       {
-      case 1:
+      case 0:
         {
           Features feat(0);
           feat.ring_indirect_desc() = true;
