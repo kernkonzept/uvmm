@@ -98,7 +98,15 @@ public:
         Request_processor rp;
         Payload p;
         rp.start(this, r, &p);
-        _con->write(p.data, p.len);
+        while (p.len)
+          {
+            long rsz = _con->write(p.data, p.len);
+            if (rsz < 0)
+              break;
+            p.data += rsz;
+            p.len  -= rsz;
+          }
+
         q->consumed(r);
         _irq_status |= 1;
         _irq.inject();
