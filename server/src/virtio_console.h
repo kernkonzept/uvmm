@@ -29,10 +29,11 @@ class Virtio_console :
   typedef L4virtio::Svr::Virtqueue::Desc Desc;
   typedef L4virtio::Svr::Request_processor Request_processor;
 
-  struct Payload {
-      char *data;
-      unsigned len;
-      bool writable;
+  struct Payload
+  {
+    char *data;
+    unsigned len;
+    bool writable;
   };
 
 public:
