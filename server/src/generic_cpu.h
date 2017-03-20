@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include <pthread.h>
+
 #include <l4/re/rm>
 #include <l4/sys/task>
 
@@ -42,30 +44,25 @@ public:
   Cpu vcpu() const
   { return _vcpu; }
 
-  unsigned sched_cpu() const
-  { return _phys_cpu_id; }
-
   void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &,
                    Vmm::Guest *, Vmm::Virt_bus *) override
   {}
 
   void powerup_cpu();
+  void reschedule();
 
   virtual void reset() = 0;
 
   /**
    * Start CPU, run through reset and resume to the VM.
-   *
-   * \param boot_to_halt  If true, the CPU thread waits for a startup IPC
-   *                      before resuming to the VM.
    */
-  void startup(bool boot_to_halt = false);
+  void startup();
 
 protected:
   Cpu _vcpu;
   /// physical CPU to run on (offset into scheduling mask)
   unsigned _phys_cpu_id;
-  bool _running;
+  pthread_t _thread;
 };
 
 

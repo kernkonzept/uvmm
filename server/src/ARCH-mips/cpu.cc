@@ -159,8 +159,8 @@ Cpu_dev::start_vcpu(l4_addr_t bev_base)
     }
 
   _vcpu.state()->g_status |= (1 << 2) | (1 << 22); // ERL, BEV
-  _running = true;
-  _vcpu.ping();
+
+  reschedule();
 
   // consider it officially done
   // XXX should that be done in reset code?
