@@ -108,6 +108,12 @@ function start_vm(options)
     caps["jdb"] = L4.Env.jdb
   end
 
+  if options.ext_args then
+    for _,v in ipairs(options.ext_args) do
+      cmdline[#cmdline+1] = v
+    end
+  end
+
   local opts = {
     log  = l.log_fab:create(L4.Proto.Log, "vm" .. nr, "w", keyb_shortcut);
     caps = caps;
