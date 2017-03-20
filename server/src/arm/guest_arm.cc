@@ -311,8 +311,7 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
       info().printf("Powered up cpu%d [%p]\n", vcpu.get_vcpu_id(),
                     cpu.get());
 
-      auto *vm = vcpu.state();
-      _gic->set_cpu(vcpu.get_vcpu_id(), &vm->gic, cpu->thread_cap());
+      _gic->set_cpu(vcpu.get_vcpu_id(), *vcpu, cpu->thread_cap());
     }
 
   cpus->cpu(0)->startup();
@@ -417,7 +416,8 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
             memset(&vcpu->r, 0, sizeof(vcpu->r));
             prepare_vcpu_startup(vcpu, entry_gpa);
             vcpu->r.r[0]  = context_id;
-            vcpu.state()->vm_regs.sctlr &= ~1UL;
+            l4_vcpu_e_write_32(*vcpu, L4_VCPU_E_SCTLR,
+                               l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_SCTLR) & ~1U);
           }
         else
           vcpu->r.r[0] = SUCCESS;
@@ -500,7 +500,8 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
           memset(&vcpu->r, 0, sizeof(vcpu->r));
           prepare_vcpu_startup(vcpu, entry_gpa);
           vcpu->r.r[0]  = context_id;
-          vcpu.state()->vm_regs.sctlr &= ~1UL;
+          l4_vcpu_e_write_32(*vcpu, L4_VCPU_E_SCTLR,
+                             l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_SCTLR) & ~1U);
         }
       break;
 
@@ -560,10 +561,9 @@ Vmm::Guest::wait_for_timer_or_irq(Vcpu_ptr vcpu)
     return;
 
   l4_timeout_t to = L4_IPC_NEVER;
-  auto *vm = vcpu.state();
 
   auto *utcb = l4_utcb();
-  if ((vm->cntv_ctl & 3) == 1) // timer enabled and not masked
+  if ((l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_CNTVCTL) & 3) == 1) // timer enabled and not masked
     {
       // calculate the timeout based on the VTIMER values !
       auto cnt = vcpu.cntvct();

@@ -21,7 +21,7 @@ dump(Vcpu_ptr vcpu)
   printf("\n");
   printf("pc=%lx  sp=%lx  psr=%lx  sctlr=%x\n",
          vcpu->r.ip, vcpu->r.sp, vcpu->r.flags,
-         vcpu.state()->vm_regs.sctlr);
+         l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_SCTLR));
 }
 
 inline void

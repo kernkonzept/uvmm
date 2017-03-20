@@ -14,8 +14,8 @@ namespace Vmm
 {
 
 void
-Cpu_dev::init_vgic(Vmm::Arm::State::Gic *iface)
-{ Gic::Dist::init_vgic(iface); }
+Cpu_dev::init_vgic(void *vcpu)
+{ Gic::Dist::init_vgic(vcpu); }
 
 void
 Cpu_dev::show_state_registers(FILE *f)

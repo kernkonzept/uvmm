@@ -38,7 +38,7 @@ public:
     reschedule();
   }
 
-  void init_vgic(Vmm::Arm::State::Gic *iface);
+  void init_vgic(void *vcpu);
 
   /**
    * Enter the virtual machine

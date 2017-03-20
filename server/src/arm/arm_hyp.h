@@ -168,18 +168,5 @@ namespace Gic_h {
   };
 }
 
-template< unsigned LREGS >
-struct Gic_t
-{
-  Gic_h::Hcr hcr;
-  Gic_h::Vtr vtr;
-  Gic_h::Vmcr vmcr;
-  Gic_h::Misr misr;
-  l4_uint32_t eisr[2];
-  l4_uint32_t elsr[2];
-  l4_uint32_t apr;
-  Gic_h::Lr lr[LREGS];
-};
-
 }
 }

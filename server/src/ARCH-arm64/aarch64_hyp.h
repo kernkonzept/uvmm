@@ -9,45 +9,14 @@
 
 #include <arm_hyp.h>
 
-namespace Vmm { namespace Arm {
-
-struct State
+inline void arm_subarch_setup(void *vcpu, bool guest_64bit)
 {
-  struct Regs
-  {
-    l4_uint64_t hcr;
-
-    l4_uint32_t sctlr;
-    l4_uint32_t cntkctl;
-    l4_uint32_t mdcr;
-    l4_uint32_t mdscr;
-  };
-
-  typedef Gic_t<4> Gic;
-
-  Regs vm_regs;
-  Regs host_regs;
-  Gic  gic;
-
-  l4_uint64_t vmpidr;
-  l4_uint64_t cntvoff;
-
-  l4_uint64_t cntv_cval;
-  l4_uint32_t cntkctl;
-  l4_uint32_t cntv_ctl;
-
-  void arch_setup(bool guest_64bit)
-  {
-    if (guest_64bit)
-      vm_regs.hcr |= 1UL << 31; // set RW bit
-    vm_regs.mdcr = (1 << 9) /*TDA*/;
-  }
-};
-
-inline State *
-vm_state(l4_vcpu_state_t *vcpu)
-{
-  return reinterpret_cast<State *>(reinterpret_cast<char *>(vcpu) + L4_VCPU_OFFSET_EXT_STATE);
+  if (guest_64bit)
+    {
+      l4_umword_t hcr = l4_vcpu_e_read(vcpu, L4_VCPU_E_HCR);
+      hcr |= 1UL << 31; // set RW bit
+      l4_vcpu_e_write(vcpu, L4_VCPU_E_HCR, hcr);
+    }
+  l4_vcpu_e_write_32(vcpu, L4_VCPU_E_MDCR, 1 << 9 /*TDA*/);
 }
 
-}}

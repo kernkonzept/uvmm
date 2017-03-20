@@ -61,9 +61,6 @@ public:
     asm volatile ("mrs %0, TPIDR_EL0" : "=r"(x[1]));
   }
 
-  Arm::State *state()
-  { return reinterpret_cast<Arm::State *>((char *)_s + L4_VCPU_OFFSET_EXT_STATE); }
-
   Arm::Hsr hsr() const
   { return Arm::Hsr(_s->r.err); }
 

@@ -521,15 +521,15 @@ public:
    *         + 1) otherwise
    */
   unsigned get_empty_lr() const
-  { return __builtin_ffs(_vgic->elsr[0]); }
+  { return __builtin_ffs(l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_ELSR0)); }
 
-  bool pending_irqs() const { return _vgic->elsr[0] != (1ULL << Num_lrs) - 1; }
+  bool pending_irqs() const { return l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_ELSR0) != (1ULL << Num_lrs) - 1; }
 
   Irq_array::Irq irq(unsigned irqn);
   Irq_array::Const_irq irq(unsigned irqn) const;
 
-  Vmm::Arm::State::Gic *vgic() const { return _vgic; }
-  void vgic(Vmm::Arm::State::Gic *gic) { _vgic = gic; }
+  void set_vcpu(void *vcpu) { _vcpu = vcpu; }
+  void *vcpu() const { return _vcpu; }
 
   void ipi(unsigned irq);
   void notify()
@@ -563,14 +563,58 @@ public:
 
   void show(FILE *f, unsigned cpu);
 
+  Vmm::Arm::Gic_h::Vmcr vmcr() const
+  {
+    using Vmm::Arm::Gic_h::Vmcr;
+    return Vmcr(l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_VMCR));
+  }
+
+  Vmm::Arm::Gic_h::Hcr hcr() const
+  {
+    using Vmm::Arm::Gic_h::Hcr;
+    return Hcr(l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_HCR));
+  }
+
+  void write_hcr(Vmm::Arm::Gic_h::Hcr hcr) const
+  { l4_vcpu_e_write_32(_vcpu, L4_VCPU_E_GIC_HCR, hcr.raw); }
+
+  Vmm::Arm::Gic_h::Misr misr() const
+  {
+    using Vmm::Arm::Gic_h::Misr;
+    return Misr(l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_MISR));
+  }
+
  private:
   l4_uint32_t _sgi_pend[4]; // 4 * 4 == 16 SGIs a 8 bits
 
   Irq_array _local_irq;
   Irq_array *_spis;
-  Vmm::Arm::State::Gic *_vgic = 0;
+  void *_vcpu = nullptr;
   L4Re::Util::Unique_cap<L4::Irq> _cpu_irq;
   bool _pending_work;
+
+  void _set_elsr(unsigned idx, l4_uint32_t bits) const
+  {
+    unsigned id = L4_VCPU_E_GIC_ELSR0 + idx * 4;
+    l4_uint32_t e = l4_vcpu_e_read_32(_vcpu, id);
+    l4_vcpu_e_write_32(_vcpu, id, e | bits);
+  }
+
+  void _clear_elsr(unsigned idx, l4_uint32_t bits) const
+  {
+    unsigned id = L4_VCPU_E_GIC_ELSR0 + idx * 4;
+    l4_uint32_t e = l4_vcpu_e_read_32(_vcpu, id);
+    l4_vcpu_e_write_32(_vcpu, id, e & ~bits);
+  }
+
+  Vmm::Arm::Gic_h::Lr _get_lr(unsigned idx) const
+  {
+    using Vmm::Arm::Gic_h::Lr;
+    return Lr(l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_LR0 + idx * 4));
+  }
+
+  void _set_lr(unsigned idx, Vmm::Arm::Gic_h::Lr lr) const
+  { l4_vcpu_e_write_32(_vcpu, L4_VCPU_E_GIC_LR0 + idx * 4, lr.raw); }
 };
 
 
@@ -645,12 +689,15 @@ Cpu::write_clear_sgi_pend(unsigned reg, l4_uint32_t value)
 inline void
 Cpu::handle_eois()
 {
-  if (!_vgic->misr.eoi())
+  using namespace Vmm::Arm;
+  Gic_h::Misr misr(l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_MISR));
+
+  if (!misr.eoi())
     return;
 
   unsigned ridx = 0;
-  // currently we use up to 4 (Num_lrs) list registers
-  l4_uint32_t eisr = _vgic->eisr[ridx];
+  // currently we use up to 32 list registers
+  l4_uint32_t eisr = l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_EISR0 + ridx * 4);
   if (!eisr)
     return;
 
@@ -659,21 +706,22 @@ Cpu::handle_eois()
       if (!(eisr & 1))
         continue;
 
-      Irq_array::Irq c = irq(_vgic->lr[i].vid());
-      bool pending = _vgic->lr[i].pending();
-      if (!pending)
+      Gic_h::Lr lr = _get_lr(i);
+      Irq_array::Irq c = irq(lr.vid());
+      if (!lr.pending())
         {
-          c.clear_lr();
-          _vgic->lr[i] = Vmm::Arm::Gic_h::Lr(0);
-          _vgic->elsr[ridx] |= (1 << i); // maintain our SW state
+          _set_lr(i, Gic_h::Lr(0));
+          _set_elsr(ridx, 1U << i);
         }
+
       c.do_eoi();
-      c.eoi(vmm_current_cpu_id, pending);
+      c.eoi(vmm_current_cpu_id, lr.pending());
     }
 
   // all EOIs are handled
-  _vgic->eisr[ridx] = 0;
-  _vgic->misr.eoi() = 0;
+  l4_vcpu_e_write_32(_vcpu, L4_VCPU_E_GIC_EISR0 + ridx * 4, 0);
+  misr.eoi() = 0;
+  l4_vcpu_e_write_32(_vcpu, L4_VCPU_E_GIC_MISR, misr.raw);
 }
 
 inline bool
@@ -694,9 +742,8 @@ Cpu::add_pending_irq(unsigned lr, Irq_array::Irq const &irq,
 
   // uses 0 for "no link register assigned" (see #get_empty_lr())
   irq.set_lr(lr + 1);
-
-  _vgic->lr[lr] = new_lr;
-  _vgic->elsr[0] &= ~(1UL << lr);
+  l4_vcpu_e_write_32(_vcpu, L4_VCPU_E_GIC_LR0 + 4 * lr, new_lr.raw);
+  _clear_elsr(0, 1U << lr);
   return true;
 }
 
@@ -715,12 +762,14 @@ Cpu::inject(Irq_array::Irq const &irq, unsigned irq_id, unsigned src_cpu)
       --lr_idx;
       assert(lr_idx < Num_lrs);
 
-      if (_vgic->lr[lr_idx].vid() == irq_id)
+      Lr lr = _get_lr(lr_idx);
+      if (lr.vid() == irq_id)
         {
           if (!irq.take_on_cpu(vmm_current_cpu_id, 0xff, true))
             return false;
 
-          _vgic->lr[lr_idx].pending() = 1;
+          lr.pending() = 1;
+          l4_vcpu_e_write_32(_vcpu, L4_VCPU_E_GIC_LR0 + lr_idx, lr.raw);
           return true;
         }
       else
@@ -739,7 +788,7 @@ Cpu::inject(Irq_array::Irq const &irq, unsigned irq_id, unsigned src_cpu)
           unsigned min_prio = 0;
           for (unsigned i = 0; i < Num_lrs; ++i)
             {
-              Lr l = _vgic->lr[i];
+              Lr l = _get_lr(i);
               if (   l.state() == Lr::Pending
                   && l.prio() > min_prio
                   && l.prio() > irq.prio())
@@ -755,9 +804,10 @@ Cpu::inject(Irq_array::Irq const &irq, unsigned irq_id, unsigned src_cpu)
         {
           if (0)
             {
-              printf("VGIC full while trying to inject irq 0x%x : ", irq_id);
+              printf("VGIC full while trying to inject irq 0x%x : ",
+                     irq_id);
               for (unsigned i = 0; i < Num_lrs; ++i)
-                printf("%d: %x ", i, _vgic->lr[i].raw);
+                printf("%d: %x ", i, _get_lr(i).raw);
               printf("\n");
             }
 
@@ -1012,30 +1062,34 @@ public:
       }
   }
 
-  void set_cpu(unsigned cpu, Vmm::Arm::State::Gic *iface,
+  void set_cpu(unsigned cpu, void *vcpu,
                L4::Cap<L4::Thread> thread)
   {
     if (cpu >= cpus)
       return;
 
     gicd_trace.printf("set CPU interface for CPU %02d (%p) to %p\n",
-                      cpu, &_cpu[cpu], iface);
-    _cpu[cpu].vgic(iface);
+                     cpu, &_cpu[cpu], vcpu);
+    _cpu[cpu].set_vcpu(vcpu);
     _cpu[cpu].attach_cpu_thread(thread);
   }
 
-  static void init_vgic(Vmm::Arm::State::Gic *iface)
+  static void init_vgic(void *vcpu)
   {
-    using namespace Vmm::Arm;
-    iface->vmcr = Gic_h::Vmcr(0);
-    iface->vmcr.pri_mask() = 0x1f; // lowest possible prio
-    iface->vmcr.bp() = 2; // lowest possible value for 32 prios
-    iface->vmcr.abp() = 2;
+    using namespace Vmm::Arm::Gic_h;
+
+    Vmcr vmcr(0);
+    vmcr.pri_mask() = 0x1f; // lowest possible prio
+    vmcr.bp() = 2; // lowest possible value for 32 prios
+    vmcr.abp() = 2;
+    l4_vcpu_e_write_32(vcpu, L4_VCPU_E_GIC_VMCR, vmcr.raw);
+
     // enable the interface and some maintenance settings
-    iface->hcr = Gic_h::Hcr(0);
-    iface->hcr.en() = 1;
-    iface->hcr.vgrp0_eie() = 1;
-    iface->hcr.vgrp1_eie() = 1;
+    Hcr hcr(0);
+    hcr.en() = 1;
+    hcr.vgrp0_eie() = 1;
+    hcr.vgrp1_eie() = 1;
+    l4_vcpu_e_write_32(vcpu, L4_VCPU_E_GIC_HCR, hcr.raw);
   }
 
   bool schedule_irqs(unsigned current_cpu)
@@ -1046,7 +1100,7 @@ public:
     c->handle_eois();
     c->handle_ipis();
 
-    int pmask = c->vgic()->vmcr.pri_mask() << 3;
+    int pmask = ((unsigned )c->vmcr().pri_mask()) << 3;
 
     for (;;)
       {
@@ -1078,23 +1132,24 @@ public:
   {
     assert (current_cpu < cpus);
     for (int i = 0; i < cpus; ++i)
-       gicd_trace.printf("%s:%d: Cpu%d = %p, Gic=%p\n",
-                         file, line, i, &_cpu[i], _cpu[i].vgic());
+      gicd_trace.printf("%s:%d: Cpu%d = %p, Gic=%p\n",
+                        file, line, i, &_cpu[i], _cpu[i].vcpu());
+
     Cpu &c = _cpu[current_cpu];
-    if (c.vgic())
-      {
-        gicd_trace.printf("%s:%d: Irq state for Cpu%d: hcr:%08x, vmcr:%08x\n",
-                          file, line, current_cpu,
-                          c.vgic()->hcr.raw, c.vgic()->vmcr.raw);
-      }
+    if (!c.vcpu())
+      return;
+
+    gicd_trace.printf("%s:%d: Irq state for Cpu%d: hcr:%08x, vmcr:%08x\n",
+                      file, line, current_cpu,
+                      c.hcr().raw, c.vmcr().raw);
   }
 
   void handle_maintenance_irq(unsigned current_cpu)
   {
     assert (current_cpu < cpus);
     Cpu *c = &_cpu[current_cpu];
-    Vmm::Arm::Gic_h::Misr misr = c->vgic()->misr;
-    Vmm::Arm::Gic_h::Hcr &hcr = c->vgic()->hcr;
+    auto misr = c->misr();
+    auto hcr = c->hcr();
     if (misr.grp0_e())
       {
         __atomic_or_fetch(&_active_grp0_cpus, (1UL << current_cpu), __ATOMIC_SEQ_CST);
@@ -1122,6 +1177,8 @@ public:
         hcr.vgrp1_eie() = 1;
         hcr.vgrp1_die() = 0;
       }
+
+    c->write_hcr(hcr);
 
     c->handle_maintenance_irq(current_cpu);
   }
