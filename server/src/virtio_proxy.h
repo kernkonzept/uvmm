@@ -80,8 +80,8 @@ public:
     if (memcmp(&_config->magic, "virt", 4) != 0)
       L4Re::chksys(-L4_ENODEV, "Device config has wrong magic value");
 
-    if (_config->version != 1)
-      L4Re::chksys(-L4_ENODEV, "Require virtio version of 1");
+    if (_config->version != 2)
+      L4Re::chksys(-L4_ENODEV, "Require virtio version of 2");
   }
 
 
@@ -111,86 +111,20 @@ public:
   L4virtio::Device::Config_hdr *device_config() const
   { return _config.get(); }
 
-  unsigned selected_queue() const
-  { return _queue_sel; }
+  L4::Cap<L4Re::Dataspace> config_ds() const
+  { return _config_cap.get(); }
 
-  l4_uint32_t page_size() const
-  { return _config->guest_page_size; }
+  l4_uint32_t config_size() const
+  { return _config_page_size; }
 
   L4virtio::Device::Config_queue *queue_config(int num) const
-  {
-    return &_config->queues()[num];
-  }
+  { return &_config->queues()[num]; }
 
-  l4_uint32_t read(unsigned reg)
-  {
-    if (reg >= _config_page_size)
-      return 0;
+  void virtio_queue_notify(unsigned)
+  { _host_irq->trigger(); }
 
-    switch (reg >> 2)
-      {
-      case 0: return *reinterpret_cast<l4_uint32_t const *>("virt");
-      case 1: return 1;
-      case 2: return _config->device;
-      case 3: return _config->vendor;
-      case 4: return (_host_feat_sel < 8) ?
-                       _config->host_features[_host_feat_sel] : 0;
-      case 13: return (_queue_sel < _config->num_queues) ?
-                       _config->queues()[_queue_sel].num_max : 0;
-      case 16: return (_queue_sel < _config->num_queues) ?
-                       _config->queues()[_queue_sel].pfn : 0;
-      case 24: return 1; // currently unused: _config->irq_status;
-      case 28: return _config->status;
-      default: return 0;
-      }
-  }
-
-  void write(unsigned reg, l4_uint32_t value)
-  {
-    if (reg >= _config_page_size)
-      return;
-
-    switch (reg >> 2)
-      {
-      case 20:
-        _host_irq->trigger();
-        break;
-      case 5:
-        _host_feat_sel = value;
-        break;
-      case 8:
-        if (_guest_feat_sel < 8)
-          _config->guest_features[_guest_feat_sel] = value;
-        break;
-      case 9:
-        _guest_feat_sel = value;
-        break;
-      case 10:
-        _config->guest_page_size = value;
-        break;
-      case 12:
-        _queue_sel = value;
-        break;
-      case 14:
-        if (_queue_sel < _config->num_queues)
-           _config->queues()[_queue_sel].num = value;
-        break;
-      case 15:
-        if (_queue_sel < _config->num_queues)
-           _config->queues()[_queue_sel].align = value;
-        break;
-      case 16:
-        if (_queue_sel < _config->num_queues)
-          {
-           _config->queues()[_queue_sel].pfn = value;
-           _device->config_queue(_queue_sel);
-          }
-        break;
-      case 28:
-        _device->set_status(value);
-        break;
-      }
-  }
+  void set_status(l4_uint32_t status)
+  { _device->set_status(status); }
 
   ~Device()
   {
@@ -199,8 +133,7 @@ public:
       for (l4_uint32_t i = 0; i < _config->num_queues; ++i)
         {
           _config->queues()[i].num = 0;
-          _config->queues()[i].pfn = 0;
-          _config->queues()[i].align = 0;
+          _config->queues()[i].ready = 0;
           _device->config_queue(i);
         }
   }
@@ -216,9 +149,6 @@ private:
   L4Re::Util::Auto_cap<L4::Irq>::Cap _host_irq;
   L4Re::Util::Auto_cap<L4Re::Dataspace>::Cap _config_cap;
 
-  unsigned _queue_sel = 0;
-  unsigned _host_feat_sel = 0;
-  unsigned _guest_feat_sel = 0;
   unsigned _config_page_size = 0;
 };
 
@@ -242,6 +172,7 @@ private:
   unsigned _nnq_id;
   L4virtio::Driver::Virtqueue _nnq;
   Vmm::Vm_ram *_iommu;
+  l4_uint32_t _irq_status_shadow = 0;
 
 public:
   Virtio_proxy(Vmm::Vm_ram *iommu)
@@ -260,55 +191,6 @@ public:
     auto const *prop = self.get_prop<fdt32_t>("l4vmm,no-notify", &sz);
     if (prop && sz > 0)
       _nnq_id = fdt32_to_cpu(*prop);
-  }
-
-  l4_umword_t read(unsigned reg, char sz, unsigned)
-  {
-    if (reg < 0x100)
-      return _dev.read(reg);
-
-    // device private memory
-    l4_addr_t offset = reg - 0x100 + _dev.device_config()->dev_cfg_offset;
-
-    if (offset < _dev.device_config()->queues_offset)
-      {
-        char *cfgptr = _dev.device_config()->device_config<char>() + reg - 0x100;
-        switch (sz)
-          {
-          case 0: return *reinterpret_cast<l4_uint8_t *>(cfgptr);
-          case 1: return *reinterpret_cast<l4_uint16_t *>(cfgptr);
-          case 2: return *reinterpret_cast<l4_uint32_t *>(cfgptr);
-          default: return *reinterpret_cast<l4_uint64_t *>(cfgptr);
-          }
-      }
-
-    return 0;
-  }
-
-  void write(unsigned reg, char, l4_uint32_t value, unsigned)
-  {
-    switch (reg >> 2)
-      {
-      case 16:
-        if (_dev.selected_queue() == _nnq_id)
-          {
-            auto *q = _dev.queue_config(1);
-            _nnq.setup(q->num, q->align,
-                       _iommu->access(L4virtio::Ptr<void>(value * _dev.page_size())));
-          }
-        break;
-
-      case 20:
-        if (_nnq.ready())
-          _nnq.no_notify_host(true);
-        break;
-
-      case 25:
-        dev()->event_connector()->clear_events(value);
-        break;
-      }
-
-    _dev.write(reg, value);
   }
 
   template<typename REG>
@@ -336,8 +218,85 @@ public:
     if (s & 2)
       ev.set(0);
 
+    _irq_status_shadow |= 1;
+    if (_dev.device_config()->irq_status != _irq_status_shadow)
+      dev()->set_irq_status(_irq_status_shadow);
+
     dev()->event_connector()->send_events(cxx::move(ev));
   }
+
+  void virtio_irq_ack(unsigned val)
+  {
+    _irq_status_shadow &= ~val;
+    if (_dev.device_config()->irq_status != _irq_status_shadow)
+      dev()->set_irq_status(_irq_status_shadow);
+
+    dev()->event_connector()->clear_events(val);
+  }
+
+  l4virtio_config_hdr_t *mmio_local_addr() const
+  { return _dev.device_config(); }
+
+  l4_size_t mapped_mmio_size() const
+  { return l4_round_page(_dev.config_size()); }
+
+  L4::Cap<L4Re::Dataspace> mmio_ds() const
+  { return _dev.config_ds(); }
+
+  l4virtio_config_hdr_t *virtio_cfg()
+  { return _dev.device_config(); }
+
+  void virtio_device_config_written(unsigned)
+  {}
+
+  void virtio_select_queue(unsigned qn)
+  {
+    auto *cfg = _dev.device_config();
+    cfg->queue_sel = qn;
+    if (qn >= cfg->num_queues)
+      {
+        cfg->queue_num_max = 0;
+        cfg->queue_ready = 0;
+        return;
+      }
+
+    auto *q = _dev.queue_config(qn);
+
+    cfg->queue_num_max = q->num_max;
+    cfg->queue_ready = q->ready;
+  }
+
+  void virtio_queue_ready(unsigned ready)
+  {
+    auto *cfg = _dev.device_config();
+    unsigned qn = cfg->queue_sel;
+
+    if (qn > cfg->num_queues)
+      return;
+
+    if (ready != 1 && ready != 0)
+      return;
+
+    auto *q = _dev.queue_config(qn);
+    if (ready == q->ready)
+      return;
+
+    q->num = cfg->queue_num;
+    q->ready = ready;
+    q->desc_addr = cfg->queue_desc;
+    q->avail_addr = cfg->queue_avail;
+    q->used_addr = cfg->queue_used;
+
+    _dev.config_queue(qn);
+
+    cfg->queue_ready = q->ready;
+  }
+
+  void virtio_queue_notify(unsigned q)
+  { _dev.virtio_queue_notify(q); }
+
+  void virtio_set_status(l4_uint32_t status)
+  { _dev.set_status(status); }
 
 private:
   DEV *dev() { return static_cast<DEV *>(this); }
@@ -347,7 +306,8 @@ private:
 
 class Virtio_proxy_mmio
 : public Virtio_proxy<Virtio_proxy_mmio>,
-  public Vmm::Mmio_device_t<Virtio_proxy_mmio>
+  public Vmm::Ro_ds_mapper_t<Virtio_proxy_mmio>,
+  public Virtio::Mmio_connector<Virtio_proxy_mmio>
 {
 public:
   Virtio_proxy_mmio(Vmm::Vm_ram *iommu)

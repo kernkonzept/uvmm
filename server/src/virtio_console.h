@@ -68,6 +68,46 @@ public:
     L4Re::chksys(con->set_attr(&attr), "console set_attr");
   }
 
+  void virtio_select_queue(unsigned qn)
+  {
+    _cfg_header->queue_sel = qn;
+    if (qn >= 2)
+      {
+        _cfg_header->queue_num_max = 0;
+        _cfg_header->queue_ready = 0;
+        return;
+      }
+
+    _cfg_header->queue_num_max = _q[qn].config.num_max;
+    _cfg_header->queue_ready = _q[qn].ready() ? 1 : 0;
+  }
+
+  void virtio_queue_ready(unsigned ready)
+  {
+    if (_cfg_header->queue_sel >= 2)
+      return;
+
+    auto *q = &_q[_cfg_header->queue_sel];
+    if (ready == 0 && q->ready())
+      {
+        q->disable();
+        _cfg_header->queue_ready = 0;
+      }
+    else if (ready == 1 && !q->ready())
+      {
+        _cfg_header->queue_ready = 0;
+        if (_cfg_header->queue_num > q->config.num_max)
+          return;
+
+        q->config.num = _cfg_header->queue_num;
+        q->init_queue(dev()->template devaddr_to_virt<void>(_cfg_header->queue_desc),
+                      dev()->template devaddr_to_virt<void>(_cfg_header->queue_avail),
+                      dev()->template devaddr_to_virt<void>(_cfg_header->queue_used));
+
+        _cfg_header->queue_ready = 1;
+      }
+  }
+
   void init_device(Vdev::Device_lookup const *devs,
                    Vdev::Dt_node const &self,
                    Vmm::Guest *, Vmm::Virt_bus *) override
@@ -84,7 +124,7 @@ public:
     _q[1].disable();
   }
 
-  virtual void kick()
+  void virtio_queue_notify(unsigned)
   {
     Virtio::Event_set ev;
 
@@ -108,9 +148,12 @@ public:
           }
 
         q->consumed(r);
-        _irq_status |= 1;
+        _irq_status_shadow |= 1;
         ev.set(q->event_index);
       }
+
+    if (_cfg_header->irq_status != _irq_status_shadow)
+      dev()->set_irq_status(_irq_status_shadow);
 
     dev()->event_connector()->send_events(cxx::move(ev));
   }
@@ -128,13 +171,6 @@ public:
       default:
         return 0;
       }
-  }
-
-  Virtio::Virtqueue *queue(unsigned idx)
-  {
-    if (idx < 2)
-      return &_q[idx];
-    return 0;
   }
 
   void load_desc(Desc const &desc, Request_processor const *, Payload *p)
@@ -201,13 +237,13 @@ public:
         if ((unsigned)r <= p.len)
           {
             q->consumed(req, r);
-            _irq_status |= 1;
+            dev()->_irq_status_shadow |= 1;
             ev->set(q->event_index);
             break;
           }
 
         q->consumed(req, p.len);
-        _irq_status |= 1;
+        dev()->_irq_status_shadow |= 1;
         ev->set(q->event_index);
       }
   }
@@ -222,8 +258,21 @@ public:
   {
     Virtio::Event_set ev;
     handle_input(&ev);
+
+    if (_cfg_header->irq_status != _irq_status_shadow)
+      dev()->set_irq_status(_irq_status_shadow);
+
     dev()->event_connector()->send_events(cxx::move(ev));
     return 0;
+  }
+
+  void virtio_irq_ack(unsigned val)
+  {
+    _irq_status_shadow &= ~val;
+    if (_cfg_header->irq_status != _irq_status_shadow)
+      dev()->set_irq_status(_irq_status_shadow);
+
+    dev()->event_connector()->clear_events(val);
   }
 
 private:
@@ -235,7 +284,7 @@ private:
 
 class Virtio_console_mmio
 : public Virtio_console<Virtio_console_mmio>,
-  public Vmm::Mmio_device_t<Virtio_console_mmio>,
+  public Vmm::Ro_ds_mapper_t<Virtio_console_mmio>,
   public Virtio::Mmio_connector<Virtio_console_mmio>
 {
 public:
