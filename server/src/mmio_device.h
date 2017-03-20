@@ -128,42 +128,15 @@ private:
  * its memory region.
  *
  * \tparam BASE  Type of the device the mixin is used for.
- * \tparam T     Data type for the device memory region.
  *
  * The device manages a dataspace of its memory region that is directly
  * mapped into the guest memory for reading. The device needs to take care
  * to keep the region up-to-date. Write access to the region still traps
  * into the VMM and needs to be handled programmatically.
  */
-template<typename BASE, typename T>
-struct Read_mapped_mmio_device_t : Mmio_device
+template<typename BASE>
+struct Ro_ds_mapper_t : Mmio_device
 {
-  /**
-   * Construct a partially mapped MMIO region.
-   *
-   * \param size  Size of the region that is mapped read-only to the guest.
-   *
-   * Allocates a new dataspace of the given size and makes it available
-   * for the VMM for reading/writing. The dataspace is mapped uncached
-   * into VMM and guest dataspace because operating systems normally expect
-   * device memory to be uncached.
-   *
-   * \note The device may cover an area that is larger than the area covered
-   *       by the dataspace mapped into the guest. Any read access outside
-   *       the area then needs to be emulated as in the standard MMIO device.
-   */
-  Read_mapped_mmio_device_t(l4_size_t size)
-  : _ds(L4Re::chkcap(L4Re::Util::make_auto_del_cap<L4Re::Dataspace>())),
-    _mapped_size(size)
-  {
-    auto *e = L4Re::Env::env();
-    L4Re::chksys(e->mem_alloc()->alloc(size, _ds.get()));
-    L4Re::chksys(e->rm()->attach(&_mmio_region, size,
-                                 L4Re::Rm::Search_addr
-                                 | L4Re::Rm::Cache_uncached,
-                                 L4::Ipc::make_cap_rw(_ds.get())));
-  }
-
   bool access(l4_addr_t pfa, l4_addr_t offset, Cpu vcpu,
               L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max)
   {
@@ -187,7 +160,7 @@ struct Read_mapped_mmio_device_t : Mmio_device
       dev()->write(offset, insn.width, insn.value, vcpu.get_vcpu_id());
     else
       {
-        if (offset < _mapped_size)
+        if (offset < dev()->mapped_mmio_size())
           map_mmio(pfa, offset, vm_task, min, max);
 
         insn.value = dev()->read(offset, insn.width, vcpu.get_vcpu_id());
@@ -198,11 +171,51 @@ struct Read_mapped_mmio_device_t : Mmio_device
     return true;
   }
 
+  /**
+   * Emulate a read access by accessing the dataspace backing the
+   * MMIO region.
+   * \param offset   The offset (in bytes) inside the MMIO region
+   *                 (and inside the dataspace as the dataspace
+   *                 starts at offset 0 in the MMIO region).
+   * \param width   The width (in log2 bytes) of the memory access.
+   * \param cpuid   The CPU that did the access (has to be ignored).
+   *
+   * \pre `offset + (1UL << width) <= mapped_mmio_size()`
+   * \pre `offset <= 2GB`
+   */
+  l4_uint64_t read(unsigned offset, char width, unsigned cpuid)
+  {
+    (void) cpuid; // must be ignored by this implementation because
+                  // we have no CPU-local mappings of our dataspace.
+    if (0)
+      printf("MMIO/RO/DS read: offset=%x (%u) [0x%lx] = %x\n", offset,
+             (unsigned)width, local_addr() + offset,
+             *((l4_uint32_t*)(local_addr() + offset)));
+
+    // limit MMIO regions to 2GB
+    assert (offset <= 0x80000000);
+    assert (offset + (1UL << width) <= dev()->mapped_mmio_size());
+
+    // only naturally aligned accesses are allowed
+    if (L4_UNLIKELY(offset & ((1UL << width) - 1)))
+      return 0;
+
+    l4_addr_t l = local_addr() + offset;
+
+    switch (width) {
+      case Mem_access::Wd8:  return *reinterpret_cast<l4_uint8_t *>(l);
+      case Mem_access::Wd16: return *reinterpret_cast<l4_uint16_t *>(l);
+      case Mem_access::Wd32: return *reinterpret_cast<l4_uint32_t *>(l);
+      case Mem_access::Wd64: return *reinterpret_cast<l4_uint64_t *>(l);
+      default: return 0; // unsupported width
+    }
+  }
+
   void map_mmio(l4_addr_t pfa, l4_addr_t offset, L4::Cap<L4::Task> vm_task,
                 l4_addr_t min, l4_addr_t max)
   {
 #ifdef MAP_OTHER
-    auto res = _ds->map(offset, 0, pfa, min, max, vm_task);
+    auto res = dev()->mmio_ds()->map(offset, 0, pfa, min, max, vm_task);
 #else
     unsigned char ps = L4_PAGESHIFT;
 
@@ -227,9 +240,69 @@ private:
   BASE *dev()
   { return static_cast<BASE *>(this); }
 
-  l4_addr_t local_addr() const
-  { return reinterpret_cast<l4_addr_t>(_mmio_region.get()); }
+  BASE const *dev() const
+  { return static_cast<BASE const *>(this); }
 
+  l4_addr_t local_addr() const
+  { return reinterpret_cast<l4_addr_t>(dev()->mmio_local_addr()); }
+};
+
+/**
+ * Mixin for virtual memory-mapped device that allows direct read access to
+ * its memory region.
+ *
+ * \tparam BASE  Type of the device the mixin is used for.
+ * \tparam T     Data type for the device memory region.
+ *
+ * The device manages a dataspace of its memory region that is directly
+ * mapped into the guest memory for reading. The device needs to take care
+ * to keep the region up-to-date. Write access to the region still traps
+ * into the VMM and needs to be handled programmatically.
+ */
+template<typename BASE, typename T>
+struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
+{
+  /**
+   * Construct a partially mapped MMIO region.
+   *
+   * \param size  Size of the region that is mapped read-only to the guest.
+   *
+   * Allocates a new dataspace of the given size and makes it available
+   * for the VMM for reading/writing. The dataspace is mapped uncached
+   * into VMM and guest dataspace because operating systems normally expect
+   * device memory to be uncached.
+   *
+   * \note The device may cover an area that is larger than the area covered
+   *       by the dataspace mapped into the guest. Any read access outside
+   *       the area then needs to be emulated as in the standard MMIO device.
+   */
+  explicit Read_mapped_mmio_device_t(l4_size_t size)
+  : _mapped_size(size)
+  {
+    auto *e = L4Re::Env::env();
+    auto ds = L4Re::chkcap(L4Re::Util::make_auto_del_cap<L4Re::Dataspace>());
+    L4Re::chksys(e->mem_alloc()->alloc(size, ds.get()));
+
+    L4Re::Rm::Auto_region<T *> mem;
+    L4Re::chksys(e->rm()->attach(&mem, size,
+                                 L4Re::Rm::Search_addr
+                                 | L4Re::Rm::Cache_uncached,
+                                 L4::Ipc::make_cap_rw(ds.get())));
+
+    _mmio_region = mem;
+    _ds = ds;
+  }
+
+  l4_size_t mapped_mmio_size() const
+  { return _mapped_size; }
+
+  L4::Cap<L4Re::Dataspace> mmio_ds() const
+  { return _ds.get(); }
+
+  T *mmio_local_addr() const
+  { return _mmio_region.get(); }
+
+private:
   L4Re::Util::Auto_del_cap<L4Re::Dataspace>::Cap _ds;
 
 protected:
