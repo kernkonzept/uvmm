@@ -37,12 +37,19 @@ class Vcpu_ic : public Ic
   };
 
 public:
-  Vcpu_ic(Vmm::Cpu vcpu)
-  : _cpu(vcpu), _irqvec(0)
+  Vcpu_ic()
+  : _cpu_irq(L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4::Irq>(),
+                          "allocate vcpu notification interrupt")),
+    _irqvec(0)
   {
     for (size_t i = Min_irq; i <= Max_irq; ++i)
       _pending[i - Min_irq] = 0;
+
+    L4Re::Env::env()->factory()->create(_cpu_irq.get());
   }
+
+  void attach_cpu_thread(L4::Cap<L4::Thread> thread)
+  { L4Re::chksys(_cpu_irq->attach(0, thread)); }
 
   void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &,
                    Vmm::Guest *, Vmm::Virt_bus *) override
@@ -55,7 +62,7 @@ public:
     if (++_pending[irq - Min_irq] == 1)
       {
         _irqvec |= 1UL << (irq - Min_irq);
-        _cpu.ping();
+        _cpu_irq->trigger();
       }
   }
 
@@ -66,7 +73,7 @@ public:
     if (--_pending[irq - Min_irq] == 0)
       {
         _irqvec &= ~(1UL << (irq - Min_irq));
-        _cpu.ping();
+        _cpu_irq->trigger();
       }
   }
 
@@ -116,7 +123,7 @@ public:
   }
 
 private:
-  Vmm::Cpu _cpu;
+  L4Re::Util::Auto_cap<L4::Irq>::Cap _cpu_irq;
   /// Cached output pending array.
   l4_uint32_t _irqvec;
   /// Count for each interrupt the number of incomming sources.
@@ -141,17 +148,24 @@ class Mips_core_ic : public virtual Vdev::Dev_ref
   };
 
 public:
-  Mips_core_ic() = default;
+  Mips_core_ic()
+  {
+    // there always is an IC for CPU 0
+    _core_ics[0] = Vdev::make_device<Vcpu_ic>();
+  }
+
   virtual ~Mips_core_ic() = default;
 
-  void create_ic(unsigned i, Vmm::Cpu vcpu)
+  void create_ic(unsigned i, L4::Cap<L4::Thread> thread)
   {
     assert(i <= Max_ics);
     // start up one core IC per vcpu
-    _core_ics[i] = Vdev::make_device<Gic::Vcpu_ic>(vcpu);
+    if (!_core_ics[i])
+      _core_ics[i] = Vdev::make_device<Vcpu_ic>();
+    _core_ics[i]->attach_cpu_thread(thread);
   }
 
-  cxx::Ref_ptr<Gic::Vcpu_ic> get_ic(unsigned cpuid) const
+  cxx::Ref_ptr<Vcpu_ic> get_ic(unsigned cpuid) const
   {
     assert(cpuid < Max_ics);
     return _core_ics[cpuid];
@@ -184,7 +198,7 @@ public:
   }
 
 private:
-  cxx::Ref_ptr<Gic::Vcpu_ic> _core_ics[Max_ics];
+  cxx::Ref_ptr<Vcpu_ic> _core_ics[Max_ics];
 };
 
 } // namespace

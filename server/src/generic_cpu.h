@@ -10,7 +10,10 @@
 #pragma once
 
 #include <pthread.h>
+#include <pthread-l4.h>
 
+#include <l4/re/error_helper>
+#include <l4/re/env>
 #include <l4/re/rm>
 #include <l4/sys/task>
 
@@ -57,6 +60,9 @@ public:
    * Start CPU, run through reset and resume to the VM.
    */
   void startup();
+
+  L4::Cap<L4::Thread> thread_cap() const
+  { return L4::Cap<L4::Thread>(pthread_l4_cap(_thread)); }
 
 protected:
   Cpu _vcpu;

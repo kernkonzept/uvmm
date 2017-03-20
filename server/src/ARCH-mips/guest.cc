@@ -102,12 +102,8 @@ Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
 void
 Guest::run(cxx::Ref_ptr<Vcpu_array> const &cpus)
 {
-  // set up the core ICs
-  for (unsigned i = 0; i < Vcpu_array::Max_cpus; ++i)
-    if (cpus->vcpu_exists(i))
-      _core_ic->create_ic(i, cpus->vcpu(i));
-
   _cpc->register_cpus(cpus);
+
   for (auto cpu: *cpus.get())
     {
       if (!cpu)
@@ -115,6 +111,9 @@ Guest::run(cxx::Ref_ptr<Vcpu_array> const &cpus)
 
       cpu->vcpu()->user_task = _task.cap();
       cpu->powerup_cpu();
+
+      // attach the core IC
+      _core_ic->create_ic(cpu->vcpu().get_vcpu_id(), cpu->thread_cap());
     }
 
   cpus->cpu(0)->set_coherent();

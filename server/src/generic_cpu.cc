@@ -9,9 +9,7 @@
 
 #include "generic_cpu.h"
 
-#include <pthread.h>
-#include <pthread-l4.h>
-
+#include <cstdio>
 #include <cstring>
 
 #include <l4/sys/debugger.h>
