@@ -210,29 +210,29 @@ set_verbosity(char const *str)
     }
 }
 
-static int use_wakeup_inhibitor = 0;
-static char const *const options = "+k:d:p:r:c:b:vqD:";
-static struct option const loptions[] =
-  {
-    { "kernel",   1, NULL, 'k' },
-    { "dtb",      1, NULL, 'd' },
-    { "dtb-padding", 1, NULL, 'p' },
-    { "ramdisk",  1, NULL, 'r' },
-    { "cmdline",  1, NULL, 'c' },
-    { "rambase",  1, NULL, 'b' },
-    { "debug",    1, NULL, 'D' },
-    { "verbose",  0, NULL, 'v' },
-    { "quiet",    0, NULL, 'q' },
-    { "wakeup-on-system-resume", 0, &use_wakeup_inhibitor, 1},
-    { 0, 0, 0, 0}
-  };
-
 static int run(int argc, char *argv[])
 {
   L4Re::Env const *e = L4Re::Env::env();
   unsigned long verbosity = Dbg::Warn;
 
   Dbg::set_verbosity(verbosity);
+
+  int use_wakeup_inhibitor = 0;
+  char const *const options = "+k:d:p:r:c:b:vqD:";
+  struct option const loptions[] =
+    {
+      { "kernel",   1, NULL, 'k' },
+      { "dtb",      1, NULL, 'd' },
+      { "dtb-padding", 1, NULL, 'p' },
+      { "ramdisk",  1, NULL, 'r' },
+      { "cmdline",  1, NULL, 'c' },
+      { "rambase",  1, NULL, 'b' },
+      { "debug",    1, NULL, 'D' },
+      { "verbose",  0, NULL, 'v' },
+      { "quiet",    0, NULL, 'q' },
+      { "wakeup-on-system-resume", 0, &use_wakeup_inhibitor, 1},
+      { 0, 0, 0, 0}
+    };
 
   char const *cmd_line     = nullptr;
   char const *kernel_image = "rom/zImage";
