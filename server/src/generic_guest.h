@@ -87,7 +87,7 @@ public:
     // XXX Only halts the current CPU. For the SMP case some
     // further signaling might be required.
     Err().printf("VM entered a fatal state. Halting.\n");
-    pm.free_inhibitors();
+    _pm.free_inhibitors();
     for (;;)
       wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
   }
@@ -98,18 +98,6 @@ public:
     if (r.label() != -L4_ENOREPLY)
       l4_ipc_send(L4_INVALID_CAP | L4_SYSF_REPLY, utcb, r,
                   L4_IPC_SEND_TIMEOUT_0);
-  }
-
-  void process_pending_ipc(Cpu vcpu, l4_utcb_t *utcb)
-  {
-    while (vcpu->sticky_flags & L4_VCPU_SF_IRQ_PENDING)
-      {
-        l4_umword_t src;
-        _bm.setup_wait(utcb, L4::Ipc_svr::Reply_separate);
-        l4_msgtag_t res = l4_ipc_wait(utcb, &src, L4_IPC_BOTH_TIMEOUT_0);
-        if (!res.has_error())
-          handle_ipc(res, src, utcb);
-      }
   }
 
   bool handle_mmio(l4_addr_t pfa, Cpu vcpu)
@@ -172,6 +160,22 @@ public:
       handle_ipc(tag, src, utcb);
   }
 
+  void use_wakeup_inhibitor(bool wakeup_inhibitor)
+  { _pm.use_wakeup_inhibitor(wakeup_inhibitor); }
+
+protected:
+  void process_pending_ipc(Cpu vcpu, l4_utcb_t *utcb)
+  {
+    while (vcpu->sticky_flags & L4_VCPU_SF_IRQ_PENDING)
+      {
+        l4_umword_t src;
+        _bm.setup_wait(utcb, L4::Ipc_svr::Reply_separate);
+        l4_msgtag_t res = l4_ipc_wait(utcb, &src, L4_IPC_BOTH_TIMEOUT_0);
+        if (!res.has_error())
+          handle_ipc(res, src, utcb);
+      }
+  }
+
   static Dbg warn()
   { return Dbg(Dbg::Core, Dbg::Warn); }
 
@@ -187,10 +191,8 @@ public:
   Ram_ds _ram;
   L4Re::Util::Auto_cap<L4::Task>::Cap _task;
   L4virtio::Ptr<void> _device_tree;
-  Pm pm;
-  Vbus_event vbus_event;
-
-protected:
+  Pm _pm;
+  Vbus_event _vbus_event;
   L4::Cap<L4Re::Dataspace> _mmio_fallback;
 
 private:

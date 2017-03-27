@@ -30,7 +30,7 @@ Generic_guest::Generic_guest(L4::Cap<L4Re::Dataspace> ram,
                "allocate vm");
   l4_debugger_set_object_name(_task.get().cap(), "vm-task");
 
-  vbus_event.register_obj(registry());
+  _vbus_event.register_obj(registry());
 }
 
 L4virtio::Ptr<void>

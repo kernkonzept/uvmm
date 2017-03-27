@@ -291,7 +291,7 @@ static int run(int argc, char *argv[])
 
   auto vbus = cxx::make_ref_obj<Vmm::Virt_bus>(vbus_cap);
   auto vmm = Vmm::Guest::create_instance(ram, rambase);
-  vmm->pm.use_wakeup_inhibitor(use_wakeup_inhibitor);
+  vmm->use_wakeup_inhibitor(use_wakeup_inhibitor);
   auto vcpus = Vdev::make_device<Vmm::Vcpu_array>();
   auto mon = create_monitor(vmm, vcpus);
 

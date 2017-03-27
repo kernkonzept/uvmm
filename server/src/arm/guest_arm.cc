@@ -289,6 +289,19 @@ Guest::reset_vcpu(Cpu vcpu)
   myself->vcpu_resume_commit(myself->vcpu_resume_start());
 }
 
+l4_msgtag_t
+Guest::handle_entry(Cpu vcpu)
+{
+  auto *utcb = l4_utcb();
+
+  process_pending_ipc(vcpu, utcb);
+  _gic->schedule_irqs(vmm_current_cpu_id);
+
+  L4::Cap<L4::Thread> myself;
+  return myself->vcpu_resume_start(utcb);
+}
+
+
 bool
 Guest::handle_psci_call(Cpu &vcpu)
 {
@@ -373,7 +386,7 @@ Guest::handle_psci_call(Cpu &vcpu)
       break;
 
     case SYSTEM_OFF:
-      pm.shutdown();
+      _pm.shutdown();
       exit(0);
 
     case PSCI_FEATURES:
@@ -412,10 +425,10 @@ Guest::handle_psci_call(Cpu &vcpu)
             }
 
           /* Go to sleep */
-          if (pm.suspend())
+          if (_pm.suspend())
             wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
           /* Back alive */
-          pm.resume();
+          _pm.resume();
 
           memset(&vcpu->r, 0, sizeof(vcpu->r));
           vcpu->r.ip    = entry_gpa;
@@ -565,13 +578,7 @@ static void guest_mcr_access(Cpu vcpu)
 
 extern "C" l4_msgtag_t prepare_guest_entry(Cpu vcpu);
 l4_msgtag_t prepare_guest_entry(Cpu vcpu)
-{
-  auto *utcb = l4_utcb();
-  guest->process_pending_ipc(vcpu, utcb);
-  guest->gic()->schedule_irqs(vmm_current_cpu_id);
-  L4::Cap<L4::Thread> myself;
-  return myself->vcpu_resume_start(utcb);
-}
+{ return guest->handle_entry(vcpu); }
 
 } // namespace
 
