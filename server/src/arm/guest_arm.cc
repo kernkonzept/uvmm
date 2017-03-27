@@ -389,6 +389,10 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
       _pm.shutdown();
       exit(0);
 
+    case SYSTEM_RESET:
+      _pm.shutdown(true);
+      exit(102); // 0x66 is also used by our syscon config
+
     case PSCI_FEATURES:
         {
           unsigned feat_func = vcpu->r.r[1] & 0xff;
