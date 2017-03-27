@@ -246,6 +246,8 @@ static int run(int argc, char *argv[])
     {
       switch (opt)
         {
+        case 0:
+          break;
         case 'c': cmd_line     = optarg; break;
         case 'k': kernel_image = optarg; break;
         case 'd': device_tree  = optarg; break;
