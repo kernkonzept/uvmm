@@ -130,7 +130,7 @@ Pm::shutdown(bool reboot)
 {
   free_inhibitors();
 
-  if (l4_error(_pfc->system_shutdown(reboot)))
+  if (_pfc && l4_error(_pfc->system_shutdown(reboot)))
     warn.printf("Call to shutdown failed.\n");
 }
 
