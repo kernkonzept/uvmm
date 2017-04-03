@@ -1,0 +1,79 @@
+From 247e6cca1bbfcd1cc8442d3f0e4cc359d9453550 Mon Sep 17 00:00:00 2001
+From: Philipp Eppelt <philipp.eppelt@kernkonzept.com>
+Date: Thu, 6 Apr 2017 14:34:45 +0200
+Subject: [PATCH] L4Re UVMM: early_printk patch & l4re-uvmm-virt.config for
+ amd64
+
+---
+ arch/x86/configs/l4re-uvmm-virt.config | 21 +++++++++++++++++++++
+ arch/x86/kernel/early_printk.c         | 19 +++++++++++++++++++
+ 2 files changed, 40 insertions(+)
+ create mode 100644 arch/x86/configs/l4re-uvmm-virt.config
+
+diff --git a/arch/x86/configs/l4re-uvmm-virt.config b/arch/x86/configs/l4re-uvmm-virt.config
+new file mode 100644
+index 0000000..6c2e94f
+--- /dev/null
++++ b/arch/x86/configs/l4re-uvmm-virt.config
+@@ -0,0 +1,21 @@
++CONFIG_KERNEL_XZ=y
++CONFIG_BLK_DEV_INITRD=y
++CONFIG_CC_STACKPROTECTOR_REGULAR=y
++CONFIG_PCI_MSI=y
++CONFIG_OF=y
++CONFIG_BLK_DEV_RAM=y
++CONFIG_BLK_DEV_RAM_SIZE=16384
++CONFIG_VIRTIO_BLK=y
++CONFIG_SERIO_RAW=y
++CONFIG_VT_HW_CONSOLE_BINDING=y
++CONFIG_VIRTIO_CONSOLE=y
++CONFIG_HW_RANDOM_VIRTIO=y
++CONFIG_VIRTIO_PCI=y
++# CONFIG_VIRTIO_PCI_LEGACY is not set
++CONFIG_VIRTIO_INPUT=y
++CONFIG_EXT3_FS=y
++CONFIG_TMPFS=y
++CONFIG_MESSAGE_LOGLEVEL_DEFAULT=7
++CONFIG_DEBUG_FS=y
++CONFIG_STACKTRACE=y
++CONFIG_MEMTEST=y
+diff --git a/arch/x86/kernel/early_printk.c b/arch/x86/kernel/early_printk.c
+index 8a12199..2639abb 100644
+--- a/arch/x86/kernel/early_printk.c
++++ b/arch/x86/kernel/early_printk.c
+@@ -316,6 +316,21 @@ static struct console early_serial_console = {
+ 	.index =	-1,
+ };
+ 
++static void early_vmcall_write(struct console *con, const char *s, unsigned n)
++{
++      while (*s && n-- > 0) {
++              asm("vmcall" : : "a"(0), "c"(*s));
++              s++;
++      }
++}
++
++static struct console early_vmcall_console = {
++      .name =         "earlvmcall",
++      .write =        early_vmcall_write,
++      .flags =        CON_PRINTBUFFER,
++      .index =        -1,
++};
++
+ static void early_console_register(struct console *con, int keep_early)
+ {
+ 	if (con->index != -1) {
+@@ -344,6 +359,10 @@ static int __init setup_early_printk(char *buf)
+ 	keep = (strstr(buf, "keep") != NULL);
+ 
+ 	while (*buf != '\0') {
++		if (!strncmp(buf, "vmcall", 6)) {
++			buf += 6;
++			early_console_register(&early_vmcall_console, keep);
++		}
+ 		if (!strncmp(buf, "serial", 6)) {
+ 			buf += 6;
+ 			early_serial_init(buf);
+-- 
+2.9.4
+

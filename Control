@@ -1,2 +1,2 @@
-requires: stdlibs libstdc++ libpthread libio-vbus libfdt l4virtio libloader
+requires: stdlibs libstdc++ libpthread libio-vbus libfdt l4virtio libloader libvcpu
 maintainer: alexander.warg@kernkonzept.com adam@l4re.org

@@ -3,7 +3,7 @@ L4DIR  ?= $(PKGDIR)/../..
 
 include $(L4DIR)/mk/Makeconf
 
-SYSTEMS         = arm-l4f mips-l4f arm64-l4f
+SYSTEMS         = arm-l4f mips-l4f arm64-l4f amd64-l4f
 TARGET          = uvmm
 SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   cpu_dev_array.cc generic_cpu_dev.cc \
@@ -20,6 +20,9 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
 SRC_CC-arm   = arm/gic.cc arm/guest_arm.cc
 SRC_CC-arm64 = arm/gic.cc arm/guest_arm.cc
 SRC_CC-mips  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc
+SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
+               ARCH-amd64/rtc.cc ARCH-amd64/virt_lapic.cc \
+               ARCH-amd64/vcpu_ptr.cc ARCH-amd64/vm_state_vmx.cc
 
 ifeq ($(ARCH),mips)
 SRC_CC        += ARCH-$(ARCH)/guest_entry.cc
@@ -30,7 +33,7 @@ endif
 
 SRC_CC        += $(SRC_CC-$(ARCH))
 
-REQUIRES_LIBS   = libstdc++ libio-vbus libfdt libpthread
+REQUIRES_LIBS   = libstdc++ libio-vbus libfdt libpthread libvcpu
 
 PRIVATE_INCDIR  = $(SRC_DIR)/../include $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
 PRIVATE_INCDIR-arm += $(SRC_DIR)/arm

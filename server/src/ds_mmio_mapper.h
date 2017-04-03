@@ -74,19 +74,14 @@ class Ds_handler : public Vmm::Mmio_device
     return buf;
   }
 
-#ifndef MAP_OTHER
   l4_addr_t _local_start;
-#endif
 
 public:
   explicit Ds_handler(L4::Cap<L4Re::Dataspace> ds,
                       l4_addr_t local_start,
                       l4_size_t size = 0,
                       l4_addr_t offset = 0)
-    : _ds(ds), _offset(offset)
-#ifndef MAP_OTHER
-      , _local_start(local_start)
-#endif
+    : _ds(ds), _offset(offset), _local_start(local_start)
   {
 #ifndef MAP_OTHER
     if (local_start == 0)
@@ -109,4 +104,6 @@ public:
       }
 #endif
   }
+
+  l4_addr_t local_start() const { return _local_start; }
 };

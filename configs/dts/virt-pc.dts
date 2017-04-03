@@ -1,0 +1,49 @@
+/*
+ * Device tree for a virtual machine without any hardware pass-through.
+ */
+
+/dts-v1/;
+
+/include/ "skeleton64.dtsi"
+
+/ {
+        model = "L4 VM";
+        compatible = "l4,virt", "linux,dummy-virt";
+
+        apic_array {
+            compatible = "apic-dist";
+            reg = <0x0 0xfee00000 0x0 0x00001000>;
+        };
+
+        cpus {
+          #address-cells = <1>;
+          #size-cells = <0>;
+
+            cpu0 {
+                device_type = "cpu";
+                compatible = "virt-intel";
+                reg = <0>;
+
+                #address-cells = <2>;
+                #size-cells = <2>;
+                lapic0@fee00000 {
+                    compatible = "virt-lapic";
+                    reg = <0x0 0xfee00000 0x0 0x00001000>;
+                    interrupt-controller;
+                    #interrupt-cells = <1>;
+                };
+            };
+        };
+
+        pit {
+          compatible = "virt-pit";
+          reg = <0x0 0x0 0x0 0x0>;
+          interrupt-parent = <&{/cpus/cpu0/lapic0@fee00000}>;
+        };
+
+        rtc {
+            compatible = "virt-rtc";
+            reg = <0x0 0x0 0x0 0x0>;
+        };
+
+};
