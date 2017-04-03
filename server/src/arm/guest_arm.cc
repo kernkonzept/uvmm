@@ -303,7 +303,7 @@ Guest::handle_entry(Vcpu_ptr vcpu)
 
 
 bool
-Guest::handle_psci_call(Vcpu_ptr &vcpu)
+Guest::handle_psci_call(Vcpu_ptr vcpu)
 {
   enum Psci_error_codes
   {

@@ -48,7 +48,7 @@ public:
 
   void run(cxx::Ref_ptr<Cpu_dev_array> const &cpus);
 
-  int dispatch_hypcall(Hypcall_code hypcall_code, Vcpu_ptr &vcpu);
+  int dispatch_hypcall(Hypcall_code hypcall_code, Vcpu_ptr vcpu);
   void handle_entry(Vcpu_ptr vcpu);
 
   void show_state_interrupts(FILE *f, Vcpu_ptr vcpu)

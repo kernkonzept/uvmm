@@ -49,8 +49,7 @@ public:
   cxx::Ref_ptr<Vdev::Core_timer> timer() const
   { return _timer; }
 
-  void dispatch_vm_call(Vcpu_ptr &vcpu);
-  bool handle_psci_call(Vcpu_ptr &vcpu);
+  bool handle_psci_call(Vcpu_ptr vcpu);
 
 private:
   void arm_update_device_tree();

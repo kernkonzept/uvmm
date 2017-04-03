@@ -121,7 +121,7 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
 }
 
 int
-Guest::dispatch_hypcall(Hypcall_code hypcall_code, Vcpu_ptr &vcpu)
+Guest::dispatch_hypcall(Hypcall_code hypcall_code, Vcpu_ptr vcpu)
 {
   switch (hypcall_code)
   {
