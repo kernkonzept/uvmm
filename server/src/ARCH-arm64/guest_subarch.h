@@ -39,7 +39,7 @@ namespace Vmm {
 enum { Guest_64bit_supported = true };
 
 static void
-dump(Cpu vcpu)
+dump(Vcpu_ptr vcpu)
 {
   for (unsigned i = 0; i < 31; ++i)
     printf("x%2d:%16lx%s", i, vcpu->r.r[i], (i % 4) == 3 ? "\n" : "  ");
@@ -51,7 +51,7 @@ dump(Cpu vcpu)
 }
 
 inline void
-print_mrs_msr(Cpu vcpu, Vmm::Arm::Hsr hsr)
+print_mrs_msr(Vcpu_ptr vcpu, Vmm::Arm::Hsr hsr)
 {
   if (hsr.msr_read())
     printf("%08lx: mrs x%d, S%d_%d_C%d_C%d_%d\n",
@@ -74,7 +74,7 @@ print_mrs_msr(Cpu vcpu, Vmm::Arm::Hsr hsr)
   dump(vcpu);
 }
 
-static void guest_msr_access(Cpu vcpu)
+static void guest_msr_access(Vcpu_ptr vcpu)
 {
   auto hsr = vcpu.hsr();
   switch (hsr.msr_sysreg())

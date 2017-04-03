@@ -47,7 +47,7 @@ struct Mem_access
   char width;
 };
 
-class Generic_cpu
+class Generic_vcpu_ptr
 {
 public:
   l4_vcpu_state_t *operator -> () const noexcept
@@ -97,7 +97,7 @@ protected:
 
   static_assert(Reg_arch_base <= 7, "Too many user_data registers used");
 
-  explicit Generic_cpu(l4_vcpu_state_t *s) : _s(s) {}
+  explicit Generic_vcpu_ptr(l4_vcpu_state_t *s) : _s(s) {}
 
   static l4_umword_t reg_extend_width(l4_umword_t value, char size, bool signext)
   {

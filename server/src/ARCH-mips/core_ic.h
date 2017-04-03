@@ -14,7 +14,7 @@
 #include <l4/cxx/bitfield>
 
 #include "irq.h"
-#include "vcpu.h"
+#include "vcpu_ptr.h"
 
 namespace Gic {
 
@@ -108,7 +108,7 @@ public:
     return _irqvec;
   }
 
-  void show_state(FILE *f, Vmm::Cpu vcpu)
+  void show_state(FILE *f, Vmm::Vcpu_ptr vcpu)
   {
     auto *s = vcpu.state();
     s->update_state(L4_VM_MOD_STATUS);
@@ -171,7 +171,7 @@ public:
     return _core_ics[cpuid];
   }
 
-  void update_vcpu(Vmm::Cpu vcpu)
+  void update_vcpu(Vmm::Vcpu_ptr vcpu)
   {
     unsigned cpuid = vcpu.get_vcpu_id();
 
@@ -190,7 +190,7 @@ public:
     vcpu.state()->set_modified(L4_VM_MOD_GUEST_CTL_2);
   }
 
-  void show_state(FILE *f, Vmm::Cpu vcpu)
+  void show_state(FILE *f, Vmm::Vcpu_ptr vcpu)
   {
     unsigned cpuid = vcpu.get_vcpu_id();
     if (_core_ics[cpuid])

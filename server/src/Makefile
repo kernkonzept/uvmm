@@ -6,8 +6,8 @@ include $(L4DIR)/mk/Makeconf
 SYSTEMS         = arm-l4f mips-l4f arm64-l4f
 TARGET          = uvmm
 SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
-                  vcpu_array.cc generic_cpu.cc \
-                  ARCH-$(ARCH)/cpu.cc \
+                  cpu_dev_array.cc generic_cpu_dev.cc \
+                  ARCH-$(ARCH)/cpu_dev.cc \
                   device_factory.cc \
                   virtio_console.cc \
                   virtio_proxy.cc \

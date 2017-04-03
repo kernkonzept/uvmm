@@ -15,7 +15,7 @@
 #include <l4/sys/thread_mips.h>
 #include <l4/sys/vm.h>
 
-#include "generic_vcpu.h"
+#include "generic_vcpu_ptr.h"
 #include "mips_instructions.h"
 
 namespace Vmm {
@@ -76,10 +76,10 @@ struct State : l4_vm_state_t
   { l4_thread_mips_save_vm_state(L4_INVALID_CAP, bits); }
 };
 
-class Cpu : public Generic_cpu
+class Vcpu_ptr : public Generic_vcpu_ptr
 {
 public:
-  explicit Cpu(l4_vcpu_state_t *s) : Generic_cpu(s) {}
+  explicit Vcpu_ptr(l4_vcpu_state_t *s) : Generic_vcpu_ptr(s) {}
 
   bool pf_write() const
   { return _s->r.cause & 4; }

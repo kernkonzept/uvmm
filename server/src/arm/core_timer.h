@@ -11,7 +11,7 @@
 
 #include "device.h"
 #include "irq.h"
-#include "vcpu.h"
+#include "vcpu_ptr.h"
 
 namespace Vdev {
 
@@ -125,7 +125,7 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
     int size;
 
     auto prop = self.get_prop<fdt32_t>(frq_prop, &size);
-    cntfrq = Vmm::Cpu::cntfrq();
+    cntfrq = Vmm::Vcpu_ptr::cntfrq();
 
     if (prop)
       {

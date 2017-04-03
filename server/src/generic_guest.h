@@ -100,7 +100,7 @@ public:
                   L4_IPC_SEND_TIMEOUT_0);
   }
 
-  bool handle_mmio(l4_addr_t pfa, Cpu vcpu)
+  bool handle_mmio(l4_addr_t pfa, Vcpu_ptr vcpu)
   {
     Vm_mem::const_iterator f = _memmap.find(pfa);
 
@@ -164,7 +164,7 @@ public:
   { _pm.use_wakeup_inhibitor(wakeup_inhibitor); }
 
 protected:
-  void process_pending_ipc(Cpu vcpu, l4_utcb_t *utcb)
+  void process_pending_ipc(Vcpu_ptr vcpu, l4_utcb_t *utcb)
   {
     while (vcpu->sticky_flags & L4_VCPU_SF_IRQ_PENDING)
       {

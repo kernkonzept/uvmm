@@ -9,15 +9,15 @@
 
 #include <cassert>
 
-#include "aarch64_hyp.h"
-#include "generic_vcpu.h"
+#include "aarch32_hyp.h"
+#include "generic_vcpu_ptr.h"
 
 namespace Vmm {
 
-class Cpu : public Generic_cpu
+class Vcpu_ptr : public Generic_vcpu_ptr
 {
 public:
-  explicit Cpu(l4_vcpu_state_t *s) : Generic_cpu(s) {}
+  explicit Vcpu_ptr(l4_vcpu_state_t *s) : Generic_vcpu_ptr(s) {}
 
   bool pf_write() const
   { return hsr().pf_write(); }
@@ -25,39 +25,28 @@ public:
   static l4_uint32_t cntfrq()
   {
     l4_uint32_t x;
-    asm volatile ("mrs %0, CNTFRQ_EL0" : "=r"(x));
+    asm volatile("mrc  p15, 0, %0, c14, c0, 0" : "=r" (x));
     return x;
   }
 
   static l4_uint64_t cntvct()
   {
     l4_uint64_t x;
-    asm volatile ("mrs %0, CNTVCT_EL0" : "=r"(x));
+    asm volatile ("mrrc p15, 1, %Q0, %R0, c14" : "=r"(x));
     return x;
   }
 
   static l4_uint64_t cntv_cval()
   {
     l4_uint64_t x;
-    asm volatile ("mrs %0, CNTV_CVAL_EL0" : "=r"(x));
+    asm volatile ("mrrc p15, 3, %Q0, %R0, c14" : "=r"(x));
     return x;
-  }
-
-  void *saved_tls() const
-  { return reinterpret_cast<void **>((char *)_s + L4_VCPU_OFFSET_EXT_INFOS)[1]; }
-
-  l4_utcb_t *restore_on_entry() const
-  {
-    asm volatile("msr TPIDR_EL0, %0" : : "r"(saved_tls()));
-    return reinterpret_cast<l4_utcb_t **>((char *)_s + L4_VCPU_OFFSET_EXT_INFOS)[0]; 
   }
 
   void thread_attach()
   {
     control_ext(L4::Cap<L4::Thread>());
-    void **x = reinterpret_cast<void **>((char *)_s + L4_VCPU_OFFSET_EXT_INFOS);
-    x[0] = l4_utcb();
-    asm volatile ("mrs %0, TPIDR_EL0" : "=r"(x[1]));
+    *reinterpret_cast<l4_utcb_t **>((char *)_s + L4_VCPU_OFFSET_EXT_INFOS) = l4_utcb();
   }
 
   Arm::State *state()
@@ -71,23 +60,35 @@ public:
 
   l4_umword_t get_gpr(unsigned x) const
   {
-    if (x < 31)
-      return _s->r.r[x];
-    else
+    if (L4_UNLIKELY(x > 14))
       return 0;
+
+    switch (x)
+      {
+      case 14: return _s->r.lr;
+      case 13: return _s->r.sp;
+      default: return _s->r.r[x];
+      }
   }
 
   void set_gpr(unsigned x, l4_umword_t value) const
   {
-    if (x < 31)
-      _s->r.r[x] = value;
+    if (L4_UNLIKELY(x > 14))
+      return;
+
+    switch (x)
+      {
+      case 14: _s->r.lr = value; break;
+      case 13: _s->r.sp = value; break;
+      default: _s->r.r[x] = value; break;
+      }
   }
 
   Mem_access decode_mmio() const
   {
     Mem_access m;
 
-    if (!hsr().pf_isv())
+    if (!hsr().pf_isv() || hsr().pf_srt() > 14)
       {
         m.access = Mem_access::Other;
         return m;

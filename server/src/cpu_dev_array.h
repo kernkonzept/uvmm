@@ -14,14 +14,14 @@
 
 #include <debug.h>
 #include <device.h>
-#include <cpu.h>
+#include <cpu_dev.h>
 
 namespace Vmm {
 
 /**
  * Abstract CPU container.
  */
-class Vcpu_array : public virtual Vdev::Dev_ref
+class Cpu_dev_array : public virtual Vdev::Dev_ref
 {
   /**
    * Helper class that distributes threads evenly to all available
@@ -78,7 +78,7 @@ public:
   /// Maximum number of supported CPUs.
   enum { Max_cpus = 32 };
 
-  Vcpu_array()
+  Cpu_dev_array()
   {
     // Per default a single-core system is created.
     // Other CPUs can be added via the device tree configuration.
@@ -87,7 +87,7 @@ public:
     assert(_cpus[0]);
   }
 
-  virtual ~Vcpu_array() = default;
+  virtual ~Cpu_dev_array() = default;
 
   bool vcpu_exists(unsigned cpuid) const
   {
@@ -95,7 +95,7 @@ public:
     return !!_cpus[cpuid];
   }
 
-  Cpu vcpu(unsigned cpuid) const
+  Vcpu_ptr vcpu(unsigned cpuid) const
   {
     assert(vcpu_exists(cpuid));
     return _cpus[cpuid]->vcpu();

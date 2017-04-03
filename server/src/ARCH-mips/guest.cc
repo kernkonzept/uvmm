@@ -56,7 +56,7 @@ Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
 }
 
 void
-Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
+Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const *kernel,
                          char const *cmd_line)
 {
   /*
@@ -100,7 +100,7 @@ Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
 }
 
 void
-Guest::run(cxx::Ref_ptr<Vcpu_array> const &cpus)
+Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
 {
   _cpc->register_cpus(cpus);
 
@@ -121,7 +121,7 @@ Guest::run(cxx::Ref_ptr<Vcpu_array> const &cpus)
 }
 
 int
-Guest::dispatch_hypcall(Hypcall_code hypcall_code, Cpu &vcpu)
+Guest::dispatch_hypcall(Hypcall_code hypcall_code, Vcpu_ptr &vcpu)
 {
   switch (hypcall_code)
   {
@@ -135,7 +135,7 @@ Guest::dispatch_hypcall(Hypcall_code hypcall_code, Cpu &vcpu)
 }
 
 void
-Guest::handle_entry(Cpu vcpu)
+Guest::handle_entry(Vcpu_ptr vcpu)
 {
   auto *utcb = l4_utcb();
   unsigned cause = (vcpu->r.cause >> 2) & 0x1F;

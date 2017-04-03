@@ -14,7 +14,7 @@
 #include "generic_guest.h"
 #include "gic.h"
 #include "ram_ds.h"
-#include "vcpu_array.h"
+#include "cpu_dev_array.h"
 
 namespace Vmm {
 
@@ -32,16 +32,16 @@ public:
 
   L4virtio::Ptr<void> load_linux_kernel(char const *kernel, l4_addr_t *entry);
 
-  void prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
+  void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const *kernel,
                          char const *cmd_line);
-  void run(cxx::Ref_ptr<Vcpu_array> cpus);
-  void reset_vcpu(Cpu vcpu);
+  void run(cxx::Ref_ptr<Cpu_dev_array> cpus);
+  void reset_vcpu(Vcpu_ptr vcpu);
 
-  l4_msgtag_t handle_entry(Cpu vcpu);
+  l4_msgtag_t handle_entry(Vcpu_ptr vcpu);
 
   static Guest *create_instance(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
 
-  void show_state_interrupts(FILE *, Cpu) {}
+  void show_state_interrupts(FILE *, Vcpu_ptr) {}
 
   cxx::Ref_ptr<Gic::Dist> gic() const
   { return _gic; }
@@ -49,8 +49,8 @@ public:
   cxx::Ref_ptr<Vdev::Core_timer> timer() const
   { return _timer; }
 
-  void dispatch_vm_call(Cpu &vcpu);
-  bool handle_psci_call(Cpu &vcpu);
+  void dispatch_vm_call(Vcpu_ptr &vcpu);
+  bool handle_psci_call(Vcpu_ptr &vcpu);
 
 private:
   void arm_update_device_tree();

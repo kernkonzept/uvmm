@@ -21,7 +21,7 @@ namespace Vdev {
  * This device only implements the global registers of the CM and
  * only emulatates functionality necessary for SMP support.
  * Access to the CPU-local registers are forwarded to the
- * CPC (see Vmm::Vcpu_array).
+ * CPC.
  *
  * Each VCPU is reported as a separate core with exactly one VPE.
  */

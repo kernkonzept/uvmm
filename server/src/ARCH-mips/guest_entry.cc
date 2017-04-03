@@ -10,7 +10,7 @@
 
 #include "guest.h"
 #include "guest_entry.h"
-#include "vcpu.h"
+#include "vcpu_ptr.h"
 
 /// The singleton instance of the VMM.
 static cxx::Static_container<Vmm::Guest> guest;
@@ -146,7 +146,7 @@ c_vcpu_entry(l4_vcpu_state_t *vcpu)
       guest->halt_vm();
     }
 
-  Vmm::Cpu c(vcpu);
+  Vmm::Vcpu_ptr c(vcpu);
   save_fpu(c.fpu_state());
 
   guest->handle_entry(c);

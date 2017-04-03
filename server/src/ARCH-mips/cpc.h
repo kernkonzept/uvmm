@@ -11,14 +11,14 @@
 
 #include "debug.h"
 #include "mmio_device.h"
-#include "vcpu_array.h"
+#include "cpu_dev_array.h"
 
 namespace Vdev {
 
 class Mips_cpc :  public Vmm::Mmio_device_t<Mips_cpc>
 {
 private:
-  enum { Max_cpus = Vmm::Vcpu_array::Max_cpus };
+  enum { Max_cpus = Vmm::Cpu_dev_array::Max_cpus };
   enum Cpc_local_registers
   {
     Cpc_cl_cmd_reg = 0x0,
@@ -42,7 +42,7 @@ public:
     Control_block_size = 0x2000
   };
 
-  void register_cpus(cxx::Ref_ptr<Vmm::Vcpu_array> cpus)
+  void register_cpus(cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus)
   { _cpus = cpus; }
 
   void set_bev_base(l4_umword_t value)
@@ -108,7 +108,7 @@ private:
   void cpc_write_core(unsigned reg, l4_umword_t value, unsigned cpuid);
 
   l4_umword_t _bev_base;
-  cxx::Ref_ptr<Vmm::Vcpu_array> _cpus;
+  cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
 };
 
 }

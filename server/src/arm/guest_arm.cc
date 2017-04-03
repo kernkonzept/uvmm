@@ -24,7 +24,7 @@ static cxx::unique_ptr<Vmm::Guest> guest;
 __thread unsigned vmm_current_cpu_id;
 
 extern "C" void vcpu_entry(l4_vcpu_state_t *vcpu);
-typedef void (*Entry)(Vmm::Cpu vcpu);
+typedef void (*Entry)(Vmm::Vcpu_ptr vcpu);
 
 namespace Vmm {
 
@@ -221,7 +221,7 @@ Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
 }
 
 void
-Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const * /* kernel */,
+Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const * /* kernel */,
                          char const * /* cmd_line */)
 {
   if (Guest_64bit_supported && guest_64bit)
@@ -248,7 +248,7 @@ Guest::prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const * /* kernel */,
 }
 
 void
-Guest::run(cxx::Ref_ptr<Vcpu_array> cpus)
+Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
 {
   auto vcpu = cpus->vcpu(0);
 
@@ -257,7 +257,7 @@ Guest::run(cxx::Ref_ptr<Vcpu_array> cpus)
 }
 
 void
-Guest::reset_vcpu(Cpu vcpu)
+Guest::reset_vcpu(Vcpu_ptr vcpu)
 {
   vcpu->user_task = _task.get().cap();
   vcpu->saved_state =  L4_VCPU_F_FPU_ENABLED
@@ -290,7 +290,7 @@ Guest::reset_vcpu(Cpu vcpu)
 }
 
 l4_msgtag_t
-Guest::handle_entry(Cpu vcpu)
+Guest::handle_entry(Vcpu_ptr vcpu)
 {
   auto *utcb = l4_utcb();
 
@@ -303,7 +303,7 @@ Guest::handle_entry(Cpu vcpu)
 
 
 bool
-Guest::handle_psci_call(Cpu &vcpu)
+Guest::handle_psci_call(Vcpu_ptr &vcpu)
 {
   enum Psci_error_codes
   {
@@ -447,7 +447,7 @@ Guest::handle_psci_call(Cpu &vcpu)
   return true;
 }
 
-static void dispatch_vm_call(Cpu vcpu)
+static void dispatch_vm_call(Vcpu_ptr vcpu)
 {
   if (guest->handle_psci_call(vcpu))
     return;
@@ -457,7 +457,7 @@ static void dispatch_vm_call(Cpu vcpu)
 }
 
 static void
-guest_unknown_fault(Cpu vcpu)
+guest_unknown_fault(Vcpu_ptr vcpu)
 {
   Err().printf("unknown trap: err=%lx ec=0x%x ip=%lx\n",
                vcpu->r.err, (int)vcpu.hsr().ec(), vcpu->r.ip);
@@ -465,7 +465,7 @@ guest_unknown_fault(Cpu vcpu)
 }
 
 static void
-guest_memory_fault(Cpu vcpu)
+guest_memory_fault(Vcpu_ptr vcpu)
 {
   if (!guest->handle_mmio(vcpu->r.pfa, vcpu))
     {
@@ -476,7 +476,7 @@ guest_memory_fault(Cpu vcpu)
 }
 
 static void
-guest_wfx(Cpu vcpu)
+guest_wfx(Vcpu_ptr vcpu)
 {
   vcpu->r.ip += 2 << vcpu.hsr().il();
   if (vcpu.hsr().wfe_trapped()) // WFE
@@ -507,7 +507,7 @@ guest_wfx(Cpu vcpu)
   guest->wait_for_ipc(utcb, to);
 }
 
-static void guest_ppi(Cpu vcpu)
+static void guest_ppi(Vcpu_ptr vcpu)
 {
   switch (vcpu.hsr().svc_imm())
     {
@@ -523,12 +523,12 @@ static void guest_ppi(Cpu vcpu)
     }
 }
 
-static void guest_irq(Cpu vcpu)
+static void guest_irq(Vcpu_ptr vcpu)
 {
   guest->handle_ipc(vcpu->i.tag, vcpu->i.label, l4_utcb());
 }
 
-static void guest_mcr_access(Cpu vcpu)
+static void guest_mcr_access(Vcpu_ptr vcpu)
 {
   auto hsr = vcpu.hsr();
   if (   hsr.mcr_opc1() == 0
@@ -576,8 +576,8 @@ static void guest_mcr_access(Cpu vcpu)
   vcpu->r.ip += 2 << hsr.il();
 }
 
-extern "C" l4_msgtag_t prepare_guest_entry(Cpu vcpu);
-l4_msgtag_t prepare_guest_entry(Cpu vcpu)
+extern "C" l4_msgtag_t prepare_guest_entry(Vcpu_ptr vcpu);
+l4_msgtag_t prepare_guest_entry(Vcpu_ptr vcpu)
 { return guest->handle_entry(vcpu); }
 
 } // namespace

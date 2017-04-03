@@ -7,7 +7,7 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
-#include "cpu.h"
+#include "cpu_dev.h"
 #include "guest_entry.h"
 
 static const std::pair<l4_umword_t, const char *> MIPS_PROC_IDS[] =

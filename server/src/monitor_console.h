@@ -13,7 +13,7 @@
 #include <l4/sys/vcon>
 
 #include "guest.h"
-#include "vcpu_array.h"
+#include "cpu_dev_array.h"
 
 class Monitor_console
 : private L4::Server_object_t<L4::Vcon>,
@@ -23,7 +23,7 @@ class Monitor_console
 
 public:
   Monitor_console(const char * const capname, L4::Cap<L4::Vcon> con,
-                  Vmm::Guest *guest, cxx::Ref_ptr<Vmm::Vcpu_array> const &cpus)
+                  Vmm::Guest *guest, cxx::Ref_ptr<Vmm::Cpu_dev_array> const &cpus)
   : _con(con), _guest(guest), _cpus(cpus)
   {
     _f = fopen(capname, "w+");
@@ -73,7 +73,7 @@ public:
                 break;
               case 'i':
                 fputc('\n', _f);
-                for (unsigned i = 0; i < Vmm::Vcpu_array::Max_cpus; ++i)
+                for (unsigned i = 0; i < Vmm::Cpu_dev_array::Max_cpus; ++i)
                   if (_cpus->vcpu_exists(i))
                     _guest->show_state_interrupts(_f, _cpus->vcpu(i));
                 break;
@@ -99,5 +99,5 @@ public:
 private:
   L4::Cap<L4::Vcon> _con;
   Vmm::Guest *_guest;
-  cxx::Ref_ptr<Vmm::Vcpu_array> _cpus;
+  cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
 };

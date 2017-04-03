@@ -19,7 +19,7 @@
 
 #include <debug.h>
 #include <device.h>
-#include <vcpu.h>
+#include <vcpu_ptr.h>
 
 namespace Vmm {
 
@@ -40,11 +40,11 @@ public:
 
     Dbg(Dbg::Cpu, Dbg::Info).printf("Created VCPU %u @ %lx\n", idx, vcpu_addr);
 
-    _vcpu = Cpu((l4_vcpu_state_t *)vcpu_addr);
+    _vcpu = Vcpu_ptr((l4_vcpu_state_t *)vcpu_addr);
     _vcpu.set_vcpu_id(idx);
   }
 
-  Cpu vcpu() const
+  Vcpu_ptr vcpu() const
   { return _vcpu; }
 
   void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &,
@@ -65,7 +65,7 @@ public:
   { return L4::Cap<L4::Thread>(pthread_l4_cap(_thread)); }
 
 protected:
-  Cpu _vcpu;
+  Vcpu_ptr _vcpu;
   /// physical CPU to run on (offset into scheduling mask)
   unsigned _phys_cpu_id;
   pthread_t _thread;

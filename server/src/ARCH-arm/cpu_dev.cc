@@ -7,7 +7,7 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
-#include "cpu.h"
+#include "cpu_dev.h"
 
 namespace Vmm
 {
@@ -15,7 +15,7 @@ namespace Vmm
 void
 Cpu_dev::show_state_registers(FILE *f)
 {
-  Cpu v = _vcpu;
+  Vcpu_ptr v = _vcpu;
   fprintf(f, "pc=%08lx lr=%08lx sp=%08lx flags=%08lx\n", v->r.ip, v->r.lr,
           v->r.sp, v->r.flags);
   fprintf(f, " r0=%08lx  r1=%08lx  r2=%08lx  r3=%08lx\n", v->r.r[0],

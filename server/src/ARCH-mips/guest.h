@@ -16,7 +16,7 @@
 #include "core_ic.h"
 #include "debug.h"
 #include "generic_guest.h"
-#include "vcpu_array.h"
+#include "cpu_dev_array.h"
 #include "irq.h"
 #include "vmprint.h"
 #include "mips_instructions.h"
@@ -43,15 +43,15 @@ public:
 
   L4virtio::Ptr<void> load_linux_kernel(char const *kernel, l4_addr_t *entry);
 
-  void prepare_linux_run(Cpu vcpu, l4_addr_t entry, char const *kernel,
+  void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const *kernel,
                          char const *cmd_line);
 
-  void run(cxx::Ref_ptr<Vcpu_array> const &cpus);
+  void run(cxx::Ref_ptr<Cpu_dev_array> const &cpus);
 
-  int dispatch_hypcall(Hypcall_code hypcall_code, Cpu &vcpu);
-  void handle_entry(Cpu vcpu);
+  int dispatch_hypcall(Hypcall_code hypcall_code, Vcpu_ptr &vcpu);
+  void handle_entry(Vcpu_ptr vcpu);
 
-  void show_state_interrupts(FILE *f, Cpu vcpu)
+  void show_state_interrupts(FILE *f, Vcpu_ptr vcpu)
   {
     if (_core_ic)
       _core_ic->show_state(f, vcpu);
@@ -60,7 +60,7 @@ public:
   static Guest *create_instance(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
 
 private:
-  int handle_gpsi_mfc0(Cpu vcpu, Mips::Instruction insn)
+  int handle_gpsi_mfc0(Vcpu_ptr vcpu, Mips::Instruction insn)
   {
     l4_umword_t *val = &(vcpu->r.r[insn.rt()]);
     unsigned reg = (insn.rd() << 3) | (insn.func() & 0x7);
@@ -94,7 +94,7 @@ private:
     return Jump_instr;
   }
 
-  int handle_gpsi_mtc0(Cpu vcpu, Mips::Instruction insn)
+  int handle_gpsi_mtc0(Vcpu_ptr vcpu, Mips::Instruction insn)
   {
     (void) vcpu;
     unsigned reg = (insn.rd() << 3) | (insn.func() & 0x7);
@@ -140,7 +140,7 @@ private:
     return -L4_EINVAL;
   }
 
-  int handle_software_field_change(Cpu vcpu, Mips::Instruction insn)
+  int handle_software_field_change(Vcpu_ptr vcpu, Mips::Instruction insn)
   {
     l4_umword_t val = vcpu->r.r[insn.rt()];
     unsigned reg = (insn.rd() << 3) | (insn.func() & 0x7);
@@ -168,7 +168,7 @@ private:
     return -L4_EINVAL;
   }
 
-  int handle_wait(Cpu vcpu, l4_utcb_t *utcb)
+  int handle_wait(Vcpu_ptr vcpu, l4_utcb_t *utcb)
   {
     auto *s = vcpu.state();
     auto *kip = l4re_kip();

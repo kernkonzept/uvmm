@@ -13,7 +13,7 @@
 #include <cstdio>
 
 #include "mmio_device.h"
-#include "vcpu.h"
+#include "vcpu_ptr.h"
 
 class Ds_handler : public Vmm::Mmio_device
 {
@@ -32,7 +32,7 @@ class Ds_handler : public Vmm::Mmio_device
     return (_offset + (start_other - start_this)) == dsh->_offset;
   }
 
-  bool access(l4_addr_t pfa, l4_addr_t offset, Vmm::Cpu vcpu,
+  bool access(l4_addr_t pfa, l4_addr_t offset, Vmm::Vcpu_ptr vcpu,
               L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max)
   {
     long res;

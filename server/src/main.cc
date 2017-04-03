@@ -45,7 +45,7 @@
 #include "pm.h"
 #include "ram_ds.h"
 #include "virt_bus.h"
-#include "vcpu_array.h"
+#include "cpu_dev_array.h"
 
 Vdev::Device_repository devices;
 
@@ -54,7 +54,7 @@ static Dbg warn(Dbg::Core, Dbg::Warn, "main");
 
 static bool
 node_cb(Vdev::Dt_node const &node, unsigned /* depth */, Vmm::Guest *vmm,
-        cxx::Ref_ptr<Vmm::Vcpu_array> cpus, Vmm::Virt_bus *vbus)
+        cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus, Vmm::Virt_bus *vbus)
 {
   cxx::Ref_ptr<Vdev::Device> dev;
   char const *devtype = node.get_prop<char>("device_type", nullptr);
@@ -111,7 +111,7 @@ node_cb(Vdev::Dt_node const &node, unsigned /* depth */, Vmm::Guest *vmm,
 
 
 static cxx::Ref_ptr<Monitor_console>
-create_monitor(Vmm::Guest *vmm, cxx::Ref_ptr<Vmm::Vcpu_array> const &cpus)
+create_monitor(Vmm::Guest *vmm, cxx::Ref_ptr<Vmm::Cpu_dev_array> const &cpus)
 {
   const char * const capname = "mon";
   auto mon_con_cap = L4Re::Env::env()->get_cap<L4::Vcon>(capname);
@@ -292,7 +292,7 @@ static int run(int argc, char *argv[])
   auto vbus = cxx::make_ref_obj<Vmm::Virt_bus>(vbus_cap);
   auto vmm = Vmm::Guest::create_instance(ram, rambase);
   vmm->use_wakeup_inhibitor(use_wakeup_inhibitor);
-  auto vcpus = Vdev::make_device<Vmm::Vcpu_array>();
+  auto vcpus = Vdev::make_device<Vmm::Cpu_dev_array>();
   auto mon = create_monitor(vmm, vcpus);
 
   vmm->set_fallback_mmio_ds(vbus->io_ds());

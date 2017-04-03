@@ -7,7 +7,7 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
-#include "generic_cpu.h"
+#include "generic_cpu_dev.h"
 
 #include <cstdio>
 #include <cstring>

@@ -7,12 +7,12 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
-#include <vcpu_array.h>
+#include <cpu_dev_array.h>
 
 namespace Vmm {
 
 cxx::Ref_ptr<Vdev::Device>
-Vcpu_array::create_vcpu(unsigned id, char const *compatible)
+Cpu_dev_array::create_vcpu(unsigned id, char const *compatible)
 {
   if (id >= Max_cpus)
     return nullptr;
@@ -34,7 +34,7 @@ Vcpu_array::create_vcpu(unsigned id, char const *compatible)
 }
 
 void
-Vcpu_array::show_state_registers(FILE *f)
+Cpu_dev_array::show_state_registers(FILE *f)
 {
   for (int i = 0; i < Max_cpus; ++i)
     {

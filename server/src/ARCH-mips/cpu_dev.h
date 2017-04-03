@@ -8,7 +8,7 @@
  */
 #pragma once
 
-#include "generic_cpu.h"
+#include "generic_cpu_dev.h"
 
 #include <cstdio>
 
