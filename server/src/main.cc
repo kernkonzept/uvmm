@@ -342,7 +342,10 @@ int main(int argc, char *argv[])
     }
   catch (L4::Runtime_error &e)
     {
-      Err().printf("%s: %s\n", e.str(), e.extra_str());
+      if (e.extra_str() && e.extra_str()[0] != '\0')
+        Err().printf("%s: %s\n", e.str(), e.extra_str());
+      else
+        Err().printf("%s\n", e.str());
     }
   return 1;
 }

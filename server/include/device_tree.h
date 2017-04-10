@@ -234,7 +234,7 @@ public:
   {
     int r = fdt_setprop_string(_tree, _node, name, value);
     if (r < 0)
-      ERR(this, "cannot set property '%s' to '%s'\n", name, value,
+      ERR(this, "cannot set property '%s' to '%s'", name, value,
           fdt_strerror(r));
   }
 
@@ -532,10 +532,10 @@ public:
     int len;
     void const *prop = fdt_getprop(_tree, _node, name, &len);
     if (!prop)
-      ERR(this, "could not get '%s' property of %s: %d\n", name);
+      ERR(this, "could not get '%s' property of %s: %d", name);
 
     if (len < (int) sizeof(T) * size)
-      ERR(this, "property %s is too small (%d need %u)\n",
+      ERR(this, "property %s is too small (%d need %u)",
           name, (unsigned) (sizeof(T) * size));
 
     return reinterpret_cast<T const *>(prop);
@@ -634,7 +634,7 @@ public:
   {
     int ret = fdt_path_offset(_tree, path);
     if (ret < 0)
-      ERR("cannot find node '%s'\n", path);
+      ERR("cannot find node '%s'", path);
 
     return Node(_tree, ret);
   }
@@ -681,7 +681,7 @@ Node<ERR>::translate_reg(Cell *address, Cell const &size) const
 
   unsigned range_size = child_addr + parent_addr + child_size;
   if (prop_size % range_size != 0)
-    ERR("%s: Unexpected property size %d/%d/%d vs %d\n",
+    ERR("%s: Unexpected property size %d/%d/%d vs %d",
         get_name(), child_addr, parent_addr, child_size,
         prop_size);
 
@@ -711,7 +711,7 @@ Node<ERR>::has_mmio_regs() const
   unsigned num_regs = prop_size/reg_size;
 
   if (prop_size % reg_size != 0)
-    ERR(this, "Unexpected property size %d/%d vs %d\n",
+    ERR(this, "Unexpected property size %d/%d vs %d",
         addr_cells, size_cells, reg_size);
 
   for (unsigned i = 0; i < num_regs; ++i, prop += reg_size)
