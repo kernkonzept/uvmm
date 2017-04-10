@@ -78,12 +78,11 @@ public:
 
   l4_addr_t load_as_raw(Vmm::Ram_ds *ram, l4_addr_t ram_offset)
   {
-    l4_size_t sz;
-    L4virtio::Ptr<void> start = ram->load_file(_ds.get(), ram_offset, &sz);
-    _end = L4virtio::Ptr<void>(start.get() + sz);
+    L4virtio::Ptr<void> start(ram->vm_start() + ram_offset);
+    _end = ram->load_file(_ds.get(), start, nullptr);
     _loaded_range_vmm.start = (l4_addr_t)ram->access(start);
     _loaded_range_vmm.end =   (l4_addr_t)ram->access(_end);
-    return ram->vm_start() + ram_offset;
+    return start.get();
   }
 
   void const *get_header() const

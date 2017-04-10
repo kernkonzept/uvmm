@@ -37,15 +37,32 @@ public:
   explicit Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base = ~0UL,
                   l4_addr_t boot_offset = 0);
 
+  /**
+   * Load the contents of the given dataspace into guest RAM.
+   *
+   * \param file     Dataspace to load from. The entire dataspace is loaded.
+   * \param addr     Guest physical address to load the data space to.
+   * \param[out] sz  (Optional) If not null, contains the number of bytes
+   *                            copied on return.
+   *
+   * \return Points to the first address after the newly copied region.
+   */
   L4virtio::Ptr<void>
-  load_file(L4::Cap<L4Re::Dataspace> const &file, l4_addr_t offset, l4_size_t *_size = 0);
+  load_file(L4::Cap<L4Re::Dataspace> const &file, L4virtio::Ptr<void> addr,
+            l4_size_t *sz = 0);
 
+  /**
+   * Load the contents of the given file into guest RAM.
+   *
+   * \param file     File to load.
+   * \param addr     Guest physical address to load the data space to.
+   * \param[out] sz  (Optional) If not null, contains the number of bytes
+   *                            copied on return.
+   *
+   * \return Points to the first address after the newly copied region.
+   */
   L4virtio::Ptr<void>
-  load_file(char const *name, l4_addr_t offset, l4_size_t *_size = 0);
-
-  L4virtio::Ptr<void>
-  load_file(char const *name, L4virtio::Ptr<void> addr, l4_size_t *_size = 0)
-  { return load_file(name, addr.get() - _vm_start, _size); }
+  load_file(char const *name, L4virtio::Ptr<void> addr, l4_size_t *sz = 0);
 
   L4::Cap<L4Re::Dataspace> ram() const noexcept
   { return _ram; }

@@ -37,7 +37,8 @@ L4virtio::Ptr<void>
 Generic_guest::load_device_tree_at(char const *name, L4virtio::Ptr<void> addr,
                                    l4_size_t padding)
 {
-  _device_tree = _ram.load_file(name, addr);
+  _ram.load_file(name, addr);
+  _device_tree = addr;
 
   auto dt = device_tree();
   dt.check_tree();
@@ -93,17 +94,17 @@ Generic_guest::load_ramdisk_at(char const *ram_disk, L4virtio::Ptr<void> addr,
                                l4_size_t *size)
 {
   l4_size_t tmp;
-  auto initrd = _ram.load_file(ram_disk, addr, &tmp);
+  auto end = _ram.load_file(ram_disk, addr, &tmp);
 
   if (size)
     *size = tmp;
 
-  // Round to the next page to load anything else to a new page.
-  auto res = l4_round_size(L4virtio::Ptr<void>(initrd.get() + tmp),
-                           L4_PAGESHIFT);
+  end = l4_round_size(end, L4_PAGESHIFT);
+
   info().printf("Loaded ramdisk image %s to [%llx:%llx] (%08zx)\n", ram_disk,
-                initrd.get(), res.get() - 1, tmp);
-  return res;
+                addr.get(), end.get() - 1, tmp);
+
+  return end;
 }
 
 static void

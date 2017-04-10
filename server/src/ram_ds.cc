@@ -15,6 +15,29 @@
 #include "generic_guest.h"
 #include "ram_ds.h"
 
+namespace {
+
+class Auto_fd
+{
+public:
+  explicit Auto_fd(int fd) : _fd(fd) {}
+  Auto_fd(Auto_fd &&) = delete;
+  Auto_fd(Auto_fd const &) = delete;
+
+  ~Auto_fd()
+  {
+    if (_fd >= 0)
+      close(_fd);
+  }
+
+  int get() const { return _fd; }
+
+private:
+  int _fd;
+};
+
+}
+
 namespace Vmm {
 
 Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
@@ -91,50 +114,51 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
 
 
 L4virtio::Ptr<void>
-Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file, l4_addr_t offset, l4_size_t *_size)
+Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
+                  L4virtio::Ptr<void> addr, l4_size_t *sz)
 {
   Dbg info(Dbg::Mmio, Dbg::Info, "file");
 
-  info.printf("load: @ offset 0x%lx\n", offset);
+  info.printf("load: @ 0x%llx\n", addr.get());
   if (!file)
     L4Re::chksys(-L4_EINVAL);
 
+  l4_addr_t offset = addr.get() - _vm_start;
   l4_size_t fsize = file->size();
 
-  if (offset >= size() || offset + fsize >= size())
+  if (addr.get() < _vm_start || offset >= size() || offset + fsize >= size())
     {
       Err().printf("File does not fit into ram\n");
       L4Re::chksys(-L4_EINVAL);
     }
 
-  info.printf("copy in: to 0x%lx-0x%lx\n", offset, offset + fsize);
+  info.printf("copy in: to offset 0x%lx-0x%lx\n", offset, offset + fsize);
 
   L4Re::chksys(_ram->copy_in(offset, file, 0, fsize), "copy in");
-  if (_size)
-    *_size = fsize;
+  if (sz)
+    *sz = fsize;
 
-  return L4virtio::Ptr<void>(offset + vm_start());
+  return L4virtio::Ptr<void>(addr.get() + fsize);
 }
 
+
 L4virtio::Ptr<void>
-Ram_ds::load_file(char const *name, l4_addr_t offset, l4_size_t *_size)
+Ram_ds::load_file(char const *name, L4virtio::Ptr<void> addr, l4_size_t *sz)
 {
   Dbg info(Dbg::Mmio, Dbg::Info, "file");
 
-  info.printf("load: %s -> 0x%lx\n", name, offset);
-  int fd = open(name, O_RDONLY);
-  if (fd < 0)
+  info.printf("load: %s -> 0x%llx\n", name, addr.get());
+  Auto_fd fd(open(name, O_RDONLY));
+  if (fd.get() < 0)
     {
       Err().printf("could not open file: %s:", name);
       L4Re::chksys(-L4_EINVAL);
     }
 
-  cxx::Ref_ptr<L4Re::Vfs::File> file = L4Re::Vfs::vfs_ops->get_file(fd);
+  cxx::Ref_ptr<L4Re::Vfs::File> file = L4Re::Vfs::vfs_ops->get_file(fd.get());
   if (!file)
     {
       Err().printf("bad file descriptor: %s\n", name);
-      close(fd);
-      errno = EBADF;
       L4Re::chksys(-L4_EINVAL);
     }
 
@@ -142,14 +166,10 @@ Ram_ds::load_file(char const *name, l4_addr_t offset, l4_size_t *_size)
   if (!f)
     {
       Err().printf("could not get data space for %s\n", name);
-      close(fd);
-      errno = EINVAL;
       L4Re::chksys(-L4_EINVAL);
     }
 
-  L4virtio::Ptr<void> res = load_file(f, offset, _size);
-  close(fd);
-  return res;
+  return load_file(f, addr, sz);
 }
 
 
