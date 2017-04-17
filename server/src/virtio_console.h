@@ -132,9 +132,13 @@ public:
     int const q_idx = 1;
     auto *q = &_q[q_idx];
 
-    auto r = q->next_avail();
-    if (r)
+    while (q->ready())
       {
+        auto r = q->next_avail();
+
+        if (!r)
+          break;
+
         Request_processor rp;
         Payload p;
         rp.start(this, r, &p);
