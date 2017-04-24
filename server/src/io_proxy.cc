@@ -69,8 +69,7 @@ Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
 }
 
 void
-Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self,
-                      Vmm::Guest *vmm, Vmm::Virt_bus *vbus)
+Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self)
 {
   if (!self.get_prop<fdt32_t>("interrupts", nullptr))
     return;
@@ -98,7 +97,7 @@ Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self,
       return;
     }
 
-  auto const *devinfo = vbus->find_device(this);
+  auto const *devinfo = devs->vbus()->find_device(this);
   assert (devinfo);
 
   int numint = ic->dt_get_num_interrupts(self);
@@ -134,7 +133,7 @@ Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self,
 
       auto irq = res.start;
       if (id < numint)
-        bind_irq(vmm, vbus, ic, self, id, irq);
+        bind_irq(devs->vmm(), devs->vbus().get(), ic, self, id, irq);
       else
         Err().printf("Error: IO IRQ resource id (%d) is out of bounds\n", id);
     }

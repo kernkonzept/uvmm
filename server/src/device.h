@@ -16,6 +16,7 @@
 namespace Vmm {
   class Guest;
   class Virt_bus;
+  class Cpu_dev_array;
 }
 
 namespace Vdev {
@@ -89,19 +90,20 @@ struct Device_lookup;
 struct Device : public virtual Dev_ref
 {
   virtual ~Device() = 0;
-  virtual void init_device(Device_lookup const *devs, Dt_node const &node,
-                           Vmm::Guest *vmm, Vmm::Virt_bus *vbus) = 0;
+  virtual void init_device(Device_lookup const *devs, Dt_node const &node) = 0;
 };
 
 inline Device::~Device() = default;
 
 /**
- * Interface with functions for finding device objects through
- * device tree references.
+ * Interface with functions for finding device objects.
  */
 struct Device_lookup
 {
   virtual cxx::Ref_ptr<Device> device_from_node(Dt_node const &node) const = 0;
+  virtual Vmm::Guest *vmm() const = 0;
+  virtual cxx::Ref_ptr<Vmm::Virt_bus> vbus() const = 0;
+  virtual cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus() const = 0;
 };
 
 

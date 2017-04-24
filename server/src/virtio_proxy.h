@@ -170,8 +170,7 @@ private:
 
 public:
   void init_device(Vdev::Device_lookup const *devs,
-                   Vdev::Dt_node const &self,
-                   Vmm::Guest *vmm, Vmm::Virt_bus *) override
+                   Vdev::Dt_node const &self) override
   {
     int err = dev()->event_connector()->init_irqs(devs, self);
     if (err < 0)
@@ -183,7 +182,7 @@ public:
     if (prop && sz > 0)
       _nnq_id = fdt32_to_cpu(*prop);
 
-    auto &ram = vmm->ram();
+    auto &ram = devs->vmm()->ram();
     L4Re::chksys(_dev.register_ds(ram.ram(), 0, ram.size(),
                                   ram.vm_start()),
                  "Registering RAM for virtio proxy");

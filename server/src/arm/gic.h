@@ -801,9 +801,7 @@ public:
     return irqnr + Irq_ppi_base;
   }
 
-  void init_device(Vdev::Device_lookup const *,
-                   Vdev::Dt_node const &,
-                   Vmm::Guest *, Vmm::Virt_bus *) override
+  void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &) override
   {}
 
   Dist(unsigned tnlines, unsigned char cpus);

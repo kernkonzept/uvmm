@@ -51,8 +51,7 @@ public:
   void attach_cpu_thread(L4::Cap<L4::Thread> thread)
   { L4Re::chksys(_cpu_irq->attach(0, thread)); }
 
-  void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &,
-                   Vmm::Guest *, Vmm::Virt_bus *) override
+  void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &) override
   {}
 
   void set(unsigned irq) override

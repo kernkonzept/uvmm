@@ -15,7 +15,7 @@
 
 namespace Vdev {
 
-class Device_repository : public Device_lookup
+class Device_repository
 {
   struct Dt_device
   {
@@ -25,7 +25,7 @@ class Device_repository : public Device_lookup
   };
 
 public:
-  cxx::Ref_ptr<Device> device_from_node(Dt_node const &node) const override
+  cxx::Ref_ptr<Device> device_from_node(Dt_node const &node) const
   {
     l4_uint32_t phandle = node.get_phandle();
 
@@ -59,7 +59,7 @@ public:
     _devices.push_back({buf, phandle, dev});
   }
 
-  void init_devices(Device_tree dt, Vmm::Guest *vmm, Vmm::Virt_bus *vbus)
+  void init_devices(Device_lookup const *lookup, Device_tree dt)
   {
     for (auto &d : _devices)
       {
@@ -72,7 +72,7 @@ public:
         if (!node.is_valid())
           node = dt.path_offset(d.path.c_str());
 
-        d.dev->init_device(this, node, vmm, vbus);
+        d.dev->init_device(lookup, node);
       }
   }
 

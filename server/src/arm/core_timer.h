@@ -161,8 +161,7 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
               cntfrq, _scale, _scaled_ticks_per_us, _cyc2ms_scale, _shift);
   }
 
-  void init_device(Device_lookup const *devs, Dt_node const &self,
-                   Vmm::Guest *, Vmm::Virt_bus *) override
+  void init_device(Device_lookup const *devs, Dt_node const &self) override
   {
     auto irq_ctl = self.find_irq_parent();
     if (!irq_ctl.is_valid())

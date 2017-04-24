@@ -58,8 +58,7 @@ public:
   : _dev(dev)
   {}
 
-  void init_device(Device_lookup const *devs, Dt_node const &self,
-                   Vmm::Guest *vmm, Vmm::Virt_bus *vbus) override;
+  void init_device(Device_lookup const *devs, Dt_node const &self) override;
 
   static int decode_resource_id(char c);
 

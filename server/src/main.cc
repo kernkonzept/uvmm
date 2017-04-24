@@ -26,37 +26,25 @@
 #include <getopt.h>
 
 #include <l4/re/env>
-#include <l4/re/error_helper>
-#include <l4/re/util/cap_alloc>
-#include <l4/re/debug>
-
-#include <l4/cxx/utils>
-#include <l4/cxx/ipc_stream>
-#include <l4/cxx/ipc_server>
-
-#include <l4/util/util.h>
 
 #include "debug.h"
-#include "device_repo.h"
 #include "device_tree.h"
 #include "device_factory.h"
 #include "guest.h"
 #include "monitor_console.h"
-#include "pm.h"
 #include "ram_ds.h"
-#include "virt_bus.h"
-#include "cpu_dev_array.h"
+#include "vm.h"
 
-Vdev::Device_repository devices;
+Vmm::Vm vm_instance;
 
 static Dbg info(Dbg::Core, Dbg::Info, "main");
 static Dbg warn(Dbg::Core, Dbg::Warn, "main");
 
 static bool
-node_cb(Vdev::Dt_node const &node, unsigned /* depth */, Vmm::Guest *vmm,
-        cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus, Vmm::Virt_bus *vbus)
+node_cb(Vdev::Dt_node const &node)
 {
   cxx::Ref_ptr<Vdev::Device> dev;
+  auto *vbus = vm_instance.vbus().get();
   char const *devtype = node.get_prop<char>("device_type", nullptr);
   bool is_cpu_dev = devtype && strcmp("cpu", devtype) == 0;
   if (is_cpu_dev)
@@ -75,14 +63,14 @@ node_cb(Vdev::Dt_node const &node, unsigned /* depth */, Vmm::Guest *vmm,
       // compatible property, the default is used.
       auto const *compatible = node.get_prop<char>("compatible", nullptr);
 
-      dev = cpus->create_vcpu(fdt32_to_cpu(cpuid[0]), compatible);
+      dev = vm_instance.cpus()->create_vcpu(fdt32_to_cpu(cpuid[0]), compatible);
     }
   else
-    dev = Vdev::Factory::create_dev(vmm, vbus, node);
+    dev = Vdev::Factory::create_dev(vm_instance.vmm(), vbus, node);
 
   if (dev)
     {
-      devices.add(node, dev);
+      vm_instance.add_device(node, dev);
       return true;
     }
 
@@ -111,7 +99,7 @@ node_cb(Vdev::Dt_node const &node, unsigned /* depth */, Vmm::Guest *vmm,
 
 
 static cxx::Ref_ptr<Monitor_console>
-create_monitor(Vmm::Guest *vmm, cxx::Ref_ptr<Vmm::Cpu_dev_array> const &cpus)
+create_monitor()
 {
   const char * const capname = "mon";
   auto mon_con_cap = L4Re::Env::env()->get_cap<L4::Vcon>(capname);
@@ -119,8 +107,8 @@ create_monitor(Vmm::Guest *vmm, cxx::Ref_ptr<Vmm::Cpu_dev_array> const &cpus)
     return nullptr;
 
   auto moncon = cxx::make_ref_obj<Monitor_console>(capname, mon_con_cap,
-                                                   vmm, cpus);
-  moncon->register_obj(vmm->registry());
+                                                   &vm_instance);
+  moncon->register_obj(vm_instance.vmm()->registry());
 
   return moncon;
 }
@@ -212,7 +200,6 @@ set_verbosity(char const *str)
 
 static int run(int argc, char *argv[])
 {
-  L4Re::Env const *e = L4Re::Env::env();
   unsigned long verbosity = Dbg::Warn;
 
   Dbg::set_verbosity(verbosity);
@@ -281,22 +268,13 @@ static int run(int argc, char *argv[])
 
   warn.printf("Hello out there.\n");
 
-  // get RAM data space and attach it to our (VMMs) address space
-  auto ram = L4Re::chkcap(e->get_cap<L4Re::Dataspace>("ram"),
-                          "ram dataspace cap", -L4_ENOENT);
-  // create VM BUS connection to IO
-  auto vbus_cap = e->get_cap<L4vbus::Vbus>("vbus");
-  if (!vbus_cap)
-    vbus_cap = e->get_cap<L4vbus::Vbus>("vm_bus");
+  vm_instance.create_default_devices(rambase);
+  auto mon = create_monitor();
 
-  auto vbus = cxx::make_ref_obj<Vmm::Virt_bus>(vbus_cap);
-  auto vmm = Vmm::Guest::create_instance(ram, rambase);
+  auto *vmm = vm_instance.vmm();
+
   vmm->use_wakeup_inhibitor(use_wakeup_inhibitor);
-  auto vcpus = Vdev::make_device<Vmm::Cpu_dev_array>();
-  auto mon = create_monitor(vmm, vcpus);
-
-  vmm->set_fallback_mmio_ds(vbus->io_ds());
-
+  vmm->set_fallback_mmio_ds(vm_instance.vbus()->io_ds());
 
   l4_addr_t entry;
   auto load_addr = vmm->load_linux_kernel(kernel_image, &entry);
@@ -307,13 +285,12 @@ static int run(int argc, char *argv[])
       vmm->update_device_tree(cmd_line);
 
       auto dt = vmm->device_tree();
-      auto vbus_val = vbus.get();
-      dt.scan([vmm, vcpus, vbus_val] (Vdev::Dt_node const &node, unsigned depth)
-                { return node_cb(node, depth, vmm, vcpus, vbus_val); },
+      dt.scan([] (Vdev::Dt_node const &node, unsigned /* depth */)
+                { return node_cb(node); },
               [] (Vdev::Dt_node const &, unsigned)
                 {});
 
-      devices.init_devices(dt, vmm, vbus.get());
+      vm_instance.init_devices(dt);
     }
 
   if (ram_disk)
@@ -326,9 +303,10 @@ static int run(int argc, char *argv[])
         vmm->set_ramdisk_params(rd_addr, rd_size);
     }
 
-  vmm->prepare_linux_run(vcpus->vcpu(0), entry, kernel_image, cmd_line);
+  vmm->prepare_linux_run(vm_instance.cpus()->vcpu(0), entry,
+                         kernel_image, cmd_line);
   vmm->cleanup_ram_state();
-  vmm->run(vcpus);
+  vmm->run(vm_instance.cpus());
 
   Err().printf("ERROR: we must never reach this....\n");
   return 0;

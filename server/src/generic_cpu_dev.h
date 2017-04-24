@@ -47,8 +47,7 @@ public:
   Vcpu_ptr vcpu() const
   { return _vcpu; }
 
-  void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &,
-                   Vmm::Guest *, Vmm::Virt_bus *) override
+  void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &) override
   {}
 
   void powerup_cpu();

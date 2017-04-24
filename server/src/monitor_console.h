@@ -12,8 +12,9 @@
 
 #include <l4/sys/vcon>
 
-#include "guest.h"
 #include "cpu_dev_array.h"
+#include "device.h"
+#include "guest.h"
 
 class Monitor_console
 : private L4::Server_object_t<L4::Vcon>,
@@ -23,8 +24,8 @@ class Monitor_console
 
 public:
   Monitor_console(const char * const capname, L4::Cap<L4::Vcon> con,
-                  Vmm::Guest *guest, cxx::Ref_ptr<Vmm::Cpu_dev_array> const &cpus)
-  : _con(con), _guest(guest), _cpus(cpus)
+                  Vdev::Device_lookup *devs)
+  : _con(con), _devices(devs)
   {
     _f = fopen(capname, "w+");
     if (!_f)
@@ -69,14 +70,17 @@ public:
               {
               case 'r':
                 fputc('\n', _f);
-                _cpus->show_state_registers(_f);
+                _devices->cpus()->show_state_registers(_f);
                 break;
               case 'i':
-                fputc('\n', _f);
-                for (unsigned i = 0; i < Vmm::Cpu_dev_array::Max_cpus; ++i)
-                  if (_cpus->vcpu_exists(i))
-                    _guest->show_state_interrupts(_f, _cpus->vcpu(i));
-                break;
+                {
+                  fputc('\n', _f);
+                  auto cpus = _devices->cpus();
+                  for (unsigned i = 0; i < Vmm::Cpu_dev_array::Max_cpus; ++i)
+                    if (cpus->vcpu_exists(i))
+                      _devices->vmm()->show_state_interrupts(_f, cpus->vcpu(i));
+                  break;
+                }
               case '\r':
               case '\b':
                 print_prompt = false;
@@ -98,6 +102,5 @@ public:
 
 private:
   L4::Cap<L4::Vcon> _con;
-  Vmm::Guest *_guest;
-  cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
+  Vdev::Device_lookup *_devices;
 };

@@ -24,8 +24,7 @@ using namespace Vdev;
  */
 struct System_controller : public Device
 {
-  void init_device(Device_lookup const *, Dt_node const &,
-                   Vmm::Guest *, Vmm::Virt_bus *) override {}
+  void init_device(Device_lookup const *, Dt_node const &) override {}
 
   l4_uint32_t read(unsigned, char, unsigned)
   { return 0; }
