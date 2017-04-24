@@ -179,8 +179,7 @@ public:
 
   void load_desc(Desc const &desc, Request_processor const *, Payload *p)
   {
-    // XXX boundary check?
-    p->data = (char *)_iommu->access(desc.addr);
+    p->data = devaddr_to_virt<char>(desc.addr.get(), desc.len);
     p->len = desc.len;
     p->writable = desc.flags.write();
   }
@@ -188,8 +187,7 @@ public:
   void load_desc(Desc const &desc, Request_processor const *,
                  Desc const **table)
   {
-    // XXX boundary check?
-    *table = static_cast<Desc const *>(_iommu->access(desc.addr));
+    *table = devaddr_to_virt<Desc const>(desc.addr.get(), sizeof(Desc));
   }
 
 

@@ -16,6 +16,10 @@
 #pragma once
 
 #include <l4/sys/cache.h>
+#include <l4/re/dataspace>
+#include <l4/re/env>
+#include <l4/re/error_helper>
+#include <l4/re/util/cap_alloc>
 
 #include <l4/l4virtio/virtio.h>
 #include <l4/l4virtio/server/virtio>
@@ -86,8 +90,6 @@ protected:
   l4_uint32_t _irq_status_shadow = 0;
   l4_uint16_t _config_event_index = 0;
 
-  Vmm::Vm_ram *_iommu;
-
   L4Re::Rm::Auto_region<l4virtio_config_hdr_t *> _cfg_header;
   L4Re::Util::Auto_del_cap<L4Re::Dataspace>::Cap _cfg_ds;
 
@@ -147,8 +149,17 @@ public:
   }
 
   template<typename T>
-  T *devaddr_to_virt(l4_addr_t devaddr) const
-  { return _iommu->access(L4virtio::Ptr<T>(devaddr)); }
+  T *devaddr_to_virt(l4_addr_t devaddr, l4_size_t len = 0) const
+  {
+    if (devaddr < _iommu->vm_start()
+        || devaddr - _iommu->vm_start() + len > _iommu->size())
+      L4Re::chksys(-L4_ERANGE, "Virtio pointer outside RAM region");
+
+    return _iommu->access(L4virtio::Ptr<T>(devaddr));
+  }
+
+private:
+  Vmm::Vm_ram *_iommu;
 };
 
 
