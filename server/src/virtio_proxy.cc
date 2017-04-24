@@ -1,8 +1,15 @@
+/*
+ * Copyright (C) 2017 Kernkonzept GmbH.
+ * Author(s): Alexander Warg <alexander.warg@kernkonzept.com>
+ *            Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
+ *
+ * This file is distributed under the terms of the GNU General Public
+ * License, version 2.  Please see the COPYING-GPL-2 file for details.
+ */
+#include <l4/re/env>
+
 #include "virtio_proxy.h"
 #include "device_factory.h"
-#include "guest.h"
-
-#include <l4/re/env>
 
 namespace {
 
@@ -34,10 +41,8 @@ struct F : Factory
         return nullptr;
       }
 
-    auto &ram = vmm->ram();
-
-    auto c = make_device<Virtio_proxy_mmio>(&ram);
-    c->register_obj(vmm->registry(), cap, ram.ram(), ram.vm_start());
+    auto c = make_device<Virtio_proxy_mmio>();
+    c->register_irq(vmm->registry(), cap);
     vmm->register_mmio_device(c, node);
     return c;
   }

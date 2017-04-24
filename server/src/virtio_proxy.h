@@ -14,22 +14,17 @@
 #include <l4/sys/meta>
 
 #include <l4/re/dataspace>
-#include <l4/re/error_helper>
-#include <l4/re/util/cap_alloc>
-
 #include <l4/re/env>
+#include <l4/re/error_helper>
 #include <l4/re/rm>
-
-#include <l4/cxx/ipc_stream>
-#include <l4/cxx/ipc_server>
-#include <l4/cxx/type_traits>
+#include <l4/re/util/cap_alloc>
 
 #include <l4/l4virtio/l4virtio>
 #include <l4/l4virtio/virtqueue>
-#include <l4/l4virtio/virtio_block.h>
 
-#include "mmio_device.h"
 #include "irq.h"
+#include "guest.h"
+#include "mmio_device.h"
 #include "virtio_event_connector.h"
 #include "vm_ram.h"
 
@@ -169,18 +164,14 @@ private:
    * particualar for send queues in network devices. Enable via
    * device tree configuration l4vmm,no-notify = <queue-id>;
    */
-  unsigned _nnq_id;
+  unsigned _nnq_id = -1U;
   L4virtio::Driver::Virtqueue _nnq;
-  Vmm::Vm_ram *_iommu;
   l4_uint32_t _irq_status_shadow = 0;
 
 public:
-  Virtio_proxy(Vmm::Vm_ram *iommu)
-  : _nnq_id(-1U), _iommu(iommu) {}
-
   void init_device(Vdev::Device_lookup const *devs,
                    Vdev::Dt_node const &self,
-                   Vmm::Guest *, Vmm::Virt_bus *) override
+                   Vmm::Guest *vmm, Vmm::Virt_bus *) override
   {
     int err = dev()->event_connector()->init_irqs(devs, self);
     if (err < 0)
@@ -191,18 +182,20 @@ public:
     auto const *prop = self.get_prop<fdt32_t>("l4vmm,no-notify", &sz);
     if (prop && sz > 0)
       _nnq_id = fdt32_to_cpu(*prop);
+
+    auto &ram = vmm->ram();
+    L4Re::chksys(_dev.register_ds(ram.ram(), 0, ram.size(),
+                                  ram.vm_start()),
+                 "Registering RAM for virtio proxy");
   }
 
   template<typename REG>
-  void register_obj(REG *registry, L4::Cap<L4virtio::Device> host,
-                    L4::Cap<L4Re::Dataspace> ram, l4_addr_t ram_base)
+  void register_irq(REG *registry, L4::Cap<L4virtio::Device> host)
   {
     L4::Cap<L4::Irq> guest_irq = L4Re::chkcap(registry->register_irq_obj(this),
                                               "Registering guest IRQ in proxy");
 
     _dev.driver_connect(host, guest_irq);
-    L4Re::chksys(_dev.register_ds(ram, 0, ram->size(), ram_base),
-                 "Registering RAM for virtio proxy");
   }
 
   void handle_irq()
@@ -310,10 +303,6 @@ class Virtio_proxy_mmio
   public Virtio::Mmio_connector<Virtio_proxy_mmio>
 {
 public:
-  Virtio_proxy_mmio(Vmm::Vm_ram *iommu)
-  : Virtio_proxy(iommu)
-  {}
-
   Virtio::Event_connector_irq *event_connector() { return &_evcon; }
 
 private:
