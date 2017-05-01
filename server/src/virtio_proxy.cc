@@ -17,9 +17,8 @@ using namespace Vdev;
 
 struct F : Factory
 {
-  cxx::Ref_ptr<Device> create(Vmm::Guest *vmm,
-                              Vmm::Virt_bus *,
-                              Dt_node const &node)
+  cxx::Ref_ptr<Device> create(Device_lookup const *devs,
+                              Dt_node const &node) override
   {
     int cap_name_len;
     char const *cap_name = node.get_prop<char>("l4vmm,virtiocap", &cap_name_len);
@@ -42,8 +41,8 @@ struct F : Factory
       }
 
     auto c = make_device<Virtio_proxy_mmio>();
-    c->register_irq(vmm->registry(), cap);
-    vmm->register_mmio_device(c, node);
+    c->register_irq(devs->vmm()->registry(), cap);
+    devs->vmm()->register_mmio_device(c, node);
     return c;
   }
 };

@@ -153,14 +153,15 @@ namespace {
 
 struct F : Factory
 {
-  cxx::Ref_ptr<Device> create(Vmm::Guest *vmm,
-                              Vmm::Virt_bus *vbus,
-                              Dt_node const &node)
+  cxx::Ref_ptr<Device> create(Device_lookup const *devs,
+                              Dt_node const &node) override
   {
     // we can proxy memory and interrupts, check whether resources are
     // present
     if (!node.needs_vbus_resources())
       return nullptr;
+
+    auto *vbus = devs->vbus().get();
 
     auto *vd = vbus->find_unassigned_dev(node);
     if (!vd)
@@ -206,7 +207,7 @@ struct F : Factory
                                                      res.end - res.start + 1,
                                                      res.start);
 
-        vmm->register_mmio_device(handler, node, id);
+        devs->vmm()->register_mmio_device(handler, node, id);
       }
 
     return proxy;

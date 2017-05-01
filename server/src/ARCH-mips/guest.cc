@@ -229,12 +229,11 @@ using namespace Vdev;
 
 struct F : Factory
 {
-  cxx::Ref_ptr<Vdev::Device> create(Vmm::Guest *vmm,
-                                    Vmm::Virt_bus *,
-                                    Vdev::Dt_node const &)
+  cxx::Ref_ptr<Vdev::Device> create(Device_lookup const *devs,
+                                    Vdev::Dt_node const &) override
   {
     // Device tree only sees the IC for core 0.
-    return vmm->core_ic()->get_ic(0);
+    return devs->vmm()->core_ic()->get_ic(0);
   }
 };
 

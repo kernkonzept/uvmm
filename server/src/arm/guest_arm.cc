@@ -18,6 +18,7 @@
 #include "guest_subarch.h"
 #include "irq.h"
 #include "pm.h"
+#include "virt_bus.h"
 
 static cxx::unique_ptr<Vmm::Guest> guest;
 
@@ -63,10 +64,10 @@ using namespace Vdev;
 
 struct F : Factory
 {
-  cxx::Ref_ptr<Vdev::Device> create(Vmm::Guest *vmm,
-                                    Vmm::Virt_bus *vbus,
-                                    Vdev::Dt_node const &node)
+  cxx::Ref_ptr<Vdev::Device> create(Device_lookup const *devs,
+                                    Vdev::Dt_node const &node) override
   {
+    auto *vbus = devs->vbus().get();
     if (!vbus->io_ds())
       {
         Err().printf("ERROR: ARM GIC virtualization does not work without passing GICD via the vbus\n");
@@ -74,8 +75,8 @@ struct F : Factory
       }
 
     // attach GICD to VM
-    auto gic = vmm->gic();
-    vmm->register_mmio_device(gic, node);
+    auto gic = devs->vmm()->gic();
+    devs->vmm()->register_mmio_device(gic, node);
 
     L4vbus::Device vdev;
     L4Re::chksys(vbus->bus()->root().device_by_hid(&vdev, "arm-gicc"),
@@ -90,7 +91,7 @@ struct F : Factory
 
     auto g2 = Vdev::make_device<Ds_handler>(vbus->io_ds(), 0,
                                             res.end - res.start + 1, res.start);
-    vmm->register_mmio_device(cxx::move(g2), node, 1);
+    devs->vmm()->register_mmio_device(cxx::move(g2), node, 1);
     return gic;
   }
 };
@@ -103,10 +104,10 @@ static Vdev::Device_type t4 = { "arm,gic-400", nullptr, &f };
 
 struct F_timer : Factory
 {
-  cxx::Ref_ptr<Vdev::Device> create(Vmm::Guest *vmm, Vmm::Virt_bus *,
-                                    Vdev::Dt_node const &)
+  cxx::Ref_ptr<Vdev::Device> create(Device_lookup const *devs,
+                                    Vdev::Dt_node const &) override
   {
-    return vmm->timer();
+    return devs->vmm()->timer();
   }
 };
 

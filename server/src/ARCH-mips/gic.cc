@@ -307,9 +307,8 @@ namespace {
 
 struct F : Vdev::Factory
 {
-  cxx::Ref_ptr<Vdev::Device> create(Vmm::Guest *vmm,
-                                    Vmm::Virt_bus *,
-                                    Vdev::Dt_node const &node)
+  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup const *devs,
+                                    Vdev::Dt_node const &node) override
   {
     l4_uint64_t size;
 
@@ -321,8 +320,8 @@ struct F : Vdev::Factory
         throw L4::Runtime_error(-L4_EINVAL);
       }
 
-    auto g = Vdev::make_device<Dist>(vmm->core_ic().get());
-    vmm->register_mmio_device(g, node);
+    auto g = Vdev::make_device<Dist>(devs->vmm()->core_ic().get());
+    devs->vmm()->register_mmio_device(g, node);
     return g;
   }
 

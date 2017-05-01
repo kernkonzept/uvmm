@@ -45,7 +45,6 @@ static bool
 node_cb(Vdev::Dt_node const &node)
 {
   cxx::Ref_ptr<Vdev::Device> dev;
-  auto *vbus = vm_instance.vbus().get();
   char const *devtype = node.get_prop<char>("device_type", nullptr);
   bool is_cpu_dev = devtype && strcmp("cpu", devtype) == 0;
   if (is_cpu_dev)
@@ -67,7 +66,7 @@ node_cb(Vdev::Dt_node const &node)
       dev = vm_instance.cpus()->create_vcpu(fdt32_to_cpu(cpuid[0]), compatible);
     }
   else
-    dev = Vdev::Factory::create_dev(vm_instance.vmm(), vbus, node);
+    dev = Vdev::Factory::create_dev(&vm_instance, node);
 
   if (dev)
     {

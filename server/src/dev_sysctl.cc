@@ -48,12 +48,11 @@ struct System_controller_mmio
 
 struct F : Factory
 {
-  cxx::Ref_ptr<Device> create(Vmm::Guest *vmm,
-                              Vmm::Virt_bus *,
-                              Dt_node const &node)
+  cxx::Ref_ptr<Device> create(Device_lookup const *devs,
+                              Dt_node const &node) override
   {
     auto syscon = make_device<System_controller_mmio>();
-    vmm->register_mmio_device(syscon, node);
+    devs->vmm()->register_mmio_device(syscon, node);
     return syscon;
   }
 };

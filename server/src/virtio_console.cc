@@ -12,9 +12,8 @@ using namespace Vdev;
 
 struct F : Factory
 {
-  cxx::Ref_ptr<Device> create(Vmm::Guest *vmm,
-                              Vmm::Virt_bus *,
-                              Dt_node const &node)
+  cxx::Ref_ptr<Device> create(Device_lookup const *devs,
+                              Dt_node const &node) override
   {
     Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual console\n");
     int cap_name_len;
@@ -35,9 +34,9 @@ struct F : Factory
           }
       }
 
-    auto c = make_device<Virtio_console_mmio>(&vmm->ram(), cap);
-    c->register_obj(vmm->registry());
-    vmm->register_mmio_device(c, node);
+    auto c = make_device<Virtio_console_mmio>(&devs->vmm()->ram(), cap);
+    c->register_obj(devs->vmm()->registry());
+    devs->vmm()->register_mmio_device(c, node);
     return c;
   }
 };

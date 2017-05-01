@@ -2,12 +2,9 @@
 
 #include "device.h"
 #include "device_tree.h"
-#include "virt_bus.h"
 
 #include <l4/cxx/hlist>
 #include <l4/cxx/ref_ptr>
-
-namespace Vmm { class Guest; }
 
 namespace Vdev {
 
@@ -60,13 +57,11 @@ class Factory
 {
 public:
   virtual ~Factory() = 0;
-  virtual cxx::Ref_ptr<Device> create(Vmm::Guest *vmm,
-                                      Vmm::Virt_bus *vbus,
+  virtual cxx::Ref_ptr<Device> create(Device_lookup const *devs,
                                       Dt_node const &node) = 0;
 
 
-  static cxx::Ref_ptr<Device> create_vdev(Vmm::Guest *vmm,
-                                          Vmm::Virt_bus *vbus,
+  static cxx::Ref_ptr<Device> create_vdev(Device_lookup const *devs,
                                           Dt_node const &node)
   {
     char const *const comp = "compatible";
@@ -83,21 +78,20 @@ public:
         char const *cid = node.stringlist_get(comp, i, &cid_len);
         auto const *t = Device_type::find(cid, cid_len, l4type, l4type_len);
         if (t)
-          return t->f->create(vmm, vbus, node);
+          return t->f->create(devs, node);
       }
 
     return nullptr;
   }
 
-  static cxx::Ref_ptr<Device> create_dev(Vmm::Guest *vmm,
-                                         Vmm::Virt_bus *vbus,
+  static cxx::Ref_ptr<Device> create_dev(Device_lookup const *devs,
                                          Dt_node const &node)
   {
-    if (auto r = create_vdev(vmm, vbus, node))
+    if (auto r = create_vdev(devs, node))
       return r;
 
     if (pass_thru)
-      return pass_thru->create(vmm, vbus, node);
+      return pass_thru->create(devs, node);
 
     return nullptr;
   }
