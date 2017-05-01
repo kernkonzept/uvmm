@@ -13,16 +13,10 @@
 
 namespace Vmm {
 
-Generic_guest::Generic_guest(L4::Cap<L4Re::Dataspace> ram,
-                             l4_addr_t vm_base, l4_addr_t boot_offset)
+Generic_guest::Generic_guest()
 : _registry(&_bm),
-  _ram(ram, vm_base, boot_offset),
   _task(L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4::Task>()))
 {
-  // attach RAM to VM
-  _memmap[Region::ss(_ram.vm_start(), _ram.size())]
-    = Vdev::make_device<Ds_handler>(_ram.ram(), _ram.local_start());
-
   // create the VM task
   auto *e = L4Re::Env::env();
   L4Re::chksys(e->factory()->create(_task.get(), L4_PROTO_VM),
@@ -30,24 +24,6 @@ Generic_guest::Generic_guest(L4::Cap<L4Re::Dataspace> ram,
   l4_debugger_set_object_name(_task.get().cap(), "vm-task");
 
   _vbus_event.register_obj(registry());
-}
-
-L4virtio::Ptr<void>
-Generic_guest::load_ramdisk_at(char const *ram_disk, L4virtio::Ptr<void> addr,
-                               l4_size_t *size)
-{
-  l4_size_t tmp;
-  auto end = _ram.load_file(ram_disk, addr, &tmp);
-
-  if (size)
-    *size = tmp;
-
-  end = l4_round_size(end, L4_PAGESHIFT);
-
-  info().printf("Loaded ramdisk image %s to [%llx:%llx] (%08zx)\n", ram_disk,
-                addr.get(), end.get() - 1, tmp);
-
-  return end;
 }
 
 static void

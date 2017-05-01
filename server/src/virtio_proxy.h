@@ -182,9 +182,9 @@ public:
     if (prop && sz > 0)
       _nnq_id = fdt32_to_cpu(*prop);
 
-    auto &ram = devs->vmm()->ram();
-    L4Re::chksys(_dev.register_ds(ram.ram(), 0, ram.size(),
-                                  ram.vm_start()),
+    auto *ram = devs->ram().get();
+    L4Re::chksys(_dev.register_ds(ram->ram(), 0, ram->size(),
+                                  ram->vm_start()),
                  "Registering RAM for virtio proxy");
   }
 

@@ -20,7 +20,7 @@
 
 namespace Vmm {
 
-class Ram_ds : public Vm_ram
+class Ram_ds : public Vm_ram, public virtual Vdev::Dev_ref
 {
 public:
   enum { Ram_base_identity_mapped = ~0UL };
@@ -39,6 +39,8 @@ public:
    */
   explicit Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base = ~0UL,
                   l4_addr_t boot_offset = 0);
+
+  virtual ~Ram_ds() = default;
 
   /**
    * Load the contents of the given dataspace into guest RAM.

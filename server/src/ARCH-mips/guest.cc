@@ -11,18 +11,10 @@
 #include "guest.h"
 #include "guest_entry.h"
 
-namespace {
-
-l4_addr_t sign_ext(l4_uint32_t addr)
-{ return (l4_addr_t) ((l4_mword_t) ((l4_int32_t) addr)); }
-
-}
-
 namespace Vmm {
 
-Guest::Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
-: Guest::Generic_guest(ram, vm_base, sign_ext(0x80000000)),
-  _core_ic(Vdev::make_device<Gic::Mips_core_ic>()),
+Guest::Guest()
+: _core_ic(Vdev::make_device<Gic::Mips_core_ic>()),
   _cm(Vdev::make_device<Vdev::Coherency_manager>(&_memmap)),
   _cpc(Vdev::make_device<Vdev::Mips_cpc>())
 {
@@ -39,22 +31,23 @@ Guest::setup_device_tree(Vdev::Device_tree dt)
 }
 
 L4virtio::Ptr<void>
-Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
+Guest::load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry)
 {
   Boot::Binary_ds image(kernel);
   if (image.is_elf_binary())
-    *entry = image.load_as_elf(&_ram);
+    *entry = image.load_as_elf(ram);
   else
     {
-      image.load_as_raw(&_ram, 0x100000);
-      *entry = _ram.boot_addr(0x100400);
+      image.load_as_raw(ram, 0x100000);
+      *entry = ram->boot_addr(0x100400);
     }
 
   return l4_round_size(image.get_upper_bound(), L4_LOG2_SUPERPAGESIZE);
 }
 
 void
-Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const *kernel,
+Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
+                         Ram_ds *ram, char const *kernel,
                          char const *cmd_line, l4_addr_t dt_boot_addr)
 {
   /*
@@ -66,19 +59,19 @@ Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const *kernel,
   L4virtio::Ptr<char> prom_buf(prom_tab.get() + size);
 
   size += strlen(kernel) + 1;
-  strcpy(_ram.access(prom_buf), kernel);
-  _ram.access(prom_tab)[0] = _ram.boot_addr(prom_buf);
+  strcpy(ram->access(prom_buf), kernel);
+  ram->access(prom_tab)[0] = ram->boot_addr(prom_buf);
 
   if (cmd_line)
     {
       prom_buf = L4virtio::Ptr<char>(prom_buf.get() + size);
       size += strlen(cmd_line) + 1;
-      strcpy(_ram.access(prom_buf), cmd_line);
-      _ram.access(prom_tab)[1] = _ram.boot_addr(prom_buf);
+      strcpy(ram->access(prom_buf), cmd_line);
+      ram->access(prom_tab)[1] = ram->boot_addr(prom_buf);
     }
 
-  l4_cache_clean_data(reinterpret_cast<l4_addr_t>(_ram.access(prom_tab)),
-                      reinterpret_cast<l4_addr_t>(_ram.access(prom_tab)) + size);
+  l4_cache_clean_data(reinterpret_cast<l4_addr_t>(ram->access(prom_tab)),
+                      reinterpret_cast<l4_addr_t>(ram->access(prom_tab)) + size);
 
   // Initial register setup:
   //  a0 - number of kernel arguments
@@ -86,7 +79,7 @@ Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const *kernel,
   //  a2 - unused
   //  a3 - address of DTB
   vcpu->r.a0 = cmd_line ? 2 : 1;
-  vcpu->r.a1 = _ram.boot_addr(prom_tab);
+  vcpu->r.a1 = ram->boot_addr(prom_tab);
   vcpu->r.a2 = 0;
   vcpu->r.a3 = dt_boot_addr;
   vcpu->r.status = 8;

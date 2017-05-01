@@ -287,6 +287,7 @@ static int run(int argc, char *argv[])
   auto mon = create_monitor();
 
   auto *vmm = vm_instance.vmm();
+  auto *ram = vm_instance.ram().get();
 
   vmm->use_wakeup_inhibitor(use_wakeup_inhibitor);
   vmm->set_fallback_mmio_ds(vm_instance.vbus()->io_ds());
@@ -294,12 +295,14 @@ static int run(int argc, char *argv[])
   Vdev::Device_tree dt(nullptr);
   L4virtio::Ptr<void> dt_addr(0);
   l4_addr_t entry;
-  auto next_free_addr = vmm->load_linux_kernel(kernel_image, &entry);
+  info.printf("Loading kernel...\n");
+  auto next_free_addr = vmm->load_linux_kernel(ram, kernel_image, &entry);
 
   if (device_tree)
     {
+      info.printf("Loading device tree...\n");
       dt_addr = next_free_addr;
-      dt = load_device_tree_at(&vmm->ram(), device_tree, dt_addr, dtb_padding);
+      dt = load_device_tree_at(ram, device_tree, dt_addr, dtb_padding);
       // assume /choosen and /memory is present at this point
 
       if (cmd_line)
@@ -308,7 +311,7 @@ static int run(int argc, char *argv[])
           node.setprop_string("bootargs", cmd_line);
         }
 
-      vmm->ram().setup_device_tree(dt);
+      ram->setup_device_tree(dt);
       vmm->setup_device_tree(dt);
 
       dt.scan([] (Vdev::Dt_node const &node, unsigned /* depth */)
@@ -326,33 +329,40 @@ static int run(int argc, char *argv[])
 
   if (ram_disk)
     {
+      info.printf("Loading ram disk...\n");
       l4_size_t rd_size = 0;
-
-      vmm->load_ramdisk_at(ram_disk, next_free_addr, &rd_size);
+      auto rd_start = next_free_addr;
+      next_free_addr = ram->load_file(ram_disk, rd_start, &rd_size);
 
       if (device_tree && rd_size > 0)
         {
           auto node = dt.path_offset("/chosen");
-          node.set_prop_address("linux,initrd-start", next_free_addr.get());
+          node.set_prop_address("linux,initrd-start", rd_start.get());
           node.set_prop_address("linux,initrd-end",
-                                next_free_addr.get() + rd_size);
+                                rd_start.get() + rd_size);
         }
+
+      next_free_addr = l4_round_size(next_free_addr, L4_PAGESHIFT);
+
+      info.printf("Loaded ramdisk image %s to [%llx:%llx] (%08zx)\n",
+                  ram_disk, rd_start.get(), next_free_addr.get() - 1,
+                  rd_size);
     }
 
-  l4_addr_t dt_boot_addr = device_tree ? vmm->ram().boot_addr(dt_addr) : 0;
-  vmm->prepare_linux_run(vm_instance.cpus()->vcpu(0), entry, kernel_image,
+  l4_addr_t dt_boot_addr = device_tree ? ram->boot_addr(dt_addr) : 0;
+  vmm->prepare_linux_run(vm_instance.cpus()->vcpu(0), entry, ram, kernel_image,
                          cmd_line, dt_boot_addr);
 
   // XXX Some of the RAM memory might have been unmapped during copy_in()
   // of the binary and the RAM disk. The VM paging code, however, expects
   // the entire RAM to be present. Touch the RAM region again, now that
   // setup has finished to remap the missing parts.
-  vmm->ram().touch_rw();
+  ram->touch_rw();
 
   if (device_tree)
     {
       l4_addr_t ds_start =
-          reinterpret_cast<l4_addr_t>(vmm->ram().access(dt_addr));
+          reinterpret_cast<l4_addr_t>(ram->access(dt_addr));
       l4_addr_t ds_end = ds_start + dt.size();
       l4_cache_clean_data(ds_start, ds_end);
       info.printf("Cleaning caches [%lx-%lx] ([%llx])\n",

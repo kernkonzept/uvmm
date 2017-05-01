@@ -161,8 +161,8 @@ c_vcpu_entry(l4_vcpu_state_t *vcpu)
 }
 
 Vmm::Guest *
-Vmm::Guest::create_instance(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
+Vmm::Guest::create_instance()
 {
-  guest.construct(ram, vm_base);
+  guest.construct();
   return guest;
 }

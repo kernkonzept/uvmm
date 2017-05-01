@@ -25,22 +25,28 @@ namespace Vmm {
 class Guest : public Generic_guest
 {
 public:
-  enum { Default_rambase = Ram_ds::Ram_base_identity_mapped };
+  enum
+  {
+    Default_rambase = Ram_ds::Ram_base_identity_mapped,
+    Boot_offset = 0
+  };
 
-  Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
+  Guest();
 
   void setup_device_tree(Vdev::Device_tree dt);
 
-  L4virtio::Ptr<void> load_linux_kernel(char const *kernel, l4_addr_t *entry);
+  L4virtio::Ptr<void> load_linux_kernel(Ram_ds *ram, char const *kernel,
+                                        l4_addr_t *entry);
 
-  void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const *kernel,
+  void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
+                         Ram_ds *ram, char const *kernel,
                          char const *cmd_line, l4_addr_t dt);
   void run(cxx::Ref_ptr<Cpu_dev_array> cpus);
   void reset_vcpu(Vcpu_ptr vcpu);
 
   l4_msgtag_t handle_entry(Vcpu_ptr vcpu);
 
-  static Guest *create_instance(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
+  static Guest *create_instance();
 
   void show_state_interrupts(FILE *, Vcpu_ptr) {}
 

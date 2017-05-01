@@ -29,32 +29,15 @@ typedef void (*Entry)(Vmm::Vcpu_ptr vcpu);
 
 namespace Vmm {
 
-Guest::Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
-: Generic_guest(ram, vm_base),
-  _gic(Vdev::make_device<Gic::Dist>(8, 2)), // 8 * 32 spis, 2 cpus
+Guest::Guest()
+: _gic(Vdev::make_device<Gic::Dist>(8, 2)), // 8 * 32 spis, 2 cpus
   _timer(Vdev::make_device<Vdev::Core_timer>())
-{
-  if (_ram.vm_start() & ((1UL << 27) - 1))
-    warn().printf(
-      "\033[01;31mWARNING: Guest memory not 128MB aligned!\033[m\n"
-      "       If you run Linux as a guest, Linux will likely fail to boot\n"
-      "       as it assumes a 128MB alignment of its memory.\n"
-      "       Current guest RAM alignment is only %dMB\n",
-      (1 << __builtin_ctz(_ram.vm_start())) >> 20);
-  else if (_ram.vm_start() & ~0xf0000000)
-    warn().printf(
-        "WARNING: Guest memory not 256MB aligned!\n"
-        "       If you run Linux as a guest, you might hit a bug\n"
-        "       in the arch/arm/boot/compressed/head.S code\n"
-        "       that misses an ISB after code has been relocated.\n"
-        "       According to the internet a fix for this issue\n"
-        "       is floating around.\n");
-}
+{}
 
 Guest *
-Guest::create_instance(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
+Guest::create_instance()
 {
-  guest.reset(new Guest(ram, vm_base));
+  guest.reset(new Guest());
   return guest.get();
 }
 
@@ -159,11 +142,11 @@ Guest::setup_device_tree(Vdev::Device_tree dt)
 }
 
 L4virtio::Ptr<void>
-Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
+Guest::load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry)
 {
   Boot::Binary_ds image(kernel);
   if (image.is_elf_binary())
-    *entry = image.load_as_elf(&_ram);
+    *entry = image.load_as_elf(ram);
   else
     {
       char const *h = reinterpret_cast<char const *>(image.get_header());
@@ -176,7 +159,7 @@ Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
         {
           l4_uint64_t l = *reinterpret_cast<l4_uint64_t const *>(&h[8]);
           // Bytes 0xc-0xf have the size
-          *entry = image.load_as_raw(&_ram, l);
+          *entry = image.load_as_raw(ram, l);
           this->guest_64bit = true;
         }
       else if (   h[0x24] == 0x18 && h[0x25] == 0x28
@@ -184,13 +167,13 @@ Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
         {
           l4_uint32_t l = *reinterpret_cast<l4_uint32_t const *>(&h[0x28]);
           // Bytes 0x2c-0x2f have the zImage size
-          *entry = image.load_as_raw(&_ram, l);
+          *entry = image.load_as_raw(ram, l);
         }
 
       if (*entry == ~0ul)
         {
           enum { Default_entry =  0x208000 };
-          *entry = image.load_as_raw(&_ram, Default_entry);
+          *entry = image.load_as_raw(ram, Default_entry);
         }
     }
 
@@ -201,9 +184,9 @@ Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
    * bss before starting decompression. So we should be safe if we
    * place anything (e.g. initrd/device tree) at 3/4 of the ram.
    */
-  l4_size_t def_offs = l4_round_size((_ram.size() * 3) / 4,
+  l4_size_t def_offs = l4_round_size((ram->size() * 3) / 4,
                                      L4_SUPERPAGESHIFT);
-  L4virtio::Ptr<void> def_end(_ram.vm_start() + def_offs);
+  L4virtio::Ptr<void> def_end(ram->vm_start() + def_offs);
 
   if (def_end.get() < end.get())
     L4Re::chksys(-L4_ENOMEM, "Not enough space to run Linux");
@@ -214,7 +197,8 @@ Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
 }
 
 void
-Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const * /* kernel */,
+Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
+                         Ram_ds * /* ram */, char const * /* kernel */,
                          char const * /* cmd_line */, l4_addr_t dt_boot_addr)
 {
   if (Guest_64bit_supported && guest_64bit)

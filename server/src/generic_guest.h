@@ -27,13 +27,8 @@ namespace Vmm {
 class Generic_guest
 {
 public:
-  explicit Generic_guest(L4::Cap<L4Re::Dataspace> ram,
-                         l4_addr_t vm_base, l4_addr_t boot_offset = 0);
-
+  Generic_guest();
   virtual ~Generic_guest() = default;
-
-  Ram_ds &ram()
-  { return _ram; }
 
   L4Re::Util::Object_registry *registry() { return &_registry; }
 
@@ -42,10 +37,6 @@ public:
 
   void register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> &&dev,
                             Vdev::Dt_node const &node, size_t index = 0);
-
-  L4virtio::Ptr<void> load_ramdisk_at(char const *ram_disk,
-                                      L4virtio::Ptr<void> addr,
-                                      l4_size_t *size);
 
   void __attribute__((noreturn)) halt_vm()
   {
@@ -128,6 +119,9 @@ public:
   void use_wakeup_inhibitor(bool wakeup_inhibitor)
   { _pm.use_wakeup_inhibitor(wakeup_inhibitor); }
 
+  void add_mmio_device(Region const &region,
+                       cxx::Ref_ptr<Vmm::Mmio_device> &&dev);
+
 protected:
   void process_pending_ipc(Vcpu_ptr vcpu, l4_utcb_t *utcb)
   {
@@ -153,15 +147,10 @@ protected:
   L4Re::Util::Br_manager _bm;
   L4Re::Util::Object_registry _registry;
   Vm_mem _memmap;
-  Ram_ds _ram;
   L4Re::Util::Auto_cap<L4::Task>::Cap _task;
   Pm _pm;
   Vbus_event _vbus_event;
   L4::Cap<L4Re::Dataspace> _mmio_fallback;
-
-private:
-  void add_mmio_device(Region const &region,
-                       cxx::Ref_ptr<Vmm::Mmio_device> &&dev);
 };
 
 } // namespace

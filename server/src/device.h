@@ -15,6 +15,7 @@
 
 namespace Vmm {
   class Guest;
+  class Ram_ds;
   class Virt_bus;
   class Cpu_dev_array;
 }
@@ -102,6 +103,7 @@ struct Device_lookup
 {
   virtual cxx::Ref_ptr<Device> device_from_node(Dt_node const &node) const = 0;
   virtual Vmm::Guest *vmm() const = 0;
+  virtual cxx::Ref_ptr<Vmm::Ram_ds> ram() const = 0;
   virtual cxx::Ref_ptr<Vmm::Virt_bus> vbus() const = 0;
   virtual cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus() const = 0;
 };

@@ -22,6 +22,9 @@
 #include "vmprint.h"
 #include "mips_instructions.h"
 
+constexpr l4_addr_t sign_ext(l4_uint32_t addr)
+{ return (l4_addr_t) ((l4_mword_t) ((l4_int32_t) addr)); }
+
 namespace Vmm {
 
 class Guest : public Generic_guest
@@ -35,16 +38,21 @@ class Guest : public Generic_guest
   };
 
 public:
-  enum { Default_rambase = 0 };
+  enum
+  {
+    Default_rambase = 0,
+    Boot_offset = sign_ext(0x80000000)
+  };
 
-  Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
+  Guest();
   cxx::Ref_ptr<Gic::Mips_core_ic> core_ic() const  { return _core_ic; }
 
   void setup_device_tree(Vdev::Device_tree dt);
 
-  L4virtio::Ptr<void> load_linux_kernel(char const *kernel, l4_addr_t *entry);
+  L4virtio::Ptr<void> load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry);
 
-  void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const *kernel,
+  void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
+                         Ram_ds *ram, char const *kernel,
                          char const *cmd_line, l4_addr_t dt_boot_addr);
 
   void run(cxx::Ref_ptr<Cpu_dev_array> const &cpus);
@@ -58,7 +66,7 @@ public:
       _core_ic->show_state(f, vcpu);
   }
 
-  static Guest *create_instance(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
+  static Guest *create_instance();
 
 private:
   int handle_gpsi_mfc0(Vcpu_ptr vcpu, Mips::Instruction insn)
