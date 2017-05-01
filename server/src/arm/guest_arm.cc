@@ -312,7 +312,7 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
                     cpu.get());
 
       auto *vm = vcpu.state();
-      _gic->set_cpu(vcpu.get_vcpu_id(), &vm->gic);
+      _gic->set_cpu(vcpu.get_vcpu_id(), &vm->gic, cpu->thread_cap());
     }
 
   cpus->cpu(0)->startup();

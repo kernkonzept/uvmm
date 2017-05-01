@@ -31,18 +31,20 @@ private:
   struct Pending
   {
   private:
+    // collects bits used to implement various distributor registers
     l4_uint32_t _state;
 
   public:
-    CXX_BITFIELD_MEMBER_RO( 0,  0, pending,     _state);
-    CXX_BITFIELD_MEMBER_RO( 1,  1, active,      _state);
-    CXX_BITFIELD_MEMBER_RO( 3,  3, enabled,     _state);
+    CXX_BITFIELD_MEMBER_RO( 0,  0, pending,     _state); // GICD_I[SC]PENDRn
+    CXX_BITFIELD_MEMBER_RO( 1,  1, active,      _state); // GICD_I[SC]ACTIVERn
+    CXX_BITFIELD_MEMBER_RO( 3,  3, enabled,     _state); // GICD_I[SC]ENABLERn
     CXX_BITFIELD_MEMBER_RO( 4,  7, cpu,         _state);
+    CXX_BITFIELD_MEMBER_RO( 8, 11, src,         _state);
 
-    CXX_BITFIELD_MEMBER_RO( 8, 15, target,      _state);
-    CXX_BITFIELD_MEMBER_RO(23, 27, prio,        _state);
-    CXX_BITFIELD_MEMBER_RO(28, 29, config,      _state);
-    CXX_BITFIELD_MEMBER_RO(30, 30, group,       _state);
+    CXX_BITFIELD_MEMBER_RO(15, 22, target,      _state); // GICD_ITARGETSRn
+    CXX_BITFIELD_MEMBER_RO(23, 27, prio,        _state); // GICD_IPRIORITYRn
+    CXX_BITFIELD_MEMBER_RO(28, 29, config,      _state); // GICD_ICFGRn
+    CXX_BITFIELD_MEMBER_RO(30, 30, group,       _state); // GICD_IGROUPRn
 
   private:
 
@@ -75,6 +77,8 @@ private:
 
   public:
     Pending() : _state(0) {}
+    l4_uint32_t state() const
+    { return _state; }
 
     bool enable()
     { return set_pe(enabled_bfm_t::Mask); }
@@ -98,6 +102,9 @@ private:
     bool group(bool grp1);
     bool config(unsigned cfg);
     bool target(unsigned char tgt);
+
+    static void show_header(FILE *f);
+    void show(FILE *f, int irq) const;
   };
 
   struct Context
@@ -113,6 +120,7 @@ public:
   class Const_irq
   {
   public:
+    l4_uint32_t state() const { return _p->state(); }
     bool enabled() const { return _p->enabled(); }
     bool pending() const { return _p->pending(); }
     bool active() const { return _p->active(); }
@@ -132,6 +140,10 @@ public:
     bool operator == (Const_irq const &r) const { return _p == r._p; }
     bool operator != (Const_irq const &r) const { return _p != r._p; }
 
+    static void show_header(FILE *f)
+    { Pending::show_header(f); }
+    void show(FILE *f, int irq)
+    { _p->show(f, irq); }
   protected:
     friend class Irq_array;
     Const_irq(Pending *p, Context *c) : _p(p), _c(c) {}
@@ -335,6 +347,16 @@ Irq_array::Pending::kick_from_cpu(unsigned char cpu)
     ;
 }
 
+inline bool
+log_failure(l4_uint32_t state, unsigned char cpu, unsigned char min_prio,
+            bool make_pending, char const *txt)
+{
+  Dbg(Dbg::Irq, Dbg::Trace, "Gic")
+    .printf("Cpu%d: state: %08x - take_on_cpu(%d, %d, %s) -> %s\n",
+            vmm_current_cpu_id, state, cpu,
+            min_prio, make_pending ? "true" : "false", txt);
+  return false;
+}
 
 inline bool
 Irq_array::Pending::take_on_cpu(unsigned char cpu, unsigned char min_prio,
@@ -345,19 +367,28 @@ Irq_array::Pending::take_on_cpu(unsigned char cpu, unsigned char min_prio,
   l4_uint32_t nv;
   do
     {
-      if (cpu_bfm_t::get(old) != 0)
-        return false; // already on a different CPU
+      l4_uint32_t current = cpu_bfm_t::get(old);
+      if (current != 0)
+        {
+          if (current != cpu + 1U)
+            return log_failure(old, cpu, min_prio, make_pending,
+                               "already on a different CPU");
+          nv = old;
+        }
+      else
+        nv = old | cpu_bfm_t::val_dirty(cpu + 1);
 
       if (!(old & (1UL << (cpu + target_bfm_t::Lsb))))
-        return false; // not for us, skip it
+        return log_failure(old, cpu, min_prio, make_pending,
+                           "not for us, skip it");
 
       if (!is_pending_and_enabled(old))
-        return false; // not pending, so no need to take
+        return log_failure(old, cpu, min_prio, make_pending,
+                           "not pending, so no need to take");
 
       if (prio_bfm_t::get(old) >= min_prio)
-        return false; // priority
+        return log_failure(old, cpu, min_prio, make_pending, "priority");
 
-      nv = old | cpu_bfm_t::val_dirty(cpu + 1);
       if (make_pending)
         nv = (nv & ~pending_bfm_t::Mask) | active_bfm_t::Mask;
     }
@@ -457,8 +488,19 @@ public:
 
   static_assert(Num_lrs <= 32, "Can only handle up to 32 list registers.");
 
-  Cpu() : _local_irq(Num_local) {}
+  Cpu() : _local_irq(Num_local)
+  {
+    memset(&_sgi_pend, 0, sizeof(_sgi_pend));
+    _cpu_irq = L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4::Irq>(),
+                            "allocate vcpu notification interrupt");
+    L4Re::chksys(L4Re::Env::env()->factory()->create(_cpu_irq.get()),
+                 "create vcpu notification interrupt");
+  }
+
   void setup(unsigned cpuid, Irq_array *spis);
+
+  void attach_cpu_thread(L4::Cap<L4::Thread> thread)
+  { L4Re::chksys(_cpu_irq->attach(0, thread)); }
 
   Irq_array::Irq local_irq(unsigned irqn) { return _local_irq[irqn]; }
 
@@ -473,13 +515,18 @@ public:
   Vmm::Arm::State::Gic *vgic() const { return _vgic; }
   void vgic(Vmm::Arm::State::Gic *gic) { _vgic = gic; }
 
+  void ipi(unsigned irq);
+  void notify()
+  { _cpu_irq->trigger(); }
+
   l4_uint32_t read_sgi_pend(unsigned reg)
   { return _sgi_pend[reg]; }
 
   void write_set_sgi_pend(unsigned reg, l4_uint32_t value);
   void write_clear_sgi_pend(unsigned reg, l4_uint32_t value);
   void handle_eois();
-  bool add_pending_irq(unsigned lr, Irq_array::Irq const &irq, unsigned irq_id, unsigned src_cpu = 0);
+  bool add_pending_irq(unsigned lr, Irq_array::Irq const &irq, unsigned irq_id,
+                       unsigned src_cpu = 0);
 
   unsigned find_pending_irq(unsigned char target_mask, unsigned char min_prio)
   { return _local_irq.find_pending_irq(target_mask, min_prio, 0, Num_local); }
@@ -493,11 +540,20 @@ public:
   bool is_work_pending() const
   { return cxx::access_once(&_pending_work); }
 
-private:
+  void handle_ipis();
+  bool set_sgi(unsigned irq);
+  void clear_sgi(unsigned irq, unsigned src);
+  void dump_sgis() const;
+
+  void show(FILE *f, unsigned cpu);
+
+ private:
+  l4_uint32_t _sgi_pend[4]; // 4 * 4 == 16 SGIs a 8 bits
+
   Irq_array _local_irq;
   Irq_array *_spis;
-  l4_uint32_t _sgi_pend[4]; // 4 * 4 == 16 SGIs a 8 bits
-  Vmm::Arm::State::Gic *_vgic;
+  Vmm::Arm::State::Gic *_vgic = 0;
+  L4Re::Util::Auto_cap<L4::Irq>::Cap _cpu_irq;
   bool _pending_work;
 };
 
@@ -575,8 +631,7 @@ Cpu::handle_eois()
 {
   if (!_vgic->misr.eoi())
     return;
-  if (0)
-    printf("GICC(%p): _vgic=%p\n", this, _vgic);
+
   unsigned ridx = 0;
   // currently we use up to 32 list registers
   l4_uint32_t eisr = _vgic->eisr[ridx];
@@ -692,6 +747,7 @@ public:
     CTLR  = 0x000,
     TYPER = 0x004, // RO
     IIDR  = 0x008, // RO
+    SGIR  = 0xf00, // WO
   };
 
   enum Blocks
@@ -739,6 +795,21 @@ public:
     Irq_cell_number = 1,
     Irq_cell_flags = 2,
     Irq_cells = 3
+  };
+
+  struct Sgir
+  {
+  private:
+    l4_uint32_t _raw;
+
+  public:
+    explicit Sgir(l4_uint32_t val) : _raw(val) {}
+    l4_uint32_t raw() const { return _raw; }
+
+    CXX_BITFIELD_MEMBER(24, 25, target_list_filter, _raw);
+    CXX_BITFIELD_MEMBER(16, 23, cpu_target_list, _raw);
+    CXX_BITFIELD_MEMBER(15, 15, nsatt, _raw);
+    CXX_BITFIELD_MEMBER( 0,  3, sgi_int_id, _raw);
   };
 
 
@@ -851,11 +922,7 @@ public:
       }
   }
 
-  void notify_cpus(unsigned mask)
-  {
-    if (0)
-      gicd_info.printf("Do notify other CPUs to do IRQ work: %x\n", mask);
-  }
+  void notify_cpus(unsigned mask) const;
 
   void inject_irq(Irq_array::Irq const &irq, unsigned id, unsigned current_cpu)
   {
@@ -872,18 +939,16 @@ public:
               return;
           }
         else
-          printf("Warn: IRQ for different CPU: %d\n", id);
-
-        if (unsigned char map = (irq.target() & ~current_cpu & active_mask))
+          {
+            if (0)
+              printf("Cpu%d - %s:Warn: IRQ %d for different CPU: %x & %x & %x\n"
+                     "\tirq.group() = %x ? %d : %d\n",
+                     vmm_current_cpu_id, __PRETTY_FUNCTION__, id,
+                     irq.target(), current, active_mask,
+                     irq.group(), _active_grp1_cpus, _active_grp0_cpus);
+          }
+        if (unsigned char map = (irq.target() & ~current & active_mask))
           notify_cpus(map);
-      }
-    else
-      {
-        if (0)
-           printf("PI: id=%d %s%s target=%x cpu=%d prio=%d\n",
-                  id, irq.pending() ? "pending " : "",
-                  irq.enabled() ? "enabled" : "disabled",
-                  (unsigned)irq.target(), (int)irq.cpu(), (int)irq.prio());
       }
   }
 
@@ -904,7 +969,8 @@ public:
       }
   }
 
-  void set_cpu(unsigned cpu, Vmm::Arm::State::Gic *iface)
+  void set_cpu(unsigned cpu, Vmm::Arm::State::Gic *iface,
+               L4::Cap<L4::Thread> thread)
   {
     if (cpu >= cpus)
       return;
@@ -912,6 +978,7 @@ public:
     gicd_info.printf("set CPU interface for CPU %02d (%p) to %p\n",
                      cpu, &_cpu[cpu], iface);
     _cpu[cpu].vgic(iface);
+    _cpu[cpu].attach_cpu_thread(thread);
   }
 
   static void init_vgic(Vmm::Arm::State::Gic *iface)
@@ -934,6 +1001,7 @@ public:
     Cpu *c = &_cpu[current_cpu];
 
     c->handle_eois();
+    c->handle_ipis();
 
     int pmask = c->vgic()->vmcr.pri_mask() << 3;
 
@@ -960,6 +1028,21 @@ public:
         bool ok = c->add_pending_irq(empty_lr - 1, c->irq(irq_id), irq_id);
         if (0)
           gicd_info.printf("%s\n", ok ? "OK" : "FAILED");
+      }
+  }
+
+  void show_state(unsigned current_cpu, char const *file, unsigned line) const
+  {
+    assert (current_cpu < cpus);
+    for (int i = 0; i < cpus; ++i)
+       gicd_info.printf("%s:%d: Cpu%d = %p, Gic=%p\n",
+                        file, line, i, &_cpu[i], _cpu[i].vgic());
+    Cpu &c = _cpu[current_cpu];
+    if (c.vgic())
+      {
+        gicd_info.printf("%s:%d: Irq state for Cpu%d: hcr:%08x, vmcr:%08x\n",
+                         file, line, current_cpu,
+                         c.vgic()->hcr.raw, c.vgic()->vmcr.raw);
       }
   }
 
@@ -1000,7 +1083,9 @@ public:
     c->handle_maintenance_irq(current_cpu);
   }
 
+  void show(FILE *f) const;
 private:
+  void sgir_write(l4_uint32_t value);
   unsigned char _active_grp0_cpus;
   unsigned char _active_grp1_cpus;
   cxx::unique_ptr<Cpu[]> _cpu;
