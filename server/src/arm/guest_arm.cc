@@ -470,14 +470,14 @@ guest_memory_fault(Vcpu_ptr vcpu)
     }
 }
 
-static void
-guest_wfx(Vcpu_ptr vcpu)
+void
+Vmm::Guest::handle_wfx(Vcpu_ptr vcpu)
 {
   vcpu->r.ip += 2 << vcpu.hsr().il();
   if (vcpu.hsr().wfe_trapped()) // WFE
     return;
 
-  if (guest->gic()->schedule_irqs(vmm_current_cpu_id))
+  if (_gic->schedule_irqs(vmm_current_cpu_id))
     return;
 
   l4_timeout_t to = L4_IPC_NEVER;
@@ -493,30 +493,40 @@ guest_wfx(Vcpu_ptr vcpu)
       if (cmp <= cnt)
         return;
 
-      l4_uint64_t diff = guest->timer()->get_micro_seconds(cmp - cnt);
+      l4_uint64_t diff = _timer->get_micro_seconds(cmp - cnt);
       if (0)
         printf("diff=%lld\n", diff);
       l4_rcv_timeout(l4_timeout_abs_u(l4_kip_clock(l4re_kip()) + diff, 8, utcb), &to);
     }
 
-  guest->wait_for_ipc(utcb, to);
+  wait_for_ipc(utcb, to);
 }
 
-static void guest_ppi(Vcpu_ptr vcpu)
+static void
+guest_wfx(Vcpu_ptr vcpu)
+{ guest->handle_wfx(vcpu); }
+
+
+void
+Vmm::Guest::handle_ppi(Vcpu_ptr vcpu)
 {
   switch (vcpu.hsr().svc_imm())
     {
     case 0: // VGIC IRQ
-      guest->gic()->handle_maintenance_irq(vmm_current_cpu_id);
+      _gic->handle_maintenance_irq(vmm_current_cpu_id);
       break;
     case 1: // VTMR IRQ
-      guest->timer()->inject();
+      _timer->inject();
       break;
     default:
       Err().printf("unknown virtual PPI: %d\n", (int)vcpu.hsr().svc_imm());
       break;
     }
 }
+
+static void
+guest_ppi(Vcpu_ptr vcpu)
+{ guest->handle_ppi(vcpu); }
 
 static void guest_irq(Vcpu_ptr vcpu)
 {

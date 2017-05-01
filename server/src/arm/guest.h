@@ -50,6 +50,8 @@ public:
   cxx::Ref_ptr<Vdev::Core_timer> timer() const
   { return _timer; }
 
+  void handle_wfx(Vcpu_ptr vcpu);
+  void handle_ppi(Vcpu_ptr vcpu);
   bool handle_psci_call(Vcpu_ptr vcpu);
 
 private:
