@@ -17,8 +17,7 @@ Generic_guest::Generic_guest(L4::Cap<L4Re::Dataspace> ram,
                              l4_addr_t vm_base, l4_addr_t boot_offset)
 : _registry(&_bm),
   _ram(ram, vm_base, boot_offset),
-  _task(L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4::Task>())),
-  _device_tree(L4virtio::Ptr<void>::Invalid)
+  _task(L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4::Task>()))
 {
   // attach RAM to VM
   _memmap[Region::ss(_ram.vm_start(), _ram.size())]
@@ -31,62 +30,6 @@ Generic_guest::Generic_guest(L4::Cap<L4Re::Dataspace> ram,
   l4_debugger_set_object_name(_task.get().cap(), "vm-task");
 
   _vbus_event.register_obj(registry());
-}
-
-L4virtio::Ptr<void>
-Generic_guest::load_device_tree_at(char const *name, L4virtio::Ptr<void> addr,
-                                   l4_size_t padding)
-{
-  _ram.load_file(name, addr);
-  _device_tree = addr;
-
-  auto dt = device_tree();
-  dt.check_tree();
-  // use 1.25 * size + padding for the time being
-  dt.add_to_size(dt.size() / 4 + padding);
-  info().printf("Loaded device tree to %llx:%llx\n", _device_tree.get(),
-                _device_tree.get() + dt.size());
-
-  // Round to the next page to load anything else to a new page.
-  return l4_round_size(L4virtio::Ptr<void>(addr.get() + dt.size()),
-                       L4_PAGESHIFT);
-}
-
-void
-Generic_guest::update_device_tree(char const *cmd_line)
-{
-  // We assume that "/choosen" and "/memory" are present
-  auto dt = device_tree();
-  if (cmd_line)
-    {
-      auto node = dt.path_offset("/chosen");
-      node.setprop_string("bootargs", cmd_line);
-    }
-  auto mem_node = dt.path_offset("/memory");
-  mem_node.set_reg_val(_ram.vm_start(), _ram.size());
-
-  l4_addr_t dma_base;
-  l4_size_t dma_size;
-  _ram.dma_area(&dma_base, &dma_size);
-  int addr_cells = mem_node.get_address_cells();
-  mem_node.setprop("dma-ranges", dma_base, addr_cells);
-  mem_node.appendprop("dma-ranges", _ram.vm_start(), addr_cells);
-  mem_node.appendprop("dma-ranges", dma_size, mem_node.get_size_cells());
-}
-
-void
-Generic_guest::set_ramdisk_params(L4virtio::Ptr<void> addr, l4_size_t size)
-{
-  if (!size)
-    return;
-
-  // We assume that "/choosen" is present
-  auto dt = device_tree();
-
-  auto node = dt.path_offset("/chosen");
-  node.set_prop_address("linux,initrd-start", addr.get());
-  node.set_prop_address("linux,initrd-end", addr.get() + size);
-
 }
 
 L4virtio::Ptr<void>

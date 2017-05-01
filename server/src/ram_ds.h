@@ -10,9 +10,12 @@
 #include <l4/re/dataspace>
 #include <l4/re/dma_space>
 #include <l4/re/util/cap_alloc>
+#include <l4/util/util.h>
 
 #include <l4/l4virtio/virtqueue>
 
+#include "device.h"
+#include "device_tree.h"
 #include "vm_ram.h"
 
 namespace Vmm {
@@ -87,11 +90,19 @@ public:
   L4virtio::Ptr<T> boot2guest_phys(l4_addr_t p) const noexcept
   { return L4virtio::Ptr<T>(p - _boot_offset); }
 
-  void dma_area(l4_addr_t *phys_base, l4_size_t *phys_size) const
+  void setup_device_tree(Vdev::Device_tree dt)
   {
-    *phys_base = _phys_ram;
-    *phys_size = _phys_size;
+    auto mem_node = dt.path_offset("/memory");
+    mem_node.set_reg_val(vm_start(), size());
+
+    int addr_cells = mem_node.get_address_cells();
+    mem_node.setprop("dma-ranges", _phys_ram, addr_cells);
+    mem_node.appendprop("dma-ranges", vm_start(), addr_cells);
+    mem_node.appendprop("dma-ranges", _phys_size, mem_node.get_size_cells());
   }
+
+  void touch_rw()
+  { l4_touch_rw((void *)local_start(), size()); }
 
 private:
   L4::Cap<L4Re::Dataspace> _ram;

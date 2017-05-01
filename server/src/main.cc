@@ -26,6 +26,7 @@
 #include <getopt.h>
 
 #include <l4/re/env>
+#include <l4/sys/cache.h>
 
 #include "debug.h"
 #include "device_tree.h"
@@ -113,6 +114,21 @@ create_monitor()
   return moncon;
 }
 
+static Vdev::Device_tree
+load_device_tree_at(Vmm::Ram_ds *ram, char const *name, L4virtio::Ptr<void> addr,
+                    l4_size_t padding)
+{
+  ram->load_file(name, addr);
+
+  auto dt = Vdev::Device_tree(ram->access(addr));
+  dt.check_tree();
+  // use 1.25 * size + padding for the time being
+  dt.add_to_size(dt.size() / 4 + padding);
+  info.printf("Loaded device tree to %llx:%llx\n", addr.get(),
+                addr.get() + dt.size());
+
+  return dt;
+}
 
 static int
 verbosity_mask_from_string(char const *str, unsigned *mask)
@@ -276,36 +292,74 @@ static int run(int argc, char *argv[])
   vmm->use_wakeup_inhibitor(use_wakeup_inhibitor);
   vmm->set_fallback_mmio_ds(vm_instance.vbus()->io_ds());
 
+  Vdev::Device_tree dt(nullptr);
+  L4virtio::Ptr<void> dt_addr(0);
   l4_addr_t entry;
-  auto load_addr = vmm->load_linux_kernel(kernel_image, &entry);
+  auto next_free_addr = vmm->load_linux_kernel(kernel_image, &entry);
 
   if (device_tree)
     {
-      load_addr = vmm->load_device_tree_at(device_tree, load_addr, dtb_padding);
-      vmm->update_device_tree(cmd_line);
+      dt_addr = next_free_addr;
+      dt = load_device_tree_at(&vmm->ram(), device_tree, dt_addr, dtb_padding);
+      // assume /choosen and /memory is present at this point
 
-      auto dt = vmm->device_tree();
+      if (cmd_line)
+        {
+          auto node = dt.path_offset("/chosen");
+          node.setprop_string("bootargs", cmd_line);
+        }
+
+      vmm->ram().setup_device_tree(dt);
+      vmm->setup_device_tree(dt);
+
       dt.scan([] (Vdev::Dt_node const &node, unsigned /* depth */)
                 { return node_cb(node); },
               [] (Vdev::Dt_node const &, unsigned)
                 {});
 
       vm_instance.init_devices(dt);
+
+      // Round to the next page to load anything else to a new page.
+      next_free_addr =
+        l4_round_size(L4virtio::Ptr<void>(dt_addr.get() + dt.size()),
+                                          L4_PAGESHIFT);
     }
 
   if (ram_disk)
     {
       l4_size_t rd_size = 0;
-      L4virtio::Ptr<void> rd_addr(load_addr);
 
-      vmm->load_ramdisk_at(ram_disk, rd_addr, &rd_size);
-      if (device_tree)
-        vmm->set_ramdisk_params(rd_addr, rd_size);
+      vmm->load_ramdisk_at(ram_disk, next_free_addr, &rd_size);
+
+      if (device_tree && rd_size > 0)
+        {
+          auto node = dt.path_offset("/chosen");
+          node.set_prop_address("linux,initrd-start", next_free_addr.get());
+          node.set_prop_address("linux,initrd-end",
+                                next_free_addr.get() + rd_size);
+        }
     }
 
-  vmm->prepare_linux_run(vm_instance.cpus()->vcpu(0), entry,
-                         kernel_image, cmd_line);
-  vmm->cleanup_ram_state();
+  l4_addr_t dt_boot_addr = device_tree ? vmm->ram().boot_addr(dt_addr) : 0;
+  vmm->prepare_linux_run(vm_instance.cpus()->vcpu(0), entry, kernel_image,
+                         cmd_line, dt_boot_addr);
+
+  // XXX Some of the RAM memory might have been unmapped during copy_in()
+  // of the binary and the RAM disk. The VM paging code, however, expects
+  // the entire RAM to be present. Touch the RAM region again, now that
+  // setup has finished to remap the missing parts.
+  vmm->ram().touch_rw();
+
+  if (device_tree)
+    {
+      l4_addr_t ds_start =
+          reinterpret_cast<l4_addr_t>(vmm->ram().access(dt_addr));
+      l4_addr_t ds_end = ds_start + dt.size();
+      l4_cache_clean_data(ds_start, ds_end);
+      info.printf("Cleaning caches [%lx-%lx] ([%llx])\n",
+                  ds_start, ds_end, dt_addr.get());
+    }
+
   vmm->run(vm_instance.cpus());
 
   Err().printf("ERROR: we must never reach this....\n");

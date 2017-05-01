@@ -15,6 +15,7 @@
 #include "cm.h"
 #include "core_ic.h"
 #include "debug.h"
+#include "device_tree.h"
 #include "generic_guest.h"
 #include "cpu_dev_array.h"
 #include "irq.h"
@@ -39,12 +40,12 @@ public:
   Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
   cxx::Ref_ptr<Gic::Mips_core_ic> core_ic() const  { return _core_ic; }
 
-  void update_device_tree(char const *cmd_line);
+  void setup_device_tree(Vdev::Device_tree dt);
 
   L4virtio::Ptr<void> load_linux_kernel(char const *kernel, l4_addr_t *entry);
 
   void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const *kernel,
-                         char const *cmd_line);
+                         char const *cmd_line, l4_addr_t dt_boot_addr);
 
   void run(cxx::Ref_ptr<Cpu_dev_array> const &cpus);
 

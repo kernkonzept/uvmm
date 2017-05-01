@@ -31,12 +31,10 @@ Guest::Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base)
 }
 
 void
-Guest::update_device_tree(char const *cmd_line)
+Guest::setup_device_tree(Vdev::Device_tree dt)
 {
-  Guest::Generic_guest::update_device_tree(cmd_line);
-
   // advertise CPU core timer frequency in DTS
-  auto node = device_tree().path_offset("/cpus");
+  auto node = dt.path_offset("/cpus");
   node.setprop_u32("mips-hpt-frequency", l4re_kip()->frequency_cpu * 1000);
 }
 
@@ -57,7 +55,7 @@ Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
 
 void
 Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const *kernel,
-                         char const *cmd_line)
+                         char const *cmd_line, l4_addr_t dt_boot_addr)
 {
   /*
    * Setup arguments for Mips boot protocol
@@ -90,7 +88,7 @@ Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const *kernel,
   vcpu->r.a0 = cmd_line ? 2 : 1;
   vcpu->r.a1 = _ram.boot_addr(prom_tab);
   vcpu->r.a2 = 0;
-  vcpu->r.a3 = has_device_tree() ? _ram.boot_addr(_device_tree) : 0;
+  vcpu->r.a3 = dt_boot_addr;
   vcpu->r.status = 8;
   // UHI boot protocol spec says that at least KX should be set when the
   // boot loader passes in 64bit addresses for the command line parameters.

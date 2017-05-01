@@ -11,6 +11,7 @@
 
 #include "core_timer.h"
 #include "device.h"
+#include "device_tree.h"
 #include "generic_guest.h"
 #include "gic.h"
 #include "ram_ds.h"
@@ -28,12 +29,12 @@ public:
 
   Guest(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base);
 
-  void update_device_tree(char const *cmd_line);
+  void setup_device_tree(Vdev::Device_tree dt);
 
   L4virtio::Ptr<void> load_linux_kernel(char const *kernel, l4_addr_t *entry);
 
   void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const *kernel,
-                         char const *cmd_line);
+                         char const *cmd_line, l4_addr_t dt);
   void run(cxx::Ref_ptr<Cpu_dev_array> cpus);
   void reset_vcpu(Vcpu_ptr vcpu);
 

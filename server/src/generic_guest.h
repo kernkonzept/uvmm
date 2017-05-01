@@ -11,11 +11,9 @@
 #include <l4/re/dataspace>
 #include <l4/re/util/br_manager>
 #include <l4/re/util/object_registry>
-#include <l4/sys/cache.h>
 #include <l4/l4virtio/l4virtio>
 
 #include "debug.h"
-#include "device_tree.h"
 #include "ds_mmio_mapper.h"
 #include "ram_ds.h"
 #include "vm_memmap.h"
@@ -34,12 +32,6 @@ public:
 
   virtual ~Generic_guest() = default;
 
-  Vdev::Device_tree device_tree() const
-  { return Vdev::Device_tree(_ram.access(_device_tree)); }
-
-  bool has_device_tree() const
-  { return _device_tree.is_valid(); }
-
   Ram_ds &ram()
   { return _ram; }
 
@@ -54,33 +46,6 @@ public:
   L4virtio::Ptr<void> load_ramdisk_at(char const *ram_disk,
                                       L4virtio::Ptr<void> addr,
                                       l4_size_t *size);
-
-  void cleanup_ram_state()
-  {
-    // XXX Some of the RAM memory might have been unmapped during copy_in()
-    // of the binary and the RAM disk. The VM paging code, however, expects
-    // the entire RAM to be present. Touch the RAM region again, now that
-    // setup has finished to remap the missing parts.
-    l4_touch_rw((void *)_ram.local_start(), _ram.size());
-
-    if (has_device_tree())
-      {
-        l4_addr_t ds_start =
-          reinterpret_cast<l4_addr_t>(_ram.access(_device_tree));
-        l4_addr_t ds_end = ds_start + device_tree().size();
-        l4_cache_clean_data(ds_start, ds_end);
-        trace().printf("Cleaning caches [%lx-%lx] ([%lx+%llx])\n",
-                       ds_start, ds_end, _ram.local_start(),
-                       _device_tree.get());
-      }
-  }
-
-  L4virtio::Ptr<void> load_device_tree_at(char const *src,
-                                          L4virtio::Ptr<void> addr,
-                                          l4_size_t padding);
-  // architecture specific device tree manipulation hook
-  void update_device_tree(char const *cmd_line);
-  void set_ramdisk_params(L4virtio::Ptr<void> addr, l4_size_t size);
 
   void __attribute__((noreturn)) halt_vm()
   {
@@ -190,7 +155,6 @@ protected:
   Vm_mem _memmap;
   Ram_ds _ram;
   L4Re::Util::Auto_cap<L4::Task>::Cap _task;
-  L4virtio::Ptr<void> _device_tree;
   Pm _pm;
   Vbus_event _vbus_event;
   L4::Cap<L4Re::Dataspace> _mmio_fallback;

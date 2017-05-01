@@ -131,9 +131,8 @@ get_psci_node(Device_tree const &dt)
 }
 
 void
-Guest::arm_update_device_tree()
+Guest::setup_device_tree(Vdev::Device_tree dt)
 {
-  auto dt = device_tree();
   Dt_node parent;
   Dt_node node = get_psci_node(dt);
 
@@ -156,13 +155,6 @@ Guest::arm_update_device_tree()
 
   node.setprop_string("compatible", "arm,psci-0.2");
   node.setprop_string("method", "hvc");
-}
-
-void
-Guest::update_device_tree(char const *cmd_line)
-{
-  Guest::Generic_guest::update_device_tree(cmd_line);
-  arm_update_device_tree();
 }
 
 L4virtio::Ptr<void>
@@ -222,13 +214,13 @@ Guest::load_linux_kernel(char const *kernel, l4_addr_t *entry)
 
 void
 Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const * /* kernel */,
-                         char const * /* cmd_line */)
+                         char const * /* cmd_line */, l4_addr_t dt_boot_addr)
 {
   if (Guest_64bit_supported && guest_64bit)
     {
       // Set up the VCPU state as expected by Linux entry
       vcpu->r.flags = 0x000001c5;
-      vcpu->r.r[0]  = has_device_tree() ? _device_tree.get() : 0;
+      vcpu->r.r[0]  = dt_boot_addr;
       vcpu->r.r[1]  = 0;
       vcpu->r.r[2]  = 0;
       vcpu->r.r[3]  = 0;
@@ -239,7 +231,7 @@ Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, char const * /* kernel 
       vcpu->r.flags = 0x000001d3;
       vcpu->r.r[0]  = 0;
       vcpu->r.r[1]  = ~0UL;
-      vcpu->r.r[2]  = has_device_tree() ? _device_tree.get() : 0;
+      vcpu->r.r[2]  = dt_boot_addr;
       vcpu->r.r[3]  = 0;
     }
   vcpu->r.ip    = entry;
