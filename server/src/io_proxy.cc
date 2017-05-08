@@ -118,16 +118,16 @@ Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self,
       if (strncmp(resname, "irq", 3))
         {
           warn.printf("IRQ resource '%s' of device '%.64s' ignored. "
-                      "Should be named 'irq[0-9]'.\n",
+                      "Should be named 'irq[0-9A-Z]'.\n",
                       resname, devinfo->dev_info.name);
           continue;
         }
 
-      int id = resname[3] - '0';
-      if (id < 0 || id > 9)
+      int id = decode_resource_id(resname[3]);
+      if (id == -1)
         {
           Err().printf("IO device '%.64s' has invalid irq resource id. "
-                       "Expected 'irq[0-9]', got '%.4s'\n",
+                       "Expected 'irq[0-9A-Z]', got '%.4s'\n",
                        devinfo->dev_info.name, resname);
           L4Re::chksys(-L4_EINVAL);
         }
@@ -138,6 +138,16 @@ Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self,
       else
         Err().printf("Error: IO IRQ resource id (%d) is out of bounds\n", id);
     }
+}
+
+int Io_proxy::decode_resource_id(char c)
+{
+  if ('0' <= c && c <= '9')
+    return c - '0';
+  if ('A' <= c && c <= 'Z')
+    return c - 'A' + 10;
+
+  return -1;
 }
 
 namespace {
@@ -176,16 +186,16 @@ struct F : Factory
         if (strncmp(resname, "reg", 3))
           {
             warn.printf("MMIO resource '%s' of device '%.64s' ignored. "
-                       "Should be named 'reg[0-9]'.\n",
-                       resname, vd->dev_info.name);
+                        "Should be named 'reg[0-9A-Z]'.\n",
+                        resname, vd->dev_info.name);
             continue;
           }
 
-        int id = resname[3] - '0';
-        if (id < 0 || id > 9)
+        int id = Io_proxy::decode_resource_id(resname[3]);
+        if (id == -1)
           {
             Err().printf("IO device '%.64s' has invalid mmio resource id. "
-                         "Expected 'reg[0-9]', got '%.4s'.\n",
+                         "Expected 'reg[0-9A-Z]', got '%.4s'.\n",
                          vd->dev_info.name, resname);
             L4Re::chksys(-L4_EINVAL);
           }

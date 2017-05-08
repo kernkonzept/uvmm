@@ -61,6 +61,8 @@ public:
   void init_device(Device_lookup const *devs, Dt_node const &self,
                    Vmm::Guest *vmm, Vmm::Virt_bus *vbus) override;
 
+  static int decode_resource_id(char c);
+
 private:
   void bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
                 Dt_node const &self, unsigned dt_idx, unsigned io_irq);
