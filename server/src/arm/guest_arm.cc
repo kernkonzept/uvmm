@@ -29,7 +29,7 @@ typedef void (*Entry)(Vmm::Vcpu_ptr vcpu);
 namespace Vmm {
 
 Guest::Guest()
-: _gic(Vdev::make_device<Gic::Dist>(8, 2)), // 8 * 32 spis, 2 cpus
+: _gic(Vdev::make_device<Gic::Dist>(16, 2)), // 16 * 32 spis, 2 cpus
   _timer(Vdev::make_device<Vdev::Core_timer>())
 {}
 
