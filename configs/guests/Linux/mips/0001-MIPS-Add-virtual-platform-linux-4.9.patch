@@ -1,0 +1,602 @@
+From 998a547c11c9a36a2c3fa21f1d6efe492bf489ea Mon Sep 17 00:00:00 2001
+From: Adam Lackorzynski <adam@l4re.org>
+Subject: [PATCH] MIPS: Add virtual platform
+
+This adds a virtual platform to use as a guest in VZ-enabled
+virtualization environments.
+---
+ arch/mips/Kbuild.platforms                         |   1 +
+ arch/mips/Kconfig                                  |  28 ++++++
+ arch/mips/configs/mach_virt_defconfig              |  11 +++
+ .../include/asm/mach-virt/cpu-feature-overrides.h  |  14 +++
+ arch/mips/include/asm/mach-virt/dma-coherence.h    | 102 +++++++++++++++++++++
+ arch/mips/include/asm/mach-virt/hypcall.h          |  96 +++++++++++++++++++
+ arch/mips/include/asm/timex.h                      |   6 +-
+ arch/mips/mach-virt/Makefile                       |   3 +
+ arch/mips/mach-virt/Platform                       |   9 ++
+ arch/mips/mach-virt/dma.c                          |  53 +++++++++++
+ arch/mips/mach-virt/early_printk.c                 |  13 +++
+ arch/mips/mach-virt/irq.c                          |  17 ++++
+ arch/mips/mach-virt/setup.c                        |  95 +++++++++++++++++++
+ arch/mips/mm/c-r4k.c                               |   2 +
+ 14 files changed, 447 insertions(+), 3 deletions(-)
+ create mode 100644 arch/mips/configs/mach_virt_defconfig
+ create mode 100644 arch/mips/include/asm/mach-virt/cpu-feature-overrides.h
+ create mode 100644 arch/mips/include/asm/mach-virt/dma-coherence.h
+ create mode 100644 arch/mips/include/asm/mach-virt/hypcall.h
+ create mode 100644 arch/mips/mach-virt/Makefile
+ create mode 100644 arch/mips/mach-virt/Platform
+ create mode 100644 arch/mips/mach-virt/dma.c
+ create mode 100644 arch/mips/mach-virt/early_printk.c
+ create mode 100644 arch/mips/mach-virt/irq.c
+ create mode 100644 arch/mips/mach-virt/setup.c
+
+diff --git a/arch/mips/Kbuild.platforms b/arch/mips/Kbuild.platforms
+index f5f1bdb292de..74a19cda1f13 100644
+--- a/arch/mips/Kbuild.platforms
++++ b/arch/mips/Kbuild.platforms
+@@ -18,6 +18,7 @@ platforms += lantiq
+ platforms += lasat
+ platforms += loongson32
+ platforms += loongson64
++platforms += mach-virt
+ platforms += mti-malta
+ platforms += netlogic
+ platforms += paravirt
+diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
+index b3c5bde43d34..6251c9b12455 100644
+--- a/arch/mips/Kconfig
++++ b/arch/mips/Kconfig
+@@ -546,6 +546,34 @@ config MACH_PIC32
+ 	  Microchip PIC32 is a family of general-purpose 32 bit MIPS core
+ 	  microcontrollers.
+ 
++config MIPS_VIRT
++	bool "MIPS virtual platform"
++	select HW_HAS_PCI
++	select BOOT_ELF32
++	select BOOT_RAW
++	select CEVT_R4K
++	select CSRC_R4K
++	select COMMON_CLK
++	select IRQ_MIPS_CPU
++	select DMA_NONCOHERENT
++	select MIPS_GIC
++	select MIPS_CPU_SCACHE
++	select LIBFDT
++	select HW_HAS_PCI
++	select SMP_UP if SMP
++	select SWAP_IO_SPACE
++	select SYS_HAS_CPU_MIPS32_R2
++	select SYS_HAS_CPU_MIPS32_R3_5
++	select SYS_HAS_CPU_MIPS64_R6
++	select SYS_HAS_EARLY_PRINTK
++	select SYS_SUPPORTS_32BIT_KERNEL
++	select SYS_SUPPORTS_64BIT_KERNEL
++	select SYS_SUPPORTS_HIGHMEM
++	select SYS_SUPPORTS_LITTLE_ENDIAN
++	select SYS_SUPPORTS_MIPS_CPS
++	select SYS_SUPPORTS_SMARTMIPS
++	select USE_OF
++
+ config NEC_MARKEINS
+ 	bool "NEC EMMA2RH Mark-eins board"
+ 	select SOC_EMMA2RH
+diff --git a/arch/mips/configs/mach_virt_defconfig b/arch/mips/configs/mach_virt_defconfig
+new file mode 100644
+index 000000000000..20a03530c490
+--- /dev/null
++++ b/arch/mips/configs/mach_virt_defconfig
+@@ -0,0 +1,11 @@
++CONFIG_MIPS_VIRT=y
++CONFIG_BLK_DEV_INITRD=y
++CONFIG_BLK_DEV_RAM=y
++# CONFIG_KEYBOARD_ATKBD is not set
++# CONFIG_MOUSE_PS2 is not set
++# CONFIG_SERIO is not set
++CONFIG_VIRTIO_CONSOLE=y
++CONFIG_VIRTIO_MMIO=y
++CONFIG_EXT4_FS=y
++CONFIG_EXT4_FS_POSIX_ACL=y
++CONFIG_EXT4_FS_SECURITY=y
+diff --git a/arch/mips/include/asm/mach-virt/cpu-feature-overrides.h b/arch/mips/include/asm/mach-virt/cpu-feature-overrides.h
+new file mode 100644
+index 000000000000..8994952808e4
+--- /dev/null
++++ b/arch/mips/include/asm/mach-virt/cpu-feature-overrides.h
+@@ -0,0 +1,14 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ */
++#ifndef __ASM_MACH_VIRT_CPU_FEATURE_OVERRIDES_H
++#define __ASM_MACH_VIRT_CPU_FEATURE_OVERRIDES_H
++
++#define cpu_has_maar		0
++#define cpu_has_htw             0
++#define cpu_has_dc_aliases	1
++#define cpu_has_nan_legacy	1
++
++#endif /* __ASM_MACH_VIRT_CPU_FEATURE_OVERRIDES_H */
+diff --git a/arch/mips/include/asm/mach-virt/dma-coherence.h b/arch/mips/include/asm/mach-virt/dma-coherence.h
+new file mode 100644
+index 000000000000..a9a3661b68d3
+--- /dev/null
++++ b/arch/mips/include/asm/mach-virt/dma-coherence.h
+@@ -0,0 +1,102 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ *
++ * Copyright (C) 2016 Kernkonzept GmbH
++ */
++#pragma once
++
++#include <linux/mm.h>
++#include <linux/err.h>
++#include <linux/kernel.h>
++#include <linux/bug.h>
++#include <linux/io.h>
++#include <linux/dma-mapping.h>
++
++extern unsigned long l4vmm_gpa_start;
++extern unsigned long l4vmm_gpa_size;
++extern dma_addr_t l4vmm_dma_start;
++
++struct device;
++
++static inline dma_addr_t plat_map_gpa_to_dma(unsigned long gpa)
++{
++	if (likely(l4vmm_gpa_size)) {
++		if (likely(l4vmm_gpa_start <= gpa
++		           && gpa < l4vmm_gpa_start + l4vmm_gpa_size))
++			return gpa - l4vmm_gpa_start + l4vmm_dma_start;
++	}
++
++	pr_err("Failed to translate guest-physical 0x%lx to dma-addr\n",
++	       gpa);
++	BUG(); /* What else? If not here we'll go chaos sooner anyway */
++}
++
++static inline dma_addr_t plat_map_dma_mem(struct device *dev, void *addr,
++	size_t size)
++{
++	return plat_map_gpa_to_dma(virt_to_phys(addr));
++}
++
++static inline dma_addr_t plat_map_dma_mem_page(struct device *dev,
++	struct page *page)
++{
++	return plat_map_gpa_to_dma(page_to_phys(page));
++}
++
++static inline unsigned long plat_dma_addr_to_phys(struct device *dev,
++	dma_addr_t dma_addr)
++{
++	if (likely(l4vmm_gpa_size)) {
++		if (likely(l4vmm_dma_start <= dma_addr
++		           && dma_addr < l4vmm_dma_start + l4vmm_gpa_size))
++			return dma_addr - l4vmm_dma_start + l4vmm_gpa_start;
++	}
++
++	pr_err("%s: Do not know about dma_addr=%lx\n", __func__,
++	       (unsigned long) dma_addr);
++	BUG();
++}
++
++static inline void plat_unmap_dma_mem(struct device *dev, dma_addr_t dma_addr,
++	size_t size, enum dma_data_direction direction)
++{
++	if (0) pr_warn("%s\n", __func__);
++}
++
++static inline int plat_dma_supported(struct device *dev, u64 mask)
++{
++	/*
++	 * we fall back to GFP_DMA when the mask isn't all 1s,
++	 * so we can't guarantee allocations that must be
++	 * within a tighter range than GFP_DMA..
++	 */
++	if (mask < DMA_BIT_MASK(24))
++		return 0;
++
++	return 1;
++}
++
++static inline int plat_device_is_coherent(struct device *dev)
++{
++	return coherentio;
++}
++
++#ifndef plat_post_dma_flush
++static inline void plat_post_dma_flush(struct device *dev)
++{
++}
++#endif
++
++#ifdef CONFIG_SWIOTLB
++static inline dma_addr_t phys_to_dma(struct device *dev, phys_addr_t paddr)
++{
++	return plat_map_gpa_to_dma(paddr);
++}
++
++static inline phys_addr_t dma_to_phys(struct device *dev, dma_addr_t daddr)
++{
++	return daddr;
++}
++#endif
+diff --git a/arch/mips/include/asm/mach-virt/hypcall.h b/arch/mips/include/asm/mach-virt/hypcall.h
+new file mode 100644
+index 000000000000..8a7e8818fbfb
+--- /dev/null
++++ b/arch/mips/include/asm/mach-virt/hypcall.h
+@@ -0,0 +1,96 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ *
++ * (C) 2016 Kernkonzept GmbH, Adam Lackorzynski <adam@l4re.org>
++ */
++#pragma once
++
++enum {
++	L4VMM_FUNC_BASE      = 0x160,
++	L4VMM_FUNC_PRINTCHAR = L4VMM_FUNC_BASE + 0,
++};
++
++static inline unsigned long
++l4vmm_hypcall1(unsigned func, unsigned long a0)
++{
++	register unsigned long _a0 asm ("a0") = a0;
++	asm volatile(".set push; .set virt; hypcall %[func]; .set pop"
++	             : "=r" (_a0)
++	             : [func] "K" (func),
++	               "0" (_a0)
++	             : "cc", "memory");
++	return _a0;
++}
++
++static inline unsigned long
++l4vmm_hypcall2(unsigned func, unsigned long a0, unsigned long a1)
++{
++	register unsigned long _a0 asm ("a0") = a0;
++	register unsigned long _a1 asm ("a1") = a1;
++	asm volatile(".set push; .set virt; hypcall %[func]; .set pop"
++	             : "=r" (_a0),
++	               "=r" (_a1)
++	             : [func] "K" (func),
++	               "0" (_a0),
++	               "1" (_a1)
++	             : "cc", "memory");
++	return _a0;
++}
++
++static inline unsigned long
++l4vmm_hypcall2_ret(unsigned func, unsigned long a0, unsigned long *a1)
++{
++	register unsigned long _a0 asm ("a0") = a0;
++	register unsigned long _a1 asm ("a1") = *a1;
++	asm volatile(".set push; .set virt; hypcall %[func]; .set pop"
++	             : "=r" (_a0),
++	               "=r" (_a1)
++	             : [func] "K" (func),
++	               "0" (_a0),
++	               "1" (_a1)
++	             : "cc", "memory");
++	*a1 = _a1;
++	return _a0;
++}
++
++static inline unsigned long
++l4vmm_hypcall3(unsigned func, unsigned long a0, unsigned long a1,
++                              unsigned long a2)
++{
++	register unsigned long _a0 asm ("a0") = a0;
++	register unsigned long _a1 asm ("a1") = a1;
++	register unsigned long _a2 asm ("a2") = a2;
++	asm volatile(".set push; .set virt; hypcall %[func]; .set pop"
++	             : "=r" (_a0),
++	               "=r" (_a1),
++	               "=r" (_a2)
++	             : [func] "K" (func),
++	               "0" (_a0),
++	               "1" (_a1),
++	               "2" (_a2)
++	             : "cc", "memory");
++	return _a0;
++}
++
++static inline unsigned long
++l4vmm_hypcall3_ret(unsigned func, unsigned long a0, unsigned long *a1,
++                                  unsigned long *a2)
++{
++	register unsigned long _a0 asm ("a0") = a0;
++	register unsigned long _a1 asm ("a1") = *a1;
++	register unsigned long _a2 asm ("a2") = *a2;
++	asm volatile(".set push; .set virt; hypcall %[func]; .set pop"
++	             : "=r" (_a0),
++	               "=r" (_a1),
++	               "=r" (_a2)
++	             : [func] "K" (func),
++	               "0" (_a0),
++	               "1" (_a1),
++	               "2" (_a2)
++	             : "cc", "memory");
++	*a1 = _a1;
++	*a2 = _a2;
++	return _a0;
++}
+diff --git a/arch/mips/include/asm/timex.h b/arch/mips/include/asm/timex.h
+index b05bb70a2e46..322250454979 100644
+--- a/arch/mips/include/asm/timex.h
++++ b/arch/mips/include/asm/timex.h
+@@ -71,7 +71,7 @@ static inline int can_use_mips_counter(unsigned int prid)
+ 
+ static inline cycles_t get_cycles(void)
+ {
+-	if (can_use_mips_counter(read_c0_prid()))
++	if (IS_ENABLED(CONFIG_MIPS_VIRT) || can_use_mips_counter(read_c0_prid()))
+ 		return read_c0_count();
+ 	else
+ 		return 0;	/* no usable counter */
+@@ -86,10 +86,10 @@ static inline cycles_t get_cycles(void)
+  */
+ static inline unsigned long random_get_entropy(void)
+ {
+-	unsigned int prid = read_c0_prid();
++	unsigned int prid = IS_ENABLED(CONFIG_MIPS_VIRT) ? 0 : read_c0_prid();
+ 	unsigned int imp = prid & PRID_IMP_MASK;
+ 
+-	if (can_use_mips_counter(prid))
++	if (IS_ENABLED(CONFIG_MIPS_VIRT) || can_use_mips_counter(prid))
+ 		return read_c0_count();
+ 	else if (likely(imp != PRID_IMP_R6000 && imp != PRID_IMP_R6000A))
+ 		return read_c0_random();
+diff --git a/arch/mips/mach-virt/Makefile b/arch/mips/mach-virt/Makefile
+new file mode 100644
+index 000000000000..bb4b0207b85c
+--- /dev/null
++++ b/arch/mips/mach-virt/Makefile
+@@ -0,0 +1,3 @@
++obj-y                        += setup.o irq.o dma.o
++
++obj-$(CONFIG_EARLY_PRINTK)   += early_printk.o
+diff --git a/arch/mips/mach-virt/Platform b/arch/mips/mach-virt/Platform
+new file mode 100644
+index 000000000000..52ddca75c1a2
+--- /dev/null
++++ b/arch/mips/mach-virt/Platform
+@@ -0,0 +1,9 @@
++#
++# Virtual platform.
++#
++platform-$(CONFIG_MIPS_VIRT)	+= mach-virt/
++cflags-$(CONFIG_MIPS_VIRT)	+= -I$(srctree)/arch/mips/include/asm/mach-virt
++
++load-$(CONFIG_MIPS_VIRT)	+= 0xffffffff80100000
++
++all-$(CONFIG_MIPS_VIRT)		:= $(COMPRESSION_FNAME).bin
+diff --git a/arch/mips/mach-virt/dma.c b/arch/mips/mach-virt/dma.c
+new file mode 100644
+index 000000000000..9d86a2e6ff0a
+--- /dev/null
++++ b/arch/mips/mach-virt/dma.c
+@@ -0,0 +1,53 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ *
++ * Copyright (C) 2016 Kernkonzept GmbH
++ */
++
++
++#include <linux/of.h>
++#include <linux/of_fdt.h>
++#include <linux/of_address.h>
++
++#include <asm/mach-virt/dma-coherence.h>
++
++unsigned long l4vmm_gpa_start;
++unsigned long l4vmm_gpa_size;
++dma_addr_t l4vmm_dma_start;
++
++/* For now, we just have a single contiguous physical region in the
++ * hypervisor */
++static int __init mips_virt_dma_init(void)
++{
++	struct device_node *np;
++	const __be32 *ranges = NULL;
++	int naddr, nsize, len;
++
++	l4vmm_gpa_size = 0;
++
++	np = of_find_node_by_name(NULL, "memory");
++	if (!np)
++		return 0;
++
++	naddr = of_n_addr_cells(np);
++	nsize = of_n_size_cells(np);
++
++	ranges = of_get_property(np, "dma-ranges", &len);
++
++	if (ranges && len >= (sizeof(*ranges) * (2 * naddr + nsize))) {
++		l4vmm_dma_start = of_read_number(ranges, naddr);
++		l4vmm_gpa_start = of_read_number(ranges + naddr, naddr);
++		l4vmm_gpa_size = of_read_number(ranges + 2 * naddr, nsize);
++
++		pr_info("DMA range for memory 0x%lx - 0x%lx set @ 0x%lx\n",
++		        l4vmm_gpa_start,
++		        l4vmm_gpa_start + l4vmm_gpa_size,
++		        (unsigned long) l4vmm_dma_start);
++	}
++
++	return 0;
++}
++
++fs_initcall(mips_virt_dma_init);
+diff --git a/arch/mips/mach-virt/early_printk.c b/arch/mips/mach-virt/early_printk.c
+new file mode 100644
+index 000000000000..591ed45f37f8
+--- /dev/null
++++ b/arch/mips/mach-virt/early_printk.c
+@@ -0,0 +1,13 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ *
++ * Copyright (C) 2016 Kernkonzept GmbH
++ */
++#include <asm/mach-virt/hypcall.h>
++
++void prom_putchar(char c)
++{
++	l4vmm_hypcall1(L4VMM_FUNC_PRINTCHAR, c);
++}
+diff --git a/arch/mips/mach-virt/irq.c b/arch/mips/mach-virt/irq.c
+new file mode 100644
+index 000000000000..8a4c9addf4cc
+--- /dev/null
++++ b/arch/mips/mach-virt/irq.c
+@@ -0,0 +1,17 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ *
++ * Copyright (C) 2016 Kernkonzept GmbH
++ */
++
++#include <linux/init.h>
++#include <linux/irqchip.h>
++
++#include <asm/irq.h>
++
++void __init arch_init_irq(void)
++{
++	irqchip_init();
++}
+diff --git a/arch/mips/mach-virt/setup.c b/arch/mips/mach-virt/setup.c
+new file mode 100644
+index 000000000000..4182221ebbaf
+--- /dev/null
++++ b/arch/mips/mach-virt/setup.c
+@@ -0,0 +1,95 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ *
++ * Copyright (C) 2016 Kernkonzept GmbH
++ */
++
++#include <linux/init.h>
++#include <linux/initrd.h>
++#include <linux/of.h>
++#include <linux/of_fdt.h>
++#include <linux/of_platform.h>
++#include <linux/clk-provider.h>
++#include <linux/clocksource.h>
++
++#include <asm/bootinfo.h>
++#include <asm/cpu-features.h>
++#include <asm/irq_cpu.h>
++#include <asm/prom.h>
++#include <asm/time.h>
++
++const char *get_system_type(void)
++{
++	return "MIPS Virtual Platform";
++}
++
++static void __init init_mips_cpu_timer(void)
++{
++	struct device_node *np;
++	u32 freq;
++
++	mips_hpt_frequency = 0;
++
++	/* The timer frequency must be defined in the device tree.
++	   If the definition is missing, we assume that the timer should
++	   not be used.
++	*/
++	np = of_find_node_by_name(NULL, "cpus");
++	if (np && of_property_read_u32(np, "mips-hpt-frequency", &freq) >= 0) {
++		mips_hpt_frequency = freq;
++
++		printk("CPU frequency %d.%02d MHz\n", freq/1000000,
++		       (freq%1000000)*100/1000000);
++	} else
++		pr_warn("MIPS CPU core timer not used. %p, %u\n", np, freq);
++
++	of_node_put(np);
++}
++
++void __init plat_time_init(void)
++{
++	init_mips_cpu_timer();
++}
++
++void __init prom_init(void)
++{
++	int i;
++	int argc = fw_arg0;
++	char **argv = (char **)fw_arg1;
++
++	for (i = 0; i < argc; i++) {
++		strlcat(arcs_cmdline, argv[i], COMMAND_LINE_SIZE);
++		if (i < argc - 1)
++			strlcat(arcs_cmdline, " ", COMMAND_LINE_SIZE);
++	}
++
++	printk("DT at address %p\n", (void *)fw_arg3);
++	__dt_setup_arch((void *)fw_arg3);
++}
++
++void __init plat_mem_setup(void)
++{
++}
++
++void __init prom_free_prom_memory(void)
++{
++}
++
++void __init device_tree_init(void)
++{
++	unflatten_and_copy_device_tree();
++}
++
++static int __init publish_devices(void)
++{
++	if (!of_have_populated_dt())
++		return 0;
++
++	if (of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL))
++		panic("Failed to populate DT");
++
++	return 0;
++}
++device_initcall(publish_devices);
+diff --git a/arch/mips/mm/c-r4k.c b/arch/mips/mm/c-r4k.c
+index 88cfaf81c958..cad123f7127f 100644
+--- a/arch/mips/mm/c-r4k.c
++++ b/arch/mips/mm/c-r4k.c
+@@ -1741,9 +1741,11 @@ static void setup_scache(void)
+ 				       way_string[c->scache.ways], c->scache.linesz);
+ 			}
+ #else
++#ifndef CONFIG_MIPS_VIRT
+ 			if (!(c->scache.flags & MIPS_CACHE_NOT_PRESENT))
+ 				panic("Dunno how to handle MIPS32 / MIPS64 second level cache");
+ #endif
++#endif
+ 			return;
+ 		}
+ 		sc_present = 0;
+-- 
+2.11.0
+
