@@ -22,31 +22,6 @@
 
 namespace Vmm {
 
-/**
- * Describes a load/store instruction.
- */
-struct Mem_access
-{
-  enum Kind
-  {
-    Load,  /// load from memory
-    Store, /// store to memory
-    Other  /// unknown instruction
-  };
-
-  enum Width
-  {
-    Wd8 = 0,  // Byte access
-    Wd16 = 1, // Half-word access
-    Wd32 = 2, // Word access
-    Wd64 = 3, // Double word access
-  };
-
-  l4_uint64_t value;
-  Kind access;
-  char width;
-};
-
 class Generic_vcpu_ptr
 {
 public:

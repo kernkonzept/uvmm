@@ -18,6 +18,7 @@
 
 #include "device.h"
 #include "vcpu_ptr.h"
+#include "mem_access.h"
 
 namespace Vmm {
 
@@ -81,7 +82,7 @@ private:
  *     void write(unsigned reg, char size, l4_umword_t value, unsigned cpu_id);
  *
  * `reg` is the address offset into the devices memory region. `size`
- * describes the width of the access (see VMM::Mem_access::Width) and
+ * describes the width of the access (see Vmm::Mem_access::Width) and
  * `cpu_id` the accessing CPU (currently unused).
  */
 template<typename DEV>
@@ -196,19 +197,7 @@ struct Ro_ds_mapper_t : Mmio_device
     assert (offset <= 0x80000000);
     assert (offset + (1UL << width) <= dev()->mapped_mmio_size());
 
-    // only naturally aligned accesses are allowed
-    if (L4_UNLIKELY(offset & ((1UL << width) - 1)))
-      return 0;
-
-    l4_addr_t l = local_addr() + offset;
-
-    switch (width) {
-      case Mem_access::Wd8:  return *reinterpret_cast<l4_uint8_t *>(l);
-      case Mem_access::Wd16: return *reinterpret_cast<l4_uint16_t *>(l);
-      case Mem_access::Wd32: return *reinterpret_cast<l4_uint32_t *>(l);
-      case Mem_access::Wd64: return *reinterpret_cast<l4_uint64_t *>(l);
-      default: return 0; // unsupported width
-    }
+    return Mem_access::read_width(local_addr() + offset, width);
   }
 
   void map_mmio(l4_addr_t pfa, l4_addr_t offset, L4::Cap<L4::Task> vm_task,

@@ -11,6 +11,7 @@
 
 #include "aarch64_hyp.h"
 #include "generic_vcpu_ptr.h"
+#include "mem_access.h"
 
 namespace Vmm {
 

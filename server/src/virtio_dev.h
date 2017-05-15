@@ -25,6 +25,7 @@
 #include <l4/l4virtio/server/virtio>
 
 #include "device.h"
+#include "mem_access.h"
 #include "vm_ram.h"
 
 namespace Virtio {
@@ -195,15 +196,8 @@ public:
     if (reg >= 0x100)
       {
         l4_addr_t a = (l4_addr_t)vcfg + reg;
-        switch (size)
-          {
-          case Vmm::Mem_access::Wd8:  *reinterpret_cast<l4_uint8_t *>(a) = value;  break;
-          case Vmm::Mem_access::Wd16: *reinterpret_cast<l4_uint16_t *>(a) = value; break;
-          case Vmm::Mem_access::Wd32: *reinterpret_cast<l4_uint32_t *>(a) = value; break;
-          case Vmm::Mem_access::Wd64: *reinterpret_cast<l4_uint64_t *>(a) = value; break;
-          default: return;
-          }
-        dev()->virtio_device_config_written(reg);
+        if (Vmm::Mem_access::write_width(a, value, size) == L4_EOK)
+          dev()->virtio_device_config_written(reg);
         return;
       }
 

@@ -16,6 +16,7 @@
 #include <l4/sys/vm.h>
 
 #include "generic_vcpu_ptr.h"
+#include "mem_access.h"
 #include "mips_instructions.h"
 
 namespace Vmm {
