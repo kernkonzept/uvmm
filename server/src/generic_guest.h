@@ -111,6 +111,7 @@ public:
   void wait_for_ipc(l4_utcb_t *utcb, l4_timeout_t to)
   {
     l4_umword_t src;
+    _bm.setup_wait(utcb, L4::Ipc_svr::Reply_separate);
     l4_msgtag_t tag = l4_ipc_wait(utcb, &src, to);
     if (!tag.has_error())
       handle_ipc(tag, src, utcb);
