@@ -151,8 +151,11 @@ public:
           }
 
         q->consumed(r);
-        _irq_status_shadow |= 1;
-        ev.set(q->event_index);
+        if (!q->no_notify_guest())
+          {
+            _irq_status_shadow |= 1;
+            ev.set(q->event_index);
+          }
       }
 
     if (_cfg_header->irq_status != _irq_status_shadow)
@@ -235,17 +238,17 @@ public:
             break;
           }
 
-        if ((unsigned)r <= p.len)
+        unsigned size = (unsigned)r <= p.len ? (unsigned)r : p.len;
+        q->consumed(req, size);
+
+        if (!q->no_notify_guest())
           {
-            q->consumed(req, r);
             dev()->_irq_status_shadow |= 1;
             ev->set(q->event_index);
-            break;
           }
 
-        q->consumed(req, p.len);
-        dev()->_irq_status_shadow |= 1;
-        ev->set(q->event_index);
+        if ((unsigned)r <= p.len)
+          break;
       }
   }
 
