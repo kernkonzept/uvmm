@@ -455,6 +455,8 @@ public:
   enum { Num_local = 32 };
   enum { Num_lrs = 4 };
 
+  static_assert(Num_lrs <= 32, "Can only handle up to 32 list registers.");
+
   Cpu() : _local_irq(Num_local) {}
   void setup(unsigned cpuid, Irq_array *spis);
 
@@ -463,7 +465,7 @@ public:
   unsigned get_empty_lr() const
   { return __builtin_ffs(_vgic->elsr[0]); }
 
-  bool pending_irqs() const { return _vgic->elsr[0] != (1 << Num_lrs) - 1; }
+  bool pending_irqs() const { return _vgic->elsr[0] != (1ULL << Num_lrs) - 1; }
 
   Irq_array::Irq irq(unsigned irqn);
   Irq_array::Const_irq irq(unsigned irqn) const;
