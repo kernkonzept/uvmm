@@ -39,6 +39,51 @@ struct Mmio_device : public virtual Vdev::Dev_ref
   };
 
   /**
+   * Check whether a superpage containing address is inside a region
+   *
+   * \param addr     address to check
+   * \param start    start of region.
+   * \param end      end of region; do not check end of region if end is zero.
+   * \return true if there is a superpage containing the address
+   *                 inside the region
+   */
+  inline bool sp_in_range(l4_addr_t addr, l4_addr_t start, l4_addr_t end)
+
+  {
+    auto superpage = l4_trunc_size(addr, L4_SUPERPAGESHIFT);
+    return    (start <= superpage)
+           && (!end || ((superpage + L4_SUPERPAGESIZE - 1) <= end));
+  }
+
+  /**
+   * Calculate log_2(pagesize) for a location in a region
+   *
+   * \param addr     Guest-physical address where the access occurred.
+   * \param start    Guest-physical address of start of memory region.
+   * \param end      Guest-physical address of end of memory region.
+   * \param offset   Accessed address relative to the beginning of the region.
+   * \param l_start  Local address of start of memory region.
+   * \param l_end    Local address of end of memory region, default 0.
+   * \return largest possible pageshift (currently either L4_PAGESHIFT
+   *                 or L4_SUPERPAGESHIFT)
+   */
+  inline char get_page_shift(l4_addr_t addr, l4_addr_t start, l4_addr_t end,
+                                 l4_addr_t offset, l4_addr_t l_start,
+                                 l4_addr_t l_end = 0)
+  {
+    // Check whether a superpage is inside the regions
+    if (   !sp_in_range(addr, start, end)
+        || !sp_in_range(l_start + offset, l_start, l_end))
+      return L4_PAGESHIFT;
+
+    // Check whether both regions have a compatible alignment
+    if ((start & (L4_SUPERPAGESIZE - 1)) != (l_start & (L4_SUPERPAGESIZE - 1)))
+      return L4_PAGESHIFT;
+
+    return L4_SUPERPAGESHIFT;
+  }
+
+  /**
    * Callback on memory access.
    *
    * \param pfa      Guest-physical address where the access occurred.
@@ -206,14 +251,12 @@ struct Ro_ds_mapper_t : Mmio_device
 #ifdef MAP_OTHER
     auto res = dev()->mmio_ds()->map(offset, 0, pfa, min, max, vm_task);
 #else
-    unsigned char ps = L4_PAGESHIFT;
-
-    if (l4_trunc_size(pfa, L4_SUPERPAGESHIFT) >= min
-        && l4_round_size(pfa, L4_SUPERPAGESHIFT) <= max)
-      ps = L4_SUPERPAGESHIFT;
+    auto local_start = local_addr();
+    unsigned char ps = get_page_shift(pfa, min, max, offset, local_start,
+                                      local_start + dev()->mapped_mmio_size());
 
     // XXX make sure that the page is currently mapped
-    l4_addr_t base = l4_trunc_size(local_addr() + offset, ps);
+    l4_addr_t base = l4_trunc_size(local_start + offset, ps);
     l4_touch_ro((void *)base, 1 << ps);
 
     auto res = l4_error(vm_task->map(L4Re::This_task,

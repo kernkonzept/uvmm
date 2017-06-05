@@ -41,11 +41,7 @@ class Ds_handler : public Vmm::Mmio_device
                    vcpu.pf_write() ? L4Re::Dataspace::Map_rw : 0,
                    pfa, min, max, vm_task);
 #else
-    unsigned char ps = L4_PAGESHIFT;
-
-    if (l4_trunc_size(pfa, L4_SUPERPAGESHIFT) >= min
-        && l4_round_size(pfa, L4_SUPERPAGESHIFT) <= max)
-      ps = L4_SUPERPAGESHIFT;
+    unsigned char ps = get_page_shift(pfa, min, max, offset, _local_start);
 
     // TODO Need to make sure that memory is locally mapped.
     res = L4Re::chksys(vm_task->map(L4Re::This_task,
