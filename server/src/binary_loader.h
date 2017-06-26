@@ -40,6 +40,10 @@ public:
     return as_elf_header()->is_valid();
   }
 
+  bool is_elf64()
+  {
+    return as_elf_header()->is_64();
+  }
 
   l4_addr_t load_as_elf(Vmm::Ram_ds *ram)
   {

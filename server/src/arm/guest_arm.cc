@@ -146,7 +146,13 @@ Guest::load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry)
 {
   Boot::Binary_ds image(kernel);
   if (image.is_elf_binary())
-    *entry = image.load_as_elf(ram);
+    {
+      *entry = image.load_as_elf(ram);
+      guest_64bit = image.is_elf64();
+      if (!Guest_64bit_supported && guest_64bit)
+        L4Re::chksys(-L4_EINVAL, "Running a 64bit guest on a 32bit host is "
+                                 "not possible.");
+    }
   else
     {
       char const *h = reinterpret_cast<char const *>(image.get_header());
