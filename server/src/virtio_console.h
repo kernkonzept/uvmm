@@ -51,6 +51,10 @@ public:
   Virtio_console(Vmm::Vm_ram *iommu, L4::Cap<L4::Vcon> con)
   : Virtio::Dev(iommu, 0x44, L4VIRTIO_ID_CONSOLE), _con(con)
   {
+    Features feat(0);
+    feat.ring_indirect_desc() = true;
+    _cfg_header->dev_features_map[0] = feat.raw;
+
     _q[0].config.num_max = 0x100;
     _q[1].config.num_max = 0x100;
 
@@ -162,21 +166,6 @@ public:
       dev()->set_irq_status(_irq_status_shadow);
 
     dev()->event_connector()->send_events(cxx::move(ev));
-  }
-
-  l4_uint32_t host_feature(unsigned id)
-  {
-    switch (id)
-      {
-      case 0:
-        {
-          Features feat(0);
-          feat.ring_indirect_desc() = true;
-          return feat.raw;
-        }
-      default:
-        return 0;
-      }
   }
 
   void load_desc(Desc const &desc, Request_processor const *, Payload *p)
