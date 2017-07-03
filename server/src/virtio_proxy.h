@@ -259,21 +259,13 @@ public:
   void virtio_device_config_written(unsigned)
   {}
 
-  void virtio_queue_select(unsigned qn)
+  L4virtio::Device::Config_queue *current_virtqueue_config()
   {
-    auto *cfg = _dev.device_config();
-    cfg->queue_sel = qn;
-    if (qn >= cfg->num_queues)
-      {
-        cfg->queue_num_max = 0;
-        cfg->queue_ready = 0;
-        return;
-      }
+    unsigned qn = _dev.device_config()->queue_sel;
+    if (qn >= _dev.device_config()->num_queues)
+      return nullptr;
 
-    auto *q = _dev.queue_config(qn);
-
-    cfg->queue_num_max = q->num_max;
-    cfg->queue_ready = q->ready;
+    return _dev.queue_config(qn);
   }
 
   void virtio_queue_ready(unsigned ready)
@@ -281,7 +273,7 @@ public:
     auto *cfg = _dev.device_config();
     unsigned qn = cfg->queue_sel;
 
-    if (qn > cfg->num_queues)
+    if (qn >= cfg->num_queues)
       return;
 
     if (ready != 1 && ready != 0)
@@ -291,15 +283,9 @@ public:
     if (ready == q->ready)
       return;
 
-    q->num = cfg->queue_num;
     q->ready = ready;
-    q->desc_addr = cfg->queue_desc;
-    q->avail_addr = cfg->queue_avail;
-    q->used_addr = cfg->queue_used;
 
     _dev.config_queue(qn);
-
-    cfg->queue_ready = q->ready;
   }
 
   void virtio_queue_notify(unsigned q)

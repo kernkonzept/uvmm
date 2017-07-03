@@ -27,6 +27,7 @@
 #include "device.h"
 #include "mem_access.h"
 #include "vm_ram.h"
+#include "virtio_qword.h"
 
 namespace Virtio {
 
@@ -36,7 +37,6 @@ public:
   typedef l4virtio_config_queue_t Queue_config;
 
   Queue_config config;
-  l4_uint16_t event_index = 0;
 
   Virtqueue()
   { memset(&config, 0, sizeof(config)); }
@@ -85,6 +85,7 @@ class Dev : public Vdev::Device
 public:
   typedef L4virtio::Svr::Dev_status Status;
   typedef L4virtio::Svr::Dev_features Features;
+  typedef l4virtio_config_queue_t Queue_config;
 
 protected:
   enum { Config_ds_size = L4_PAGESIZE };
@@ -125,6 +126,19 @@ public:
     _cfg_header->dev_features_map[1] = 1; // set VERSION 1 flag
 
     update_virtio_config();
+  }
+
+  virtual Virtqueue *virtqueue(unsigned qn) = 0;
+
+  Virtqueue *current_virtqueue()
+  {
+    return virtqueue(_cfg_header->queue_sel);
+  }
+
+  Queue_config *current_virtqueue_config()
+  {
+    auto *q = current_virtqueue();
+    return q ? &q->config : nullptr;
   }
 
   l4virtio_config_hdr_t *mmio_local_addr() const
@@ -201,12 +215,6 @@ public:
         return;
       }
 
-    union Qword
-    {
-      l4_uint32_t w[2];
-      l4_uint64_t q;
-    };
-
     if (size < 2)
       return;
 
@@ -235,24 +243,49 @@ public:
         break;
 
       case 0x30:
-        dev()->virtio_queue_select(value);
-        writeback_cache(&vcfg->queue_num_max);
-        writeback_cache(&vcfg->queue_ready);
-        break;
+        {
+          vcfg->queue_sel = value;
+          auto *qc = dev()->current_virtqueue_config();
+          if (!qc)
+            {
+              vcfg->queue_num_max = 0;
+              vcfg->queue_ready = 0;
+              break;
+            }
+
+          vcfg->queue_num_max = qc->num_max;
+          vcfg->queue_ready = qc->ready;
+          vcfg->queue_desc = qc->desc_addr;
+          vcfg->queue_avail = qc->avail_addr;
+          vcfg->queue_used = qc->used_addr;
+          writeback_cache(&vcfg->queue_num_max);
+          writeback_cache(&vcfg->queue_ready);
+          break;
+        }
 
       case 0x38:
-        vcfg->queue_num = value;
-        break;
+        {
+          auto *qc = dev()->current_virtqueue_config();
+          if (qc)
+            qc->num = value;
+
+          vcfg->queue_num = value;
+          break;
+        }
 
       case 0x44:
-        dev()->virtio_queue_ready(value);
-        writeback_cache(&vcfg->queue_num_max);
-        writeback_cache(&vcfg->queue_ready);
-        break;
+        {
+          dev()->virtio_queue_ready(value);
 
-      case 0x50:
-        dev()->virtio_queue_notify(value);
-        break;
+          auto *cfg = dev()->current_virtqueue_config();
+          vcfg->queue_ready = cfg ? cfg->ready : 0;
+
+          writeback_cache(&vcfg->queue_ready);
+          writeback_cache(&vcfg->queue_num_max);
+          break;
+        }
+
+      case 0x50: dev()->virtio_queue_notify(value); break;
 
       case 0x64:
         dev()->virtio_irq_ack(value);
@@ -266,28 +299,37 @@ public:
         break;
 
       case 0x80:
-        ((Qword *)(&vcfg->queue_desc))->w[0] = value;
-        break;
-
       case 0x84:
-        ((Qword *)(&vcfg->queue_desc))->w[1] = value;
-        break;
+        {
+          int i = reg == 0x80 ? 0 : 1;
+          ((Virtio::Qword *)(&vcfg->queue_desc))->w[i] = value;
+          auto *qc = dev()->current_virtqueue_config();
+          if (qc)
+            ((Virtio::Qword *)(&qc->desc_addr))->w[i] = value;
+          break;
+        }
 
       case 0x90:
-        ((Qword *)(&vcfg->queue_avail))->w[0] = value;
-        break;
-
       case 0x94:
-        ((Qword *)(&vcfg->queue_avail))->w[1] = value;
-        break;
+        {
+          int i = reg == 0x90 ? 0 : 1;
+          ((Virtio::Qword *)(&vcfg->queue_avail))->w[i] = value;
+          auto *qc = dev()->current_virtqueue_config();
+          if (qc)
+            ((Virtio::Qword *)(&qc->avail_addr))->w[i] = value;
+          break;
+        }
 
       case 0xa0:
-        ((Qword *)(&vcfg->queue_used))->w[0] = value;
-        break;
-
       case 0xa4:
-        ((Qword *)(&vcfg->queue_used))->w[1] = value;
-        break;
+        {
+          int i = reg == 0xa0 ? 0 : 1;
+          ((Virtio::Qword *)(&vcfg->queue_used))->w[i] = value;
+          auto *qc = dev()->current_virtqueue_config();
+          if (qc)
+            ((Virtio::Qword *)(&qc->used_addr))->w[i] = value;
+          break;
+        }
       }
   }
 

@@ -39,24 +39,36 @@ class Virtio_console
     bool writable;
   };
 
+  enum
+  {
+    Console_queue_num = 2,
+    Console_queue_length = 0x100,
+  };
+
+  Virtio::Virtqueue _vqs[Console_queue_num];
+
 public:
   struct Features : Virtio::Dev::Features
   {
     CXX_BITFIELD_MEMBER(0, 0, console_size, raw);
     CXX_BITFIELD_MEMBER(1, 1, console_multiport, raw);
 
-    explicit Features(l4_uint32_t v) : Virtio::Dev::Features(v) {}
+    explicit Features(l4_uint32_t v)
+    : Virtio::Dev::Features(v)
+    {}
   };
 
   Virtio_console(Vmm::Vm_ram *iommu, L4::Cap<L4::Vcon> con)
-  : Virtio::Dev(iommu, 0x44, L4VIRTIO_ID_CONSOLE), _con(con)
+  : Virtio::Dev(iommu, 0x44, L4VIRTIO_ID_CONSOLE),
+    _con(con)
   {
     Features feat(0);
     feat.ring_indirect_desc() = true;
     _cfg_header->dev_features_map[0] = feat.raw;
+    _cfg_header->num_queues = Console_queue_num;
 
-    _q[0].config.num_max = 0x100;
-    _q[1].config.num_max = 0x100;
+    for (auto &q : _vqs)
+      q.config.num_max = Console_queue_length;
 
     l4_vcon_attr_t attr;
     if (l4_error(con->get_attr(&attr)) != L4_EOK)
@@ -72,43 +84,29 @@ public:
     L4Re::chksys(con->set_attr(&attr), "console set_attr");
   }
 
-  void virtio_queue_select(unsigned qn)
-  {
-    _cfg_header->queue_sel = qn;
-    if (qn >= 2)
-      {
-        _cfg_header->queue_num_max = 0;
-        _cfg_header->queue_ready = 0;
-        return;
-      }
-
-    _cfg_header->queue_num_max = _q[qn].config.num_max;
-    _cfg_header->queue_ready = _q[qn].ready() ? 1 : 0;
-  }
-
   void virtio_queue_ready(unsigned ready)
   {
-    if (_cfg_header->queue_sel >= 2)
+    auto *q = current_virtqueue();
+    if (!q)
       return;
 
-    auto *q = &_q[_cfg_header->queue_sel];
+    auto *qc = &q->config;
+
     if (ready == 0 && q->ready())
       {
         q->disable();
-        _cfg_header->queue_ready = 0;
+        qc->ready = 0;
       }
     else if (ready == 1 && !q->ready())
       {
-        _cfg_header->queue_ready = 0;
-        if (_cfg_header->queue_num > q->config.num_max)
+        qc->ready = 0;
+        if (qc->num > qc->num_max)
           return;
 
-        q->config.num = _cfg_header->queue_num;
-        q->init_queue(dev()->template devaddr_to_virt<void>(_cfg_header->queue_desc),
-                      dev()->template devaddr_to_virt<void>(_cfg_header->queue_avail),
-                      dev()->template devaddr_to_virt<void>(_cfg_header->queue_used));
-
-        _cfg_header->queue_ready = 1;
+        q->init_queue(dev()->template devaddr_to_virt<void>(qc->desc_addr),
+                      dev()->template devaddr_to_virt<void>(qc->avail_addr),
+                      dev()->template devaddr_to_virt<void>(qc->used_addr));
+        qc->ready = 1;
       }
   }
 
@@ -123,8 +121,11 @@ public:
 
   void reset()
   {
-    _q[0].disable();
-    _q[1].disable();
+    for (auto &q : _vqs)
+      {
+        q.disable();
+        q.config.num_max = Console_queue_length;
+      }
   }
 
   void virtio_queue_notify(unsigned)
@@ -133,7 +134,7 @@ public:
 
     handle_input(&ev);
     int const q_idx = 1;
-    auto *q = &_q[q_idx];
+    auto *q = &_vqs[q_idx];
 
     while (q->ready())
       {
@@ -158,7 +159,7 @@ public:
         if (!q->no_notify_guest())
           {
             _irq_status_shadow |= 1;
-            ev.set(q->event_index);
+            ev.set(q->config.driver_notify_index);
           }
       }
 
@@ -185,7 +186,7 @@ public:
   void handle_input(Virtio::Event_set *ev)
   {
     int const q_idx = 0;
-    auto *q = &_q[q_idx];
+    auto *q = &_vqs[q_idx];
 
     while (1)
       {
@@ -233,7 +234,7 @@ public:
         if (!q->no_notify_guest())
           {
             dev()->_irq_status_shadow |= 1;
-            ev->set(q->event_index);
+            ev->set(q->config.driver_notify_index);
           }
 
         if ((unsigned)r <= p.len)
@@ -268,8 +269,14 @@ public:
     dev()->event_connector()->clear_events(val);
   }
 
+  Virtio::Virtqueue *virtqueue(unsigned qn) override
+  {
+    if (qn >= Console_queue_num)
+      return nullptr;
+
+    return &_vqs[qn];
+  }
 private:
-  Virtio::Virtqueue _q[2];
   L4::Cap<L4::Vcon> _con;
 
   DEV *dev() { return static_cast<DEV *>(this); }
