@@ -235,7 +235,7 @@ public:
         break;
 
       case 0x30:
-        dev()->virtio_select_queue(value);
+        dev()->virtio_queue_select(value);
         writeback_cache(&vcfg->queue_num_max);
         writeback_cache(&vcfg->queue_ready);
         break;

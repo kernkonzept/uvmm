@@ -241,7 +241,7 @@ public:
   void virtio_device_config_written(unsigned)
   {}
 
-  void virtio_select_queue(unsigned qn)
+  void virtio_queue_select(unsigned qn)
   {
     auto *cfg = _dev.device_config();
     cfg->queue_sel = qn;

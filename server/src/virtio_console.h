@@ -68,7 +68,7 @@ public:
     L4Re::chksys(con->set_attr(&attr), "console set_attr");
   }
 
-  void virtio_select_queue(unsigned qn)
+  void virtio_queue_select(unsigned qn)
   {
     _cfg_header->queue_sel = qn;
     if (qn >= 2)
