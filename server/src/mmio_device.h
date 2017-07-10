@@ -297,18 +297,22 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
   /**
    * Construct a partially mapped MMIO region.
    *
-   * \param size  Size of the region that is mapped read-only to the guest.
+   * \param size      Size of the region that is mapped read-only
+   *                  to the guest.
+   * \param rm_flags  Additional properties to set for RM.
+   *                  Default is that the dataspace is mapped uncached
+   *                  into VMM and guest dataspace because operating
+   *                  systems normally expect device memory to be uncached.
    *
    * Allocates a new dataspace of the given size and makes it available
-   * for the VMM for reading/writing. The dataspace is mapped uncached
-   * into VMM and guest dataspace because operating systems normally expect
-   * device memory to be uncached.
+   * for the VMM for reading/writing.
    *
    * \note The device may cover an area that is larger than the area covered
    *       by the dataspace mapped into the guest. Any read access outside
    *       the area then needs to be emulated as in the standard MMIO device.
    */
-  explicit Read_mapped_mmio_device_t(l4_size_t size)
+  explicit Read_mapped_mmio_device_t(l4_size_t size,
+                                     unsigned rm_flags = L4Re::Rm::Cache_uncached)
   : _mapped_size(size)
   {
     auto *e = L4Re::Env::env();
@@ -317,8 +321,7 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
 
     L4Re::Rm::Auto_region<T *> mem;
     L4Re::chksys(e->rm()->attach(&mem, size,
-                                 L4Re::Rm::Search_addr
-                                 | L4Re::Rm::Cache_uncached,
+                                 L4Re::Rm::Search_addr | rm_flags,
                                  L4::Ipc::make_cap_rw(ds.get())));
 
     _mmio_region = mem;
