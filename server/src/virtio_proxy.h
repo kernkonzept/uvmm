@@ -100,7 +100,11 @@ public:
 
   int config_queue(int num)
   {
-    return _device->config_queue(num);
+    if (l4virtio_get_feature(_config->dev_features_map,
+                             L4VIRTIO_FEATURE_CMD_CONFIG))
+      return _config->config_queue(num, _host_irq.get(), _guest_irq.get());
+    else
+      return _device->config_queue(num);
   }
 
   L4virtio::Device::Config_hdr *device_config() const
@@ -119,17 +123,31 @@ public:
   { _host_irq->trigger(); }
 
   void set_status(l4_uint32_t status)
-  { _device->set_status(status); }
+  {
+    bool use_irq = l4virtio_get_feature(_config->dev_features_map,
+                                        L4VIRTIO_FEATURE_CMD_CONFIG);
+
+    if (use_irq
+        && status == (L4VIRTIO_STATUS_ACKNOWLEDGE | L4VIRTIO_STATUS_DRIVER
+                      | L4VIRTIO_STATUS_FEATURES_OK))
+      l4virtio_set_feature(_config->driver_features_map,
+                           L4VIRTIO_FEATURE_CMD_CONFIG);
+
+    if (use_irq)
+      _config->set_status(status, _host_irq.get(), _guest_irq.get());
+    else
+      _device->set_status(status);
+  }
 
   ~Device()
   {
-    _device->set_status(0); // reset
+    set_status(0); // reset
     if (_config.get())
       for (l4_uint32_t i = 0; i < _config->num_queues; ++i)
         {
           _config->queues()[i].num = 0;
           _config->queues()[i].ready = 0;
-          _device->config_queue(i);
+          config_queue(i);
         }
   }
 
