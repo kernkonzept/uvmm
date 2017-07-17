@@ -237,6 +237,13 @@ public:
       ERR(this, "cannot set property '%s' to '%s'", name, value);
   }
 
+  void setprop_data(char const *name, void const *data, int len) const
+  {
+    int r = fdt_setprop(_tree, _node, name, data, len);
+    if (r < 0)
+      ERR(this, "cannot set property '%s'", name);
+  }
+
   void appendprop_u32(char const *name, l4_uint32_t value) const
   {
     int r = fdt_appendprop_u32(_tree, _node, name, value);
