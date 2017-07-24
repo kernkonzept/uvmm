@@ -234,8 +234,7 @@ public:
   {
     int r = fdt_setprop_string(_tree, _node, name, value);
     if (r < 0)
-      ERR(this, "cannot set property '%s' to '%s'", name, value,
-          fdt_strerror(r));
+      ERR(this, "cannot set property '%s' to '%s'", name, value);
   }
 
   void appendprop_u32(char const *name, l4_uint32_t value) const
