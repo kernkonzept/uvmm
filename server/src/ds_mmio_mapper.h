@@ -32,8 +32,8 @@ class Ds_handler : public Vmm::Mmio_device
     return (_offset + (start_other - start_this)) == dsh->_offset;
   }
 
-  bool access(l4_addr_t pfa, l4_addr_t offset, Vmm::Vcpu_ptr vcpu,
-              L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max)
+  int access(l4_addr_t pfa, l4_addr_t offset, Vmm::Vcpu_ptr vcpu,
+             L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max)
   {
     long res;
 #ifdef MAP_OTHER
@@ -56,9 +56,10 @@ class Ds_handler : public Vmm::Mmio_device
       {
         Err().printf("cannot handle VM memory access @ %lx ip=%lx r=%ld\n",
                      pfa, vcpu->r.ip, res);
-        l4_sleep_forever();
+        return res;
       }
-    return true;
+
+    return Vmm::Retry;
   }
 
   char const *dev_info(char *buf, size_t size) override

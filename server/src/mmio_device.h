@@ -19,6 +19,7 @@
 #include "device.h"
 #include "vcpu_ptr.h"
 #include "mem_access.h"
+#include "consts.h"
 
 namespace Vmm {
 
@@ -94,10 +95,13 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    * \param s        Guest-physical address of start of device memory region.
    * \param e        Guest-physical address of end of device memory region.
    *
-   * \return True if memory access could be handled.
+   * \retval < 0         if memory access was faulty, the error code.
+   * \retval Retry       if memory was mapped and access can be retried.
+   * \retval Jump_instr  if memory access could be handled.
+   * \
    */
-  virtual bool access(l4_addr_t pfa, l4_addr_t offset, Vcpu_ptr vcpu,
-                      L4::Cap<L4::Task> vm_task, l4_addr_t s, l4_addr_t e) = 0;
+  virtual int access(l4_addr_t pfa, l4_addr_t offset, Vcpu_ptr vcpu,
+                     L4::Cap<L4::Task> vm_task, l4_addr_t s, l4_addr_t e) = 0;
   virtual char const *dev_info(char *buf, size_t size)
   {
     if (size > 0)
@@ -133,8 +137,8 @@ private:
 template<typename DEV>
 struct Mmio_device_t : Mmio_device
 {
-  bool access(l4_addr_t pfa, l4_addr_t offset, Vcpu_ptr vcpu,
-              L4::Cap<L4::Task>, l4_addr_t, l4_addr_t)
+  int access(l4_addr_t pfa, l4_addr_t offset, Vcpu_ptr vcpu,
+             L4::Cap<L4::Task>, l4_addr_t, l4_addr_t)
   {
     auto insn = vcpu.decode_mmio();
 
@@ -143,7 +147,7 @@ struct Mmio_device_t : Mmio_device
         Dbg(Dbg::Mmio, Dbg::Warn, "mmio")
           .printf("MMIO access @ 0x%lx: unknown instruction. Ignored.\n",
                   pfa);
-        return false;
+        return -L4_ENXIO;
       }
 
     Dbg(Dbg::Mmio, Dbg::Trace, "mmio")
@@ -160,8 +164,7 @@ struct Mmio_device_t : Mmio_device
         vcpu.writeback_mmio(insn);
       }
 
-    vcpu.jump_instruction();
-    return true;
+    return Jump_instr;
   }
 
 private:
@@ -183,8 +186,8 @@ private:
 template<typename BASE>
 struct Ro_ds_mapper_t : Mmio_device
 {
-  bool access(l4_addr_t pfa, l4_addr_t offset, Vcpu_ptr vcpu,
-              L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max)
+  int access(l4_addr_t pfa, l4_addr_t offset, Vcpu_ptr vcpu,
+             L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max)
   {
     auto insn = vcpu.decode_mmio();
 
@@ -193,7 +196,7 @@ struct Ro_ds_mapper_t : Mmio_device
         Dbg(Dbg::Mmio, Dbg::Warn, "mmio")
           .printf("MMIO access @ 0x%lx: unknown instruction. Ignored.\n",
                   pfa);
-        return false;
+        return -L4_ENXIO;
       }
 
     Dbg(Dbg::Mmio, Dbg::Trace, "mmio")
@@ -213,8 +216,7 @@ struct Ro_ds_mapper_t : Mmio_device
         vcpu.writeback_mmio(insn);
       }
 
-    vcpu.jump_instruction();
-    return true;
+    return Jump_instr;
   }
 
   /**

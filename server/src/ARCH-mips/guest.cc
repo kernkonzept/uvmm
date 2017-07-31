@@ -146,11 +146,16 @@ Guest::handle_entry(Vcpu_ptr vcpu)
     case 1: // TLB modify
     case 2: // TLB load/fetch
     case 3: // TLB store
-      if (!handle_mmio(vcpu->r.pfa, vcpu))
+      switch (handle_mmio(vcpu->r.pfa, vcpu))
         {
-          Err().printf("Bad page fault (%s) 0x%lx (GExcCode=0x%x) @0x%lx. Halting.\n",
-                       cause == 2 ? "read" : "write", vcpu->r.pfa, exccode, vcpu->r.ip);
+        case Retry: break;
+        case Jump_instr: vcpu.jump_instruction(); break;
+        default:
+          Err().printf(
+            "Bad page fault (%s) 0x%lx (GExcCode=0x%x) @0x%lx. Halting.\n",
+            cause == 2 ? "read" : "write", vcpu->r.pfa, exccode, vcpu->r.ip);
           halt_vm();
+          break;
         }
       break;
     case 27: // guest exception

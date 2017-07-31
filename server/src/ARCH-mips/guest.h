@@ -29,8 +29,6 @@ namespace Vmm {
 
 class Guest : public Generic_guest
 {
-  enum Handler_return_codes { Jump_instr = 1 };
-
   enum Hypcall_code
   {
     Hypcall_base     = 0x160,

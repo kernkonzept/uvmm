@@ -452,11 +452,15 @@ guest_unknown_fault(Vcpu_ptr vcpu)
 static void
 guest_memory_fault(Vcpu_ptr vcpu)
 {
-  if (!guest->handle_mmio(vcpu->r.pfa, vcpu))
+  switch (guest->handle_mmio(vcpu->r.pfa, vcpu))
     {
+    case Retry: break;
+    case Jump_instr: vcpu.jump_instruction(); break;
+    default:
       Err().printf("cannot handle VM memory access @ %lx ip=%lx\n",
                    vcpu->r.pfa, vcpu->r.ip);
       guest->halt_vm();
+      break;
     }
 }
 

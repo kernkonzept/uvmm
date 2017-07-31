@@ -19,6 +19,7 @@
 #include "vm_memmap.h"
 #include "pm.h"
 #include "vbus_event.h"
+#include "consts.h"
 
 #include <cstdio>
 
@@ -56,7 +57,7 @@ public:
                   L4_IPC_SEND_TIMEOUT_0);
   }
 
-  bool handle_mmio(l4_addr_t pfa, Vcpu_ptr vcpu)
+  int handle_mmio(l4_addr_t pfa, Vcpu_ptr vcpu)
   {
     Vm_mem::const_iterator f = _memmap.find(pfa);
 
@@ -66,7 +67,7 @@ public:
                                f->first.start, f->first.end);
 
     if (!_mmio_fallback)
-       return false;
+       return -L4_EFAULT;
 
     // Use the MMIO fallback dataspace to serve a 1:1 mapping.
     // This is necessary in some cases when guest use hardcoded
@@ -85,7 +86,7 @@ public:
     if (res < 0)
       {
         Err().printf("VM memory fallback: VM allocation failure)\n");
-        return false;
+        return res;
       }
 
     res = _mmio_fallback->map(pfa, L4Re::Dataspace::Map_rw, local_addr,
@@ -94,7 +95,7 @@ public:
     if (res < 0)
       {
         Err().printf("VM memory fallback: failure mapping into VMM\n");
-        return false;
+        return res;
       }
 
     res = l4_error(_task->map(e->task(),
@@ -103,9 +104,12 @@ public:
 #endif /* MAP_OTHER */
 
     if (res < 0)
-      Err().printf("VM memory fallback: map to VM failure\n");
+      {
+        Err().printf("VM memory fallback: map to VM failure\n");
+        return res;
+      }
 
-    return res >= 0;
+    return Retry;
   }
 
   void wait_for_ipc(l4_utcb_t *utcb, l4_timeout_t to)
