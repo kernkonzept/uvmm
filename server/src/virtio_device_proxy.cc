@@ -74,7 +74,7 @@ public:
   : Read_mapped_mmio_device_t(cfg_size, L4Re::Rm::Cache_normal),
     _host_irq(this), _ack_pending(false)
   {
-    info.printf("New Virtio_proxy_mapper size 0x%x\n", cfg_size);
+    info.printf("New Virtio_proxy_mapper size 0x%zx\n", cfg_size);
     assert(strlen(service) < sizeof(_service_name));
     strcpy(_service_name, service);
   }
