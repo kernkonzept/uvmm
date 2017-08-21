@@ -674,7 +674,7 @@ Node<ERR>::translate_reg(Cell *address, Cell const &size) const
     return true;
 
   int prop_size;
-  auto prop = parent.get_prop<fdt32_t>("ranges", &prop_size);
+  auto prop = parent.template get_prop<fdt32_t>("ranges", &prop_size);
   if (!prop)
     return false; // no translation possible
 
