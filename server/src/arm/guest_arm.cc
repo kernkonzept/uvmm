@@ -141,6 +141,32 @@ Guest::setup_device_tree(Vdev::Device_tree dt)
   node.setprop_string("method", "hvc");
 }
 
+void
+Guest::check_guest_constraints(Ram_ds *ram)
+{
+  if (guest_64bit)
+    return;
+
+  Dbg warn(Dbg::Mmio, Dbg::Warn, "ram");
+  if (ram->vm_start() & ((1UL << 27) - 1))
+    warn.printf(
+      "\033[01;31mWARNING: Guest memory not 128MB aligned!\033[m\n"
+      "       If you run a 32bit-Linux as a guest,\n"
+      "       Linux will likely fail to boot as it assumes\n"
+      "       a 128MB alignment of its memory.\n"
+      "       Current guest RAM alignment is only %dMB\n",
+      (1 << __builtin_ctz(ram->vm_start())) >> 20);
+
+  if (ram->vm_start() & ~0xf0000000)
+    warn.printf(
+      "WARNING: Guest memory not 256MB aligned!\n"
+      "       If you run a 32bit-Linux as a guest, you might hit a bug\n"
+      "       in the arch/arm/boot/compressed/head.S code\n"
+      "       that misses an ISB after code has been relocated.\n"
+      "       According to the internet a fix for this issue\n"
+      "       is floating around.\n");
+}
+
 L4virtio::Ptr<void>
 Guest::load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry)
 {
@@ -184,6 +210,8 @@ Guest::load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry)
     }
 
   auto end = image.get_upper_bound();
+
+  check_guest_constraints(ram);
 
   /* If the kernel relocates itself it either decompresses itself
    * directly to the final adress or it moves itself behind the end of

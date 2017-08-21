@@ -61,6 +61,7 @@ public:
   bool handle_psci_call(Vcpu_ptr vcpu);
 
 private:
+  void check_guest_constraints(Ram_ds *ram);
   void arm_update_device_tree();
 
   cxx::Ref_ptr<Gic::Dist> _gic;

@@ -12,7 +12,6 @@
 #include <l4/l4re_vfs/backend>
 
 #include "debug.h"
-#include "platform.h"
 #include "ram_ds.h"
 
 namespace {
@@ -105,7 +104,6 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
   info.printf("RAM: VMM mapping @ 0x%lx size=0x%x\n", _local_start, (unsigned)_size);
 
   assert(_vm_start != ~0UL);
-  Varch::check_mem_base(_vm_start);
 
   _offset = _local_start - _vm_start;
   info.printf("RAM: VM offset=0x%lx\n", _offset);
