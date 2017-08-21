@@ -17,7 +17,8 @@ class Mmio_space_handler
 : public Vmm::Mmio_device_t<Mmio_space_handler>
 {
 public:
-  Mmio_space_handler(L4::Cap<L4Re::Mmio_space> svr, long offset)
+  Mmio_space_handler(L4::Cap<L4Re::Mmio_space> svr, long /* local_start */,
+                     long /* size */, long offset = 0)
   : _server(svr), _offset(offset)
   {}
 

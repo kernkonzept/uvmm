@@ -79,20 +79,19 @@ class Ds_handler : public Vmm::Mmio_device
 public:
   explicit Ds_handler(L4::Cap<L4Re::Dataspace> ds,
                       l4_addr_t local_start,
-                      l4_size_t size = 0,
+                      l4_size_t size,
                       l4_addr_t offset = 0)
     : _ds(ds), _offset(offset), _local_start(local_start)
   {
+    assert(size);
 #ifndef MAP_OTHER
     if (local_start == 0)
-      L4Re::chksys(L4Re::Env::env()->rm()->attach(&_local_start,
-                                                  size
-                                                    ? size
-                                                    : L4Re::chksys(ds->size()),
+      L4Re::chksys(L4Re::Env::env()->rm()->attach(&_local_start, size,
                                                   L4Re::Rm::Search_addr
                                                   | L4Re::Rm::Eager_map,
                                                   L4::Ipc::make_cap_rw(ds),
                                                   offset, L4_SUPERPAGESHIFT));
+
     l4_addr_t page_offs = offset & ~L4_PAGEMASK;
     if (page_offs)
       {

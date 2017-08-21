@@ -50,7 +50,8 @@ public:
                                           Vmm::Guest::Boot_offset);
     _vmm->add_mmio_device(Region::ss(_ram->vm_start(), _ram->size()),
                           Vdev::make_device<Ds_handler>(_ram->ram(),
-                                                        _ram->local_start()));
+                                                        _ram->local_start(),
+                                                        _ram->size()));
 
     auto vbus_cap = e->get_cap<L4vbus::Vbus>("vbus");
     if (!vbus_cap)

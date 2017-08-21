@@ -113,7 +113,8 @@ private:
     size_t index = 0;
     while (node.get_reg_val(index, &base, &size) >= 0)
       {
-        auto handler = Vdev::make_device<HANDLERTYPE>(cap, offset + (base - regbase));
+        auto handler = Vdev::make_device<HANDLERTYPE>(cap, 0, size,
+                                                      offset + (base - regbase));
         devs->vmm()->register_mmio_device(handler, node, index);
         ++index;
       }
