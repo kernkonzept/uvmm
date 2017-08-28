@@ -121,7 +121,7 @@ int
 Guest::handle_io_access(unsigned port, bool is_in, Mem_access::Width op_width,
                         l4_vcpu_regs_t *regs)
 {
-  l4_umword_t op_mask = (1ULL << (op_width + 1) * 8) - 1;
+  l4_umword_t op_mask = (1ULL << ((1 << op_width) * 8)) - 1;
 
   auto f = _iomap.find(port);
   if (f == _iomap.end())
