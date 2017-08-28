@@ -290,6 +290,7 @@ public:
 
     Vmx_int_info_field(unsigned i, Int_type t, unsigned err_valid = 0,
                        unsigned v = 1)
+    : field(0)
     {
       vector().set(i);
       type().set(static_cast<unsigned>(t));
