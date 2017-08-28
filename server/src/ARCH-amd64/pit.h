@@ -28,8 +28,22 @@ class Pit_timer
   public Vdev::Device,
   public Timer
 {
+  struct Port61 : public Vmm::Io_device
+  {
+    l4_uint8_t val = 0;
+    void io_in(unsigned, Vmm::Mem_access::Width, l4_uint32_t *value) override
+    { *value = val; }
+
+    void io_out(unsigned, Vmm::Mem_access::Width, l4_uint32_t value) override
+    { val = value & 0xff; }
+  };
+
   enum
   {
+    Channel_0_data = 0,
+    Channel_2_data = 2,
+    Mode_command = 3,
+
     Pit_irq_line = 32,
     Low_byte_mask = 0xff,
     High_byte_mask = 0xff00,
@@ -62,15 +76,16 @@ class Pit_timer
 
   bool is_current_channel(Mode m, int port) const
   {
-    return m.channel() == (port - 0x40);
+    return m.channel() == port;
   }
 
-  static constexpr int port2idx(int port) { return (port - 0x40) >> 1; }
+  static constexpr int port2idx(int port) { return port >> 1; }
 
 public:
+  Pit_timer();
   virtual ~Pit_timer() = default;
 
-  Pit_timer();
+  cxx::Ref_ptr<Vmm::Io_device> const port61() const { return _port61; }
 
   void io_out(unsigned port, Vmm::Mem_access::Width width,
               l4_uint32_t value) override;
@@ -92,7 +107,7 @@ private:
   bool _read_high;
   Mode _mode;
   std::mutex _mutex;
-  l4_uint8_t _port61;
+  cxx::Ref_ptr<Port61> const _port61;
   bool _wait_for_high_byte;
 
   void set_high_byte(l4_uint16_t &reg, l4_uint8_t value);

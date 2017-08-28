@@ -43,7 +43,7 @@ void Guest::register_io_device(cxx::Ref_ptr<Io_device> const &dev,
 
   _iomap[region] = dev;
 
-  trace().printf("New io mappping: @ %lx %lx\n", start, sz);
+  trace().printf("New io mappping: %p @ [0x%lx, 0x%lx]\n", dev, start, sz);
 }
 
 L4virtio::Ptr<void>
@@ -134,6 +134,7 @@ Guest::handle_io_access(unsigned port, bool is_in, Mem_access::Width op_width,
       return Jump_instr;
     }
 
+  port -= f->first.start;
   if (is_in)
     {
       l4_uint32_t out = -1;

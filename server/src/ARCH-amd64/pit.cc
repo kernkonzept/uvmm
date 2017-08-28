@@ -13,11 +13,10 @@
 
 namespace Vdev {
 
-Pit_timer::Pit_timer()
+Pit_timer::Pit_timer() : _port61(make_device<Port61>())
 {
   _ch_mode[0] = -1;
   _ch_mode[1] = -1;
-  _port61 = 0;
   _wait_for_high_byte = false;
 }
 
@@ -56,7 +55,7 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
 
   switch (port)
   {
-    case 0x43: // PIC_MODE
+    case Mode_command : // PIC_MODE
     {
       _mode.raw = value;
       if (_mode.channel() == 1)
@@ -84,10 +83,10 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
       Dbg().printf("!!! PIT !!!   New timer mode: 0x%x\n", value);
       break;
     }
-    case 0x40:
-    case 0x42:
+    case Channel_0_data:
+    case Channel_2_data:
       Dbg().printf("!!! PIT !!!   Writing 0x%x for channel %d\n", value,
-                   port - 0x40);
+                   port);
       if (!is_latch_count_value_cmd(_mode) && is_current_channel(_mode, port))
         {
           unsigned ch = port2idx(port);
@@ -114,7 +113,7 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
           else if (_mode.access() == Access_hibyte)
             set_high_byte(_reload[ch], v);
 
-          Dbg().printf("!!! PIT !!!   enable counter for %d\n", port - 0x40);
+          Dbg().printf("!!! PIT !!!   enable counter for %d\n", port);
           _counter[ch] = _reload[ch] >> 2;
           if (_reload[ch] != 0)
             _ch_mode[ch] = _mode.access();
@@ -122,7 +121,6 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
       else
         Dbg().printf("WARNING: PIT access to bad channel\n");
       break;
-    case 0x61: _port61 = value & 0xff; break;
   }
 }
 
@@ -134,18 +132,17 @@ void Pit_timer::io_in(unsigned port, Vmm::Mem_access::Width width,
 
   switch (port)
   {
-  case 0x43:
+  case Mode_command:
     *value = _mode.raw;
     break;
-  case 0x40:
-  case 0x42:
+  case Channel_0_data:
+  case Channel_2_data:
     {
       l4_uint16_t reg = _counter[port2idx(port)] << 2;
       *value = _read_high ? (reg >> 8) : (reg & 0xFF);
       _read_high = !_read_high;
       break;
     }
-  case 0x61: *value = _port61; break;
   }
 }
 
@@ -178,7 +175,7 @@ void Pit_timer::tick()
       if(_counter[1] == 0)
         {
           _irq.inject();
-          _port61 |= (1 << 5);
+          _port61->val |= (1 << 5);
         }
     }
 }
@@ -199,7 +196,7 @@ struct F : Vdev::Factory
 
     auto *vmm = devs->vmm();
     vmm->register_io_device(dev, 0x40, 0x4);
-    vmm->register_io_device(dev, 0x61, 0x1);
+    vmm->register_io_device(dev->port61(), 0x61, 0x1);
     vmm->register_timer_device(dev);
 
     return dev;
