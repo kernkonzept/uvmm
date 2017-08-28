@@ -655,11 +655,13 @@ Cpu::inject(Irq_array::Irq const &irq, unsigned irq_id, unsigned src_cpu)
 
       if (!lr_idx)
         {
-          printf("VGIC full while trying to inject irq 0x%x : ",
-                 irq_id);
-          for (unsigned i = 0; i < Num_lrs; ++i)
-            printf("%d: %x ", i, _vgic->lr[i].raw);
-          printf("\n");
+          if (0)
+            {
+              printf("VGIC full while trying to inject irq 0x%x : ", irq_id);
+              for (unsigned i = 0; i < Num_lrs; ++i)
+                printf("%d: %x ", i, _vgic->lr[i].raw);
+              printf("\n");
+            }
 
           return false;
         }
