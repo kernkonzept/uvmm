@@ -65,6 +65,8 @@ function start_vm(options)
   local align   = 10;
   if L4.Info.arch() == "arm" then
     align = 28;
+  elseif L4.Info.arch() == "arm64" then
+    align = 21;
   end
   align = options.mem_align or align;
 
