@@ -96,10 +96,16 @@ function start_vm(options)
     keyb_shortcut = "key=" .. nr;
   end
 
+  local mem_flags = L4.Mem_alloc_flags.Continuous
+                    | L4.Mem_alloc_flags.Pinned
+                    | L4.Mem_alloc_flags.Super_pages;
+
   local caps = {
     net  = vnet;
     vbus = vbus;
-    ram  = L4.Env.user_factory:create(L4.Proto.Dataspace, size_mb * 1024 * 1024, 0x3, align):m("rws");
+    ram  = L4.Env.user_factory:create(L4.Proto.Dataspace,
+                                      size_mb * 1024 * 1024,
+                                      mem_flags, align):m("rws");
   };
 
   if options.mon ~= false then
