@@ -144,18 +144,30 @@ Guest::setup_device_tree(Vdev::Device_tree dt)
 void
 Guest::check_guest_constraints(Ram_ds *ram)
 {
-  if (guest_64bit)
-    return;
-
   Dbg warn(Dbg::Mmio, Dbg::Warn, "ram");
+
+  if (guest_64bit)
+    {
+      if (ram->vm_start() & ((1UL << 21) - 1))
+        warn.printf(
+          "\033[01;31mWARNING: Guest memory not 2MB aligned!\033[m\n"
+          "       If you run a 64bit-Linux as a guest,\n"
+          "       Linux will likely fail to boot as it expects\n"
+          "       a 2MB alignment of its memory.\n"
+          "       Current guest RAM alignment is only 0x%x\n",
+          1 << __builtin_ctz(ram->vm_start()));
+
+      return;
+    }
+
   if (ram->vm_start() & ((1UL << 27) - 1))
     warn.printf(
       "\033[01;31mWARNING: Guest memory not 128MB aligned!\033[m\n"
       "       If you run a 32bit-Linux as a guest,\n"
       "       Linux will likely fail to boot as it assumes\n"
       "       a 128MB alignment of its memory.\n"
-      "       Current guest RAM alignment is only %dMB\n",
-      (1 << __builtin_ctz(ram->vm_start())) >> 20);
+      "       Current guest RAM alignment is only 0x%x\n",
+      1 << __builtin_ctz(ram->vm_start()));
 
   if (ram->vm_start() & ~0xf0000000)
     warn.printf(
