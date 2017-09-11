@@ -85,7 +85,7 @@ class Dist
 
   struct Gic_pin_reg
   {
-    l4_umword_t raw;
+    l4_uint32_t raw;
     CXX_BITFIELD_MEMBER(31, 31, pin, raw);
     CXX_BITFIELD_MEMBER(30, 30, nmi, raw);
     CXX_BITFIELD_MEMBER(8, 15, gid, raw);
