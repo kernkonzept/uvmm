@@ -51,7 +51,7 @@ struct F : Factory
     auto *vbus = devs->vbus().get();
     if (!vbus->io_ds())
       {
-        Err().printf("ERROR: ARM GIC virtualization does not work without passing GICD via the vbus\n");
+        Err().printf("ERROR: ARM GIC virtualization does not work without passing the virtual GICC via the vbus\n");
         return nullptr; // missing hardware part, disable GIC
       }
 
