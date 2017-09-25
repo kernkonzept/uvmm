@@ -69,45 +69,47 @@ public:
 private:
   int handle_gpsi_mfc0(Vcpu_ptr vcpu, Mips::Instruction insn)
   {
-    l4_umword_t *val = &(vcpu->r.r[insn.rt()]);
+    l4_umword_t val;
     unsigned reg = (insn.rd() << 3) | (insn.func() & 0x7);
 
-    trace().printf("MFC0 for 0x%x in register %d (0x%lx)\n",
-                   reg, (unsigned) insn.rt(), *val);
+    trace().printf("MFC0 for 0x%x in register %d\n",
+                   reg, (unsigned) insn.rt());
 
     switch (reg)
       {
       case L4_VM_CP0_GLOBAL_NUMBER:
-        *val = vcpu.get_vcpu_id() << 8;
+        val = vcpu.get_vcpu_id() << 8;
         break;
       case L4_VM_CP0_PROC_ID:
-        *val = vcpu.proc_id();
+        val = vcpu.proc_id();
         break;
       case L4_VM_CP0_SRS_CTL:
-        *val = 0;
+        val = 0;
         break;
       case L4_VM_CP0_CMGCR_BASE:
-        *val = Vdev::Coherency_manager::mem_region().start >> 4;
+        val = Vdev::Coherency_manager::mem_region().start >> 4;
         break;
       case L4_VM_CP0_MAAR_0:
       case L4_VM_CP0_MAAR_1:
       case L4_VM_CP0_ERR_CTL:
       case L4_VM_CP0_CONFIG_6:
       case L4_VM_CP0_CONFIG_7:
-        *val = 0; break;
+        val = 0; break;
       default: return -L4_ENOSYS;
       }
 
+    if (sizeof(l4_addr_t) == 4 || insn.rs() == Mips::Op::Cop0_dmf)
+      vcpu->r.r[insn.rt()] = val;
+    else
+      vcpu->r.r[insn.rt()] = sign_ext((l4_uint32_t) val);
     return Jump_instr;
   }
 
   int handle_gpsi_mtc0(Vcpu_ptr vcpu, Mips::Instruction insn)
   {
-    (void) vcpu;
     unsigned reg = (insn.rd() << 3) | (insn.func() & 0x7);
 
-    trace().printf("MTC0 for 0x%x in register %u \n",
-                   reg, (unsigned) insn.rt());
+    trace().printf("MTC0 for 0x%x in register %u\n", reg, (unsigned) insn.rt());
 
     switch (reg)
       {

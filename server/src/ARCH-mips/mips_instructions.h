@@ -28,8 +28,8 @@ enum Opcode
 
 enum Cop0_rs
 {
-  Cop0_mfc0 = 0, Cop0_mfh = 2, Cop0_mtc0 = 4, Cop0_mth = 6,
-  Cop0_hypcall = 0x28,
+  Cop0_mfc0 = 0, Cop0_dmf = 1, Cop0_mfh = 2, Cop0_mtc0 = 4, Cop0_dmt,
+  Cop0_mth = 6, Cop0_hypcall = 0x28,
 };
 
 enum Special
@@ -82,10 +82,16 @@ struct Instruction
   Instruction(l4_uint32_t inst) : raw(inst) {}
 
   bool is_mfc0() const
-  { return opcode() == Op::Cop0 && rs() == Op::Cop0_mfc0; }
+  {
+    return opcode() == Op::Cop0
+             && (rs() == Op::Cop0_mfc0 || rs() == Op::Cop0_dmf);
+  }
 
   bool is_mtc0() const
-  { return opcode() == Op::Cop0 && rs() == Op::Cop0_mtc0; }
+  {
+    return opcode() == Op::Cop0
+             && (rs() == Op::Cop0_mtc0 || rs() == Op::Cop0_dmt);
+  }
 
   bool is_hypcall() const
   { return opcode() == Op::Cop0 && func() == Op::Cop0_hypcall; }
