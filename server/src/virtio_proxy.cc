@@ -40,7 +40,16 @@ struct F : Factory
         return nullptr;
       }
 
-    auto c = make_device<Virtio_proxy_mmio>();
+    l4_uint64_t base, cfgsz;
+    int res = node.get_reg_val(0, &base, &cfgsz);
+    if (res < 0)
+      {
+        Err().printf("Failed to read 'reg' from node %s: %s\n",
+                     node.get_name(), node.strerror(res));
+        throw L4::Runtime_error(-L4_EINVAL);
+      }
+
+    auto c = make_device<Virtio_proxy_mmio>((l4_size_t) cfgsz);
     c->register_irq(devs->vmm()->registry(), cap);
     devs->vmm()->register_mmio_device(c, node);
     return c;

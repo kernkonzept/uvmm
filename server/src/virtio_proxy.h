@@ -36,6 +36,10 @@ namespace L4virtio { namespace Driver {
 class Device
 {
 public:
+  Device(l4_size_t config_size)
+  : _config_page_size(config_size)
+  {}
+
   /**
    * Contacts the device and sets up the config page.
    *
@@ -63,8 +67,11 @@ public:
                                          _config_cap.get()),
                  "Registering interface with device");
 
-    _config_page_size = L4Re::chksys(_config_cap->size(),
-                                     "Determining size of virtio config page");
+    L4Re::Dataspace::Stats stats;
+    L4Re::chksys(_config_cap->info(&stats),
+                 "Determining size of virtio config page");
+    if (stats.size < _config_page_size)
+      L4Re::chksys(-L4_ENODEV, "Virtio config space too small");
 
     auto *e = L4Re::Env::env();
     L4Re::chksys(e->rm()->attach(&_config, _config_page_size,
@@ -189,6 +196,10 @@ private:
   l4_uint32_t _irq_status_shadow = 0;
 
 public:
+  Virtio_proxy(l4_size_t config_size)
+  : _dev(config_size)
+  {}
+
   void init_device(Vdev::Device_lookup const *devs,
                    Vdev::Dt_node const &self) override
   {
@@ -308,6 +319,10 @@ class Virtio_proxy_mmio
   public Virtio::Mmio_connector<Virtio_proxy_mmio>
 {
 public:
+  Virtio_proxy_mmio(l4_size_t config_size)
+  : Virtio_proxy<Virtio_proxy_mmio>(config_size)
+  {}
+
   Virtio::Event_connector_irq *event_connector() { return &_evcon; }
 
 private:
