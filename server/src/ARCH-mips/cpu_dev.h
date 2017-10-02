@@ -68,16 +68,17 @@ public:
     CXX_BITFIELD_MEMBER(0, 3, cmd, raw);
   };
 
-  Cpu_dev(unsigned idx, unsigned phys_id)
-  : Generic_cpu_dev(idx, phys_id),
-    _status(0), _core_other(0)
-  {
-    _vcpu.set_proc_id(Default_procid);
-    _vcpu.alloc_fpu_state();
-    _status.seq_state() = Seq_non_coherent;
-  }
+  Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *node);
 
-  void set_proc_type(char const *compatible);
+  /**
+   * Translate a device tree "reg" value to an internally usable CPU id.
+   *
+   * For most architectures this is NOP, but some archictures like ARM
+   * might encode topology information into this value, which needs to
+   * be translated.
+   */
+  static unsigned dtid_to_cpuid(l4_int32_t prop_val)
+  { return prop_val; }
 
   void show_state_registers(FILE *f);
   unsigned core_other() const

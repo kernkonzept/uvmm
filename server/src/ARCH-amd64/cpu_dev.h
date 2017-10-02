@@ -16,7 +16,8 @@ namespace Vmm {
 class Cpu_dev : public Generic_cpu_dev
 {
 public:
-  Cpu_dev(unsigned idx, unsigned phys_id) : Generic_cpu_dev(idx, phys_id)
+  Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *)
+  : Generic_cpu_dev(idx, phys_id)
   {}
 
   void reset() override
@@ -40,7 +41,15 @@ public:
                regs.r13, regs.r14, regs.r15);
   }
 
-  void set_proc_type(char const *) {}
+  /**
+   * Translate a device tree "reg" value to an internally usable CPU id.
+   *
+   * For most architectures this is NOP, but some archictures like ARM
+   * might encode topology information into this value, which needs to
+   * be translated.
+   */
+  static unsigned dtid_to_cpuid(l4_int32_t prop_val)
+  { return prop_val; }
 
 }; // class Cpu_dev
 

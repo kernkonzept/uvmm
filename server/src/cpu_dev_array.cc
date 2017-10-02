@@ -12,23 +12,37 @@
 namespace Vmm {
 
 cxx::Ref_ptr<Vdev::Device>
-Cpu_dev_array::create_vcpu(unsigned id, char const *compatible)
+Cpu_dev_array::create_vcpu(Vdev::Dt_node const *node)
 {
+  l4_int32_t prop_val = 0;
+  if (node)
+    {
+      auto *prop = node->get_prop<fdt32_t>("reg", nullptr);
+      if (!prop)
+        {
+          Err().printf("Cpu node '%s' has missing reg property. Ignored.\n",
+                       node->get_name());
+          return nullptr;
+        }
+      prop_val = fdt32_to_cpu(*prop);
+    }
+
+  unsigned id = Cpu_dev::dtid_to_cpuid(prop_val);
   if (id >= Max_cpus)
     return nullptr;
 
   if (_cpus[id])
-    return _cpus[id];
+    {
+      Dbg(Dbg::Cpu, Dbg::Warn).printf("Duplicate definitions for Cpu%d (%x)\n",
+                                      id, prop_val);
+      return _cpus[id];
+    }
 
   unsigned cpu_mask = _placement.next_free();
-
   if (cpu_mask == Vcpu_placement::Invalid_id)
     return nullptr;
 
-  _cpus[id] = Vdev::make_device<Cpu_dev>(id, cpu_mask);
-
-  if (compatible)
-    _cpus[id]->set_proc_type(compatible);
+  _cpus[id] = Vdev::make_device<Cpu_dev>(id, cpu_mask, node);
 
   return _cpus[id];
 }

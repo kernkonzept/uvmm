@@ -78,15 +78,6 @@ public:
   /// Maximum number of supported CPUs.
   enum { Max_cpus = 32 };
 
-  Cpu_dev_array()
-  {
-    // Per default a single-core system is created.
-    // Other CPUs can be added via the device tree configuration.
-    // It also allows to configure a more specific CPU type.
-    create_vcpu(0);
-    assert(_cpus[0]);
-  }
-
   virtual ~Cpu_dev_array() = default;
 
   bool vcpu_exists(unsigned cpuid) const
@@ -119,12 +110,9 @@ public:
 
   /**
    * Add a CPU to the array.
-   *
-   * If a CPU with the given ID already exists, then only the
-   * type information is updated.
    */
   cxx::Ref_ptr<Vdev::Device>
-  create_vcpu(unsigned id, char const *compatible = nullptr);
+  create_vcpu(Vdev::Dt_node const *node);
 
   void show_state_registers(FILE *f);
 

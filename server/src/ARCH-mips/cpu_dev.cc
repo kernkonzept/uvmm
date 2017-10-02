@@ -23,19 +23,30 @@ static Dbg trace(Dbg::Cpu, Dbg::Trace, "CPU");
 namespace Vmm
 {
 
-void
-Cpu_dev::set_proc_type(char const *compatible)
+static l4_umword_t
+get_proc_type(char const *compatible)
 {
-  for (auto *row = MIPS_PROC_IDS; row->second; ++row)
-    {
-      if (strcmp(row->second, compatible) == 0)
-        {
-          _vcpu.set_proc_id(row->first);
-          return;
-        }
-    }
+  if (!compatible)
+    return Cpu_dev::Default_procid;
 
-  _vcpu.set_proc_id(Default_procid);
+  for (auto *row = MIPS_PROC_IDS; row->second; ++row)
+    if (strcmp(row->second, compatible) == 0)
+      return row->first;
+
+  return Cpu_dev::Default_procid;
+}
+
+Cpu_dev::Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *node)
+: Generic_cpu_dev(idx, phys_id), _status(0), _core_other(0)
+{
+  // If a compatible property exists, it may be used to specify
+  // the reported CPU type (if supported by architecture). Without
+  // compatible property, the default is used.
+  char const *compatible = node ? node->get_prop<char>("compatible", nullptr)
+                                : nullptr;
+  _vcpu.set_proc_id(get_proc_type(compatible));
+  _vcpu.alloc_fpu_state();
+  _status.seq_state() = Seq_non_coherent;
 }
 
 void
