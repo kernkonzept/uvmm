@@ -7,10 +7,16 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
-#include <cpu_dev.h>
+#include "cpu_dev.h"
+#include "gic.h"
 
 namespace Vmm
 {
+
+void
+Cpu_dev::init_vgic(Vmm::Arm::State::Gic *iface)
+{ Gic::Dist::init_vgic(iface); }
+
 void
 Cpu_dev::show_state_registers(FILE *f)
 {

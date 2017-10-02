@@ -24,7 +24,6 @@ static cxx::unique_ptr<Vmm::Guest> guest;
 
 __thread unsigned vmm_current_cpu_id;
 
-extern "C" void vcpu_entry(l4_vcpu_state_t *vcpu);
 typedef void (*Entry)(Vmm::Vcpu_ptr vcpu);
 
 namespace Vmm {
@@ -242,72 +241,81 @@ Guest::load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry)
   return def_end;
 }
 
+  /*
+   * Prepare a clean vcpu register state before entering the VM
+   *
+   * Initializes the VCPU register state according to the mode the
+   * VCPU is supposed to run in. Registers related to virtualization
+   * (control registers, vcpu state registers) are initialized in the
+   * context of the thread handling this virtual CPU.
+   * We assume that this state is not changed by invoking
+   * vcpu_control_ext().
+   */
+void
+Guest::prepare_vcpu_startup(Vcpu_ptr vcpu, l4_addr_t entry) const
+{
+  if (Guest_64bit_supported && guest_64bit)
+    vcpu->r.flags = Cpu_dev::Flags_default_64;
+  else
+    {
+      vcpu->r.flags = Cpu_dev::Flags_default_32;
+      if (entry & 1)
+        {
+          // set thumb mode, remove thumb bit from address
+          vcpu->r.flags |= 1 << 5;
+          entry &= ~1;
+        }
+    }
+
+  vcpu->r.sp    = 0;
+  vcpu->r.ip    = entry;
+}
+
+
 void
 Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
                          Ram_ds * /* ram */, char const * /* kernel */,
                          char const * /* cmd_line */, l4_addr_t dt_boot_addr)
 {
+  prepare_vcpu_startup(vcpu, entry);
+
+  // Set up the VCPU state as expected by Linux entry
   if (Guest_64bit_supported && guest_64bit)
     {
-      // Set up the VCPU state as expected by Linux entry
-      vcpu->r.flags = 0x000001c5;
       vcpu->r.r[0]  = dt_boot_addr;
       vcpu->r.r[1]  = 0;
       vcpu->r.r[2]  = 0;
-      vcpu->r.r[3]  = 0;
     }
   else
     {
-      // Set up the VCPU state as expected by Linux entry
-      vcpu->r.flags = 0x000001d3;
       vcpu->r.r[0]  = 0;
       vcpu->r.r[1]  = ~0UL;
       vcpu->r.r[2]  = dt_boot_addr;
-      vcpu->r.r[3]  = 0;
     }
-  vcpu->r.ip    = entry;
+  vcpu->r.r[3]  = 0;
 }
 
 void
 Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
 {
-  auto vcpu = cpus->vcpu(0);
+  _cpus = cpus;
+  for (auto cpu: *cpus.get())
+    {
+      if (!cpu)
+        continue;
 
-  vcpu.thread_attach();
-  reset_vcpu(vcpu);
-}
+      auto vcpu = cpu->vcpu();
 
-void
-Guest::reset_vcpu(Vcpu_ptr vcpu)
-{
-  vcpu->user_task = _task.get().cap();
-  vcpu->saved_state =  L4_VCPU_F_FPU_ENABLED
-                         | L4_VCPU_F_USER_MODE
-                         | L4_VCPU_F_IRQ
-                         | L4_VCPU_F_PAGE_FAULTS
-                         | L4_VCPU_F_EXCEPTIONS;
-  vcpu->entry_ip = (l4_umword_t) &vcpu_entry;
-  asm volatile ("mov %0, sp" : "=r"(vcpu->entry_sp));
+      vcpu->user_task = _task.cap();
+      cpu->powerup_cpu();
+      info().printf("Powered up cpu%d %p, gic: ?\n", vcpu.get_vcpu_id(),
+                    cpu.get());
 
-  auto *vm = vcpu.state();
+      auto *vm = vcpu.state();
+      _gic->set_cpu(vcpu.get_vcpu_id(), &vm->gic);
+    }
 
-  // we set FB, and BSU to inner sharable to tolerate migrations
-  vm->vm_regs.hcr = 0x30023f; // VM, PTW, AMO, IMO, FMO, FB, SWIO, TIDCP, TAC
-  vm->vm_regs.hcr |= 1UL << 10; // BUS = inner sharable
-  vm->vm_regs.hcr |= 3UL << 13; // Trap WFI and WFE
-
-  // set C, I, CP15BEN
-  vm->vm_regs.sctlr = (1UL << 5) | (1UL << 2) | (1UL << 12);
-  vm->arch_setup(guest_64bit);
-
-  _gic->set_cpu(vcpu.get_vcpu_id(), &vm->gic);
-  vmm_current_cpu_id = vcpu.get_vcpu_id();
-
-  info().printf("Starting vmm @ 0x%lx (handler @ %p)\n",
-                vcpu->r.ip, &vcpu_entry);
-
-  L4::Cap<L4::Thread> myself;
-  myself->vcpu_resume_commit(myself->vcpu_resume_start());
+  cpus->cpu(0)->startup();
 }
 
 l4_msgtag_t
@@ -398,8 +406,23 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
       break;
 
     case CPU_ON:
-      vcpu->r.r[0] = NOT_SUPPORTED;
-      Err().printf("... PSCI CPU ON\n");
+      {
+        unsigned cpu = vcpu->r.r[1] & 0xf;
+        if (_cpus->vcpu_exists(cpu))
+          {
+            // XXX There is currently no way to detect error conditions like
+            // INVALID_ADDRESS or ALREADY_ON
+            l4_mword_t ip = vcpu->r.r[2];
+            l4_mword_t context =  vcpu->r.r[3];
+            cxx::Ref_ptr<Cpu_dev> target = _cpus->cpu(cpu);
+            target->vcpu()->r.r[0] = context;
+            prepare_vcpu_startup(target->vcpu(), ip);
+            target->start_vcpu();
+            vcpu->r.r[0] = SUCCESS;
+          }
+        else
+          vcpu->r.r[0] = INVALID_PARAMETERS;
+      }
       break;
 
     case MIGRATE_INFO_TYPE:

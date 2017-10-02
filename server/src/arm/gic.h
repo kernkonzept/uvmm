@@ -906,13 +906,17 @@ public:
 
   void set_cpu(unsigned cpu, Vmm::Arm::State::Gic *iface)
   {
-    gicd_info.printf("set CPU interface for CPU %02d (%p) to %p\n",
-                     cpu, &_cpu[cpu], iface);
     if (cpu >= cpus)
       return;
 
-    using namespace Vmm::Arm;
+    gicd_info.printf("set CPU interface for CPU %02d (%p) to %p\n",
+                     cpu, &_cpu[cpu], iface);
     _cpu[cpu].vgic(iface);
+  }
+
+  static void init_vgic(Vmm::Arm::State::Gic *iface)
+  {
+    using namespace Vmm::Arm;
     iface->vmcr = Gic_h::Vmcr(0);
     iface->vmcr.pri_mask() = 0x1f; // lowest possible prio
     iface->vmcr.bp() = 2; // lowest possible value for 32 prios

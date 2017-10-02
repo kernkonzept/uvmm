@@ -17,8 +17,8 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   mmio_proxy.cc \
                   pm.cc vbus_event.cc
 
-SRC_CC-arm   = arm/gic.cc arm/guest_arm.cc
-SRC_CC-arm64 = arm/gic.cc arm/guest_arm.cc
+SRC_CC-arm   = arm/gic.cc arm/guest_arm.cc arm/cpu_dev_arm.cc
+SRC_CC-arm64 = arm/gic.cc arm/guest_arm.cc arm/cpu_dev_arm.cc
 SRC_CC-mips  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc
 SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                ARCH-amd64/rtc.cc ARCH-amd64/virt_lapic.cc \

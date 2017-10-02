@@ -8,9 +8,14 @@
  */
 
 #include "cpu_dev.h"
+#include "gic.h"
 
 namespace Vmm
 {
+
+void
+Cpu_dev::init_vgic(Vmm::Arm::State::Gic *iface)
+{ Gic::Dist::init_vgic(iface); }
 
 void
 Cpu_dev::show_state_registers(FILE *f)

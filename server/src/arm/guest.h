@@ -38,6 +38,8 @@ public:
   L4virtio::Ptr<void> load_linux_kernel(Ram_ds *ram, char const *kernel,
                                         l4_addr_t *entry);
 
+  void prepare_vcpu_startup(Vcpu_ptr vcpu, l4_addr_t entry) const;
+
   void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
                          Ram_ds *ram, char const *kernel,
                          char const *cmd_line, l4_addr_t dt);
@@ -67,6 +69,7 @@ private:
   cxx::Ref_ptr<Gic::Dist> _gic;
   cxx::Ref_ptr<Vdev::Core_timer> _timer;
   bool guest_64bit = false;
+  cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
 };
 
 } // namespace
