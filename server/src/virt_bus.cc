@@ -29,7 +29,12 @@ Virt_bus::Devinfo *
 Virt_bus::find_unassigned_dev(Vdev::Dt_node const &node)
 {
   if (!node.has_compatible())
-    return nullptr;
+    {
+      Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
+        .printf("No \"compatible\" property for device '%s' provided.\n",
+                node.get_name());
+      return nullptr;
+    }
 
   int num_compatible = node.stringlist_count("compatible");
 
@@ -52,7 +57,19 @@ Virt_bus::find_unassigned_dev(Vdev::Dt_node const &node)
 
                 char const *resname = reinterpret_cast<char const *>(&res.id);
 
-                if (res.type != L4VBUS_RESOURCE_MEM || strncmp(resname, "reg0", 4))
+                if (res.type != L4VBUS_RESOURCE_MEM)
+                  continue;
+
+                if (strncmp(resname, "reg", 3))
+                  {
+                    Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
+                      .printf("MMIO resource '%.4s' of device '%s' ignored. "
+                              "Should be named 'reg[0-9A-Z]'.\n",
+                              resname, node.get_name());
+                    continue;
+                  }
+
+                if (strncmp(resname, "reg0", 4))
                   continue;
 
                 l4_uint64_t base, size;
@@ -63,6 +80,11 @@ Virt_bus::find_unassigned_dev(Vdev::Dt_node const &node)
                   return &iodev;
               }
           }
+
+      Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
+        .printf("No compatible IO device for "
+                "device '%s', \"compatible\"='%s' found.\n",
+                node.get_name(), hid);
     }
 
   return nullptr;

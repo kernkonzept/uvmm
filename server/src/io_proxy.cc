@@ -48,8 +48,8 @@ Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
       return;
     }
 
-  warn.printf("irq%d=0x%x -> 0x%x already registered\n",
-              dt_idx, io_irq, dt_irq);
+  warn.printf("IO device '%s': irq%d=0x%x -> 0x%x already registered\n",
+              self.get_name(), dt_idx, io_irq, dt_irq);
 
   // Ensure we have the correct binding of the currently registered
   // source
@@ -165,7 +165,11 @@ struct F : Factory
 
     auto *vd = vbus->find_unassigned_dev(node);
     if (!vd)
-      return nullptr;
+      {
+        warn.printf("No matching IO device found for device tree entry '%s'\n",
+                    node.get_name());
+        return nullptr;
+      }
 
     auto proxy = make_device<Io_proxy>(vd->io_dev);
     vd->proxy = proxy;
