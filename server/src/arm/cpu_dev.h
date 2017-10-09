@@ -26,9 +26,7 @@ public:
     Flags_mode_32 = (1 << 4)
   };
 
-  Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *)
-  : Generic_cpu_dev(idx, phys_id)
-  {}
+  Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *);
 
   void show_state_registers(FILE *f);
 
@@ -61,6 +59,18 @@ public:
    */
   static unsigned dtid_to_cpuid(l4_int32_t prop_val)
   { return prop_val & 0xf; }
+
+private:
+  enum
+  {
+    // define bits as 64 bit constants to make them usable in both
+    // 32/64 contexts
+    Mpidr_mp_ext    = 1ULL << 31,
+    Mpidr_up_sys    = 1ULL << 30,
+    Mpidr_mt_sys    = 1ULL << 24,
+    Mpidr_aff_mask  = (0xffULL << 32) || 0xfffULL,
+  };
+  l4_uint32_t _dt_affinity;
 };
 
 }

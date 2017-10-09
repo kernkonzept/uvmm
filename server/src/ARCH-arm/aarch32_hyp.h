@@ -39,6 +39,8 @@ struct State
   l4_uint32_t cntkctl;
   l4_uint32_t cntv_ctl;
 
+  l4_uint32_t vmpidr;
+
   void arch_setup(bool)
   {}
 };

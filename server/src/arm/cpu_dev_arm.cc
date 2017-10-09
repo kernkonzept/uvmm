@@ -14,6 +14,22 @@ extern "C" void vcpu_entry(l4_vcpu_state_t *vcpu);
 
 namespace Vmm {
 
+Cpu_dev::Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *node)
+: Generic_cpu_dev(idx, phys_id)
+{
+  if (node)
+    {
+      auto *prop = node->get_prop<fdt32_t>("reg", nullptr);
+      if (prop)
+        {
+          _dt_affinity = fdt32_to_cpu(*prop);
+          return;
+        }
+    }
+
+  _dt_affinity = idx;
+}
+
 void
 Cpu_dev::reset()
 {
@@ -35,6 +51,18 @@ Cpu_dev::reset()
   // set C, I, CP15BEN
   vm->vm_regs.sctlr = (1UL << 5) | (1UL << 2) | (1UL << 12);
 
+  // The type of vmpidr differs between ARM32 and ARM64, so we use 64
+  // bit here as a superset.
+  l4_uint64_t vmpidr = vm->vmpidr;
+
+  if (! (vmpidr &  Mpidr_mp_ext))
+    Dbg(Dbg::Cpu, Dbg::Info)
+      .printf("Vmpidr: %llx - Missing multiprocessing extension\n", vmpidr);
+
+  // remove mt/up bit and replace affinity with value from device tree
+  vm->vmpidr =   (vmpidr & ~(Mpidr_up_sys | Mpidr_mt_sys | Mpidr_aff_mask))
+               | (_dt_affinity & Mpidr_aff_mask);
+
   vm->arch_setup(!(_vcpu->r.flags & Flags_mode_32));
 
   //
@@ -49,11 +77,12 @@ Cpu_dev::reset()
   // entry_sp is derived from thread local stack pointer
   asm volatile ("mov %0, sp" : "=r"(_vcpu->entry_sp));
 
-  Dbg().printf("Starting Cpu%d @ 0x%lx %dBit mode "
-               "(handler @ %lx, stack: %lx, task: %lx)\n",
+  Dbg().printf("Starting Cpu%d @ 0x%lx in %dBit mode (handler @ %lx,"
+               " stack: %lx, task: %lx, mpidr: %llx (orig: %llx)\n",
                vmm_current_cpu_id, _vcpu->r.ip,
                _vcpu->r.flags & Flags_mode_32 ? 32 : 64,
-               _vcpu->entry_ip, _vcpu->entry_sp, _vcpu->user_task);
+               _vcpu->entry_ip, _vcpu->entry_sp, _vcpu->user_task,
+               static_cast<l4_uint64_t>(vm->vmpidr), vmpidr);
 
   L4::Cap<L4::Thread> myself;
   myself->vcpu_resume_commit(myself->vcpu_resume_start());
