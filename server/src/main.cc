@@ -220,6 +220,7 @@ static int run(int argc, char *argv[])
   Dbg::set_verbosity(verbosity);
 
   int use_wakeup_inhibitor = 0;
+  int use_mmio_fallback = 0;
   char const *const options = "+k:d:p:r:c:b:vqD:";
   struct option const loptions[] =
     {
@@ -229,6 +230,7 @@ static int run(int argc, char *argv[])
       { "ramdisk",  1, NULL, 'r' },
       { "cmdline",  1, NULL, 'c' },
       { "rambase",  1, NULL, 'b' },
+      { "mmio-fallback", 0, &use_mmio_fallback, 1 },
       { "debug",    1, NULL, 'D' },
       { "verbose",  0, NULL, 'v' },
       { "quiet",    0, NULL, 'q' },
@@ -290,7 +292,8 @@ static int run(int argc, char *argv[])
   auto *ram = vm_instance.ram().get();
 
   vmm->use_wakeup_inhibitor(use_wakeup_inhibitor);
-  vmm->set_fallback_mmio_ds(vm_instance.vbus()->io_ds());
+  if (use_mmio_fallback)
+    vmm->set_fallback_mmio_ds(vm_instance.vbus()->io_ds());
 
   Vdev::Device_tree dt(nullptr);
   L4virtio::Ptr<void> dt_addr(0);
