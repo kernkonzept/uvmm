@@ -500,7 +500,7 @@ public:
   void setup(unsigned cpuid, Irq_array *spis);
 
   void attach_cpu_thread(L4::Cap<L4::Thread> thread)
-  { L4Re::chksys(_cpu_irq->attach(0, thread)); }
+  { L4Re::chksys(_cpu_irq->bind_thread(thread, 0)); }
 
   Irq_array::Irq local_irq(unsigned irqn) { return _local_irq[irqn]; }
 
