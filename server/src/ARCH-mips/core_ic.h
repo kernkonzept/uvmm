@@ -49,7 +49,7 @@ public:
   }
 
   void attach_cpu_thread(L4::Cap<L4::Thread> thread)
-  { L4Re::chksys(_cpu_irq->attach(0, thread)); }
+  { L4Re::chksys(_cpu_irq->bind_thread(thread, 0)); }
 
   void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &) override
   {}

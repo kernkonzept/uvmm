@@ -31,7 +31,7 @@ Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
     {
       auto irq_svr = Vdev::make_device<Vdev::Irq_svr>(io_irq);
 
-      L4Re::chkcap(vmm->registry()->register_irq_obj(irq_svr.get()));
+      L4Re::chkcap(vmm->registry()->register_obj(irq_svr.get()));
 
       // We have a 1:1 association, so if the irq is not bound yet we
       // should be able to bind the icu irq

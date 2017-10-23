@@ -34,7 +34,7 @@ class Virt_lapic : public Vdev::Timer, public Ic
 
    void attach_cpu_thread(L4::Cap<L4::Thread> vthread)
    {
-     L4Re::chksys(_lapic_irq->attach(0, vthread),
+     L4Re::chksys(_lapic_irq->bind_thread(vthread, 0),
                   "Attaching local APIC IRQ to vCPU thread");
    }
 

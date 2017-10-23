@@ -34,7 +34,7 @@ public:
     if (!_vbus_event.irq().is_valid())
       return;
 
-    L4Re::chkcap(registry->register_irq_obj(this, L4::cap_cast<L4::Irq>(_vbus_event.irq())),
+    L4Re::chkcap(registry->register_obj(this, L4::cap_cast<L4::Irq>(_vbus_event.irq())),
                  "Registering guest IRQ in proxy");
   }
 
