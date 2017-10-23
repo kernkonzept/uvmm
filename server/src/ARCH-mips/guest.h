@@ -205,7 +205,8 @@ private:
     else
       diff = (0xffffffff - gcnt) + cmp;
 
-    diff = ((diff + kip->frequency_cpu - 1) / kip->frequency_cpu) * 1000;
+    auto freq = kip->frequency_cpu / 2;
+    diff = ((diff + freq - 1) / freq) * 1000;
     // make sure the timer interrupt has passed on the Fiasco clock tick
     diff += kip->scheduler_granularity;
 
