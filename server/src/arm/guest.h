@@ -63,6 +63,7 @@ public:
   bool handle_psci_call(Vcpu_ptr vcpu);
 
 private:
+  Cpu_dev *lookup_cpu(l4_uint32_t hwid) const;
   void check_guest_constraints(Ram_ds *ram);
   void arm_update_device_tree();
 

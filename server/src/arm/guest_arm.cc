@@ -330,6 +330,15 @@ Guest::handle_entry(Vcpu_ptr vcpu)
   return myself->vcpu_resume_start(utcb);
 }
 
+Cpu_dev *
+Guest::lookup_cpu(l4_uint32_t hwid) const
+{
+  for (unsigned i = 0; i < Cpu_dev_array::Max_cpus; ++i)
+    if (_cpus->vcpu_exists(i) && _cpus->cpu(i)->matches(hwid))
+      return _cpus->cpu(i).get();
+
+  return nullptr;
+}
 
 bool
 Guest::handle_psci_call(Vcpu_ptr vcpu)
@@ -407,14 +416,15 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
 
     case CPU_ON:
       {
-        unsigned cpu = vcpu->r.r[1] & 0xf;
-        if (_cpus->vcpu_exists(cpu))
+        unsigned long hwid = vcpu->r.r[1];
+        Cpu_dev *target = lookup_cpu(hwid);
+
+        if (target)
           {
             // XXX There is currently no way to detect error conditions like
             // INVALID_ADDRESS or ALREADY_ON
             l4_mword_t ip = vcpu->r.r[2];
             l4_mword_t context =  vcpu->r.r[3];
-            cxx::Ref_ptr<Cpu_dev> target = _cpus->cpu(cpu);
             target->vcpu()->r.r[0] = context;
             prepare_vcpu_startup(target->vcpu(), ip);
             target->start_vcpu();

@@ -14,6 +14,18 @@ extern "C" void vcpu_entry(l4_vcpu_state_t *vcpu);
 
 namespace Vmm {
 
+// we enumerate the CPUs as they are listed in the device tree and
+// boot on logical cpu 0
+static unsigned logical_cpu_num = 0;
+
+unsigned
+Cpu_dev::dtid_to_cpuid(l4_int32_t)
+{
+  // ignore topology information and simply return the next logical
+  // cpu number
+  return logical_cpu_num++;
+}
+
 Cpu_dev::Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *node)
 : Generic_cpu_dev(idx, phys_id)
 {
