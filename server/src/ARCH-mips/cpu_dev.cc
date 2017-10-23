@@ -14,6 +14,7 @@ static const std::pair<l4_umword_t, const char *> MIPS_PROC_IDS[] =
   {{0x0001a700, "mips,m5150"},
    {0x0001a800, "mips,p5600"},
    {0x0001a900, "mips,i6400"},
+   {0x0001b024, "mips,i6500"},
    {0, nullptr}};
 
 static Dbg warn(Dbg::Cpu, Dbg::Warn, "CPU");
