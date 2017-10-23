@@ -94,7 +94,7 @@ public:
     return size;
   }
 
-  unsigned dt_get_interrupt(Vdev::Dt_node const &node, int irq)
+  unsigned dt_get_interrupt(Vdev::Dt_node const &node, int irq) override
   {
     auto *prop = node.check_prop<fdt32_t>("interrupts", irq + 1);
 

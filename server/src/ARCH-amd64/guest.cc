@@ -43,7 +43,7 @@ void Guest::register_io_device(cxx::Ref_ptr<Io_device> const &dev,
 
   _iomap[region] = dev;
 
-  trace().printf("New io mappping: %p @ [0x%lx, 0x%lx]\n", dev.get(), start, sz);
+  trace().printf("New io mappping: %p @ [0x%lx, 0x%zx]\n", dev.get(), start, sz);
 }
 
 L4virtio::Ptr<void>

@@ -853,7 +853,7 @@ public:
   cxx::Ref_ptr<Irq_source> get_irq_source(unsigned irq) const override
   { return spi(irq - Cpu::Num_local).get_source(); }
 
-  int dt_get_num_interrupts(Vdev::Dt_node const &node)
+  int dt_get_num_interrupts(Vdev::Dt_node const &node) override
   {
     int size;
     auto prop = node.get_prop<fdt32_t>("interrupts", &size);
@@ -861,7 +861,7 @@ public:
     return prop ? (size / Irq_cells) : 0;
   }
 
-  unsigned dt_get_interrupt(Vdev::Dt_node const &node, int irq)
+  unsigned dt_get_interrupt(Vdev::Dt_node const &node, int irq) override
   {
     auto *prop = node.check_prop<fdt32_t[Irq_cells]>("interrupts", irq + 1);
 

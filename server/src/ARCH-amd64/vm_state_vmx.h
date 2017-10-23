@@ -102,7 +102,7 @@ public:
   Vmx_state(void *vmcs) : _vmcs(vmcs) {}
   ~Vmx_state() = default;
 
-  void init_state()
+  void init_state() override
   {
     vmx_write(L4VCPU_VMCS_LINK_POINTER, 0xffffffffffffffffULL);
     vmx_write(L4VCPU_VMCS_GUEST_ACTIVITY_STATE, 0);
@@ -330,7 +330,7 @@ public:
     inject_event(exc_num, Int_type::Hardware_exception);
   }
 
-  void unhalt()
+  void unhalt() override
   {
     jump_instruction();
     // XXX should we verify that the processor is in HLT state?

@@ -7,6 +7,8 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
+#include <l4/sys/compiler.h>
+
 asm
 (
  "vcpu_entry:                     \n"

@@ -119,7 +119,7 @@ public:
         .printf("Cannot connect virtio IRQ: %d\n", err);
   }
 
-  void reset()
+  void reset() override
   {
     for (auto &q : _vqs)
       {
@@ -248,7 +248,7 @@ public:
     _con->bind(0, L4Re::chkcap(registry->register_irq_obj(this)));
   }
 
-  int dispatch(l4_umword_t /*obj*/, L4::Ipc::Iostream &/*ios*/)
+  int dispatch(l4_umword_t /*obj*/, L4::Ipc::Iostream &/*ios*/) override
   {
     Virtio::Event_set ev;
     handle_input(&ev);
