@@ -146,6 +146,16 @@ Guest::handle_entry(Vcpu_ptr vcpu)
     case 1: // TLB modify
     case 2: // TLB load/fetch
     case 3: // TLB store
+      if (Mips::Instruction(vcpu->r.bad_instr).is_cache_op())
+        {
+          // FIXME: cache coherency currently not handled
+          // We assume that the memory will be coherent when mapped into
+          // the guest on first access.
+          info().printf("Cache operation on unmapped memory requested. Ignored. (Opcode: 0x%lx, address: 0x%lx)\n",
+                        vcpu->r.bad_instr, vcpu->r.pfa);
+          vcpu.jump_instruction();
+          break;
+        }
       switch (handle_mmio(vcpu->r.pfa, vcpu))
         {
         case Retry: break;
@@ -179,7 +189,12 @@ Guest::handle_entry(Vcpu_ptr vcpu)
             else if (insn.is_wait())
               ret = handle_wait(vcpu, utcb);
             else if (insn.is_cache_op())
-              ret = Jump_instr; // cache coherence handled by Fiasco
+              {
+                // FIXME: assuming that cache coherency is guaranteed by Fiasco
+                info().printf("Unhandled cache operation 0x%lx. Ignored.\n",
+                              vcpu->r.bad_instr);
+                ret = Jump_instr;
+              }
             break;
 
           case 1: // software field change
