@@ -120,8 +120,8 @@ public:
     if (_state || !_ic)
       return;
 
-    _ic->set(_irq);
     _state = true;
+    _ic->set(_irq);
   }
 
   void ack()
