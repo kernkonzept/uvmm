@@ -154,7 +154,7 @@ public:
         if (value == L4VIRTIO_MAGIC)
           {
             trace.printf("Starting up vio server\n");
-            _vmm->registry()->register_obj(&_host_irq);
+            _vmm->registry()->register_irq_obj(&_host_irq);
             _vmm->registry()->register_obj(this, _service_name);
           }
         break;
