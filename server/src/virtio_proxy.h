@@ -254,6 +254,9 @@ public:
                                               "Registering guest IRQ in proxy");
 
     _dev.driver_connect(guest_irq);
+
+    // Unmask it, this might be a hardware interrupt.
+    guest_irq->unmask();
   }
 
   void handle_irq()
