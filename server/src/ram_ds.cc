@@ -92,8 +92,8 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
         }
     }
 
-  info.printf("RAM: @ 0x%lx size=0x%x (%c%c)\n",
-              _vm_start, (unsigned) _size, _cont ? 'c' : '-', _ident ? 'i' : '-');
+  info.printf("RAM: @ 0x%lx size=0x%lx (%c%c)\n",
+              _vm_start, (l4_addr_t) _size, _cont ? 'c' : '-', _ident ? 'i' : '-');
 
   _local_start = 0;
   L4Re::chksys(env->rm()->attach(&_local_start, _size,
@@ -101,7 +101,7 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
                                  L4::Ipc::make_cap_rw(ram), 0,
                                  L4_SUPERPAGESHIFT));
   _local_end = _local_start + _size;
-  info.printf("RAM: VMM mapping @ 0x%lx size=0x%x\n", _local_start, (unsigned)_size);
+  info.printf("RAM: VMM mapping @ 0x%lx size=0x%lx\n", _local_start, (l4_addr_t)_size);
 
   assert(_vm_start != ~0UL);
 
