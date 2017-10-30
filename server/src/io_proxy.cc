@@ -31,11 +31,13 @@ Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
     {
       auto irq_svr = Vdev::make_device<Vdev::Irq_svr>(io_irq);
 
-      L4Re::chkcap(vmm->registry()->register_irq_obj(irq_svr.get()));
+      L4Re::chkcap(vmm->registry()->register_irq_obj(irq_svr.get()),
+                   "Invalid capability");
 
       // We have a 1:1 association, so if the irq is not bound yet we
       // should be able to bind the icu irq
-      L4Re::chksys(vbus->icu()->bind(io_irq, irq_svr->obj_cap()));
+      L4Re::chksys(vbus->icu()->bind(io_irq, irq_svr->obj_cap()),
+                   "Cannot bind to IRQ");
 
       // Point irq_svr to ic:dt_irq for upstream events (like
       // interrupt delivery)
@@ -105,7 +107,8 @@ Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self)
     {
       l4vbus_resource_t res;
 
-      L4Re::chksys(_dev.get_resource(i, &res));
+      L4Re::chksys(_dev.get_resource(i, &res),
+                   "Cannot get resource in device_init()");
 
       char const *resname = reinterpret_cast<char const *>(&res.id);
 
@@ -178,7 +181,8 @@ struct F : Factory
       {
         l4vbus_resource_t res;
 
-        L4Re::chksys(vd->io_dev.get_resource(i, &res));
+        L4Re::chksys(vd->io_dev.get_resource(i, &res),
+                     "Cannot get resource in create()");
 
         char const *resname = reinterpret_cast<char const *>(&res.id);
 
