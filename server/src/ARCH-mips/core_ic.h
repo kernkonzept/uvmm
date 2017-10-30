@@ -144,6 +144,8 @@ class Mips_core_ic : public virtual Vdev::Dev_ref
   {
     l4_umword_t raw;
     CXX_BITFIELD_MEMBER(10, 15, hw_ints, raw);
+
+    Hw_int_reg(l4_umword_t r) : raw(r) {}
   };
 
 public:
@@ -168,6 +170,11 @@ public:
   {
     assert(cpuid < Max_ics);
     return _core_ics[cpuid];
+  }
+
+  static bool has_pending(Vmm::Vcpu_ptr vcpu)
+  {
+    return Hw_int_reg(vcpu.state()->guest_ctl_2).hw_ints();
   }
 
   void update_vcpu(Vmm::Vcpu_ptr vcpu)

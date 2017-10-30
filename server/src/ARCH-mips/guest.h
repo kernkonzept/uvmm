@@ -249,6 +249,9 @@ private:
 
   int handle_wait(Vcpu_ptr vcpu, l4_utcb_t *utcb)
   {
+    if (Gic::Mips_core_ic::has_pending(vcpu))
+      return Jump_instr;
+
     auto *s = vcpu.state();
     auto *kip = l4re_kip();
 
