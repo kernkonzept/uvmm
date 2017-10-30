@@ -20,6 +20,7 @@
 #include <l4/re/env>
 #include <l4/re/error_helper>
 #include <l4/re/util/cap_alloc>
+#include <l4/re/util/unique_cap>
 
 #include <l4/l4virtio/virtio.h>
 #include <l4/l4virtio/server/virtio>
@@ -92,8 +93,8 @@ protected:
   l4_uint32_t _irq_status_shadow = 0;
   l4_uint16_t _config_event_index = 0;
 
-  L4Re::Rm::Auto_region<l4virtio_config_hdr_t *> _cfg_header;
-  L4Re::Util::Auto_del_cap<L4Re::Dataspace>::Cap _cfg_ds;
+  L4Re::Rm::Unique_region<l4virtio_config_hdr_t *> _cfg_header;
+  L4Re::Util::Unique_del_cap<L4Re::Dataspace> _cfg_ds;
 
   void update_virtio_config()
   {
@@ -106,11 +107,11 @@ public:
   : _iommu(iommu)
   {
     auto *e = L4Re::Env::env();
-    auto ds = L4Re::chkcap(L4Re::Util::make_auto_del_cap<L4Re::Dataspace>());
+    auto ds = L4Re::chkcap(L4Re::Util::make_unique_del_cap<L4Re::Dataspace>());
 
     L4Re::chksys(e->mem_alloc()->alloc(Config_ds_size, ds.get()));
 
-    L4Re::Rm::Auto_region<l4virtio_config_hdr_t *> cfg;
+    L4Re::Rm::Unique_region<l4virtio_config_hdr_t *> cfg;
     L4Re::chksys(e->rm()->attach(&cfg, Config_ds_size,
                                  L4Re::Rm::Search_addr
                                  , //| L4Re::Rm::Cache_uncached,

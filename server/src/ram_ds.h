@@ -10,6 +10,7 @@
 #include <l4/re/dataspace>
 #include <l4/re/dma_space>
 #include <l4/re/util/cap_alloc>
+#include <l4/re/util/unique_cap>
 #include <l4/util/util.h>
 
 #include <l4/l4virtio/virtqueue>
@@ -108,7 +109,7 @@ public:
 
 private:
   L4::Cap<L4Re::Dataspace> _ram;
-  L4Re::Util::Auto_cap<L4Re::Dma_space>::Cap _dma;
+  L4Re::Util::Unique_cap<L4Re::Dma_space> _dma;
   l4_addr_t _boot_offset;
   L4Re::Dma_space::Dma_addr _phys_ram;
   l4_size_t _phys_size;

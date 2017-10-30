@@ -12,7 +12,7 @@
 
 #include <l4/re/dataspace>
 #include <l4/re/rm>
-#include <l4/re/util/cap_alloc>
+#include <l4/re/util/unique_cap>
 #include <l4/sys/vcpu.h>
 
 #include "irq.h"
@@ -22,7 +22,6 @@
 #include "pt_walker.h"
 #include "ram_ds.h"
 
-using L4Re::Util::Auto_cap;
 using L4Re::Rm;
 
 namespace Gic {
@@ -91,7 +90,7 @@ class Virt_lapic : public Vdev::Timer, public Ic
      l4_uint32_t tmr_div;
     };
 
-   Auto_cap<L4::Irq>::Cap _lapic_irq; /// IRQ to notify VCPU
+   L4Re::Util::Unique_cap<L4::Irq> _lapic_irq; /// IRQ to notify VCPU
    l4_addr_t _lapic_memory_address;
    unsigned _lapic_x2_id;
    unsigned _lapic_version;

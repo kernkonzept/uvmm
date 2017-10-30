@@ -11,6 +11,7 @@
 #include <l4/re/dataspace>
 #include <l4/re/util/br_manager>
 #include <l4/re/util/object_registry>
+#include <l4/re/util/unique_cap>
 #include <l4/l4virtio/l4virtio>
 
 #include "debug.h"
@@ -157,7 +158,7 @@ protected:
   L4Re::Util::Br_manager _bm;
   L4Re::Util::Object_registry _registry;
   Vm_mem _memmap;
-  L4Re::Util::Auto_cap<L4::Task>::Cap _task;
+  L4Re::Util::Unique_cap<L4::Task> _task;
   Pm _pm;
   Vbus_event _vbus_event;
   L4::Cap<L4Re::Dataspace> _mmio_fallback;

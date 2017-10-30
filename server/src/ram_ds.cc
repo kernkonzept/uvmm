@@ -59,7 +59,7 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
                           L4Re::Dma_space::Phys_space);
 
   if (err < 0)
-    _dma = L4::Cap<L4Re::Dma_space>::Invalid;
+    _dma.reset();
 
   l4_size_t phys_size = _size;
   L4Re::Dma_space::Dma_addr phys_ram = 0;

@@ -211,7 +211,8 @@ public:
     if (!irq_cap_fp.cap_received())
       return -L4_EINVAL;
 
-    _kick_guest_irq = L4Re::chkcap(server_iface()->rcv_cap<L4::Irq>(0));
+    _kick_guest_irq = L4Re::Util::Unique_cap<L4::Irq>(
+        L4Re::chkcap(server_iface()->rcv_cap<L4::Irq>(0)));
     L4Re::chksys(server_iface()->realloc_rcv_cap(0));
 
     trace.printf("register client: host IRQ: %lx config DS: %lx\n",
@@ -235,7 +236,7 @@ public:
   }
 
 private:
-  L4Re::Util::Auto_cap<L4::Irq>::Cap _kick_guest_irq;
+  L4Re::Util::Unique_cap<L4::Irq> _kick_guest_irq;
   Host_irq _host_irq;
 
   Vmm::Irq_sink _irq_sink;

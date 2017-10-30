@@ -8,6 +8,8 @@
 
 #include <l4/re/env>
 #include <l4/re/error_helper>
+#include <l4/re/util/cap_alloc>
+#include <l4/re/util/unique_cap>
 #include <l4/util/rdtsc.h>
 
 #include <climits>
@@ -24,7 +26,7 @@ using L4Re::chkcap;
 using L4Re::chksys;
 
 Virt_lapic::Virt_lapic(unsigned id, l4_addr_t baseaddr)
-: _lapic_irq(chkcap(L4Re::Util::cap_alloc.alloc<L4::Irq>())),
+: _lapic_irq(chkcap(L4Re::Util::make_unique_cap<L4::Irq>())),
   _lapic_memory_address(baseaddr),
   _lapic_x2_id(id),
   _lapic_version(Lapic_version),

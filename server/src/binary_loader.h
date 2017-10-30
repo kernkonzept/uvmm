@@ -8,7 +8,7 @@
 
 #include <l4/sys/cache.h>
 #include <l4/re/dataspace>
-#include <l4/re/util/cap_alloc>
+#include <l4/re/util/unique_cap>
 #include <l4/re/util/env_ns>
 #include <l4/re/error_helper>
 #include <l4/libloader/elf>
@@ -106,8 +106,8 @@ private:
   Ldr::Elf_ehdr const *as_elf_header() const
   { return reinterpret_cast<Ldr::Elf_ehdr const*>(_header.get()); }
 
-  L4Re::Util::Auto_cap<L4Re::Dataspace>::Cap _ds;
-  L4Re::Rm::Auto_region<char *> _header;
+  L4Re::Util::Unique_cap<L4Re::Dataspace> _ds;
+  L4Re::Rm::Unique_region<char *> _header;
   L4virtio::Ptr<void> _end;
   struct Region
   {

@@ -18,6 +18,7 @@
 #include <l4/re/error_helper>
 #include <l4/re/rm>
 #include <l4/re/util/cap_alloc>
+#include <l4/re/util/unique_cap>
 
 #include <l4/l4virtio/l4virtio>
 #include <l4/l4virtio/virtqueue>
@@ -57,10 +58,10 @@ public:
   {
     _device = srvcap;
 
-    _host_irq = L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4::Irq>(),
+    _host_irq = L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
                              "Allocating cap for host irq");
 
-    _config_cap = L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>(),
+    _config_cap = L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dataspace>(),
                                "Allocating cap for config dataspace");
 
     L4Re::chksys(_device->register_iface(guest_irq, _host_irq.get(),
@@ -164,12 +165,12 @@ public:
 
 protected:
   L4::Cap<L4virtio::Device> _device;
-  L4Re::Rm::Auto_region<L4virtio::Device::Config_hdr *> _config;
-  L4Re::Util::Auto_cap<L4::Irq>::Cap _guest_irq;
+  L4Re::Rm::Unique_region<L4virtio::Device::Config_hdr *> _config;
+  L4Re::Util::Unique_cap<L4::Irq> _guest_irq;
 
 private:
-  L4Re::Util::Auto_cap<L4::Irq>::Cap _host_irq;
-  L4Re::Util::Auto_cap<L4Re::Dataspace>::Cap _config_cap;
+  L4Re::Util::Unique_cap<L4::Irq> _host_irq;
+  L4Re::Util::Unique_cap<L4Re::Dataspace> _config_cap;
 
   unsigned _config_page_size = 0;
 };

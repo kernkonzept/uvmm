@@ -38,7 +38,7 @@ class Vcpu_ic : public Ic
 
 public:
   Vcpu_ic()
-  : _cpu_irq(L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4::Irq>(),
+  : _cpu_irq(L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
                           "allocate vcpu notification interrupt")),
     _irqvec(0)
   {
@@ -122,7 +122,7 @@ public:
   }
 
 private:
-  L4Re::Util::Auto_cap<L4::Irq>::Cap _cpu_irq;
+  L4Re::Util::Unique_cap<L4::Irq> _cpu_irq;
   /// Cached output pending array.
   l4_uint32_t _irqvec;
   /// Count for each interrupt the number of incomming sources.

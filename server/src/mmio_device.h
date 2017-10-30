@@ -11,6 +11,7 @@
 
 #include <l4/cxx/ref_ptr>
 #include <l4/re/util/cap_alloc>
+#include <l4/re/util/unique_cap>
 #include <l4/sys/task>
 #include <l4/sys/l4int.h>
 #include <l4/sys/types.h>
@@ -318,16 +319,16 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
   : _mapped_size(size)
   {
     auto *e = L4Re::Env::env();
-    auto ds = L4Re::chkcap(L4Re::Util::make_auto_del_cap<L4Re::Dataspace>());
+    auto ds = L4Re::chkcap(L4Re::Util::make_unique_del_cap<L4Re::Dataspace>());
     L4Re::chksys(e->mem_alloc()->alloc(size, ds.get()));
 
-    L4Re::Rm::Auto_region<T *> mem;
+    L4Re::Rm::Unique_region<T *> mem;
     L4Re::chksys(e->rm()->attach(&mem, size,
                                  L4Re::Rm::Search_addr | rm_flags,
                                  L4::Ipc::make_cap_rw(ds.get())));
 
-    _mmio_region = mem;
-    _ds = ds;
+    _mmio_region = cxx::move(mem);
+    _ds = cxx::move(ds);
   }
 
   l4_size_t mapped_mmio_size() const
@@ -340,10 +341,10 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
   { return _mmio_region.get(); }
 
 private:
-  L4Re::Util::Auto_del_cap<L4Re::Dataspace>::Cap _ds;
+  L4Re::Util::Unique_del_cap<L4Re::Dataspace> _ds;
 
 protected:
-  L4Re::Rm::Auto_region<T *> _mmio_region;
+  L4Re::Rm::Unique_region<T *> _mmio_region;
   l4_size_t _mapped_size;
 };
 

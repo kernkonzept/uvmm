@@ -491,7 +491,7 @@ public:
   Cpu() : _local_irq(Num_local)
   {
     memset(&_sgi_pend, 0, sizeof(_sgi_pend));
-    _cpu_irq = L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4::Irq>(),
+    _cpu_irq = L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
                             "allocate vcpu notification interrupt");
     L4Re::chksys(L4Re::Env::env()->factory()->create(_cpu_irq.get()),
                  "create vcpu notification interrupt");
@@ -553,7 +553,7 @@ public:
   Irq_array _local_irq;
   Irq_array *_spis;
   Vmm::Arm::State::Gic *_vgic = 0;
-  L4Re::Util::Auto_cap<L4::Irq>::Cap _cpu_irq;
+  L4Re::Util::Unique_cap<L4::Irq> _cpu_irq;
   bool _pending_work;
 };
 
