@@ -278,7 +278,7 @@ Dist::setup_source(unsigned irq)
   auto ic = _core_ic->get_ic(cpuid);
   auto pin = *gic_mem<Gic_pin_reg>(irq_to_pinreg(irq));
 
-  trace.printf("GIC irq 0x%x: setting source for CPU %d to pin 0x%lx (IC %p)\n",
+  trace.printf("GIC irq 0x%x: setting source for CPU %d to pin 0x%x (IC %p)\n",
                irq, cpuid, pin.raw, ic.get());
 
   // only int pins at the moment
