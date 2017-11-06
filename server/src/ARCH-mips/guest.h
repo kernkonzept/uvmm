@@ -35,6 +35,54 @@ class Guest : public Generic_guest
     Hypcall_outchar  = Hypcall_base + 0,
   };
 
+  struct Cp0_config4
+  {
+    l4_uint32_t _v;
+    Cp0_config4() = default;
+    Cp0_config4(l4_uint32_t v) : _v(v) {}
+    CXX_BITFIELD_MEMBER( 0,  7, mmu_sz_ext, _v);
+    CXX_BITFIELD_MEMBER( 0,  3, ftlb_sets, _v);
+    CXX_BITFIELD_MEMBER( 4,  7, ftlb_ways, _v);
+    CXX_BITFIELD_MEMBER( 0,  7, ftlb_info, _v);
+    CXX_BITFIELD_MEMBER( 8, 12, ftlb_page_size2, _v);
+    CXX_BITFIELD_MEMBER( 8, 10, ftlb_page_size1, _v);
+    CXX_BITFIELD_MEMBER(14, 15, mmu_ext_def, _v);
+    CXX_BITFIELD_MEMBER(16, 23, k_scr_num, _v);
+    CXX_BITFIELD_MEMBER(24, 27, vtlb_sz_ext, _v);
+    CXX_BITFIELD_MEMBER(28, 28, ae, _v);
+    CXX_BITFIELD_MEMBER(29, 30, ie, _v);
+
+    static Cp0_config4 *vcpu(Vcpu_ptr vcpu)
+    { return reinterpret_cast<Cp0_config4 *>(&vcpu.state()->g_cfg[4]); }
+  };
+
+  struct Cp0_config5
+  {
+    l4_uint32_t _v;
+    Cp0_config5() = default;
+    Cp0_config5(l4_uint32_t v) : _v(v) {}
+    CXX_BITFIELD_MEMBER( 0,  0, nf_exists, _v);
+    CXX_BITFIELD_MEMBER( 2,  2, ufr, _v);
+    CXX_BITFIELD_MEMBER( 3,  3, mrp, _v);
+    CXX_BITFIELD_MEMBER( 4,  4, llb, _v);
+    CXX_BITFIELD_MEMBER( 5,  5, mvh, _v);
+    CXX_BITFIELD_MEMBER( 6,  6, sbri, _v);
+    CXX_BITFIELD_MEMBER( 7,  7, vp, _v);
+    CXX_BITFIELD_MEMBER( 8,  8, fre, _v);
+    CXX_BITFIELD_MEMBER( 9,  9, ufe, _v);
+    CXX_BITFIELD_MEMBER(10, 10, l2c, _v);
+    CXX_BITFIELD_MEMBER(11, 11, dec, _v);
+    CXX_BITFIELD_MEMBER(13, 13, xnp, _v);
+    CXX_BITFIELD_MEMBER(27, 27, msa_en, _v);
+    CXX_BITFIELD_MEMBER(28, 28, eva, _v);
+    CXX_BITFIELD_MEMBER(29, 29, cv, _v);
+    CXX_BITFIELD_MEMBER(30, 30, k, _v);
+
+    static Cp0_config5 *vcpu(Vcpu_ptr vcpu)
+    { return reinterpret_cast<Cp0_config5 *>(&vcpu.state()->g_cfg[5]); }
+  };
+
+
 public:
   enum
   {
@@ -127,11 +175,33 @@ private:
       case L4_VM_CP0_CONFIG_1:
       case L4_VM_CP0_CONFIG_2:
       case L4_VM_CP0_CONFIG_3:
-      case L4_VM_CP0_CONFIG_4:
-      case L4_VM_CP0_CONFIG_5:
       case L4_VM_CP0_CONFIG_6:
       case L4_VM_CP0_CONFIG_7:
         return Jump_instr; // XXX config registers are read-only atm
+      case L4_VM_CP0_CONFIG_4:
+        {
+          // allow setting of ftlb size
+          auto *cfg4 = Cp0_config4::vcpu(vcpu);
+          Cp0_config4 newcfg(vcpu->r.r[insn.rt()]);
+          if (cfg4->ftlb_page_size2() != newcfg.ftlb_page_size2())
+            {
+              cfg4->ftlb_page_size2().set(newcfg.ftlb_page_size2());
+              vcpu.state()->set_modified(L4_VM_MOD_CFG);
+            }
+          return Jump_instr;
+        }
+      case L4_VM_CP0_CONFIG_5:
+        {
+          auto *cfg5 = Cp0_config5::vcpu(vcpu);
+          Cp0_config5 newcfg(vcpu->r.r[insn.rt()]);
+          // allow setting of FRE
+          if (cfg5->fre() != newcfg.fre())
+            {
+              cfg5->fre().set(newcfg.fre());
+              vcpu.state()->set_modified(L4_VM_MOD_CFG);
+            }
+          return Jump_instr;
+        }
       case L4_VM_CP0_MAAR_0: // XXX MAAR and parity are not supported
       case L4_VM_CP0_MAAR_1:
       case L4_VM_CP0_ERR_CTL:
