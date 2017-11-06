@@ -80,6 +80,8 @@ public:
                       _devices->vmm()->show_state_interrupts(_f, cpus->vcpu(i));
                   break;
                 }
+              case 't': Dbg::set_verbosity(Dbg::Trace | Dbg::Info | Dbg::Warn); break;
+              case 'T': Dbg::set_verbosity(Dbg::Info | Dbg::Warn); break;
               case '\r':
               case '\b':
                 print_prompt = false;
