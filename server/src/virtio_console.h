@@ -14,8 +14,7 @@
 #include "virtio_dev.h"
 #include "virtio_event_connector.h"
 
-#include <l4/cxx/ipc_server>
-#include <l4/cxx/ipc_stream>
+#include <l4/sys/cxx/ipc_epiface>
 #include <l4/cxx/type_traits>
 
 #include <l4/sys/vcon>
@@ -27,7 +26,7 @@ namespace Vdev {
 template <typename DEV>
 class Virtio_console
 : public Virtio::Dev,
-  private L4::Server_object_t<L4::Vcon>
+  public L4::Irqep_t<Virtio_console<DEV> >
 {
   typedef L4virtio::Svr::Virtqueue::Desc Desc;
   typedef L4virtio::Svr::Request_processor Request_processor;
@@ -248,7 +247,7 @@ public:
     _con->bind(0, L4Re::chkcap(registry->register_irq_obj(this)));
   }
 
-  int dispatch(l4_umword_t /*obj*/, L4::Ipc::Iostream &/*ios*/) override
+  void handle_irq()
   {
     Virtio::Event_set ev;
     handle_input(&ev);
@@ -257,7 +256,6 @@ public:
       dev()->set_irq_status(_irq_status_shadow);
 
     dev()->event_connector()->send_events(cxx::move(ev));
-    return 0;
   }
 
   void virtio_irq_ack(unsigned val)

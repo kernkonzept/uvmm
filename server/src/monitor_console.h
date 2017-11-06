@@ -7,8 +7,7 @@
 #pragma once
 
 #include <l4/cxx/ref_ptr>
-#include <l4/cxx/ipc_server>
-#include <l4/cxx/ipc_stream>
+#include <l4/sys/cxx/ipc_epiface>
 
 #include <l4/sys/vcon>
 
@@ -17,7 +16,7 @@
 #include "guest.h"
 
 class Monitor_console
-: private L4::Server_object_t<L4::Vcon>,
+: public L4::Irqep_t<Monitor_console>,
   public cxx::Ref_obj
 {
   FILE *_f;
@@ -54,7 +53,7 @@ public:
     fflush(_f);
   }
 
-  int dispatch(l4_umword_t, L4::Ipc::Iostream &)
+  void handle_irq()
   {
     int r;
 
@@ -97,7 +96,6 @@ public:
           prompt();
       }
     while (r > 0);
-    return 0;
   }
 
 private:
