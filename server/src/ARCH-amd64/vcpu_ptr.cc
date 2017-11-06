@@ -92,14 +92,14 @@ Vcpu_ptr::decode_mmio() const
   if (op.atype == L4mad::Read)
     {
       m.access = Mem_access::Load;
-      _s->user_data[Reg_mmio_read] = tgt.val;
+      _s->user_data[Reg_mmio_read] = tgt.val >> tgt.shift;
     }
   else if (op.atype == L4mad::Write)
     {
       m.access = Mem_access::Store;
       // src.val is the register number in MAD order; which is inverse to
       // register order in l4_vcpu_regs_t.
-      m.value = *decode_reg_ptr(src.val);
+      m.value = *decode_reg_ptr(src.val) >> src.shift;
     }
   // else unknown; Other already set.
 

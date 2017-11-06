@@ -398,8 +398,11 @@ Decoder::decode(l4_exc_regs_t *u, l4_addr_t pc, Op *op, Desc *tgt, Desc *src)
                   (rex & REX_W) ? 8 : (byte ? 1 : (size_ovr ? 2 : 4)),
                   len + pref_len);
           unsigned shift = 0;
-          if (byte && reg > 3)
+          if (!rex && byte && reg > 3)
             {
+              // If REX is used in the instruction, AH to DH are not accessible.
+              // Use SPL, BPL, SIL, and DIL, which is the lower byte of the
+              // acutally referenced register.
               reg -= 4;
               shift = 8;
             }
