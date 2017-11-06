@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2017 Kernkonzept GmbH.
- * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
+ * Author(s): Adam Lackorzynski <adam@l4re.org>
+ *            Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
@@ -402,7 +403,7 @@ Decoder::decode(l4_exc_regs_t *u, l4_addr_t pc, Op *op, Desc *tgt, Desc *src)
             {
               // If REX is used in the instruction, AH to DH are not accessible.
               // Use SPL, BPL, SIL, and DIL, which is the lower byte of the
-              // acutally referenced register.
+              // actually referenced register.
               reg -= 4;
               shift = 8;
             }
