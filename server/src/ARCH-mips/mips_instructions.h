@@ -78,6 +78,8 @@ struct Instruction
   CXX_BITFIELD_MEMBER_RO( 0, 25, instr_index, raw);
   // for FP ops
   CXX_BITFIELD_MEMBER_RO(28, 28, op_fp_dc1, raw);
+  // for cache ops
+  CXX_BITFIELD_MEMBER_RO(18, 20, cache_optype, raw);
 
   Instruction(l4_uint32_t inst) : raw(inst) {}
 

@@ -190,9 +190,11 @@ Guest::handle_entry(Vcpu_ptr vcpu)
               ret = handle_wait(vcpu, utcb);
             else if (insn.is_cache_op())
               {
+                // Index Store Tag must only be used to initialise caches, ignore.
+                if (insn.cache_optype() != 2)
+                  info().printf("Unhandled cache operation 0x%lx. Ignored.\n",
+                                vcpu->r.bad_instr);
                 // FIXME: assuming that cache coherency is guaranteed by Fiasco
-                info().printf("Unhandled cache operation 0x%lx. Ignored.\n",
-                              vcpu->r.bad_instr);
                 ret = Jump_instr;
               }
             break;
