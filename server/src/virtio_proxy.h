@@ -220,8 +220,7 @@ public:
                  "Registering RAM for virtio proxy");
   }
 
-  template<typename REG>
-  void register_irq(REG *registry, L4::Cap<L4virtio::Device> host)
+  void register_irq(L4::Registry_iface *registry, L4::Cap<L4virtio::Device> host)
   {
     L4::Cap<L4::Irq> guest_irq = L4Re::chkcap(registry->register_irq_obj(this),
                                               "Registering guest IRQ in proxy");

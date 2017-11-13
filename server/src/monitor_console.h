@@ -39,8 +39,7 @@ public:
     fclose(_f);
   }
 
-  template<typename REG>
-  void register_obj(REG *registry)
+  void register_obj(L4::Registry_iface *registry)
   {
     _con->bind(0, L4Re::chkcap(registry->register_irq_obj(this)));
     fprintf(_f, "VMM Monitor Console\n");
