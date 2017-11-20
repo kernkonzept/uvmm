@@ -3,6 +3,9 @@ L4DIR  ?= $(PKGDIR)/../..
 
 include $(L4DIR)/mk/Makeconf
 
+include $(PKGDIR)/server/src/Makefile.config
+-include $(PKGDIR)/server/src/Makefile.config.local
+
 SYSTEMS         = arm-l4f mips-l4f arm64-l4f amd64-l4f
 TARGET          = uvmm
 SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
@@ -24,6 +27,8 @@ SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                ARCH-amd64/rtc.cc ARCH-amd64/virt_lapic.cc \
                ARCH-amd64/vcpu_ptr.cc ARCH-amd64/vm_state_vmx.cc
 
+SRC_CC-$(CONFIG_VDEV_8250) += device/uart_8250.cc
+
 ifeq ($(ARCH),mips)
 SRC_CC        += ARCH-$(ARCH)/guest_entry.cc
 CXXFLAGS_guest_entry.cc = -msoft-float
@@ -32,6 +37,7 @@ LDFLAGS       += --no-warn-mismatch
 endif
 
 SRC_CC        += $(SRC_CC-$(ARCH))
+SRC_CC        += $(SRC_CC-y)
 
 REQUIRES_LIBS   = libstdc++ libio-vbus libfdt libpthread libvcpu
 
