@@ -10,5 +10,4 @@
 	chosen { };
 	aliases { };
 	cpus { };
-	memory { device_type = "memory"; reg = <0 0>; };
 };

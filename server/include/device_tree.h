@@ -661,6 +661,46 @@ public:
   void scan(PRE &&pre_order_cb, POST &&post_order_cb,
             bool skip_disabled = true) const;
 
+  /**
+   * Delete all nodes with specific property value.
+   *
+   * \param prop  Property to compare.
+   * \param value Node is deleted if `prop` has this value.
+   *
+   * \return 0 on success, negative fdt_error otherwise
+   */
+  int remove_nodes_by_property(char const *prop, char const *value) const
+  {
+    Node node = first_node();
+
+    while (node.is_valid())
+      {
+        int prop_size;
+        char const *property;
+
+        property = node.template get_prop<char>(prop, &prop_size);
+
+        if (property && strncmp(value, property, prop_size) == 0)
+          {
+            int err = node.del_node();
+            if (err)
+              return err;
+
+            // node was deleted and is invalid. The documentation
+            // states that some node offsets changed (without
+            // specifying which ones) - so we do not try anything
+            // clever (like continuing with the last known node) and
+            // simply restart at the beginning. Since we usually only
+            // have one or two memory nodes this seems to be ok.
+            node = first_node();
+          }
+        else
+          node = node.next_node();
+      }
+
+    return 0;
+  }
+
 private:
   void *_tree;
 };

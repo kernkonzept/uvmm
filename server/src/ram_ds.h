@@ -15,6 +15,8 @@
 
 #include <l4/l4virtio/virtqueue>
 
+#include <cstdio>
+
 #include "device.h"
 #include "device_tree.h"
 #include "vm_ram.h"
@@ -95,7 +97,20 @@ public:
 
   void setup_device_tree(Vdev::Device_tree dt)
   {
-    auto mem_node = dt.path_offset("/memory");
+    int err = dt.remove_nodes_by_property("device_type", "memory");
+    if (err < 0)
+      {
+        Err().printf("Unable to remove existing memory nodes: %s\n",
+                     fdt_strerror(err));
+        throw L4::Runtime_error(-L4_EINVAL);
+      }
+
+    // "memory@" + 64bit hex address + '\0'
+    char buf[7 + 16 + 1];
+    std::snprintf(buf, sizeof(buf), "memory@%lx", vm_start());
+
+    auto mem_node = dt.first_node().add_subnode(buf);
+    mem_node.setprop_string("device_type", "memory");
     mem_node.set_reg_val(vm_start(), size());
 
     int addr_cells = mem_node.get_address_cells();
