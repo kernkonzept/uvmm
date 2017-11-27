@@ -44,8 +44,21 @@ static Dbg warn(Dbg::Core, Dbg::Warn, "main");
 static bool
 node_cb(Vdev::Dt_node const &node)
 {
-  cxx::Ref_ptr<Vdev::Device> dev;
+  // device_type is a deprecated option and should be set for "cpu"
+  // and "memory" devices only. Currently there are some more uses
+  // like "pci", "network", "phy", "soc2, "mdio", but we ignore these
+  // here, since they do not need special treatment.
   char const *devtype = node.get_prop<char>("device_type", nullptr);
+
+  // Ignore memory nodes
+  if (devtype && strcmp("memory", devtype) == 0)
+    {
+      // there should be no subnode to memory devices so it should be
+      // safe to return false to stop traversal of subnodes
+      return false;
+    }
+
+  cxx::Ref_ptr<Vdev::Device> dev;
   bool is_cpu_dev = devtype && strcmp("cpu", devtype) == 0;
 
   // Cpu devices need to be treated specially because they use a
