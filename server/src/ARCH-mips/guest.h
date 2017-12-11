@@ -202,6 +202,10 @@ private:
             }
           return Jump_instr;
         }
+      case L4_VM_CP0_LOAD_LINKED_ADDR:
+        if (!(vcpu->r.r[insn.rt()] & 1))
+          vcpu.state()->set_modified(L4_VM_MOD_LLBIT);
+        return Jump_instr;
       case L4_VM_CP0_MAAR_0: // XXX MAAR and parity are not supported
       case L4_VM_CP0_MAAR_1:
       case L4_VM_CP0_ERR_CTL:
