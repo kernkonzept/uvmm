@@ -36,18 +36,24 @@ Generic_cpu_dev::powerup_cpu()
     }
   else
     {
+      int err;
       pthread_attr_t pattr;
-      L4Re::chksys(pthread_attr_init(&pattr));
+      err = pthread_attr_init(&pattr);
+      if (L4_UNLIKELY(err))
+        L4Re::chksys(-L4_ENOMEM, "Initializing pthread attributes.");
+
       pattr.create_flags |= PTHREAD_L4_ATTR_NO_START;
-      auto r = pthread_create(&_thread, &pattr, [](void *cpu) {
+      err = pthread_create(&_thread, &pattr, [](void *cpu) {
           reinterpret_cast<Generic_cpu_dev *>(cpu)->startup();
           return (void *)nullptr;
         }, this);
 
-      if (r != 0)
-        L4Re::chksys(-r, "Cannot start vcpu thread");
+      if (err != 0)
+        L4Re::chksys(-L4_EAGAIN, "Cannot start vcpu thread");
 
-      L4Re::chksys(pthread_attr_destroy(&pattr));
+      err = pthread_attr_destroy(&pattr);
+      if (L4_UNLIKELY(err))
+        L4Re::chksys(-L4_ENOMEM, "Destroying pthread attributes.");
     }
 
   if (id < 100)
