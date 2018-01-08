@@ -139,7 +139,7 @@ template<typename DEV>
 struct Mmio_device_t : Mmio_device
 {
   int access(l4_addr_t pfa, l4_addr_t offset, Vcpu_ptr vcpu,
-             L4::Cap<L4::Task>, l4_addr_t, l4_addr_t)
+             L4::Cap<L4::Task>, l4_addr_t, l4_addr_t) override
   {
     auto insn = vcpu.decode_mmio();
 
@@ -188,7 +188,7 @@ template<typename BASE>
 struct Ro_ds_mapper_t : Mmio_device
 {
   int access(l4_addr_t pfa, l4_addr_t offset, Vcpu_ptr vcpu,
-             L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max)
+             L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max) override
   {
     auto insn = vcpu.decode_mmio();
 

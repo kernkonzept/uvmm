@@ -33,7 +33,7 @@ class Ds_handler : public Vmm::Mmio_device
   }
 
   int access(l4_addr_t pfa, l4_addr_t offset, Vmm::Vcpu_ptr vcpu,
-             L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max)
+             L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max) override
   {
     long res;
 #ifdef MAP_OTHER
