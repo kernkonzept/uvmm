@@ -37,7 +37,7 @@ public:
   void set_fallback_mmio_ds(L4::Cap<L4Re::Dataspace> ds)
   { _mmio_fallback = ds; }
 
-  void register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> &&dev,
+  void register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
                             Vdev::Dt_node const &node, size_t index = 0);
 
   void __attribute__((noreturn)) halt_vm()
@@ -131,7 +131,7 @@ public:
   { _pm.use_wakeup_inhibitor(wakeup_inhibitor); }
 
   void add_mmio_device(Region const &region,
-                       cxx::Ref_ptr<Vmm::Mmio_device> &&dev);
+                       cxx::Ref_ptr<Vmm::Mmio_device> const &dev);
 
 protected:
   void process_pending_ipc(Vcpu_ptr vcpu, l4_utcb_t *utcb)

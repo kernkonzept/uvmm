@@ -73,7 +73,7 @@ struct F : Factory
 
     auto g2 = Vdev::make_device<Ds_handler>(vbus->io_ds(), 0,
                                             res.end - res.start + 1, res.start);
-    devs->vmm()->register_mmio_device(cxx::move(g2), node, 1);
+    devs->vmm()->register_mmio_device(g2, node, 1);
     return gic;
   }
 };

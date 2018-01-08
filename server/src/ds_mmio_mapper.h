@@ -62,7 +62,7 @@ class Ds_handler : public Vmm::Mmio_device
     return Vmm::Retry;
   }
 
-  char const *dev_info(char *buf, size_t size) override
+  char const *dev_info(char *buf, size_t size) const override
   {
 #ifndef MAP_OTHER
     snprintf(buf, size, "mmio ds: [%lx - ?] -> [%lx:%lx - ?]",

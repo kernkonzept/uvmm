@@ -28,8 +28,8 @@ Generic_guest::Generic_guest()
 
 static void
 throw_error(char const *msg,
-            cxx::Ref_ptr<Vmm::Mmio_device> &dev, Region const &region,
-            cxx::Ref_ptr<Vmm::Mmio_device> &new_dev, Region const &new_region)
+            cxx::Ref_ptr<Vmm::Mmio_device> const &dev, Region const &region,
+            cxx::Ref_ptr<Vmm::Mmio_device> const &new_dev, Region const &new_region)
 {
   char buf[80], buf_new[80];
   Err().printf("%s: [%lx:%lx] (%s) <-> [%lx:%lx] (%s)\n", msg,
@@ -41,7 +41,7 @@ throw_error(char const *msg,
 
 void
 Generic_guest::add_mmio_device(Region const &region,
-                               cxx::Ref_ptr<Vmm::Mmio_device> &&dev)
+                               cxx::Ref_ptr<Vmm::Mmio_device> const &dev)
 {
   if (_memmap.count(region) == 0)
     {
@@ -84,7 +84,7 @@ Generic_guest::add_mmio_device(Region const &region,
 }
 
 void
-Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> &&dev,
+Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
                                     Vdev::Dt_node const &node, size_t index)
 {
   l4_uint64_t base, size;
@@ -98,7 +98,7 @@ Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> &&dev,
 
   auto region = Region::ss(base, size);
 
-  add_mmio_device(region, cxx::move(dev));
+  add_mmio_device(region, dev);
 
   info().printf("New mmio mapping: @ %llx %llx\n", base, size);
 }

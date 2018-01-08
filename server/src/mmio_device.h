@@ -103,7 +103,7 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    */
   virtual int access(l4_addr_t pfa, l4_addr_t offset, Vcpu_ptr vcpu,
                      L4::Cap<L4::Task> vm_task, l4_addr_t s, l4_addr_t e) = 0;
-  virtual char const *dev_info(char *buf, size_t size)
+  virtual char const *dev_info(char *buf, size_t size) const
   {
     if (size > 0)
       {
