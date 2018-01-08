@@ -44,12 +44,12 @@ class Ds_handler : public Vmm::Mmio_device
     unsigned char ps = get_page_shift(pfa, min, max, offset, _local_start);
 
     // TODO Need to make sure that memory is locally mapped.
-    res = L4Re::chksys(vm_task->map(L4Re::This_task,
-                                    l4_fpage(l4_trunc_size(_local_start + offset, ps),
-                                             ps,
-                                             vcpu.pf_write()
-                                               ? L4_FPAGE_RWX : L4_FPAGE_RX),
-                                    l4_trunc_size(pfa, ps)));
+    res = l4_error(
+            vm_task->map(L4Re::This_task,
+                         l4_fpage(l4_trunc_size(_local_start + offset, ps),
+                                  ps,
+                                  vcpu.pf_write() ? L4_FPAGE_RWX : L4_FPAGE_RX),
+                         l4_trunc_size(pfa, ps)));
 #endif
 
     if (res < 0)
