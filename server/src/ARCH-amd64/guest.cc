@@ -153,6 +153,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
 {
   unsigned int a,b,c,d;
   auto rax = regs->ax;
+  auto rcx = regs->cx;
 
   asm("cpuid"
       : "=a"(a), "=b"(b), "=c"(c), "=d"(d)
@@ -163,6 +164,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     Ecx_monitor_bit = (1UL << 3),
     Ecx_vmx_bit = (1UL << 5),
     Ecx_smx_bit = (1UL << 6),
+    Ecx_pcid_bit = (1UL << 17),
     Ecx_x2apic_bit = (1UL << 21),
     Ecx_xsave_bit = (1UL << 26),
     Ecx_hypervisor_bit = (1UL << 31),
@@ -174,6 +176,8 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     Kvm_feature_clocksource_bit = 1UL,
 
     Rdtscp_bit = (1UL << 27),
+
+    Invpcid_bit = (1UL << 10),
 
     Xsave_opt = 1,
     Xsave_c = (1UL << 1),
@@ -188,12 +192,18 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
       c &= ~(  Ecx_monitor_bit
              | Ecx_vmx_bit
              | Ecx_smx_bit
+             | Ecx_pcid_bit
 // if xsave is filtered out, CR4 bit not set, busybox userland will fail
 //             | Ecx_xsave_bit
              | Ecx_hypervisor_bit
             );
 
       d &= ~(Edx_mtrr_bit);
+      break;
+
+    case 0x7:
+      if (!rcx)
+        b &= ~(Invpcid_bit); // filter, as it leads to unhandled VMM-entries.
       break;
 
     case 0xa:
