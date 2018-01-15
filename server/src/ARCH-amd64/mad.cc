@@ -238,6 +238,7 @@ Decoder::decode(l4_exc_regs_t *u, l4_addr_t pc, Op *op, Desc *tgt, Desc *src)
     {
     case 0xc6: // mov $, a
       byte = true;
+      // Falls through.
     case 0xc7:
         {
           unsigned char v = readval(pc + 1, 1);
@@ -317,6 +318,7 @@ Decoder::decode(l4_exc_regs_t *u, l4_addr_t pc, Op *op, Desc *tgt, Desc *src)
       break;
     case 0xa0: // mov a, %al
       byte = true;
+      // Falls through.
     case 0xa1: // mov a, %eax
         {
           char l = 5 + pref_len;
@@ -330,6 +332,7 @@ Decoder::decode(l4_exc_regs_t *u, l4_addr_t pc, Op *op, Desc *tgt, Desc *src)
       return true;
     case 0xa2: // mov %al, a
       byte = true;
+      // Falls through.
     case 0xa3: // mov %eax, a
         {
           char l = 5 + pref_len;
@@ -346,6 +349,7 @@ Decoder::decode(l4_exc_regs_t *u, l4_addr_t pc, Op *op, Desc *tgt, Desc *src)
     case 0x88: // mov %, a
     case 0x89: // mov %, a
       wr = true;
+      // Falls through.
     // read
     case 0x8a: // mov a, %
     case 0x8b: // mov a, %
