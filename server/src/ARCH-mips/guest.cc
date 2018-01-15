@@ -130,6 +130,12 @@ Guest::handle_entry(Vcpu_ptr vcpu)
 {
   auto *utcb = l4_utcb();
   unsigned cause = (vcpu->r.cause >> 2) & 0x1F;
+  // XXX The above statement treats all Fiasco exception codes (0x100-0x102)
+  //     equally as 0. In case of 0x101 (ex_regs triggered exception) this
+  //     might be an issue as handle_ipc() might evaluate stale IPC regs.
+  //     0x102 is defined but not used.
+  assert((vcpu->r.cause & 0x1FF) <= 0x100);
+
   auto *s = vcpu.state();
   unsigned exccode = (s->guest_ctl_0 >> 2) & 0x1f;
 
