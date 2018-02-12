@@ -42,33 +42,30 @@ namespace Vmm {
 Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
                l4_addr_t boot_offset)
 : _ram(ram),
-  _dma(L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4Re::Dma_space>())),
   _boot_offset(boot_offset)
 {
   Dbg info(Dbg::Mmio, Dbg::Info, "ram");
 
   _vm_start = vm_base;
   _size = ram->size();
+  auto dma_cap = L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dma_space>());
 
   auto *env = L4Re::Env::env();
 
-  int err = l4_error(env->user_factory()->create(_dma.get()));
+  int err = l4_error(env->user_factory()->create(dma_cap.get()));
 
   if (err >= 0)
-    err = _dma->associate(L4::Ipc::Cap<L4::Task>(L4::Cap<void>::Invalid),
-                          L4Re::Dma_space::Phys_space);
-
-  if (err < 0)
-    _dma.reset();
+    err = dma_cap->associate(L4::Ipc::Cap<L4::Task>(L4::Cap<void>::Invalid),
+                             L4Re::Dma_space::Phys_space);
 
   l4_size_t phys_size = _size;
   L4Re::Dma_space::Dma_addr phys_ram = 0;
 
   if (err >= 0)
-    err = _dma->map(L4::Ipc::make_cap(ram, L4_CAP_FPAGE_RW),
-                    0, &phys_size,
-                    L4Re::Dma_space::Attributes::None,
-                    L4Re::Dma_space::Bidirectional, &phys_ram);
+    err = dma_cap->map(L4::Ipc::make_cap(ram, L4_CAP_FPAGE_RW),
+                       0, &phys_size,
+                       L4Re::Dma_space::Attributes::None,
+                       L4Re::Dma_space::Bidirectional, &phys_ram);
   else
     phys_size = 0;
 
@@ -107,6 +104,9 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base,
 
   _offset = _local_start - _vm_start;
   info.printf("RAM: VM offset=0x%lx\n", _offset);
+
+  if (err >= 0)
+    _dma = cxx::move(dma_cap);
 
   _phys_ram = phys_ram;
   _phys_size = phys_size;
