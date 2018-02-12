@@ -34,9 +34,11 @@ public:
 
 protected:
   l4_mword_t _offset;
+  /// RAM start address from the point of view of UVMM.
   l4_addr_t _local_start;
   l4_addr_t _local_end;
 
+  /// RAM start address from the point of view of the VM guest.
   l4_addr_t _vm_start;
   l4_size_t _size;
 

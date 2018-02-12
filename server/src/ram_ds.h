@@ -126,6 +126,7 @@ private:
   L4::Cap<L4Re::Dataspace> _ram;
   L4Re::Util::Unique_cap<L4Re::Dma_space> _dma;
   l4_addr_t _boot_offset;
+  /// Device address for DMA ranges in device tree. MIPS specific.
   L4Re::Dma_space::Dma_addr _phys_ram;
   l4_size_t _phys_size;
 };
