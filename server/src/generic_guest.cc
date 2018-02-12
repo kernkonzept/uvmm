@@ -56,7 +56,7 @@ Generic_guest::add_mmio_device(Region const &region,
       // Region is a subset of an already existing one, there can be
       // at most one such region
       if (!lower->second->mergable(dev, region.start, current_region.start))
-        throw_error("Unmergable mmio regions",
+        throw_error("Unmergable mmio regions: region is subset",
                     lower->second, current_region, dev, region);
       return;
     }
@@ -70,7 +70,7 @@ Generic_guest::add_mmio_device(Region const &region,
       if (region.contains(tmp_region))
         {
           if (!it->second->mergable(dev, region.start, tmp_region.start))
-            throw_error("Unmergable mmio regions",
+            throw_error("Unmergable mmio regions: region is superset",
                         lower->second, tmp_region, dev, region);
         }
       else
