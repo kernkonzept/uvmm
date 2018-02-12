@@ -514,6 +514,14 @@ static void dispatch_vm_call(Vcpu_ptr vcpu)
                vcpu->r.r[0], vcpu->r.r[1], vcpu->r.ip);
 }
 
+static void dispatch_smc(Vcpu_ptr vcpu)
+{
+  Err().printf("Unknown SMC call: a0=%lx a1=%lx ip=%lx\n",
+               vcpu->r.r[0], vcpu->r.r[1], vcpu->r.ip);
+
+  vcpu->r.ip += 4;
+}
+
 static void
 guest_unknown_fault(Vcpu_ptr vcpu)
 {
@@ -680,7 +688,7 @@ Entry vcpu_entries[64] =
   [0x14] = guest_unknown_fault,
   [0x15] = guest_unknown_fault,
   [0x16] = dispatch_vm_call,
-  [0x17] = guest_unknown_fault,
+  [0x17] = dispatch_smc,
   [0x18] = guest_msr_access,
   [0x19] = guest_unknown_fault,
   [0x1a] = guest_unknown_fault,
