@@ -14,7 +14,7 @@
 #include "ds_mmio_mapper.h"
 #include "guest.h"
 
-static Dbg warn(Dbg::Dev, Dbg::Warn, "ipcmmio");
+static Dbg warn(Dbg::Dev, Dbg::Warn, "mmio-proxy");
 
 namespace Vdev
 {
