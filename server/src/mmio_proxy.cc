@@ -79,7 +79,8 @@ public:
     auto dscap = L4::cap_dynamic_cast<L4Re::Dataspace>(cap);
     if (dscap)
       {
-        register_mmio_regions<Ds_handler>(dscap, devs, node);
+        size_t ds_size = dscap->size();
+        register_mmio_regions<Ds_handler>(dscap, devs, node, ds_size);
         return Vdev::make_device<Mmio_proxy>();
       }
 
@@ -97,7 +98,7 @@ public:
 private:
   template <typename HANDLERTYPE, typename CAPTYPE>
   void register_mmio_regions(L4::Cap<CAPTYPE> cap, Device_lookup const *devs,
-                             Dt_node const &node)
+                             Dt_node const &node, size_t backend_size = 0)
   {
     l4_uint64_t regbase, base, size;
     l4_uint64_t offset = 0;
@@ -110,13 +111,31 @@ private:
     if (node.get_reg_val(0, &regbase, &size) < 0)
       L4Re::chksys(-L4_EINVAL, "reg property not found or invalid");
 
-    size_t index = 0;
-    while (node.get_reg_val(index, &base, &size) >= 0)
+    for (size_t index = 0; node.get_reg_val(index, &base, &size) >= 0; ++index)
       {
-        auto handler = Vdev::make_device<HANDLERTYPE>(cap, 0, size,
-                                                      offset + (base - regbase));
-        devs->vmm()->register_mmio_device(handler, node, index);
-        ++index;
+        if (base < regbase)
+          {
+            Err().printf("%s: reg%zd: %llx smaller than base of %llx\n"
+                         "Smallest address must come first in 'reg' list.\n",
+                         node.get_name(), index, base, regbase);
+            L4Re::chksys(-L4_ERANGE);
+          }
+
+        l4_uint64_t sz = size;
+        l4_uint64_t offs = offset + (base - regbase);
+        if (backend_size && offs + sz > backend_size)
+          {
+            if (offs < backend_size)
+              sz = backend_size - offs;
+            else
+              sz = 0;
+          }
+
+        if (sz)
+          {
+            auto handler = Vdev::make_device<HANDLERTYPE>(cap, 0, sz, offs);
+            devs->vmm()->register_mmio_device(handler, node, index);
+          }
       }
   }
 };
