@@ -527,6 +527,19 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
   return true;
 }
 
+void
+Guest::handle_smc_call(Vcpu_ptr vcpu)
+{
+  if (_smc_handler)
+    _smc_handler->smc(vcpu);
+  else
+    Err().printf("No handler for SMC call: a0=%lx a1=%lx ip=%lx\n",
+                 vcpu->r.r[0], vcpu->r.r[1], vcpu->r.ip);
+
+  vcpu->r.ip += 4;
+}
+
+
 static void dispatch_vm_call(Vcpu_ptr vcpu)
 {
   if (guest->handle_psci_call(vcpu))
@@ -538,10 +551,7 @@ static void dispatch_vm_call(Vcpu_ptr vcpu)
 
 static void dispatch_smc(Vcpu_ptr vcpu)
 {
-  Err().printf("Unknown SMC call: a0=%lx a1=%lx ip=%lx\n",
-               vcpu->r.r[0], vcpu->r.r[1], vcpu->r.ip);
-
-  vcpu->r.ip += 4;
+  guest->handle_smc_call(vcpu);
 }
 
 static void

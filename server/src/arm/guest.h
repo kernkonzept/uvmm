@@ -16,6 +16,7 @@
 #include "gic.h"
 #include "ram_ds.h"
 #include "cpu_dev_array.h"
+#include "smc_device.h"
 
 namespace Vmm {
 
@@ -63,9 +64,17 @@ public:
 
   void wait_for_timer_or_irq(Vcpu_ptr vcpu);
 
+  void register_smc_handler(cxx::Ref_ptr<Vmm::Smc_device> const &handler)
+  {
+    if (_smc_handler)
+      L4Re::chksys(-L4_ENOMEM, "Only one handler for SMC calls can be defined.");
+    _smc_handler = handler;
+  }
+
   void handle_wfx(Vcpu_ptr vcpu);
   void handle_ppi(Vcpu_ptr vcpu);
   bool handle_psci_call(Vcpu_ptr vcpu);
+  void handle_smc_call(Vcpu_ptr vcpu);
 
 private:
   Cpu_dev *lookup_cpu(l4_uint32_t hwid) const;
@@ -76,6 +85,7 @@ private:
   cxx::Ref_ptr<Vdev::Core_timer> _timer;
   bool guest_64bit = false;
   cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
+  cxx::Ref_ptr<Vmm::Smc_device> _smc_handler;
 };
 
 } // namespace

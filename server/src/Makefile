@@ -32,6 +32,8 @@ SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
 
 SRC_CC-$(CONFIG_VDEV_8250) += device/uart_8250.cc
 SRC_CC-$(CONFIG_VDEV_PL011) += device/pl011.cc
+SRC_CC-arm-$(CONFIG_VDEV_OPTEE) += device/optee.cc
+SRC_CC-arm64-$(CONFIG_VDEV_OPTEE) += device/optee.cc
 
 ifeq ($(ARCH),mips)
 SRC_CC        += ARCH-$(ARCH)/guest_entry.cc
@@ -41,6 +43,7 @@ LDFLAGS       += --no-warn-mismatch
 endif
 
 SRC_CC        += $(SRC_CC-$(ARCH))
+SRC_CC        += $(SRC_CC-$(ARCH)-y)
 SRC_CC        += $(SRC_CC-y)
 
 REQUIRES_LIBS   = libstdc++ libio-vbus libfdt libpthread libvcpu
