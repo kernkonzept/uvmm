@@ -20,7 +20,7 @@
 #include "irq.h"
 #include "mmio_device.h"
 
-namespace Vdev {
+namespace {
 
 /**
  * Emulation of a PrimeCell UART pl011.
@@ -158,7 +158,7 @@ public:
     return ret;
   }
 
-  void init_device(Device_lookup const *devs, Dt_node const &node)
+  void init_device(Vdev::Device_lookup const *devs, Vdev::Dt_node const &node)
   {
     auto irq_ctl = node.find_irq_parent();
     if (!irq_ctl.is_valid()) {
@@ -328,10 +328,10 @@ private:
   Device *dev() { return static_cast<Device *>(this); }
 };
 
-struct F : Factory
+struct F : Vdev::Factory
 {
-  cxx::Ref_ptr<Device> create(Device_lookup const *devs,
-                              Dt_node const &node) override
+  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup const *devs,
+                                    Vdev::Dt_node const &node) override
   {
     Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual pl011 console\n");
     int cap_name_len;
@@ -350,15 +350,16 @@ struct F : Factory
           }
       }
 
-    auto c = make_device<Pl011_mmio>(cap);
+    auto c = Vdev::make_device<Pl011_mmio>(cap);
     c->register_obj(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, node);
     return c;
   }
 };
 
-static F f;
-static Device_type t = { "arm,pl011", nullptr, &f };
-
 }
+
+static F f;
+static Vdev::Device_type t = { "arm,pl011", nullptr, &f };
+
 

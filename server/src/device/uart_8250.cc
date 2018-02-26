@@ -20,7 +20,7 @@
 
 static Dbg warn(Dbg::Mmio, Dbg::Warn, "uart_8250");
 
-namespace Vdev {
+namespace {
 
 /**
  * Emulation of a 8250 serial device.
@@ -203,7 +203,7 @@ public:
     return ret;
   }
 
-  void init_device(Device_lookup const *devs, Dt_node const &node)
+  void init_device(Vdev::Device_lookup const *devs, Vdev::Dt_node const &node)
   {
     auto irq_ctl = node.find_irq_parent();
     if (!irq_ctl.is_valid()) {
@@ -369,10 +369,10 @@ private:
   Device *dev() { return static_cast<Device *>(this); }
 };
 
-struct F : Factory
+struct F : Vdev::Factory
 {
-  cxx::Ref_ptr<Device> create(Device_lookup const *devs,
-                              Dt_node const &node) override
+  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup const *devs,
+                                    Vdev::Dt_node const &node) override
   {
     Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual 8250 console\n");
     L4::Cap<L4::Vcon> cap = L4Re::Env::env()->log();
@@ -397,15 +397,16 @@ struct F : Factory
           }
       }
 
-    auto c = make_device<Uart_8250_mmio>(cap, regshift);
+    auto c = Vdev::make_device<Uart_8250_mmio>(cap, regshift);
     c->register_obj(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, node);
     return c;
   }
 };
 
-static F f;
-static Device_type t = { "uart,8250", nullptr, &f };
-
 }
+
+static F f;
+static Vdev::Device_type t = { "uart,8250", nullptr, &f };
+
 
