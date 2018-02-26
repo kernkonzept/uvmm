@@ -172,6 +172,13 @@ public:
     if (!ic)
         L4Re::chksys(-L4_ENODEV, "Interrupt handler for pl011 console has bad type.\n");
 
+    if (ic->dt_get_num_interrupts(node) != 1)
+      {
+        Dbg(Dbg::Dev, Dbg::Info, "pl011")
+          .printf("Device tree must specify one interrupt for pl011 console.\n");
+        return;
+      }
+
     _sink.rebind(ic, ic->dt_get_interrupt(node, 0));
   }
 
