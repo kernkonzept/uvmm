@@ -26,12 +26,6 @@ struct Dbg : L4Re::Util::Dbg
     Trace = 4,
   };
 
-  enum
-  {
-    Verbosity_shift = 3, /// Bits per component for verbosity
-    Verbosity_mask = (1UL << Verbosity_shift) - 1
-  };
-
   /**
    * Different components for which the verbosity can be set independently.
    */
@@ -46,6 +40,13 @@ struct Dbg : L4Re::Util::Dbg
     Pm,
     Vbus_event,
     Max_component
+  };
+
+#ifndef NDEBUG
+  enum
+  {
+    Verbosity_shift = 3, /// Bits per component for verbosity
+    Verbosity_mask = (1UL << Verbosity_shift) - 1
   };
 
   static_assert(Max_component * Verbosity_shift <= sizeof(level) * 8,
@@ -77,4 +78,16 @@ struct Dbg : L4Re::Util::Dbg
   Dbg(Component c = Core, Verbosity v = Warn, char const *subsys = "")
   : L4Re::Util::Dbg(v << (Verbosity_shift * c), "VMM", subsys)
   {}
+
+#else
+  static void set_verbosity(unsigned, unsigned) {}
+  static void set_verbosity(unsigned) {}
+
+  Dbg(Component c = Core, Verbosity v = Warn, char const *subsys = "")
+  {
+    (void)c;
+    (void)v;
+    (void)subsys;
+  }
+#endif
 };
