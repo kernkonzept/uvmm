@@ -369,12 +369,6 @@ static int run(int argc, char *argv[])
   vmm->prepare_linux_run(vm_instance.cpus()->vcpu(0), entry, ram, kernel_image,
                          cmd_line, dt_boot_addr);
 
-  // XXX Some of the RAM memory might have been unmapped during copy_in()
-  // of the binary and the RAM disk. The VM paging code, however, expects
-  // the entire RAM to be present. Touch the RAM region again, now that
-  // setup has finished to remap the missing parts.
-  ram->touch_rw();
-
   if (device_tree)
     {
       l4_addr_t ds_start =
@@ -384,6 +378,9 @@ static int run(int argc, char *argv[])
       info.printf("Cleaning caches [%lx-%lx] ([%llx])\n",
                   ds_start, ds_end, dt_addr.get());
     }
+
+  info.printf("Populating RAM of virtual machine\n");
+  vmm->map_eager();
 
   vmm->run(vm_instance.cpus());
 

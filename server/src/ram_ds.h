@@ -119,9 +119,6 @@ public:
     mem_node.appendprop("dma-ranges", _phys_size, mem_node.get_size_cells());
   }
 
-  void touch_rw()
-  { l4_touch_rw((void *)local_start(), size()); }
-
 private:
   L4::Cap<L4Re::Dataspace> _ram;
   L4Re::Util::Unique_cap<L4Re::Dma_space> _dma;

@@ -118,6 +118,21 @@ public:
     return Retry;
   }
 
+  /**
+   * Iterate over memory map and map all regions into the guest if possible.
+   *
+   * This function iterates over all memory areas and invokes their map_eager()
+   * method. Areas are then responsible for the actual mapping if there is one.
+   * There are some areas which trap and emulate mmio accesses and might not
+   * map anything or might only provide mappings for parts of the area they are
+   * responsible for.
+   */
+  void map_eager()
+  {
+    for (auto it : _memmap)
+      it.second->map_eager(_task.get(), it.first.start, it.first.end);
+  }
+
   void wait_for_ipc(l4_utcb_t *utcb, l4_timeout_t to)
   {
     l4_umword_t src;

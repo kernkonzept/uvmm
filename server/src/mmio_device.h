@@ -87,6 +87,59 @@ struct Mmio_device : public virtual Vdev::Dev_ref
   }
 
   /**
+   * Map address range into guest.
+   *
+   * \param dest  Guest physical address the address range should be mapped to
+   * \param src   Local address of the range
+   * \param size  Size of range
+   * \param attr  Attributes used for mapping
+   *
+   * This function iterates over the specified local area and maps
+   * everything into the address space of the guest.
+   */
+  void map_guest_range(L4::Cap<L4::Task> vm_task, l4_addr_t dest, l4_addr_t src,
+                       l4_size_t size, unsigned attr);
+
+
+  /**
+   * Map address range into the guest.
+   *
+   * \param start  Guest physical address the address range should be mapped to
+   * \param end    Guest physical address of the end of the range [start, end]
+   *
+   * This function iterates over the local area associated with the region and
+   * tries to map everything into the address space of the guest if possible.
+   */
+  virtual void map_eager(L4::Cap<L4::Task> vm_task, l4_addr_t start,
+                         l4_addr_t end) = 0;
+
+  /**
+   * Page in memory for specified address.
+   *
+   * \param addr        An address to page in memory for
+   * \retval 0          Success
+   * \retval L4_EINVAL  Either address is not valid or the address is not
+   *                    writable
+   *
+   * \retval <0         IPC errors
+   */
+  long page_in(l4_addr_t addr, bool writable)
+  {
+    auto *e = L4Re::Env::env();
+    l4_mword_t result = 0;
+    L4::Ipc::Snd_fpage rfp;
+
+    l4_msgtag_t msgtag = e->rm()
+      ->page_fault(((addr & L4_PAGEMASK) | (writable ? 2 : 0)), -3UL, result,
+                   L4::Ipc::Rcv_fpage::mem(0, L4_WHOLE_ADDRESS_SPACE, 0),
+                   rfp);
+    if (!l4_error(msgtag))
+      return result != -1 ? L4_EOK : -L4_EINVAL;
+    else
+      return l4_error(msgtag);
+  }
+
+  /**
    * Callback on memory access.
    *
    * \param pfa      Guest-physical address where the access occurred.
@@ -169,6 +222,9 @@ struct Mmio_device_t : Mmio_device
     return Jump_instr;
   }
 
+  void map_eager(L4::Cap<L4::Task>, l4_addr_t, l4_addr_t) override
+  {} // nothing to map
+
 private:
   DEV *dev()
   { return static_cast<DEV *>(this); }
@@ -221,6 +277,17 @@ struct Ro_ds_mapper_t : Mmio_device
     return Jump_instr;
   }
 
+  void map_eager(L4::Cap<L4::Task> vm_task, l4_addr_t start,
+                 l4_addr_t end) override
+  {
+#ifndef MAP_OTHER
+    l4_size_t size = end - start + 1;
+    if (size > dev()->mapped_mmio_size())
+      size = dev()->mapped_mmio_size();
+    map_guest_range(vm_task, start, dev()->local_addr(), size, L4_FPAGE_RX);
+#endif
+  }
+
   /**
    * Emulate a read access by accessing the dataspace backing the
    * MMIO region.
@@ -256,16 +323,24 @@ struct Ro_ds_mapper_t : Mmio_device
     auto res = dev()->mmio_ds()->map(offset, 0, pfa, min, max, vm_task);
 #else
     auto local_start = local_addr();
-    unsigned char ps = get_page_shift(pfa, min, max, offset, local_start,
-                                      local_start + dev()->mapped_mmio_size());
 
-    // XXX make sure that the page is currently mapped
-    l4_addr_t base = l4_trunc_size(local_start + offset, ps);
-    l4_touch_ro((void *)base, 1 << ps);
+    // Make sure that the page is currently mapped.
+    auto res = page_in(local_start + offset, false);
 
-    auto res = l4_error(vm_task->map(L4Re::This_task,
-                                     l4_fpage(base, ps, L4_FPAGE_RX),
-                                     l4_trunc_size(pfa, ps)));
+    if (res >= 0)
+      {
+        // We assume that the region manager provided the largest possible
+        // page size and try to map the largest possible page to the
+        // client.
+        unsigned char ps =
+          get_page_shift(pfa, min, max, offset, local_start,
+                         local_start + dev()->mapped_mmio_size());
+        l4_addr_t base = l4_trunc_size(local_start + offset, ps);
+
+        res = l4_error(vm_task->map(L4Re::This_task,
+                                    l4_fpage(base, ps, L4_FPAGE_RX),
+                                    l4_trunc_size(pfa, ps)));
+      }
 #endif
 
     if (res < 0)
@@ -323,9 +398,9 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
     auto ds = L4Re::chkcap(L4Re::Util::make_unique_del_cap<L4Re::Dataspace>());
     L4Re::chksys(e->mem_alloc()->alloc(size, ds.get()));
 
+    rm_flags |= L4Re::Rm::Search_addr | L4Re::Rm::Eager_map;
     L4Re::Rm::Unique_region<T *> mem;
-    L4Re::chksys(e->rm()->attach(&mem, size,
-                                 L4Re::Rm::Search_addr | rm_flags,
+    L4Re::chksys(e->rm()->attach(&mem, size, rm_flags,
                                  L4::Ipc::make_cap_rw(ds.get())));
 
     _mmio_region = cxx::move(mem);

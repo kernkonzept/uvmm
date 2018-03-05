@@ -32,6 +32,15 @@ class Ds_handler : public Vmm::Mmio_device
     return (_offset + (start_other - start_this)) == dsh->_offset;
   }
 
+  void map_eager(L4::Cap<L4::Task> vm_task, l4_addr_t start,
+                 l4_addr_t end) override
+  {
+#ifndef MAP_OTHER
+    map_guest_range(vm_task, start, local_start(), end - start + 1,
+                    L4_FPAGE_RWX);
+#endif
+  }
+
   int access(l4_addr_t pfa, l4_addr_t offset, Vmm::Vcpu_ptr vcpu,
              L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max) override
   {
@@ -41,15 +50,22 @@ class Ds_handler : public Vmm::Mmio_device
                    vcpu.pf_write() ? L4Re::Dataspace::Map_rw : 0,
                    pfa, min, max, vm_task);
 #else
-    unsigned char ps = get_page_shift(pfa, min, max, offset, _local_start);
+    // Make sure that the page is currently mapped.
+    res = page_in(_local_start + offset, true);
 
-    // TODO Need to make sure that memory is locally mapped.
-    res = l4_error(
-            vm_task->map(L4Re::This_task,
-                         l4_fpage(l4_trunc_size(_local_start + offset, ps),
-                                  ps,
-                                  vcpu.pf_write() ? L4_FPAGE_RWX : L4_FPAGE_RX),
-                         l4_trunc_size(pfa, ps)));
+    if (res >= 0)
+      {
+        // We assume that the region manager provided the largest possible
+        // page size and try to map the largest possible page to the
+        // client.
+        unsigned char ps = get_page_shift(pfa, min, max, offset, _local_start);
+
+        res = l4_error(
+                vm_task->map(L4Re::This_task,
+                             l4_fpage(l4_trunc_size(_local_start + offset, ps),
+                                      ps, L4_FPAGE_RWX),
+                             l4_trunc_size(pfa, ps)));
+      }
 #endif
 
     if (res < 0)
@@ -86,11 +102,13 @@ public:
     assert(size);
 #ifndef MAP_OTHER
     if (local_start == 0)
-      L4Re::chksys(L4Re::Env::env()->rm()->attach(&_local_start, size,
-                                                  L4Re::Rm::Search_addr
-                                                  | L4Re::Rm::Eager_map,
-                                                  L4::Ipc::make_cap_rw(ds),
-                                                  offset, L4_SUPERPAGESHIFT));
+      {
+        auto rm = L4Re::Env::env()->rm();
+        L4Re::chksys(rm->attach(&_local_start, size,
+                                L4Re::Rm::Search_addr | L4Re::Rm::Eager_map,
+                                L4::Ipc::make_cap_rw(ds), offset,
+                                L4_SUPERPAGESHIFT));
+      }
 
     l4_addr_t page_offs = offset & ~L4_PAGEMASK;
     if (page_offs)
