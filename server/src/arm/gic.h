@@ -324,6 +324,7 @@ Irq_array::Pending::consume(unsigned char cpu)
 inline bool
 Irq_array::Pending::eoi(unsigned char cpu, bool pending)
 {
+  (void)cpu;
   assert (cpu < 8);
   assert (this->cpu() == cpu + 1);
 
@@ -343,6 +344,7 @@ Irq_array::Pending::eoi(unsigned char cpu, bool pending)
 inline void
 Irq_array::Pending::kick_from_cpu(unsigned char cpu)
 {
+  (void)cpu;
   assert (cpu < 8);
   assert (this->cpu() == cpu + 1);
   // ok, the assumption is that this IRQ is on CPU cpu
