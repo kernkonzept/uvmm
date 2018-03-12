@@ -18,8 +18,13 @@ Generic_guest::Generic_guest()
 {
   // create the VM task
   auto *e = L4Re::Env::env();
-  L4Re::chksys(e->factory()->create(_task.get(), L4_PROTO_VM),
-               "allocate vm");
+  auto ret = e->factory()->create(_task.get(), L4_PROTO_VM);
+
+  if (l4_error(ret) < 0)
+    {
+      Err().printf("Cannot create guest VM. Virtualization support may be missing.");
+      L4Re::chksys(ret, "Create VM task.");
+    }
   l4_debugger_set_object_name(_task.get().cap(), "vm-task");
 
   _vbus_event.register_obj(registry());
