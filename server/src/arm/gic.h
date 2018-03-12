@@ -782,7 +782,7 @@ Cpu::handle_maintenance_irq(unsigned /*current_cpu*/)
 class Dist : public Vmm::Mmio_device_t<Dist>, public Ic
 {
 private:
-  Dbg gicd_info;
+  Dbg gicd_trace;
 
 public:
   enum Regs
@@ -1018,8 +1018,8 @@ public:
     if (cpu >= cpus)
       return;
 
-    gicd_info.printf("set CPU interface for CPU %02d (%p) to %p\n",
-                     cpu, &_cpu[cpu], iface);
+    gicd_trace.printf("set CPU interface for CPU %02d (%p) to %p\n",
+                      cpu, &_cpu[cpu], iface);
     _cpu[cpu].vgic(iface);
     _cpu[cpu].attach_cpu_thread(thread);
   }
@@ -1066,11 +1066,11 @@ public:
             irq_id += Cpu::Num_local;
           }
         if (0)
-          gicd_info.printf("Try to inject: irq=%d on cpu=%d... ",
-                           irq_id, current_cpu);
+          gicd_trace.printf("Try to inject: irq=%d on cpu=%d... ",
+                            irq_id, current_cpu);
         bool ok = c->add_pending_irq(empty_lr - 1, c->irq(irq_id), irq_id);
         if (0)
-          gicd_info.printf("%s\n", ok ? "OK" : "FAILED");
+          gicd_trace.printf("%s\n", ok ? "OK" : "FAILED");
       }
   }
 
@@ -1078,14 +1078,14 @@ public:
   {
     assert (current_cpu < cpus);
     for (int i = 0; i < cpus; ++i)
-       gicd_info.printf("%s:%d: Cpu%d = %p, Gic=%p\n",
-                        file, line, i, &_cpu[i], _cpu[i].vgic());
+       gicd_trace.printf("%s:%d: Cpu%d = %p, Gic=%p\n",
+                         file, line, i, &_cpu[i], _cpu[i].vgic());
     Cpu &c = _cpu[current_cpu];
     if (c.vgic())
       {
-        gicd_info.printf("%s:%d: Irq state for Cpu%d: hcr:%08x, vmcr:%08x\n",
-                         file, line, current_cpu,
-                         c.vgic()->hcr.raw, c.vgic()->vmcr.raw);
+        gicd_trace.printf("%s:%d: Irq state for Cpu%d: hcr:%08x, vmcr:%08x\n",
+                          file, line, current_cpu,
+                          c.vgic()->hcr.raw, c.vgic()->vmcr.raw);
       }
   }
 

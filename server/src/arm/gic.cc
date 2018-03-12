@@ -27,7 +27,7 @@ enum {
 };
 
 Gic::Dist::Dist(unsigned tnlines, unsigned char cpus)
-: gicd_info(Dbg::Irq, Dbg::Info, "GICD"), ctlr(0), tnlines(tnlines), cpus(cpus),
+: gicd_trace(Dbg::Irq, Dbg::Trace, "GICD"), ctlr(0), tnlines(tnlines), cpus(cpus),
   _active_grp0_cpus(0), _active_grp1_cpus(0),
   _spis(tnlines * 32)
 {
@@ -88,7 +88,7 @@ Gic::Dist::read(unsigned reg, char size, unsigned cpu_id)
                   break;
               }
 
-            gicd_info.printf("read (%x:%zd) val=%08x\n", reg, g - reg_group, v);
+            gicd_trace.printf("read (%x:%zd) val=%08x\n", reg, g - reg_group, v);
             return v;
           }
       return 0;
@@ -277,8 +277,8 @@ Gic::Dist::write(unsigned reg, char size, l4_uint32_t value, unsigned cpu_id)
            --g)
         if (reg >= g->base)
           {
-            gicd_info.printf("write (%x:%zd) val = %08x\n",
-                             reg, g - reg_group, value);
+            gicd_trace.printf("write (%x:%zd) val = %08x\n",
+                              reg, g - reg_group, value);
             unsigned irq_s = (reg - g->base) << g->shift;
             unsigned irq_e = irq_s + ((1 << size) << g->shift);
             l4_uint32_t mask = g->mask;
