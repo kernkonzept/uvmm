@@ -32,18 +32,17 @@ Guest::create_instance()
   return guest;
 }
 
-void Guest::register_io_device(cxx::Ref_ptr<Io_device> const &dev,
-                               l4_addr_t start, l4_size_t sz)
+void Guest::register_io_device(Region const &region,
+                               cxx::Ref_ptr<Io_device> const &dev)
 {
-  auto region = Region::ss(start, sz);
-
   // Check for overlapping regions!
   if (_iomap.count(region) != 0)
     throw L4::Runtime_error(L4_EINVAL, "IO map entry overlapping.");
 
   _iomap[region] = dev;
 
-  trace().printf("New io mappping: %p @ [0x%lx, 0x%zx]\n", dev.get(), start, sz);
+  trace().printf("New io mappping: %p @ [0x%lx, 0x%lx]\n", dev.get(),
+                 region.start, region.end);
 }
 
 L4virtio::Ptr<void>
@@ -479,4 +478,3 @@ Guest::run_vmx(cxx::Ref_ptr<Cpu_dev> const &cpu_dev)
 }
 
 } // namespace
-

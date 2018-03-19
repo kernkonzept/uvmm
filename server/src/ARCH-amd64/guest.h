@@ -42,8 +42,8 @@ public:
 
   void show_state_interrupts(FILE *, Vcpu_ptr) {}
 
-  void register_io_device(cxx::Ref_ptr<Io_device> const &dev, l4_addr_t start,
-                          l4_size_t sz);
+  void register_io_device(Region const &region,
+                          cxx::Ref_ptr<Io_device> const &dev);
 
   void register_timer_device(cxx::Ref_ptr<Vdev::Timer> const &dev)
   {
