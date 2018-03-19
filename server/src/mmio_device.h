@@ -12,6 +12,7 @@
 #include <l4/cxx/ref_ptr>
 #include <l4/re/util/cap_alloc>
 #include <l4/re/util/unique_cap>
+#include <l4/re/env>
 #include <l4/sys/task>
 #include <l4/sys/l4int.h>
 #include <l4/sys/types.h>

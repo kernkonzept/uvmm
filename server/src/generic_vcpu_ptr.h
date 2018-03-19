@@ -13,7 +13,6 @@
 #include <l4/re/error_helper>
 #include <l4/re/rm>
 #include <l4/re/util/cap_alloc>
-#include <l4/re/util/kumem_alloc>
 #include <l4/sys/debugger.h>
 #include <l4/sys/thread>
 #include <l4/sys/vcpu.h>
