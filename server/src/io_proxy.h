@@ -15,6 +15,7 @@
 
 #include "debug.h"
 #include "device.h"
+#include "virt_bus.h"
 #include "irq.h"
 
 namespace Vdev {
@@ -58,14 +59,30 @@ public:
   : _dev(dev)
   {}
 
-  void init_device(Device_lookup const *devs, Dt_node const &self) override;
+  /**
+   * Prepare the factory for creation of physical devices.
+   *
+   * \param devs  Pointer to Device_lookup interface used to prepare the factory
+   *
+   * To create non virtual devices there might be some additional preparations
+   * needed. This method has to be invoked before trying to create non physical
+   * devices.
+   */
+  static void prepare_factory(Device_lookup const *devs);
 
-  static int decode_resource_id(char c);
+  // XXX This method is deprecated and should not be invoked
+  // anymore. It is still here to support compilation since it is
+  // required by Device. It might be removed once the initialization
+  // of the other devices gets rid of the init_device() method.
+  void init_device(Device_lookup const *, Dt_node const &) override
+  { assert(false); };
+
+  static void bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
+                       Dt_node const &self, unsigned dt_idx, unsigned io_irq);
 
 private:
-  void bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
-                Dt_node const &self, unsigned dt_idx, unsigned io_irq);
-
+  bool check_and_bind_irqs(Device_lookup const *devs,
+                           Dt_node const &node);
   L4vbus::Device _dev;
 };
 

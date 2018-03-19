@@ -59,23 +59,6 @@ public:
     _devices.push_back({buf, phandle, dev});
   }
 
-  void init_devices(Device_lookup const *lookup, Device_tree dt)
-  {
-    for (auto &d : _devices)
-      {
-        Dbg(Dbg::Dev, Dbg::Trace).printf("Init device '%s'.\n", d.path.c_str());
-
-        auto node = Dt_node();
-        if (d.phandle != 0 && d.phandle != -1U)
-          node = dt.phandle_offset(d.phandle);
-
-        if (!node.is_valid())
-          node = dt.path_offset(d.path.c_str());
-
-        d.dev->init_device(lookup, node);
-      }
-  }
-
 private:
   std::vector<Dt_device> _devices;
 };

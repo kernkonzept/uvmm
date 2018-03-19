@@ -19,14 +19,17 @@ namespace Vdev {
 static Dbg info(Dbg::Dev, Dbg::Info, "ioproxy");
 static Dbg warn(Dbg::Dev, Dbg::Warn, "ioproxy");
 
+// default set to false
+static bool phys_dev_prepared;
+
 void
 Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
                    Dt_node const &self, unsigned dt_idx, unsigned io_irq)
 {
   auto dt_irq = ic->dt_get_interrupt(self, dt_idx);
 
-  info.printf("IO device %p:'%s' - registering irq%d=0x%x -> 0x%x\n",
-              this, self.get_name(), dt_idx, io_irq, dt_irq);
+  info.printf("IO device '%s' - registering irq%d=0x%x -> 0x%x\n",
+              self.get_name(), dt_idx, io_irq, dt_irq);
   if (!ic->get_irq_source(dt_irq))
     {
       auto irq_svr = Vdev::make_device<Vdev::Irq_svr>(io_irq);
@@ -71,154 +74,123 @@ Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
 }
 
 void
-Io_proxy::init_device(Device_lookup const *devs, Dt_node const &self)
+Io_proxy::prepare_factory(Device_lookup const *devs)
 {
-  if (!self.get_prop<fdt32_t>("interrupts", nullptr))
-    return;
-
-  cxx::Ref_ptr<Device> dev;
-
-  auto irq_ctl = self.find_irq_parent();
-  if (irq_ctl.is_valid())
-    dev = devs->device_from_node(irq_ctl);
-
-  if (!dev)
-    {
-      Err().printf("virtio proxy - '%s': irq parent %s not found\n",
-                   self.get_name(), irq_ctl.is_valid() ? "device" : "node");
-      throw L4::Runtime_error(-L4_ENODEV);
-    }
-
-  // XXX need dynamic cast for Ref_ptr here
-  auto *ic = dynamic_cast<Gic::Ic *>(dev.get());
-
-  if (!ic)
-    {
-      info.printf("%s: Irqs are handled by %s, ignoring irq assignments\n",
-                  self.get_name(), irq_ctl.get_name());
-      return;
-    }
-
-  auto const *devinfo = devs->vbus()->find_device(this);
-  assert (devinfo);
-
-  int numint = ic->dt_get_num_interrupts(self);
-  for (unsigned i = 0; i < devinfo->dev_info.num_resources; ++i)
-    {
-      l4vbus_resource_t res;
-
-      L4Re::chksys(_dev.get_resource(i, &res),
-                   "Cannot get resource in device_init()");
-
-      char const *resname = reinterpret_cast<char const *>(&res.id);
-
-      // Interrupts: id must be 'irqX' where X is the index into
-      //             the device trees interrupts resource description
-      if (res.type != L4VBUS_RESOURCE_IRQ)
-        continue;
-
-      if (strncmp(resname, "irq", 3))
-        {
-          warn.printf("IRQ resource '%s' of device '%.64s' ignored. "
-                      "Should be named 'irq[0-9A-Z]'.\n",
-                      resname, devinfo->dev_info.name);
-          continue;
-        }
-
-      int id = decode_resource_id(resname[3]);
-      if (id == -1)
-        {
-          Err().printf("IO device '%.64s' has invalid irq resource id. "
-                       "Expected 'irq[0-9A-Z]', got '%.4s'\n",
-                       devinfo->dev_info.name, resname);
-          L4Re::chksys(-L4_EINVAL);
-        }
-
-      auto irq = res.start;
-      if (id < numint)
-        bind_irq(devs->vmm(), devs->vbus().get(), ic, self, id, irq);
-      else
-        Err().printf("Error: IO IRQ resource id (%d) is out of bounds\n", id);
-    }
-}
-
-int Io_proxy::decode_resource_id(char c)
-{
-  if ('0' <= c && c <= '9')
-    return c - '0';
-  if ('A' <= c && c <= 'Z')
-    return c - 'A' + 10;
-
-  return -1;
+  devs->vbus()->collect_resources(devs);
+  phys_dev_prepared = true;
 }
 
 namespace {
 
 struct F : Factory
 {
+  static bool check_regs(Device_lookup const *devs,
+                         Dt_node const &node)
+  {
+    if (!node.has_prop("reg"))
+      return true;
+
+    auto vmm = devs->vmm();
+    l4_uint64_t addr, size;
+    for (int index = 0; /* no condition */ ; ++index)
+      {
+        int res = node.get_reg_val(index, &addr, &size);
+        switch (res)
+          {
+          case 0:
+            if (!vmm->mmio_region_valid(addr, size))
+              return false;
+            break;
+          case -Dt_node::ERR_BAD_INDEX:
+            // reached end of reg entries
+            return true;
+          case -Dt_node::ERR_NOT_TRANSLATABLE:
+            // region not managed by us
+            continue;
+          case -Dt_node::ERR_RANGE:
+            info.printf("Reg entry too large '%s'.reg[%d]\n",
+                        node.get_name(), index);
+            return false;
+          default:
+            Err().printf("Invalid reg entry '%s'.reg[%d]: %s\n",
+                         node.get_name(), index, fdt_strerror(res));
+            return false;
+          }
+      }
+  }
+
+  bool check_and_bind_irqs(Device_lookup const *devs, Dt_node const &node)
+  {
+    if (!node.has_irqs())
+      return true;
+
+    cxx::Ref_ptr<Device> dev;
+
+    auto irq_ctl = node.find_irq_parent();
+    if (irq_ctl.is_valid())
+      {
+        // IRQ parents are created before any dependent devices are created
+        dev = devs->device_from_node(irq_ctl);
+      }
+
+    if (!dev)
+      {
+        Err().printf("io proxy - '%s': irq parent %s not found\n",
+                     node.get_name(), irq_ctl.is_valid() ? "device" : "node");
+        return false;
+      }
+
+    // XXX need dynamic cast for Ref_ptr here
+    auto *ic = dynamic_cast<Gic::Ic *>(dev.get());
+
+    if (!ic)
+      {
+        info.printf("%s: Irqs are handled by %s, ignoring irq assignments\n",
+                    node.get_name(), irq_ctl.get_name());
+        return true;
+      }
+
+    auto vbus = devs->vbus().get();
+    int numint = ic->dt_get_num_interrupts(node);
+
+    // Check whether all IRQs are available
+    for (int i = 0; i < numint; ++i)
+      {
+        unsigned dt_irq = ic->dt_get_interrupt(node, i);
+        if (!vbus->irq_present(dt_irq))
+          return false;
+      }
+
+    // Bind IRQs
+    L4vbus::Device const dummy;
+    for (int i = 0; i < numint; ++i)
+      {
+        unsigned int dt_irq = ic->dt_get_interrupt(node, i);
+        Io_proxy::bind_irq(devs->vmm(), vbus, ic, node, i, dt_irq);
+        vbus->mark_irq_bound(dt_irq);
+      }
+    return true;
+  }
+
   cxx::Ref_ptr<Device> create(Device_lookup const *devs,
                               Dt_node const &node) override
   {
-    // we can proxy memory and interrupts, check whether resources are
-    // present
-    if (!node.needs_vbus_resources())
-      return nullptr;
-
-    auto *vbus = devs->vbus().get();
-
-    auto *vd = vbus->find_unassigned_dev(node);
-    if (!vd)
+    if (!phys_dev_prepared)
       {
-        warn.printf("No matching IO device found for device tree entry '%s'\n",
-                    node.get_name());
+        Err().printf("%s: Io_proxy::create() invoked before prepare_factory()\n"
+                     "\tprobably invalid device tree\n", node.get_name());
         return nullptr;
       }
 
-    auto proxy = make_device<Io_proxy>(vd->io_dev);
-    vd->proxy = proxy;
+    // Check mmio resources - mmio areas are already established
+    if (!check_regs(devs, node))
+      return nullptr;
 
-    for (unsigned i = 0; i < vd->dev_info.num_resources; ++i)
-      {
-        l4vbus_resource_t res;
+    if (!check_and_bind_irqs(devs, node))
+      return nullptr;
 
-        L4Re::chksys(vd->io_dev.get_resource(i, &res),
-                     "Cannot get resource in create()");
-
-        char const *resname = reinterpret_cast<char const *>(&res.id);
-
-        // MMIO memory: id must be 'regX' where X is the index into the
-        //              device tree's 'reg' resource description
-        if (res.type != L4VBUS_RESOURCE_MEM)
-          continue;
-
-        if (strncmp(resname, "reg", 3))
-          {
-            warn.printf("MMIO resource '%s' of device '%.64s' ignored. "
-                        "Should be named 'reg[0-9A-Z]'.\n",
-                        resname, vd->dev_info.name);
-            continue;
-          }
-
-        int id = Io_proxy::decode_resource_id(resname[3]);
-        if (id == -1)
-          {
-            Err().printf("IO device '%.64s' has invalid mmio resource id. "
-                         "Expected 'reg[0-9A-Z]', got '%.4s'.\n",
-                         vd->dev_info.name, resname);
-            L4Re::chksys(-L4_EINVAL);
-          }
-
-        info.printf("Adding MMIO resource 0x%lx/0x%lx\n",
-                    res.start, res.end);
-
-        auto handler = Vdev::make_device<Ds_handler>(vbus->io_ds(), 0,
-                                                     res.end - res.start + 1,
-                                                     res.start);
-
-        devs->vmm()->register_mmio_device(handler, node, id);
-      }
-
-    return proxy;
+    L4vbus::Device io_dev;
+    return make_device<Io_proxy>(io_dev);
   }
 
   F() { pass_thru = this; }

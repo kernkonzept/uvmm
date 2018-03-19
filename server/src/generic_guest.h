@@ -40,6 +40,8 @@ public:
   void register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
                             Vdev::Dt_node const &node, size_t index = 0);
 
+  bool mmio_region_valid(l4_uint64_t addr, l4_uint64_t size);
+
   void __attribute__((noreturn)) halt_vm()
   {
     // XXX Only halts the current CPU. For the SMP case some

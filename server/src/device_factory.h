@@ -55,47 +55,76 @@ struct Device_type : public cxx::H_list_item_t<Device_type>
 
 class Factory
 {
+  /**
+   * Lookup factory for device node.
+   *
+   * \param node  The device node a Device a factory is needed for
+   *
+   * \retval  Pointer to factory, if factory present
+   * \retval  nullptr, if no factory found
+   */
+  static Factory *find_factory(Dt_node const &node);
+
+  /**
+   * Create a Device instance for the interrupt parent of a node
+   *
+   * \param devs   Pointer to device repository
+   * \param node   The node we are creating an interrupt parent for
+   * \param depth  A counter describing the invocation depth, default 0
+   *
+   * \retval true   Interrupt parent is available
+   * \retval false  Interrupt parent is not available
+   *
+   * Creates a Device instance for the interrupt parent if there is one.
+   */
+  static bool create_irq_parent(Device_lookup *devs, Vdev::Dt_node const &node,
+                                int depth = 0);
+
 public:
-  virtual ~Factory() = 0;
+  /**
+   * Does the node represent a virtual device?
+   *
+   * \retval true   The node describes a virtual device.
+   * \retval false  The node describes a non virtual device
+   *
+   * is_dev() checks whether there is a factory for the device node
+   * present and returns true if that is the case.
+   */
+  static bool is_vdev(Dt_node const &node)
+  { return find_factory(node) != nullptr; }
+
+  /**
+   * Create a Device instance for the device described by node.
+   *
+   * \param devs  Pointer to device repository
+   * \param node  The device node a Device instance shall be created for
+   *
+   * \retval      Pointer to the created Device
+   * \retval      nullpointer, if device creation failed
+   *
+   * Implemented by each derived factory.
+   */
   virtual cxx::Ref_ptr<Device> create(Device_lookup const *devs,
                                       Dt_node const &node) = 0;
 
+  virtual ~Factory() = 0;
 
-  static cxx::Ref_ptr<Device> create_vdev(Device_lookup const *devs,
-                                          Dt_node const &node)
-  {
-    char const *const comp = "compatible";
-    int count = node.stringlist_count(comp);
-    if (count <= 0)
-      return nullptr;
+  /**
+   * Create a Device instance for a device.
+   *
+   * \param devs   Pointer to device repository
+   * \param node   The device node a Device instance shall be created for
+   *
+   * \retval false  Device creation failed
+   * \retval true   Device was successfully created and added to the device list
+   *
+   * Creates a device instance for a device node by invoking the responsible
+   * factory and adds it to the device repository.
+   */
+  static cxx::Ref_ptr<Device> create_dev(Device_lookup *devs,
+                                         Dt_node const &node);
 
-    int l4type_len;
-    char const *l4type = node.get_prop<char>("l4vmm,vdev", &l4type_len);
-
-    for (int i = 0; i < count; ++i)
-      {
-        int cid_len;
-        char const *cid = node.stringlist_get(comp, i, &cid_len);
-        auto const *t = Device_type::find(cid, cid_len, l4type, l4type_len);
-        if (t)
-          return t->f->create(devs, node);
-      }
-
-    return nullptr;
-  }
-
-  static cxx::Ref_ptr<Device> create_dev(Device_lookup const *devs,
-                                         Dt_node const &node)
-  {
-    if (auto r = create_vdev(devs, node))
-      return r;
-
-    if (pass_thru)
-      return pass_thru->create(devs, node);
-
-    return nullptr;
-  }
-
+protected:
   static Factory *pass_thru;
 };
 

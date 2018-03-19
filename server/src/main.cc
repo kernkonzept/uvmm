@@ -34,6 +34,7 @@
 #include "guest.h"
 #include "monitor_console.h"
 #include "ram_ds.h"
+#include "io_proxy.h"
 #include "vm.h"
 
 Vmm::Vm vm_instance;
@@ -42,7 +43,23 @@ static Dbg info(Dbg::Core, Dbg::Info, "main");
 static Dbg warn(Dbg::Core, Dbg::Warn, "main");
 
 static bool
-node_cb(Vdev::Dt_node const &node)
+virt_dev_cb(Vdev::Dt_node const &node)
+{
+  // Ignore non virtual devices
+  if (!Vdev::Factory::is_vdev(node))
+    return true;
+
+  if (Vdev::Factory::create_dev(&vm_instance, node))
+    return true;
+
+  warn.printf("Device creation for %s failed. Disabling device \n",
+              node.get_name());
+  node.setprop_string("status", "disabled");
+  return false;
+}
+
+static bool
+phys_dev_cb(Vdev::Dt_node const &node)
 {
   // device_type is a deprecated option and should be set for "cpu"
   // and "memory" devices only. Currently there are some more uses
@@ -65,25 +82,26 @@ node_cb(Vdev::Dt_node const &node)
   // different factory (there are too many compatible attributes to
   // use the normal factory mechanism).
   if (is_cpu_dev)
-    dev = vm_instance.cpus()->create_vcpu(&node);
-  else
-    dev = Vdev::Factory::create_dev(&vm_instance, node);
-
-  if (dev)
     {
+      dev = vm_instance.cpus()->create_vcpu(&node);
+      if (!dev)
+        return false;
+
+      // XXX Other create methods directly add the created device to the device
+      // repository; We might want to do the same in create_vcpu.
       vm_instance.add_device(node, dev);
       return true;
     }
+  else
+    {
+      if (!vm_instance.needs_vbus_resources(node))
+        return true;
 
-  // Device creation failed. Since there is no return code telling us
-  // something about the reason we have to guess and to act
-  // accordingly. Currently we assume, that the creation of devices
-  // with special factory interfaces does not fail. If we have a node
-  // with resources, and device creation failed, we do not have enough
-  // resources to handle the device.
-  if (!is_cpu_dev && !node.needs_vbus_resources())
-    return true; // no error, just continue parsing the tree
+      if (Vdev::Factory::create_dev(&vm_instance, node))
+        return true;
+    }
 
+  // Device creation failed
   if (node.has_prop("l4vmm,force-enable"))
     {
       warn.printf("Device creation for %s failed, 'l4vmm,force-enable' set\n",
@@ -318,12 +336,20 @@ static int run(int argc, char *argv[])
       ram->setup_device_tree(dt);
       vmm->setup_device_tree(dt);
 
+      // Instantiate all virtual devices
       dt.scan([] (Vdev::Dt_node const &node, unsigned /* depth */)
-                { return node_cb(node); },
+                { return virt_dev_cb(node); },
               [] (Vdev::Dt_node const &, unsigned)
                 {});
 
-      vm_instance.init_devices(dt);
+      // Prepare creation of physical devices
+      Vdev::Io_proxy::prepare_factory(&vm_instance);
+
+      // Instantiate all devices which have the necessary resources
+      dt.scan([] (Vdev::Dt_node const &node, unsigned /* depth */)
+              { return phys_dev_cb(node); },
+              [] (Vdev::Dt_node const &, unsigned)
+              {});
 
       // Round to the next page to load anything else to a new page.
       next_free_addr =
@@ -340,6 +366,9 @@ static int run(int argc, char *argv[])
           L4Re::chksys(-L4_EINVAL, "Invalid CPU configuration in device tree,"
                        " missing CPU0");
 
+      // XXX The CPU device is not added to the device repository here. Is this
+      // necessary? The cpu_dev_array still holds a reference to it so it
+      // doesn't simply vanish here ...
       vm_instance.cpus()->create_vcpu(nullptr);
     }
 

@@ -57,6 +57,12 @@ public:
   Node() : _node(-1) {}
   Node(void *dt, int node) : _tree(dt), _node(node) {}
 
+  bool operator == (Node const &other) const
+  { return (_tree == other._tree) && (_node == other._node); }
+
+  bool operator != (Node const &other) const
+  { return !operator==(other); }
+
   bool is_valid() const
   { return _node >= 0; }
 
@@ -480,18 +486,6 @@ public:
    * \return True if there are mmio resources
    */
   bool has_mmio_regs() const;
-
-  /**
-   * Check whether a node has irq or mmio resources associated
-   *
-   * This function checks whether the node has "reg" or "interrupts"
-   * properties and any of the reg property values are mapped to mmio
-   * resources on the root bus.
-   *
-   * \return True if there are irq or mmio resources
-   */
-  bool needs_vbus_resources() const
-  { return has_irqs() || has_mmio_regs(); }
 
   /**
    * Translate a reg entry

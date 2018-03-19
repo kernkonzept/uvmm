@@ -13,6 +13,15 @@
 #include "guest.h"
 
 namespace Vmm {
+void
+Virt_bus::Irq_bitmap::dump_irqs()
+{
+  for (int i = 0; i < Num_irqs; ++i)
+    {
+      if (irq_present(i))
+        printf("Irq %d: %s\n", i, irq_bound(i) ? "bound" : "present");
+    }
+}
 
 void
 Virt_bus::scan_bus()
@@ -24,70 +33,51 @@ Virt_bus::scan_bus()
     _devices.push_back(info);
 }
 
-
-Virt_bus::Devinfo *
-Virt_bus::find_unassigned_dev(Vdev::Dt_node const &node)
+void
+Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
+                                Vdev::Device_lookup const *devs)
 {
-  if (!node.has_compatible())
+  for (unsigned i = 0; i < dev.dev_info.num_resources; ++i)
     {
-      Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
-        .printf("No \"compatible\" property for device '%s' provided.\n",
-                node.get_name());
-      return nullptr;
+      l4vbus_resource_t res;
+
+      L4Re::chksys(dev.io_dev.get_resource(i, &res),
+                   "Cannot get resource in collect_resources");
+
+      char const *resname = reinterpret_cast<char const *>(&res.id);
+
+      if (res.type == L4VBUS_RESOURCE_MEM)
+        {
+          Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
+            .printf("Adding MMIO resource %s.%.4s : [0x%lx - 0x%lx]\n",
+                    dev.dev_info.name, resname, res.start, res.end);
+
+          l4_size_t size = res.end - res.start + 1;
+          auto handler = Vdev::make_device<Ds_handler>(io_ds(), 0, size,
+                                                       res.start);
+
+          devs->vmm()->add_mmio_device(Region::ss(res.start, size), handler);
+        }
+      else if (res.type == L4VBUS_RESOURCE_IRQ)
+        {
+          Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
+            .printf("Registering IRQ resource %s.%.4s : 0x%lx\n",
+                    dev.dev_info.name, resname, res.start);
+          _irqs.mark_irq_present(res.start);
+        }
     }
+}
 
-  int num_compatible = node.stringlist_count("compatible");
-
-  for (int c = 0; c < num_compatible; ++c)
+void
+Virt_bus::collect_resources(Vdev::Device_lookup const *devs)
+{
+  for (auto &iodev : _devices)
     {
-      auto *hid = node.stringlist_get("compatible", c, nullptr);
-      assert(hid);
+      if (iodev.proxy)
+        continue;
 
-      for (auto &iodev: _devices)
-        if (!iodev.proxy && iodev.io_dev.is_compatible(hid) > 0)
-          {
-            auto *regs = node.get_prop<fdt32_t>("reg", nullptr);
-            if (!regs)
-              return &iodev;
-
-            for (unsigned i = 0; i < iodev.dev_info.num_resources; ++i)
-              {
-                l4vbus_resource_t res;
-                L4Re::chksys(iodev.io_dev.get_resource(i, &res));
-
-                char const *resname = reinterpret_cast<char const *>(&res.id);
-
-                if (res.type != L4VBUS_RESOURCE_MEM)
-                  continue;
-
-                if (strncmp(resname, "reg", 3))
-                  {
-                    Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
-                      .printf("MMIO resource '%.4s' of device '%s' ignored. "
-                              "Should be named 'reg[0-9A-Z]'.\n",
-                              resname, node.get_name());
-                    continue;
-                  }
-
-                if (strncmp(resname, "reg0", 4))
-                  continue;
-
-                l4_uint64_t base, size;
-                if (node.get_reg_val(0, &base, &size) < 0)
-                  continue;
-
-                if (base == res.start)
-                  return &iodev;
-              }
-          }
-
-      Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
-        .printf("No compatible IO device for "
-                "device '%s', \"compatible\"='%s' found.\n",
-                node.get_name(), hid);
+      collect_dev_resources(iodev, devs);
     }
-
-  return nullptr;
 }
 
 } // namespace

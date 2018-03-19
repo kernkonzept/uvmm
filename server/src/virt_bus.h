@@ -12,6 +12,7 @@
 
 #include <l4/cxx/ref_ptr>
 #include <l4/cxx/ipc_server>
+#include <l4/cxx/bitmap>
 #include <l4/vbus/vbus>
 #include <l4/re/dataspace>
 #include <l4/re/error_helper>
@@ -39,13 +40,43 @@ public:
     cxx::Ref_ptr<Vdev::Device> proxy;
   };
 
+private:
+  void collect_dev_resources(Virt_bus::Devinfo const &dev,
+                             Vdev::Device_lookup const *devs);
+
+  class Irq_bitmap
+  {
+    enum { Num_irqs = 2048 };
+    cxx::Bitmap<Num_irqs * 2> _i;
+
+  public:
+    bool irq_present(unsigned irq)
+    { return _i[irq * 2]; }
+
+    bool irq_bound(unsigned irq)
+    { return _i[irq * 2 + 1]; }
+
+    void mark_irq_present(unsigned irq)
+    { _i[irq * 2] = 1; }
+
+    void mark_irq_bound(unsigned irq)
+    {
+      assert(irq_present(irq));
+      _i[irq * 2 + 1] = 1;
+    }
+
+    void dump_irqs();
+  };
+
+public:
   explicit Virt_bus(L4::Cap<L4vbus::Vbus> bus)
   : _bus(bus)
   {
     if (!bus.is_valid())
       {
         Dbg(Dbg::Dev, Dbg::Warn, "vmbus")
-          .printf("'vbus' capability not found. Hardware access not possible for VM.\n");
+          .printf("'vbus' capability not found. "
+                  "Hardware access not possible for VM.\n");
         return;
       }
 
@@ -62,7 +93,18 @@ public:
   bool available() const
   { return _bus.is_valid(); }
 
-  Devinfo *find_unassigned_dev(Vdev::Dt_node const &node);
+  bool irq_present(unsigned irq)
+  { return _irqs.irq_present(irq); }
+
+  bool irq_bound(unsigned irq)
+  { return _irqs.irq_bound(irq); }
+
+  void mark_irq_bound(unsigned irq)
+  { return _irqs.mark_irq_bound(irq); }
+
+  void dump_irqs()
+  { _irqs.dump_irqs(); }
+
   Devinfo const *find_device(Vdev::Device const *proxy) const
   {
     for (auto const &i: _devices)
@@ -72,6 +114,18 @@ public:
       }
     return nullptr;
   }
+
+  /**
+   * Collect all resources available on the vbus
+   *
+   * \param devs  Reference to device lookup instance
+   *
+   * \retval true   Successfully collected all resources
+   * \retval false  Failed to collect resources
+   *
+   * Iterate over all available devices on the vbus and collect
+   */
+  void collect_resources(Vdev::Device_lookup const *devs);
 
   L4::Cap<L4Re::Dataspace> io_ds() const
   { return L4::cap_reinterpret_cast<L4Re::Dataspace>(_bus); }
@@ -88,6 +142,7 @@ private:
   L4::Cap<L4vbus::Vbus> _bus;
   L4::Cap<L4::Icu> _icu;
   std::vector<Devinfo> _devices;
+  Irq_bitmap _irqs;
 };
 
 }

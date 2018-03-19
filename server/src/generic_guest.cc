@@ -39,6 +39,14 @@ throw_error(char const *msg,
   L4Re::chksys(-L4_EINVAL, msg);
 }
 
+bool
+Generic_guest::mmio_region_valid(l4_uint64_t addr, l4_uint64_t size)
+{
+    Vm_mem::const_iterator f = _memmap.find(addr);
+    return (f != _memmap.end()) && (addr + size <= f->first.end + 1);
+
+}
+
 void
 Generic_guest::add_mmio_device(Region const &region,
                                cxx::Ref_ptr<Vmm::Mmio_device> const &dev)
