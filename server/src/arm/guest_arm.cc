@@ -308,7 +308,7 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
 
       vcpu->user_task = _task.cap();
       cpu->powerup_cpu();
-      info().printf("Powered up cpu%d %p, gic: ?\n", vcpu.get_vcpu_id(),
+      info().printf("Powered up cpu%d [%p]\n", vcpu.get_vcpu_id(),
                     cpu.get());
 
       auto *vm = vcpu.state();
