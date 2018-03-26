@@ -97,7 +97,7 @@ public:
 
   ~Binary_ds()
   {
-    if (_loaded_range_vmm.start !=0 && _loaded_range_vmm.end != 0)
+    if (_loaded_range_vmm.start != 0 && _loaded_range_vmm.end != 0)
       l4_cache_coherent(_loaded_range_vmm.start,
                         _loaded_range_vmm.end);
   }
