@@ -552,32 +552,36 @@ public:
   /**
    * Find IRQ parent of node.
    *
-   * \retval  valid node - Node of IRQ parent
-   * \retval  invalid node - node does not have an IRQ parent
+   * \return  The node of the IRQ parent or an invalid node, if no parent is
+   *          found.
    *
-   * Traverses the device tree upwards and tries to find the  IRQ parent. If no
+   * Traverses the device tree upwards and tries to find the IRQ parent. If no
    * IRQ parent is found or the IRQ parent is identical to the node itself an
    * invalid node is returned.
    */
   Node find_irq_parent() const
   {
-    int node = _node;
+    Node node = *this;
 
-    while (node >= 0)
+    while (node.is_valid())
       {
-        auto *prop = fdt_getprop(_tree, node, "interrupt-parent", nullptr);
+        int size = 0;
+        auto *prop = node.get_prop<fdt32_t>("interrupt-parent", &size);
+
         if (prop)
           {
-            auto *phdl = reinterpret_cast<fdt32_t const *>(prop);
-            node = fdt_node_offset_by_phandle(_tree, fdt32_to_cpu(phdl[0]));
+            int idx = (size > 0)
+                        ? fdt_node_offset_by_phandle(_tree, fdt32_to_cpu(*prop))
+                        : -1;
+            node = Node(_tree, idx);
           }
         else
-          node = fdt_parent_offset(_tree, node);
+          node = node.parent_node();
 
-        if (node >= 0 && fdt_getprop(_tree, node, "#interrupt-cells", nullptr))
+        if (node.is_valid() && node.has_prop("#interrupt-cells"))
           {
-            if (node != _node)
-              return Node(_tree, node);
+            if (node != *this)
+              return node;
             else
               break;
           }
