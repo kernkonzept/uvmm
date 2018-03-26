@@ -56,12 +56,9 @@ Generic_cpu_dev::powerup_cpu()
         L4Re::chksys(-L4_ENOMEM, "Destroying pthread attributes.");
     }
 
-  if (id < 100)
-    {
-      char vcpu_name[7];
-      sprintf(vcpu_name, "vcpu%02d", id);
-      l4_debugger_set_object_name(pthread_l4_cap(_thread), vcpu_name);
-    }
+  char n[8];
+  snprintf(n, sizeof(n), "vcpu%d", id);
+  l4_debugger_set_object_name(pthread_l4_cap(_thread), n);
 }
 
 void

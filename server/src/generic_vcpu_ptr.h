@@ -13,7 +13,6 @@
 #include <l4/re/error_helper>
 #include <l4/re/rm>
 #include <l4/re/util/cap_alloc>
-#include <l4/sys/debugger.h>
 #include <l4/sys/thread>
 #include <l4/sys/vcpu.h>
 
@@ -38,11 +37,6 @@ public:
                    "Running virtualization-enabled kernel?\n");
       L4Re::chksys(-L4_ENODEV);
     }
-
-    char threadname[8];
-    snprintf(threadname, 8, "vcpu%d", get_vcpu_id());
-    threadname[7] = '\0';
-    l4_debugger_set_object_name(thread.cap(), threadname);
 
     trace().printf("VCPU mapped @ %p and enabled\n", _s);
   }
