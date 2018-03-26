@@ -57,9 +57,9 @@ public:
    * might encode topology information into this value, which needs to
    * be translated.
    */
-  static unsigned dtid_to_cpuid(l4_int32_t prop_val);
+  static unsigned dtid_to_cpuid(l4_umword_t prop_val);
 
-  bool matches(l4_uint32_t hwid)
+  bool matches(l4_umword_t hwid)
   { return hwid == _dt_affinity; }
 
 private:
@@ -72,7 +72,7 @@ private:
     Mpidr_mt_sys    = 1ULL << 24,
     Mpidr_aff_mask  = (0xffULL << 32) | 0xfffULL,
   };
-  l4_uint32_t _dt_affinity;
+  l4_umword_t _dt_affinity;
 };
 
 }

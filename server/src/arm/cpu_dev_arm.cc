@@ -19,7 +19,7 @@ namespace Vmm {
 static unsigned logical_cpu_num = 0;
 
 unsigned
-Cpu_dev::dtid_to_cpuid(l4_int32_t)
+Cpu_dev::dtid_to_cpuid(l4_umword_t)
 {
   // ignore topology information and simply return the next logical
   // cpu number
@@ -31,10 +31,11 @@ Cpu_dev::Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *node)
 {
   if (node)
     {
-      auto *prop = node->get_prop<fdt32_t>("reg", nullptr);
-      if (prop)
+      int prop_size;
+      auto *prop = node->get_prop<fdt32_t>("reg", &prop_size);
+      if (prop && prop_size > 0)
         {
-          _dt_affinity = fdt32_to_cpu(*prop);
+          _dt_affinity = node->get_prop_val(prop, prop_size, true);
           return;
         }
     }
