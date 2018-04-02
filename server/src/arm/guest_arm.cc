@@ -483,12 +483,6 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
           l4_addr_t entry_gpa = vcpu->r.r[1];
           l4_umword_t context_id = vcpu->r.r[2];
 
-          if (entry_gpa & 1)
-            {
-              vcpu->r.r[0] = INVALID_ADDRESS;
-              return true;
-            }
-
           // TODO: Check that all other cores are off
           // if not:
           if (0)
