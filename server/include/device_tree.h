@@ -541,6 +541,16 @@ public:
     return reinterpret_cast<T const *>(prop);
   }
 
+  /**
+   * Find IRQ parent of node.
+   *
+   * \retval  valid node - Node of IRQ parent
+   * \retval  invalid node - node does not have an IRQ parent
+   *
+   * Traverses the device tree upwards and tries to find the  IRQ parent. If no
+   * IRQ parent is found or the IRQ parent is identical to the node itself an
+   * invalid node is returned.
+   */
   Node find_irq_parent() const
   {
     int node = _node;
@@ -557,7 +567,12 @@ public:
           node = fdt_parent_offset(_tree, node);
 
         if (node >= 0 && fdt_getprop(_tree, node, "#interrupt-cells", nullptr))
-          return Node(_tree, node);
+          {
+            if (node != _node)
+              return Node(_tree, node);
+            else
+              break;
+          }
       }
 
     return Node(_tree, -1);

@@ -38,11 +38,6 @@ Factory::create_irq_parent(Device_lookup *devs, Vdev::Dt_node const &node,
   if (!parent.is_valid())
     return true;
 
-  // XXX The IRQ parent of the root IRQ controller is the root IRQ controller
-  // itself, check for this condition
-  if (node == parent)
-    return true;
-
   // Is the device already present?
   if (devs->device_from_node(parent))
     return true;
