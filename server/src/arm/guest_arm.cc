@@ -504,9 +504,8 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
           _pm.resume();
 
           memset(&vcpu->r, 0, sizeof(vcpu->r));
-          vcpu->r.ip    = entry_gpa;
+          prepare_vcpu_startup(vcpu, entry_gpa);
           vcpu->r.r[0]  = context_id;
-          vcpu->r.flags = 0x1d3;
           vcpu.state()->vm_regs.sctlr &= ~1UL;
         }
       break;
