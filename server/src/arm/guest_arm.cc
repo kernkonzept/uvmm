@@ -546,12 +546,8 @@ guest_memory_fault(Vcpu_ptr vcpu)
 }
 
 void
-Vmm::Guest::handle_wfx(Vcpu_ptr vcpu)
+Vmm::Guest::wait_for_timer_or_irq(Vcpu_ptr vcpu)
 {
-  vcpu->r.ip += 2 << vcpu.hsr().il();
-  if (vcpu.hsr().wfe_trapped()) // WFE
-    return;
-
   if (_gic->schedule_irqs(vmm_current_cpu_id))
     return;
 
@@ -575,6 +571,16 @@ Vmm::Guest::handle_wfx(Vcpu_ptr vcpu)
     }
 
   wait_for_ipc(utcb, to);
+}
+
+void
+Vmm::Guest::handle_wfx(Vcpu_ptr vcpu)
+{
+  vcpu->r.ip += 2 << vcpu.hsr().il();
+  if (vcpu.hsr().wfe_trapped()) // WFE
+    return;
+
+  wait_for_timer_or_irq(vcpu);
 }
 
 static void
