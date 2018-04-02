@@ -405,8 +405,23 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
       break;
 
     case CPU_SUSPEND:
-      vcpu->r.r[0] = NOT_SUPPORTED;
-      Err().printf("... PSCI CPU SUSPEND\n");
+      {
+        l4_addr_t power_state  = vcpu->r.r[1];
+        l4_addr_t entry_gpa    = vcpu->r.r[2];
+        l4_umword_t context_id = vcpu->r.r[3];
+
+        wait_for_timer_or_irq(vcpu);
+
+        if (power_state & (1 << 30))
+          {
+            memset(&vcpu->r, 0, sizeof(vcpu->r));
+            prepare_vcpu_startup(vcpu, entry_gpa);
+            vcpu->r.r[0]  = context_id;
+            vcpu.state()->vm_regs.sctlr &= ~1UL;
+          }
+        else
+          vcpu->r.r[0] = SUCCESS;
+      }
       break;
 
     case CPU_OFF:
