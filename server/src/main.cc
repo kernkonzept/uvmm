@@ -138,16 +138,16 @@ static int run(int argc, char *argv[])
   char const *const options = "+k:d:r:c:b:vqD:";
   struct option const loptions[] =
     {
-      { "kernel",   1, NULL, 'k' },
-      { "dtb",      1, NULL, 'd' },
-      { "ramdisk",  1, NULL, 'r' },
-      { "cmdline",  1, NULL, 'c' },
-      { "rambase",  1, NULL, 'b' },
-      { "mmio-fallback", 0, NULL, 'M' },
-      { "debug",    1, NULL, 'D' },
-      { "verbose",  0, NULL, 'v' },
-      { "quiet",    0, NULL, 'q' },
-      { "wakeup-on-system-resume", 0, NULL, 'W'},
+      { "kernel",                  required_argument, NULL, 'k' },
+      { "dtb",                     required_argument, NULL, 'd' },
+      { "ramdisk",                 required_argument, NULL, 'r' },
+      { "cmdline",                 required_argument, NULL, 'c' },
+      { "rambase",                 required_argument, NULL, 'b' },
+      { "mmio-fallback",           no_argument,       NULL, 'M' },
+      { "debug",                   required_argument, NULL, 'D' },
+      { "verbose",                 no_argument,       NULL, 'v' },
+      { "quiet",                   no_argument,       NULL, 'q' },
+      { "wakeup-on-system-resume", no_argument,       NULL, 'W' },
       { 0, 0, 0, 0}
     };
 
