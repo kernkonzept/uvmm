@@ -100,7 +100,7 @@ void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Ram_ds *ram,
       zpage.add_ramdisk(rd_start, rd_end - rd_start);
     }
   else
-      Dbg().printf("No ramdisk found in device tree.");
+    Dbg().printf("No ramdisk found in device tree.\n");
 
   if (cmd_line)
     zpage.add_cmdline(cmd_line);

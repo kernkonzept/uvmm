@@ -151,7 +151,7 @@ Ram_ds::load_file(char const *name, L4virtio::Ptr<void> addr, l4_size_t *sz)
   Auto_fd fd(open(name, O_RDONLY));
   if (fd.get() < 0)
     {
-      Err().printf("could not open file: %s:", name);
+      Err().printf("could not open file: %s\n", name);
       L4Re::chksys(-L4_EINVAL);
     }
 
