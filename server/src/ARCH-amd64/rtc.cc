@@ -19,11 +19,6 @@ class Rtc : public Vmm::Io_device, public Vdev::Device
 
   void io_in(unsigned, Vmm::Mem_access::Width, l4_uint32_t *value) override
   { *value = 0; }
-
-public:
-  // Device interface
-  void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &) override
-  {}
 };
 
 } // namespace Vdev
@@ -33,10 +28,9 @@ namespace {
 struct F : Vdev::Factory
 {
   cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
-                                    Vdev::Dt_node const &node) override
+                                    Vdev::Dt_node const &) override
   {
     auto dev = Vdev::make_device<Vdev::Rtc>();
-    dev->init_device(devs, node);
 
     devs->vmm()->register_io_device(Region(0x70, 0x71), dev);
 

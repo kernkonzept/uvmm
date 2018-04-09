@@ -115,7 +115,6 @@ struct Device_lookup;
 struct Device : public virtual Dev_ref
 {
   virtual ~Device() = 0;
-  virtual void init_device(Device_lookup *devs, Dt_node const &node) = 0;
 };
 
 inline Device::~Device() = default;

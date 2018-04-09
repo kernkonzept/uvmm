@@ -44,9 +44,7 @@ namespace Vdev
    */
   struct Mmio_proxy : public Device
   {
-    void init_device(Vdev::Device_lookup *,
-                     Vdev::Dt_node const &) override
-    {}
+    // XXX Empty dummy structure
   };
 }
 
@@ -81,18 +79,14 @@ public:
       {
         size_t ds_size = dscap->size();
         register_mmio_regions<Ds_handler>(dscap, devs, node, ds_size);
-        auto c = Vdev::make_device<Mmio_proxy>();
-        c->init_device(devs, node);
-        return c;
+        return Vdev::make_device<Mmio_proxy>();
       }
 
     auto mmcap = L4::cap_dynamic_cast<L4Re::Mmio_space>(cap);
     if (mmcap)
       {
         register_mmio_regions<Mmio_space_handler>(mmcap, devs, node);
-        auto c = Vdev::make_device<Mmio_proxy>();
-        c->init_device(devs, node);
-        return c;
+        return Vdev::make_device<Mmio_proxy>();
       }
 
     warn.printf("No known IPC protocol supported.\n");

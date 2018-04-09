@@ -24,8 +24,6 @@ using namespace Vdev;
  */
 struct System_controller : public Device
 {
-  void init_device(Device_lookup *, Dt_node const &) override {}
-
   l4_uint32_t read(unsigned, char, unsigned)
   { return 0; }
 
@@ -52,7 +50,6 @@ struct F : Factory
                               Dt_node const &node) override
   {
     auto syscon = make_device<System_controller_mmio>();
-    syscon->init_device(devs, node);
     devs->vmm()->register_mmio_device(syscon, node);
     return syscon;
   }

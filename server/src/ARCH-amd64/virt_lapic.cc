@@ -324,11 +324,7 @@ struct G : Vdev::Factory
                                     Vdev::Dt_node const &node) override
   {
     auto apics = devs->vmm()->apic_array();
-    auto dev = Vdev::make_device<Gic::Io_apic>(apics);
-    if (dev)
-      dev->init_device(devs, node);
-
-    return dev;
+    return Vdev::make_device<Gic::Io_apic>(apics);
   }
 };
 

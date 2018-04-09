@@ -93,8 +93,7 @@ public:
              l4_uint32_t *value) override;
 
   // Device interface
-  void init_device(Vdev::Device_lookup *devs,
-                   Vdev::Dt_node const &self) override;
+  void init_device(Vdev::Device_lookup *devs, Vdev::Dt_node const &self);
 
   void tick() override;
 

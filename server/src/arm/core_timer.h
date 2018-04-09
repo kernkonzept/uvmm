@@ -161,7 +161,7 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
               cntfrq, _scale, _scaled_ticks_per_us, _cyc2ms_scale, _shift);
   }
 
-  void init_device(Device_lookup *devs, Dt_node const &self) override
+  void init_device(Device_lookup *devs, Dt_node const &self)
   {
     cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(self, true);
 

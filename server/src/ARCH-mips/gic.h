@@ -109,9 +109,6 @@ class Dist
 public:
   Dist(Mips_core_ic *core_ic);
 
-  void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &) override
-  {}
-
   l4_umword_t read(unsigned reg, char size, unsigned cpu_id);
   void write(unsigned reg, char size, l4_umword_t value, unsigned cpu_id);
 

@@ -38,7 +38,7 @@ class Virt_lapic : public Vdev::Timer, public Ic
    }
 
    // Device interface
-   void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &) override;
+   void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &);
 
    // IC interface
    void set(unsigned irq) override;
@@ -148,7 +148,7 @@ public:
   }
 
   // Device interface
-  void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &) override
+  void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &)
   {}
 
   // Mmio device if
@@ -178,7 +178,7 @@ public:
   Io_apic(cxx::Ref_ptr<Lapic_array> apics) : _apics(apics) {}
 
   // Device interface
-  void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &) override
+  void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &)
   {}
 
   // IC interface

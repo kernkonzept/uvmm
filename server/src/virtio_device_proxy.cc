@@ -80,7 +80,7 @@ public:
   }
 
   void init_device(Vdev::Device_lookup *devs,
-                   Vdev::Dt_node const &self) override
+                   Vdev::Dt_node const &self)
   {
     cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(self, true);
 

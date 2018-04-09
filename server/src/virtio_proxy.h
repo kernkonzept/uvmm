@@ -202,7 +202,7 @@ public:
   {}
 
   void init_device(Vdev::Device_lookup *devs,
-                   Vdev::Dt_node const &self) override
+                   Vdev::Dt_node const &self)
   {
     int err = dev()->event_connector()->init_irqs(devs, self);
     if (err < 0)

@@ -70,13 +70,6 @@ public:
    */
   static void prepare_factory(Device_lookup const *devs);
 
-  // XXX This method is deprecated and should not be invoked
-  // anymore. It is still here to support compilation since it is
-  // required by Device. It might be removed once the initialization
-  // of the other devices gets rid of the init_device() method.
-  void init_device(Device_lookup *, Dt_node const &) override
-  { assert(false); };
-
   static void bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
                        Dt_node const &self, unsigned dt_idx, unsigned io_irq);
 

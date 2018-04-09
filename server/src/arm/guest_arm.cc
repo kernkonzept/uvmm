@@ -58,7 +58,6 @@ struct F : Factory
 
     // attach GICD to VM
     auto gic = devs->vmm()->gic();
-    gic->init_device(devs, node);
     devs->vmm()->register_mmio_device(gic, node);
 
     L4vbus::Device vdev;

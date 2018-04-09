@@ -969,9 +969,6 @@ public:
     return irqnr + Irq_ppi_base;
   }
 
-  void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &) override
-  {}
-
   Dist(unsigned tnlines, unsigned char cpus);
 
   l4_uint32_t read(unsigned reg, char size, unsigned cpu_id);
