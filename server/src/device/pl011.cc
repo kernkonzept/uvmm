@@ -126,8 +126,9 @@ public:
     CXX_BITFIELD_MEMBER(4, 4, rx, raw);
   };
 
-  explicit Pl011_mmio(L4::Cap<L4::Vcon> con = L4Re::Env::env()->log())
-  : _con(con), _rsr_ecr(), _fr(), _cr(), _imsc(0), _ris(0)
+  explicit Pl011_mmio(Gic::Ic *ic, int irq,
+                      L4::Cap<L4::Vcon> con = L4Re::Env::env()->log())
+  : _con(con), _sink(ic, irq)
   {
     l4_vcon_attr_t attr;
     if (l4_error(con->get_attr(&attr)) != L4_EOK)
@@ -156,20 +157,6 @@ public:
     _con->bind(0, L4Re::chkcap(ret, "Registering pl011 device"));
 
     return ret;
-  }
-
-  void init_device(Vdev::Device_lookup *devs, Vdev::Dt_node const &node)
-  {
-    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, true);
-
-    if (ic->dt_get_num_interrupts(node) != 1)
-      {
-        Dbg(Dbg::Dev, Dbg::Info, "pl011")
-          .printf("Device tree must specify one interrupt for pl011 console.\n");
-        return;
-      }
-
-    _sink.rebind(ic.get(), ic->dt_get_interrupt(node, 0));
   }
 
   l4_uint32_t read(unsigned reg, char size, unsigned cpu_id)
@@ -319,7 +306,7 @@ private:
   Rsr_ecr_reg _rsr_ecr;
   Fr_reg _fr;
   Cr_reg _cr;
-  l4_uint32_t _imsc;
+  l4_uint32_t _imsc = 0;
   Ris_reg _ris;
 
   Device *dev() { return static_cast<Device *>(this); }
@@ -347,8 +334,12 @@ struct F : Vdev::Factory
           }
       }
 
-    auto c = Vdev::make_device<Pl011_mmio>(cap);
-    c->init_device(devs, node);
+    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, false);
+    if (!ic)
+      return nullptr;
+
+    auto c = Vdev::make_device<Pl011_mmio>(ic.get(),
+                                           ic->dt_get_interrupt(node, 0), cap);
     c->register_obj(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, node);
     return c;
@@ -359,5 +350,3 @@ struct F : Vdev::Factory
 
 static F f;
 static Vdev::Device_type t = { "arm,pl011", nullptr, &f };
-
-
