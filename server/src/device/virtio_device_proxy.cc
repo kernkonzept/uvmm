@@ -71,41 +71,17 @@ class Virtio_device_proxy
 
 
 public:
-  Virtio_device_proxy(char const *service, l4_size_t cfg_size)
-  : Read_mapped_mmio_device_t(cfg_size, L4Re::Rm::F::Cache_normal),
-    _host_irq(this), _ack_pending(false)
+  Virtio_device_proxy(L4::Cap<L4::Rcv_endpoint> ep, l4_size_t cfg_size,
+                      l4_uint64_t drvmem_base, l4_uint64_t drvmem_size,
+                      Vmm::Guest *vmm, cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
+        : Read_mapped_mmio_device_t(cfg_size, L4Re::Rm::F::Cache_normal),
+          _host_irq(this), _irq_sink(ic, irq), _ack_pending(false), _ep(ep),
+          _drvmem_base(drvmem_base), _drvmem_size(drvmem_size), _vmm(vmm)
   {
-    info.printf("New Virtio_proxy_mapper size 0x%zx\n", cfg_size);
-    if (strlen(service) >= sizeof(_service_name))
-      L4Re::chksys(-L4_EINVAL, "Virtio device proxy service name is valid");
-    strcpy(_service_name, service);
-  }
-
-  void init_device(Vdev::Device_lookup *devs,
-                   Vdev::Dt_node const &self)
-  {
-    Irq_dt_iterator it(devs, self);
-
-    if (it.next(devs) < 0)
-      L4Re::chksys(-L4_EINVAL, "Virtio device proxy requires interrupt setup");
-
-    if (!it.ic_is_virt())
-      L4Re::chksys(-L4_EINVAL, "Virtio device proxy requires a virtual interrupt controller");
-
-    _irq_sink.rebind(it.ic(), it.irq());
-
-    if (self.get_reg_val(1, &_drvmem_base, &_drvmem_size) < 0)
-      {
-        warn.printf("Reg entry for driver window not found.\n");
-        _drvmem_size = 0;
-      }
-
     l4virtio_set_feature(mmio_local_addr()->dev_features_map,
                          L4VIRTIO_FEATURE_VERSION_1);
     l4virtio_set_feature(mmio_local_addr()->dev_features_map,
                          L4VIRTIO_FEATURE_CMD_CONFIG);
-
-    _vmm = devs->vmm();
   }
 
   void write(unsigned reg, char width, l4_umword_t value, unsigned cpu_id)
@@ -141,7 +117,7 @@ public:
           {
             trace.printf("Starting up vio server\n");
             _vmm->registry()->register_irq_obj(&_host_irq);
-            _vmm->registry()->register_obj(this, _service_name);
+            _vmm->registry()->register_obj(this, _ep);
           }
         break;
       case 0xf8: // l4virtio config cmd
@@ -290,8 +266,8 @@ private:
   Host_irq _host_irq;
 
   Vmm::Irq_sink _irq_sink;
-  char _service_name[16];
   bool _ack_pending;
+  L4::Cap<L4::Rcv_endpoint> _ep;
 
   l4_uint64_t _drvmem_base;
   l4_uint64_t _drvmem_size;
@@ -303,7 +279,7 @@ struct F : Factory
   cxx::Ref_ptr<Device> create(Vdev::Device_lookup *devs,
                               Dt_node const &node) override
   {
-    auto cap = Vdev::get_cap<L4virtio::Device>(node, "l4vmm,virtiocap");
+    auto cap = Vdev::get_cap<L4::Rcv_endpoint>(node, "l4vmm,virtiocap");
     if (!cap)
       return nullptr;
 
@@ -316,11 +292,35 @@ struct F : Factory
         return nullptr;
       }
 
-    // XXX Here we assume, that cap_name is a null terminated string - other
-    //     places explicitly handle non null terminated strings
-    char const *cap_name = node.get_prop<char>("l4vmm,virtiocap", nullptr);
-    auto c = make_device<Virtio_device_proxy>(cap_name, cfg_size);
-    c->init_device(devs, node);
+    l4_uint64_t drvmem_base = 0;
+    l4_uint64_t drvmem_size = 0;
+    if (node.get_reg_val(1, &drvmem_base, &drvmem_size) < 0)
+      {
+        warn.printf("Reg entry for driver window not found.\n");
+        return nullptr;
+      }
+
+    Vdev::Irq_dt_iterator it(devs, node);
+
+    if (it.next(devs) < 0)
+      {
+        warn.printf("Virtio device proxy requires interrupt setup");
+        return nullptr;
+      }
+
+    if (!it.ic_is_virt())
+      {
+        warn.printf("Virtio device proxy requires a virtual interrupt controller");
+        return nullptr;
+      }
+
+    info.printf("New Virtio_proxy_mapper size 0x%llx\n", cfg_size);
+
+    auto c = make_device<Virtio_device_proxy>(cap, cfg_size,
+                                              drvmem_base, drvmem_size,
+                                              devs->vmm(),
+                                              it.ic(),
+                                              it.irq());
 
     // register as mmio device for config space
     devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node, 0);
