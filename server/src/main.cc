@@ -20,6 +20,7 @@
 #include <cstring>
 #include <iostream>
 
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -142,10 +143,73 @@ load_device_tree_at(Vmm::Ram_ds *ram, char const *name, L4virtio::Ptr<void> addr
   dt.check_tree();
   // use 1.25 * size + padding for the time being
   dt.add_to_size(dt.size() / 4 + padding);
-  info.printf("Loaded device tree to %llx:%llx\n", addr.get(),
-                addr.get() + dt.size());
+  info.printf("Loaded device tree to %llx:%llx.\n", addr.get(),
+              addr.get() + dt.size());
 
   return dt;
+}
+
+namespace {
+
+class Mapped_file
+{
+public:
+  explicit Mapped_file(char const *name)
+  {
+    int fd = open(name, O_RDWR);
+    if (fd < 0)
+      {
+        warn.printf("Unable to open file '%s': %s", name, strerror(errno));
+        return;
+      }
+
+    struct stat buf;
+    if (fstat(fd, &buf) < 0)
+      {
+        warn.printf("Unable to get size of file '%s': %s", name,
+                     strerror(errno));
+        close(fd);
+        return;
+      }
+    _size = buf.st_size;
+
+    _addr = mmap(&_addr, _size, PROT_WRITE | PROT_READ, MAP_PRIVATE, fd, 0);
+    if (_addr == MAP_FAILED)
+      warn.printf("Unable to mmap file '%s': %s", name, strerror(errno));
+
+    close(fd);
+  }
+  Mapped_file(Mapped_file &&) = delete;
+  Mapped_file(Mapped_file const &) = delete;
+
+  ~Mapped_file()
+  {
+    if (_addr != MAP_FAILED)
+      {
+        if (munmap(_addr, _size) < 0)
+          warn.printf("Unable to unmap file at addr %p: %s",
+                      _addr, strerror(errno));
+      }
+  }
+
+  void *get() const { return _addr; }
+  bool valid() { return _addr != MAP_FAILED; }
+
+private:
+  size_t _size = 0;
+  void *_addr = MAP_FAILED;
+};
+
+}
+
+static void
+overlay_device_tree(Vdev::Device_tree dt, char const *name)
+{
+  Mapped_file mem(name);
+  if (mem.valid())
+    dt.apply_overlay(mem.get(), name);
+  else
+    L4::Runtime_error(-L4_EINVAL, "Unable to access overlay");
 }
 
 static int
@@ -259,7 +323,7 @@ static int run(int argc, char *argv[])
 
   char const *cmd_line     = nullptr;
   char const *kernel_image = "rom/zImage";
-  char const *device_tree  = nullptr;
+  std::vector<std::string> device_trees;
   char const *ram_disk     = nullptr;
   l4_addr_t rambase = Vmm::Guest::Default_rambase;
   size_t dtb_padding = 0x200;
@@ -273,7 +337,9 @@ static int run(int argc, char *argv[])
           break;
         case 'c': cmd_line     = optarg; break;
         case 'k': kernel_image = optarg; break;
-        case 'd': device_tree  = optarg; break;
+        case 'd':
+          device_trees.push_back(optarg);
+          break;
         case 'r': ram_disk     = optarg; break;
         case 'b':
           rambase = optarg[0] == '-'
@@ -320,11 +386,19 @@ static int run(int argc, char *argv[])
   info.printf("Loading kernel...\n");
   auto next_free_addr = vmm->load_linux_kernel(ram, kernel_image, &entry);
 
-  if (device_tree)
+  if (!device_trees.empty())
     {
-      info.printf("Loading device tree...\n");
+      std::vector<std::string>::iterator it = device_trees.begin();
+      info.printf("Loading device tree '%s'...\n", it->c_str());
       dt_addr = next_free_addr;
-      dt = load_device_tree_at(ram, device_tree, dt_addr, dtb_padding);
+      dt = load_device_tree_at(ram, it->c_str(), dt_addr, dtb_padding);
+      ++it;
+      for (; it != device_trees.end(); ++it)
+        {
+          info.printf("Applying device tree overlay '%s'...\n", it->c_str());
+          overlay_device_tree(dt, it->c_str());
+        }
+
       // assume /choosen and /memory is present at this point
 
       if (cmd_line)
@@ -379,7 +453,7 @@ static int run(int argc, char *argv[])
       auto rd_start = next_free_addr;
       next_free_addr = ram->load_file(ram_disk, rd_start, &rd_size);
 
-      if (device_tree && rd_size > 0)
+      if (!device_trees.empty() && rd_size > 0)
         {
           auto node = dt.path_offset("/chosen");
           node.set_prop_address("linux,initrd-start", rd_start.get());
@@ -394,11 +468,11 @@ static int run(int argc, char *argv[])
                   rd_size);
     }
 
-  l4_addr_t dt_boot_addr = device_tree ? ram->boot_addr(dt_addr) : 0;
+  l4_addr_t dt_boot_addr = !device_trees.empty() ? ram->boot_addr(dt_addr) : 0;
   vmm->prepare_linux_run(vm_instance.cpus()->vcpu(0), entry, ram, kernel_image,
                          cmd_line, dt_boot_addr);
 
-  if (device_tree)
+  if (!device_trees.empty())
     {
       l4_addr_t ds_start =
           reinterpret_cast<l4_addr_t>(ram->access(dt_addr));

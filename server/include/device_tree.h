@@ -626,6 +626,23 @@ public:
   void add_to_size(l4_size_t padding) const
   { fdt_set_totalsize(_tree, fdt_totalsize(_tree) + padding); }
 
+  /**
+   * Apply the device tree overlay at 'fdt_overlay'.
+   *
+   * \param  fdt_overlay address of the device tree overlay which
+   *                     should be applied to this device tree.
+   * \param  name        name of the overlay for logging purposes.
+   *
+   * \note The overlay device tree is changed as well. Its magic value
+   *       is invalidated on success.
+   */
+  void apply_overlay(void *fdt_overlay, char const *name)
+  {
+    int ret = fdt_overlay_apply(_tree, fdt_overlay);
+    if (ret < 0)
+      ERR("cannot apply overlay '%s': %d\n", name, ret);
+  }
+
   Node first_node() const
   { return Node(_tree, 0); }
 
