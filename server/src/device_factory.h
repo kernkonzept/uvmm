@@ -65,6 +65,7 @@ class Factory
    */
   static Factory *find_factory(Dt_node const &node);
 
+public:
   /**
    * Create a Device instance for the interrupt parent of a node
    *
@@ -80,7 +81,6 @@ class Factory
   static bool create_irq_parent(Device_lookup *devs, Vdev::Dt_node const &node,
                                 int depth = 0);
 
-public:
   /**
    * Does the node represent a virtual device?
    *
@@ -104,7 +104,7 @@ public:
    *
    * Implemented by each derived factory.
    */
-  virtual cxx::Ref_ptr<Device> create(Device_lookup const *devs,
+  virtual cxx::Ref_ptr<Device> create(Device_lookup *devs,
                                       Dt_node const &node) = 0;
 
   virtual ~Factory() = 0;

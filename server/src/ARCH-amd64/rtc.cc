@@ -21,7 +21,7 @@ class Rtc : public Vmm::Io_device, public Vdev::Device
   { *value = 0; }
 
   // Device interface
-  void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &) override
+  void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &) override
   {}
 };
 
@@ -31,7 +31,7 @@ namespace {
 
 struct F : Vdev::Factory
 {
-  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup const *devs,
+  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                     Vdev::Dt_node const &) override
   {
     auto dev = Vdev::make_device<Vdev::Rtc>();

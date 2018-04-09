@@ -38,6 +38,19 @@ public:
   cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus() const override
   { return _cpus; }
 
+  /**
+   * \see Device_lookup::get_or_create_ic_dev(Vdev::Dt_node const &node,
+   *                                          bool fatal)
+   */
+  virtual cxx::Ref_ptr<Gic::Ic> get_or_create_ic_dev(Vdev::Dt_node const &node,
+                                                     bool fatal) override;
+  /**
+   * \see Device_lookup::get_or_create_ic(Vdev::Dt_node const &node,
+   *                                      cxx::Ref_ptr<Gic::Ic> *ic_ptr)
+   */
+  virtual Ic_error get_or_create_ic(Vdev::Dt_node const &node,
+                                    cxx::Ref_ptr<Gic::Ic> *ic_ptr) override;
+
   void create_default_devices(l4_addr_t rambase)
   {
     _vmm = Vmm::Guest::create_instance();
@@ -104,5 +117,4 @@ private:
   cxx::Ref_ptr<Vmm::Virt_bus> _vbus;
   cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
 };
-
 }

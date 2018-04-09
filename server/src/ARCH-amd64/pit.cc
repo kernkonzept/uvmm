@@ -20,19 +20,11 @@ Pit_timer::Pit_timer() : _port61(make_device<Port61>())
   _wait_for_high_byte = false;
 }
 
-void Pit_timer::init_device(Vdev::Device_lookup const *devs,
+void Pit_timer::init_device(Vdev::Device_lookup *devs,
                             Vdev::Dt_node const &self)
 {
-  auto irq_parent = self.find_irq_parent();
-  if (!irq_parent.is_valid())
-    L4Re::chksys(-L4_ENODEV, "No interrupt handler found for PIT.\n");
-
-  auto *ic = dynamic_cast<Gic::Ic *>(devs->device_from_node(irq_parent).get());
-
-  if (!ic)
-    L4Re::chksys(-L4_ENODEV, "Interrupt handler for PIT has bad type.\n");
-
-  _irq.rebind(ic, Pit_irq_line);
+  cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(self, true);
+  _irq.rebind(ic.get(), Pit_irq_line);
 }
 
 void Pit_timer::set_high_byte(l4_uint16_t &reg, l4_uint8_t value)
@@ -189,7 +181,7 @@ namespace {
 
 struct F : Vdev::Factory
 {
-  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup const *devs,
+  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                     Vdev::Dt_node const &) override
   {
     auto dev = Vdev::make_device<Vdev::Pit_timer>();
@@ -207,6 +199,3 @@ static F f;
 static Vdev::Device_type t = {"virt-pit", nullptr, &f};
 
 } // namespace
-
-
-

@@ -161,20 +161,12 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
               cntfrq, _scale, _scaled_ticks_per_us, _cyc2ms_scale, _shift);
   }
 
-  void init_device(Device_lookup const *devs, Dt_node const &self) override
+  void init_device(Device_lookup *devs, Dt_node const &self) override
   {
-    auto irq_ctl = self.find_irq_parent();
-    if (!irq_ctl.is_valid())
-      L4Re::chksys(-L4_ENODEV, "No interupt handler found for timer.\n");
-
-    // XXX need dynamic cast for Ref_ptr here
-    auto *ic = dynamic_cast<Gic::Ic *>(devs->device_from_node(irq_ctl).get());
-
-    if (!ic)
-      L4Re::chksys(-L4_ENODEV, "Interupt handler for timer has bad type.\n");
+    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(self, true);
 
     init_tick_conversion(self);
-    rebind(ic, ic->dt_get_interrupt(self, 2));
+    rebind(ic.get(), ic->dt_get_interrupt(self, 2));
   }
 
 private:

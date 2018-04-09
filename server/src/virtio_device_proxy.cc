@@ -79,20 +79,12 @@ public:
     strcpy(_service_name, service);
   }
 
-  void init_device(Vdev::Device_lookup const *devs,
+  void init_device(Vdev::Device_lookup *devs,
                    Vdev::Dt_node const &self) override
   {
-    auto irq_ctl = self.find_irq_parent();
-    if (!irq_ctl.is_valid())
-      L4Re::chksys(-L4_ENODEV, "Interrupt handler for virtio console not found.\n");
+    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(self, true);
 
-    // XXX need dynamic cast for Ref_ptr here
-    auto *ic = dynamic_cast<Gic::Ic *>(devs->device_from_node(irq_ctl).get());
-
-    if (!ic)
-      L4Re::chksys(-L4_ENODEV, "Interrupt handler for virtio console has bad type.\n");
-
-    _irq_sink.rebind(ic, ic->dt_get_interrupt(self, 0));
+    _irq_sink.rebind(ic.get(), ic->dt_get_interrupt(self, 0));
 
     if (self.get_reg_val(1, &_drvmem_base, &_drvmem_size) < 0)
       {
@@ -250,8 +242,8 @@ private:
 
 struct F : Factory
 {
-  cxx::Ref_ptr<Device> create(Vdev::Device_lookup const *devs,
-                              Dt_node const &node)
+  cxx::Ref_ptr<Device> create(Vdev::Device_lookup *devs,
+                              Dt_node const &node) override
   {
     int cap_name_len;
     char const *cap_name = node.get_prop<char>("l4vmm,virtiocap", &cap_name_len);

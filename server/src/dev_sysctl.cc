@@ -24,7 +24,7 @@ using namespace Vdev;
  */
 struct System_controller : public Device
 {
-  void init_device(Device_lookup const *, Dt_node const &) override {}
+  void init_device(Device_lookup *, Dt_node const &) override {}
 
   l4_uint32_t read(unsigned, char, unsigned)
   { return 0; }
@@ -48,7 +48,7 @@ struct System_controller_mmio
 
 struct F : Factory
 {
-  cxx::Ref_ptr<Device> create(Device_lookup const *devs,
+  cxx::Ref_ptr<Device> create(Device_lookup *devs,
                               Dt_node const &node) override
   {
     auto syscon = make_device<System_controller_mmio>();

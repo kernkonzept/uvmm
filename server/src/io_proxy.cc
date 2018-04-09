@@ -119,35 +119,35 @@ struct F : Factory
       }
   }
 
-  bool check_and_bind_irqs(Device_lookup const *devs, Dt_node const &node)
+  bool check_and_bind_irqs(Device_lookup *devs, Dt_node const &node)
   {
     if (!node.has_irqs())
       return true;
 
-    cxx::Ref_ptr<Device> dev;
-
-    auto irq_ctl = node.find_irq_parent();
-    if (irq_ctl.is_valid())
+    cxx::Ref_ptr<Gic::Ic> ic;
+    Device_lookup::Ic_error res = devs->get_or_create_ic(node, &ic);
+    if (res != Device_lookup::Ic_ok)
       {
-        // IRQ parents are created before any dependent devices are created
-        dev = devs->device_from_node(irq_ctl);
-      }
+        // We did not get an interrupt parent because
+        // * node does not have one or
+        // * the interrupt parent device is a hardware device or
+        // * one of the interrupt parent devices could not be created and
+        //   was/will be disabled
+        // We return true if the parent device is not a virtual interrupt
+        // controller.
+        if (res == Device_lookup::Ic_e_no_virtic)
+          {
+            Dbg(Dbg::Dev, Dbg::Info).
+                printf("%s: Interrupt parent physical device - ignore irqs\n",
+                       node.get_name());
+            return true;
+          }
 
-    if (!dev)
-      {
-        Err().printf("io proxy - '%s': irq parent %s not found\n",
-                     node.get_name(), irq_ctl.is_valid() ? "device" : "node");
+        Dbg(Dbg::Dev, Dbg::Warn).
+            printf("%s: Failed to get interrupt parent: %s\n",
+                   node.get_name(), Device_lookup::ic_err_str(res));
         return false;
-      }
 
-    // XXX need dynamic cast for Ref_ptr here
-    auto *ic = dynamic_cast<Gic::Ic *>(dev.get());
-
-    if (!ic)
-      {
-        info.printf("%s: Irqs are handled by %s, ignoring irq assignments\n",
-                    node.get_name(), irq_ctl.get_name());
-        return true;
       }
 
     auto vbus = devs->vbus().get();
@@ -166,13 +166,13 @@ struct F : Factory
     for (int i = 0; i < numint; ++i)
       {
         unsigned int dt_irq = ic->dt_get_interrupt(node, i);
-        Io_proxy::bind_irq(devs->vmm(), vbus, ic, node, i, dt_irq);
+        Io_proxy::bind_irq(devs->vmm(), vbus, ic.get(), node, i, dt_irq);
         vbus->mark_irq_bound(dt_irq);
       }
     return true;
   }
 
-  cxx::Ref_ptr<Device> create(Device_lookup const *devs,
+  cxx::Ref_ptr<Device> create(Device_lookup *devs,
                               Dt_node const &node) override
   {
     if (!phys_dev_prepared)

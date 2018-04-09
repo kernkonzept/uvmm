@@ -17,8 +17,7 @@ using namespace Vdev;
 
 struct F : Factory
 {
-  cxx::Ref_ptr<Device> create(Device_lookup const *devs,
-                              Dt_node const &node) override
+  cxx::Ref_ptr<Device> create(Device_lookup *devs, Dt_node const &node) override
   {
     int cap_name_len;
     char const *cap_name = node.get_prop<char>("l4vmm,virtiocap", &cap_name_len);

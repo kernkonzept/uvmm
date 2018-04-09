@@ -44,7 +44,7 @@ namespace Vdev
    */
   struct Mmio_proxy : public Device
   {
-    void init_device(Vdev::Device_lookup const *,
+    void init_device(Vdev::Device_lookup *,
                      Vdev::Dt_node const &) override
     {}
   };
@@ -57,7 +57,7 @@ using namespace Vdev;
 class F : public Factory
 {
 public:
-  cxx::Ref_ptr<Device> create(Device_lookup const *devs,
+  cxx::Ref_ptr<Device> create(Device_lookup *devs,
                               Dt_node const &node) override
   {
     char const *capname = node.get_prop<char>("l4vmm,mmio-cap", nullptr);

@@ -39,7 +39,7 @@ Virt_lapic::Virt_lapic(unsigned id, l4_addr_t baseaddr)
 }
 
 void
-Virt_lapic::init_device(Vdev::Device_lookup const *devs, Vdev::Dt_node const &)
+Virt_lapic::init_device(Vdev::Device_lookup *devs, Vdev::Dt_node const &)
 {
   devs->vmm()->add_lapic(cxx::Ref_ptr<Virt_lapic>(this), _lapic_x2_id);
 }
@@ -321,7 +321,7 @@ namespace {
 
 struct F : Vdev::Factory
 {
-  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup const *,
+  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *,
                                     Vdev::Dt_node const &node) override
   {
     Dbg().printf("Creating virt_lapic\n");
@@ -352,7 +352,7 @@ namespace {
 
 struct G : Vdev::Factory
 {
-  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup const *devs,
+  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
     auto dev = Vdev::make_device<Gic::Apic_array>();

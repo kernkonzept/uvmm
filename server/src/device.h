@@ -13,6 +13,9 @@
 #include "device_tree.h"
 #include "debug.h"
 
+namespace Gic {
+  struct Ic;
+}
 namespace Vmm {
   class Guest;
   class Ram_ds;
@@ -112,7 +115,7 @@ struct Device_lookup;
 struct Device : public virtual Dev_ref
 {
   virtual ~Device() = 0;
-  virtual void init_device(Device_lookup const *devs, Dt_node const &node) = 0;
+  virtual void init_device(Device_lookup *devs, Dt_node const &node) = 0;
 };
 
 inline Device::~Device() = default;
@@ -130,7 +133,77 @@ struct Device_lookup
   virtual cxx::Ref_ptr<Vmm::Ram_ds> ram() const = 0;
   virtual cxx::Ref_ptr<Vmm::Virt_bus> vbus() const = 0;
   virtual cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus() const = 0;
+
+  /// Result values for get_or_create_ic()
+  enum Ic_error
+  {
+    Ic_ok,           ///< There is a valid interrupt parent device
+    Ic_e_no_iparent, ///< Node does not have an interrupt parent property
+    Ic_e_disabled,   ///< Node is disabled
+    Ic_e_no_virtic,  ///< Interrupt parent is not a virtual interrupt controller
+    Ic_e_failed,     ///< Creation of an interrupt parent failed
+  };
+
+  /**
+   * Get a textual description for an Ic_error value.
+   *
+   * \param res  The error a textual description is looked for.
+   *
+   * \return Pointer to error string.
+   *
+   */
+  static const char * ic_err_str(Vdev::Device_lookup::Ic_error res)
+  {
+    char const *err[] = {
+        "no interrupt parent found",
+        "interrupt parent node disabled"
+        "interrupt parent is not a virtual interrupt controller",
+        "creation of interrupt parent failed"
+    };
+    return (res < sizeof(err)/sizeof(err[0])) ? err[res] : "unknown error";
+  }
+  /**
+   * Get the interrupt controller for a given node.
+   *
+   * \param node   The device tree node an interrupt parent is looked for.
+   * \param fatal  Abort if true and no virtual device for the interrupt parent
+   *               could be found.
+   *
+   * \return Either a pointer to the virtual device of the interrupt parent or
+   *         nullptr in case of an error
+   *
+   * This method tries to fetch and return the interrupt parent of the node. If
+   * the device doesn't exist yet and is a virtual device it tries to create it.
+   * It walks the interrupt tree up and creates the missing devices starting
+   * with the top most missing device. If creation of any device fails it
+   * emits a diagnostic message and aborts if fatal is true. Otherwise it
+   * returns a nullptr.
+   */
+  virtual cxx::Ref_ptr<Gic::Ic>get_or_create_ic_dev(Vdev::Dt_node const &node,
+                                                    bool fatal) = 0;
+  /**
+   * Get the interrupt controller for a given node.
+   *
+   * \param node         The device tree node an interrupt parent is looked for.
+   * \param[out] ic_ptr  A pointer to the virtual device of the interrupt parent
+   *                     if there is one.
+   *
+   * \retval Ic_ok            interrupt parent was returned in ic_ptr
+   * \retval Ic_e_no_iparent  node does not have an interrupt parent property
+   * \retval Ic_e_disabled    interrupt parent node is
+   * \retval Ic_e_no_virtic   interrupt parent is not a virtual interrupt
+   *                          controller
+   * \retval Ic_e_failed      creation of an interrupt parent failed
+   *
+   * This method tries to fetch and return the interrupt parent of the node. If
+   * the device doesn't exist yet and is a virtual device it tries to create it.
+   * It walks the interrupt tree up and creates the missing devices starting
+   * with the top most missing device. On success it returns Ic_ok and ic_ptr
+   * points to the virtual device of the interrupt parent. Otherwise one of the
+   * remaining return codes describes the error.
+   */
+   virtual Ic_error get_or_create_ic(Vdev::Dt_node const &node,
+                                     cxx::Ref_ptr<Gic::Ic> *ic_ptr) = 0;
+
 };
-
-
 } // namespace

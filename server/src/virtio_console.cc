@@ -12,8 +12,7 @@ using namespace Vdev;
 
 struct F : Factory
 {
-  cxx::Ref_ptr<Device> create(Device_lookup const *devs,
-                              Dt_node const &node) override
+  cxx::Ref_ptr<Device> create(Device_lookup *devs, Dt_node const &node) override
   {
     Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual console\n");
     int cap_name_len;

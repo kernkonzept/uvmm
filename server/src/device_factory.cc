@@ -76,11 +76,6 @@ Factory::create_dev(Device_lookup *devs, Dt_node const &node)
   if (cxx::Ref_ptr<Device> d = devs->device_from_node(node))
     return d;
 
-  // XXX This might move to the individual factory create() method which will
-  // trigger creation of IRQ parents iff needed.
-  if (node.has_irqs() && !create_irq_parent(devs, node))
-    return nullptr;
-
   Factory *f = find_factory(node);
   bool vdev = f;
   if (!f)

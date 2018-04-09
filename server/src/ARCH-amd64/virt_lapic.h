@@ -38,7 +38,7 @@ class Virt_lapic : public Vdev::Timer, public Ic
    }
 
    // Device interface
-   void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &) override;
+   void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &) override;
 
    // IC interface
    void set(unsigned irq) override;
@@ -127,7 +127,7 @@ public:
   Apic_array() {}
 
   // Device interface
-  void init_device(Vdev::Device_lookup const *, Vdev::Dt_node const &) override
+  void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &) override
   {}
 
   void add(unsigned id, cxx::Ref_ptr<Virt_lapic> lapic)

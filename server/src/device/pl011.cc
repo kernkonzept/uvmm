@@ -158,19 +158,9 @@ public:
     return ret;
   }
 
-  void init_device(Vdev::Device_lookup const *devs, Vdev::Dt_node const &node)
+  void init_device(Vdev::Device_lookup *devs, Vdev::Dt_node const &node)
   {
-    auto irq_ctl = node.find_irq_parent();
-    if (!irq_ctl.is_valid()) {
-      Dbg(Dbg::Dev, Dbg::Info, "pl011")
-        .printf("Invalid interrupt parent for pl011 console.\n");
-      return;
-    }
-
-    auto *ic = dynamic_cast<Gic::Ic *>(devs->device_from_node(irq_ctl).get());
-
-    if (!ic)
-        L4Re::chksys(-L4_ENODEV, "Interrupt handler for pl011 console has bad type.\n");
+    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, true);
 
     if (ic->dt_get_num_interrupts(node) != 1)
       {
@@ -179,7 +169,7 @@ public:
         return;
       }
 
-    _sink.rebind(ic, ic->dt_get_interrupt(node, 0));
+    _sink.rebind(ic.get(), ic->dt_get_interrupt(node, 0));
   }
 
   l4_uint32_t read(unsigned reg, char size, unsigned cpu_id)
@@ -337,7 +327,7 @@ private:
 
 struct F : Vdev::Factory
 {
-  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup const *devs,
+  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
     Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual pl011 console\n");

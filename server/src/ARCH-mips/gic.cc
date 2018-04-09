@@ -307,7 +307,7 @@ namespace {
 
 struct F : Vdev::Factory
 {
-  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup const *devs,
+  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
     l4_uint64_t size;

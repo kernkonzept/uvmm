@@ -51,20 +51,11 @@ public:
   /**
    * Line-based IRQ setup routine for device-tree setup.
    */
-  int init_irqs(Vdev::Device_lookup const *devs,
-                Vdev::Dt_node const &dev_node)
+  int init_irqs(Vdev::Device_lookup *devs, Vdev::Dt_node const &node)
   {
-    auto irq_ctl = dev_node.find_irq_parent();
-    if (!irq_ctl.is_valid())
-      return -L4_ENODEV;
+    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, true);
 
-    // XXX need dynamic cast for Ref_ptr here
-    auto *ic = dynamic_cast<Gic::Ic *>(devs->device_from_node(irq_ctl).get());
-
-    if (!ic)
-      L4Re::chksys(-L4_ENODEV, "Interupt handler for virtio console has bad type.\n");
-
-    _sink.rebind(ic, ic->dt_get_interrupt(dev_node, 0));
+    _sink.rebind(ic.get(), ic->dt_get_interrupt(node, 0));
     return 0;
   }
 

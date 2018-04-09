@@ -250,7 +250,7 @@ using namespace Vdev;
 
 struct F : Factory
 {
-  cxx::Ref_ptr<Vdev::Device> create(Device_lookup const *devs,
+  cxx::Ref_ptr<Vdev::Device> create(Device_lookup *devs,
                                     Vdev::Dt_node const &) override
   {
     // Device tree only sees the IC for core 0.

@@ -111,7 +111,7 @@ public:
       }
   }
 
-  void init_device(Vdev::Device_lookup const *devs,
+  void init_device(Vdev::Device_lookup *devs,
                    Vdev::Dt_node const &self) override
   {
     int err = dev()->event_connector()->init_irqs(devs, self);

@@ -46,7 +46,7 @@ using namespace Vdev;
 
 struct F : Factory
 {
-  cxx::Ref_ptr<Vdev::Device> create(Device_lookup const *devs,
+  cxx::Ref_ptr<Vdev::Device> create(Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
     auto *vbus = devs->vbus().get();
@@ -86,7 +86,7 @@ static Vdev::Device_type t4 = { "arm,gic-400", nullptr, &f };
 
 struct F_timer : Factory
 {
-  cxx::Ref_ptr<Vdev::Device> create(Device_lookup const *devs,
+  cxx::Ref_ptr<Vdev::Device> create(Device_lookup *devs,
                                     Vdev::Dt_node const &) override
   {
     return devs->vmm()->timer();
