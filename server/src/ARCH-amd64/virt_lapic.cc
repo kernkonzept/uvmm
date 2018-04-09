@@ -321,10 +321,14 @@ namespace {
 struct G : Vdev::Factory
 {
   cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
-                                    Vdev::Dt_node const &) override
+                                    Vdev::Dt_node const &node) override
   {
     auto apics = devs->vmm()->apic_array();
-    return Vdev::make_device<Gic::Io_apic>(apics);
+    auto dev = Vdev::make_device<Gic::Io_apic>(apics);
+    if (dev)
+      dev->init_device(devs, node);
+
+    return dev;
   }
 };
 

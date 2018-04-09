@@ -395,6 +395,7 @@ struct F : Vdev::Factory
       }
 
     auto c = Vdev::make_device<Uart_8250_mmio>(cap, regshift);
+    c->init_device(devs, node);
     c->register_obj(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, node);
     return c;

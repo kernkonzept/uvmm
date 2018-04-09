@@ -273,6 +273,7 @@ struct F : Factory
       }
 
     auto c = make_device<Virtio_device_proxy>(cap_name, cfg_size);
+    c->init_device(devs, node);
 
     // register as mmio device for config space
     devs->vmm()->register_mmio_device(c, node, 0);

@@ -43,6 +43,9 @@ Cpu_dev_array::create_vcpu(Vdev::Dt_node const *node)
     return nullptr;
 
   _cpus[id] = Vdev::make_device<Cpu_dev>(id, cpu_mask, node);
+  // XXX There should be an init_device() invocation here, but
+  // * init_device is empty
+  // * we do not have the necessary parameters here to invoke init_device
 
   return _cpus[id];
 }

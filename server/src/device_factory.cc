@@ -77,7 +77,6 @@ Factory::create_dev(Device_lookup *devs, Dt_node const &node)
     return d;
 
   Factory *f = find_factory(node);
-  bool vdev = f;
   if (!f)
     f = pass_thru;
 
@@ -85,19 +84,10 @@ Factory::create_dev(Device_lookup *devs, Dt_node const &node)
     return nullptr;
 
   cxx::Ref_ptr<Device> dev = f->create(devs, node);
-
   if (!dev)
     return nullptr;
 
   devs->add_device(node, dev);
-
-  if (vdev)
-    {
-      // XXX Integrate init_device() code into factory create method()
-      dev->init_device(devs, node);
-    }
-
   return dev;
 }
-
 }

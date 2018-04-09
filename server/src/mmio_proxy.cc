@@ -81,14 +81,18 @@ public:
       {
         size_t ds_size = dscap->size();
         register_mmio_regions<Ds_handler>(dscap, devs, node, ds_size);
-        return Vdev::make_device<Mmio_proxy>();
+        auto c = Vdev::make_device<Mmio_proxy>();
+        c->init_device(devs, node);
+        return c;
       }
 
     auto mmcap = L4::cap_dynamic_cast<L4Re::Mmio_space>(cap);
     if (mmcap)
       {
         register_mmio_regions<Mmio_space_handler>(mmcap, devs, node);
-        return Vdev::make_device<Mmio_proxy>();
+        auto c = Vdev::make_device<Mmio_proxy>();
+        c->init_device(devs, node);
+        return c;
       }
 
     warn.printf("No known IPC protocol supported.\n");

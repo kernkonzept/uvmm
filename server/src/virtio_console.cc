@@ -34,6 +34,7 @@ struct F : Factory
       }
 
     auto c = make_device<Virtio_console_mmio>(devs->ram().get(), cap);
+    c->init_device(devs, node);
     c->register_obj(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, node);
     return c;

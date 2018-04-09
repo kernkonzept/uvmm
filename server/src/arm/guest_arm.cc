@@ -58,6 +58,7 @@ struct F : Factory
 
     // attach GICD to VM
     auto gic = devs->vmm()->gic();
+    gic->init_device(devs, node);
     devs->vmm()->register_mmio_device(gic, node);
 
     L4vbus::Device vdev;
@@ -87,9 +88,11 @@ static Vdev::Device_type t4 = { "arm,gic-400", nullptr, &f };
 struct F_timer : Factory
 {
   cxx::Ref_ptr<Vdev::Device> create(Device_lookup *devs,
-                                    Vdev::Dt_node const &) override
+                                    Vdev::Dt_node const &node) override
   {
-    return devs->vmm()->timer();
+    auto timer = devs->vmm()->timer();
+    timer->init_device(devs, node);
+    return timer;
   }
 };
 

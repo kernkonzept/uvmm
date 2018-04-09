@@ -182,9 +182,10 @@ namespace {
 struct F : Vdev::Factory
 {
   cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
-                                    Vdev::Dt_node const &) override
+                                    Vdev::Dt_node const &node) override
   {
     auto dev = Vdev::make_device<Vdev::Pit_timer>();
+    dev->init_device(devs, node);
 
     auto *vmm = devs->vmm();
     vmm->register_io_device(Region(0x40, 0x43), dev);
