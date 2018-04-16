@@ -78,38 +78,6 @@ public:
                   cxx::Ref_ptr<Vdev::Device> dev)
   { _devices.add(node, dev); }
 
-  /**
-   * Check whether a node has irq resources associated
-   *
-   * This function checks whether the node has interrupts and whether
-   * the interrupts are provided by an interrupt parent that gets its
-   * irqs via the vbus.
-   *
-   * \return True if the node needs irq resources
-   */
-  bool has_vbus_irqs(Vdev::Dt_node const &node) const
-  {
-    if (node.has_irqs())
-      return false;
-
-    auto irq_parent = node.find_irq_parent();
-    if (!irq_parent.is_valid())
-      return false;
-
-    return dynamic_cast<Gic::Ic *>(device_from_node(node).get());
-  }
-
-  /**
-   * Check whether a node has irq or mmio resources associated
-   *
-   * This function checks whether the node needs mmio resources or
-   * interrupt resources provided by the vbus
-   *
-   * \return True if there are irq or mmio resources
-   */
-  bool needs_vbus_resources(Vdev::Dt_node const &node) const
-  { return node.has_mmio_regs() || has_vbus_irqs(node); }
-
 private:
   Vdev::Device_repository _devices;
   Vmm::Guest *_vmm;

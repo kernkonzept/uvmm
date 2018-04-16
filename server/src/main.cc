@@ -44,6 +44,10 @@ static Dbg info(Dbg::Core, Dbg::Info, "main");
 static Dbg warn(Dbg::Core, Dbg::Warn, "main");
 
 static bool
+might_need_vbus_resources(Vdev::Dt_node const &node)
+{ return node.has_irqs() || node.has_mmio_regs(); }
+
+static bool
 virt_dev_cb(Vdev::Dt_node const &node)
 {
   // Ignore non virtual devices
@@ -95,7 +99,7 @@ phys_dev_cb(Vdev::Dt_node const &node)
     }
   else
     {
-      if (!vm_instance.needs_vbus_resources(node))
+      if (!might_need_vbus_resources(node))
         return true;
 
       if (Vdev::Factory::create_dev(&vm_instance, node))
