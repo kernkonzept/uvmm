@@ -13,18 +13,12 @@
 
 namespace Vdev {
 
-Pit_timer::Pit_timer() : _port61(make_device<Port61>())
+Pit_timer::Pit_timer(Gic::Ic *ic, int irq)
+: _irq(ic, irq), _port61(make_device<Port61>())
 {
   _ch_mode[0] = -1;
   _ch_mode[1] = -1;
   _wait_for_high_byte = false;
-}
-
-void Pit_timer::init_device(Vdev::Device_lookup *devs,
-                            Vdev::Dt_node const &self)
-{
-  cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(self, true);
-  _irq.rebind(ic.get(), Pit_irq_line);
 }
 
 void Pit_timer::set_high_byte(l4_uint16_t &reg, l4_uint8_t value)
@@ -184,8 +178,12 @@ struct F : Vdev::Factory
   cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
-    auto dev = Vdev::make_device<Vdev::Pit_timer>();
-    dev->init_device(devs, node);
+    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, true);
+    if (!ic)
+      return nullptr;
+
+    auto dev = Vdev::make_device<Vdev::Pit_timer>(ic.get(),
+                                                  Vdev::Pit_timer::irq_line());
 
     auto *vmm = devs->vmm();
     vmm->register_io_device(Region(0x40, 0x43), dev);

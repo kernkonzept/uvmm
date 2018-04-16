@@ -37,9 +37,6 @@ class Virt_lapic : public Vdev::Timer, public Ic
                   "Attaching local APIC IRQ to vCPU thread");
    }
 
-   // Device interface
-   void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &);
-
    // IC interface
    void set(unsigned irq) override;
    void clear(unsigned irq) override;

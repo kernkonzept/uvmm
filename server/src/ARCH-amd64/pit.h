@@ -82,18 +82,18 @@ class Pit_timer
   static constexpr int port2idx(int port) { return port >> 1; }
 
 public:
-  Pit_timer();
+  Pit_timer(Gic::Ic *ic, int irq);
   virtual ~Pit_timer() = default;
 
   cxx::Ref_ptr<Vmm::Io_device> const port61() const { return _port61; }
+
+  static unsigned irq_line()
+  { return Pit_irq_line; }
 
   void io_out(unsigned port, Vmm::Mem_access::Width width,
               l4_uint32_t value) override;
   void io_in(unsigned port, Vmm::Mem_access::Width width,
              l4_uint32_t *value) override;
-
-  // Device interface
-  void init_device(Vdev::Device_lookup *devs, Vdev::Dt_node const &self);
 
   void tick() override;
 

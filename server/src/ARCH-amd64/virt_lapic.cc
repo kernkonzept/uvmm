@@ -39,11 +39,6 @@ Virt_lapic::Virt_lapic(unsigned id, l4_addr_t baseaddr)
 }
 
 void
-Virt_lapic::init_device(Vdev::Device_lookup *, Vdev::Dt_node const &)
-{
-}
-
-void
 Virt_lapic::set(unsigned irq)
 {
   irq_trigger(irq);
