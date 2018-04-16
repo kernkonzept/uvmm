@@ -34,6 +34,13 @@ struct Dt_error_hdl
   }
 
   template<typename ...Args>
+  Dt_error_hdl(Dtb::Node<Dt_error_hdl> const *n, char const *msg)
+  {
+    Err().printf("%s: %s", n->get_name(), msg);
+    throw L4::Runtime_error(-L4_EINVAL);
+  }
+
+  template<typename ...Args>
   Dt_error_hdl(Dtb::Node<Dt_error_hdl> const *n, int error, char const *fmt, Args ...args)
   {
     Err().printf("%s: ", n->get_name());
@@ -43,10 +50,24 @@ struct Dt_error_hdl
   }
 
   template<typename ...Args>
+  Dt_error_hdl(Dtb::Node<Dt_error_hdl> const *n, int error, char const *msg)
+  {
+    Err().printf("%s: %s: %s", n->get_name(), msg, fdt_strerror(error));
+    throw L4::Runtime_error(-L4_EINVAL);
+  }
+
+  template<typename ...Args>
   Dt_error_hdl(char const *fmt, Args ...args)
   {
     Err().cprintf(fmt, args...);
     Err().cprintf("\n");
+    throw L4::Runtime_error(-L4_EINVAL);
+  }
+
+  template<typename ...Args>
+  Dt_error_hdl(char const *msg)
+  {
+    Err().printf("%s\n", msg);
     throw L4::Runtime_error(-L4_EINVAL);
   }
 };
