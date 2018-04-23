@@ -99,6 +99,7 @@ public:
   }
 
   void init_bus_range(Dt_node const &node);
+  void init_io_resources(Device_lookup *devs);
 
   bool is_io_pci_host_bridge_present() const { return _io_pci_bridge_present; }
 

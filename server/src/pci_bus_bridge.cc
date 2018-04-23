@@ -5,11 +5,15 @@
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
+#include <l4/re/error_helper>
+
 #include "debug.h"
 #include "device.h"
 #include "pci_bus.h"
 #include "device_factory.h"
 #include "guest.h"
+#include "ds_mmio_mapper.h"
+#include "io_port_handler.h"
 
 namespace Vdev {
 
@@ -30,6 +34,53 @@ Pci_bus_bridge::init_bus_range(Dt_node const &node)
   auto *const hdr = header();
   hdr->secondary_bus_num = (l4_uint8_t)fdt32_to_cpu(bus_range[0]);
   hdr->subordinate_bus_num = (l4_uint8_t)fdt32_to_cpu(bus_range[1]);
+}
+
+void
+Pci_bus_bridge::init_io_resources(Device_lookup *devs)
+{
+  auto vbus = devs->vbus();
+  auto *vmm = devs->vmm();
+
+  // create a MMIO/IO map device and entry for each PCI HW dev
+  for (auto &hwdev : _pci_proxy_devs)
+    {
+      for (unsigned i = 0; i < hwdev.info.num_resources; ++i)
+        {
+          l4vbus_resource_t res;
+          if (hwdev.dev.get_resource(i, &res))
+            {
+              info().printf(
+                "Query resources for %s: Index %i from %i returned error\n",
+                hwdev.info.name, i, hwdev.info.num_resources);
+              continue;
+            }
+
+          trace().printf("found resource of %s: [0x%lx, 0x%lx], flags 0x%x, id "
+                         "0x%x, type 0x%x \n",
+                         hwdev.info.name, res.start, res.end, res.flags, res.id,
+                         res.type);
+
+          if (res.type == L4VBUS_RESOURCE_PORT)
+            {
+              L4Re::chksys(vbus->bus()->request_resource(&res));
+              trace().printf("request resource: [0x%lx, 0x%lx]\n", res.start,
+                             res.end);
+              vmm->register_io_device(Io_region(res.start, res.end),
+                                      make_device<Io_port_handler>(res.start));
+            }
+          else if (res.type == L4VBUS_RESOURCE_MEM)
+            {
+              vmm->add_mmio_device(
+                Region(Guest_addr(res.start), Guest_addr(res.end)),
+                make_device<Ds_handler>(vbus->bus(), 0,
+                                        res.end - res.start + 1,
+                                        res.start));
+            }
+          else
+            trace().printf("Found unsupported resource type 0x%x\n", res.type);
+        }
+    }
 }
 
 }; // namespace Vdev
@@ -55,7 +106,7 @@ struct F : Factory
 
     auto dev = make_device<Pci_bus_bridge>(devs->vbus());
     dev->init_bus_range(node);
-    // XXX add vBus-device proxies to memmap & iomap; future change.
+    dev->init_io_resources(devs);
 
     // If the Vbus provides a PCI bus with a host bridge, we don't need the
     // virtual one.
