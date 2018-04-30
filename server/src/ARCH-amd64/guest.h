@@ -33,8 +33,11 @@ public:
   enum { Default_rambase = 0, Boot_offset = 0 };
 
   Guest()
-  : _ptw(Pt_walker(&_memmap))
-  {}
+  : _ptw(Pt_walker(&_memmap)),
+    _apics(Vdev::make_device<Gic::Lapic_array>())
+  {
+    add_mmio_device(_apics->mmio_region(), _apics);
+  }
 
   static Guest *create_instance();
 
@@ -61,14 +64,10 @@ public:
 
   void handle_entry(Vcpu_ptr vcpu);
 
-  void set_apic_array(cxx::Ref_ptr<Gic::Apic_array> arr)
-  { _apics = arr; }
+  Gic::Virt_lapic *lapic(Vcpu_ptr vcpu)
+  { return _apics->get(vcpu.get_vcpu_id()).get(); }
 
-  void add_lapic(cxx::Ref_ptr<Gic::Virt_lapic> const &lapic, unsigned id)
-  { assert(_apics); _apics->add(id, lapic); }
-
-  Gic::Virt_lapic *current_lapic(Vmm::Vcpu_ptr vcpu)
-  { assert(_apics); return _apics->lapic(vcpu.get_vcpu_id()); }
+  cxx::Ref_ptr<Gic::Lapic_array> apic_array() { return _apics; }
 
   int handle_cpuid(l4_vcpu_regs_t *regs);
   int handle_vm_call(l4_vcpu_regs_t *regs);
@@ -90,7 +89,7 @@ private:
   Vdev::Clock_source _clock;
   Guest_print_buffer _hypcall_print;
   Pt_walker _ptw;
-  cxx::Ref_ptr<Gic::Apic_array> _apics;
+  cxx::Ref_ptr<Gic::Lapic_array> _apics;
 };
 
 } // namespace Vmm

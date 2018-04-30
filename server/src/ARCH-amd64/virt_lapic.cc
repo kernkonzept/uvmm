@@ -39,9 +39,8 @@ Virt_lapic::Virt_lapic(unsigned id, l4_addr_t baseaddr)
 }
 
 void
-Virt_lapic::init_device(Vdev::Device_lookup *devs, Vdev::Dt_node const &)
+Virt_lapic::init_device(Vdev::Device_lookup *, Vdev::Dt_node const &)
 {
-  devs->vmm()->add_lapic(cxx::Ref_ptr<Virt_lapic>(this), _lapic_x2_id);
 }
 
 void
@@ -319,50 +318,16 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
 
 namespace {
 
-struct F : Vdev::Factory
-{
-  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *,
-                                    Vdev::Dt_node const &node) override
-  {
-    Dbg().printf("Creating virt_lapic\n");
-
-    l4_uint64_t base = 0;
-    l4_uint64_t size = 0;
-    int index = 0;
-    node.get_reg_val(index, &base, &size);
-    l4_uint64_t cpu_id = 0;
-    node.parent_node().get_reg_val(0, &cpu_id, 0);
-
-    Dbg().printf("Read base 0x%llx & size 0x%llx & cpuid 0x%llx from the DT\n",
-                 base, size, cpu_id);
-
-    auto dev = Vdev::make_device<Gic::Virt_lapic>(cpu_id, base);
-
-    Dbg().printf("Addr of lapic0: %p\n", dev.get());
-
-    return dev;
-  }
-}; // struct F
-
-static F f;
-static Vdev::Device_type t = {"virt-lapic", nullptr, &f};
-} // namespace
-
-namespace {
-
 struct G : Vdev::Factory
 {
   cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
-                                    Vdev::Dt_node const &node) override
+                                    Vdev::Dt_node const &) override
   {
-    auto dev = Vdev::make_device<Gic::Apic_array>();
-    devs->vmm()->set_apic_array(dev);
-    devs->vmm()->register_mmio_device(dev, node);
-
-    return dev;
+    auto apics = devs->vmm()->apic_array();
+    return Vdev::make_device<Gic::Io_apic>(apics);
   }
 };
 
 static G g;
-static Vdev::Device_type d = {"apic-dist", nullptr, &g};
+static Vdev::Device_type d = {"intel,ioapic", nullptr, &g};
 } // namespace
