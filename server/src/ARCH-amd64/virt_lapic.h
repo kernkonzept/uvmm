@@ -51,12 +51,11 @@ class Virt_lapic : public Vdev::Timer, public Ic
    void tick() override;
 
    // APIC soft Irq to force VCPU to handle IRQs
-   void irq_clear() const { _lapic_irq->receive(); };
    void irq_trigger(l4_uint32_t irq);
 
    // vCPU expected interface
    int next_pending_irq();
-   void wait_for_irq();
+   bool is_irq_pending();
 
    // X2APIC MSR interface
    bool read_msr(unsigned msr, l4_uint64_t *value);

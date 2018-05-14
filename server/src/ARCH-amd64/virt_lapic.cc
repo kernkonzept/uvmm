@@ -161,19 +161,16 @@ Virt_lapic::next_pending_irq()
   return -1;
 }
 
-void
-Virt_lapic::wait_for_irq()
+bool
+Virt_lapic::is_irq_pending()
 {
-    {
-      std::lock_guard<std::mutex> lock(_int_mutex);
+  std::lock_guard<std::mutex> lock(_int_mutex);
 
-      for (int i = 0; i < 256; ++i)
-        if (_irq_queued[i] > 0)
-          return;
+  for (int i = 0; i < 256; ++i)
+    if (_irq_queued[i] > 0)
+      return true;
 
-    }
-
-  irq_clear();
+  return false;
 }
 
 bool

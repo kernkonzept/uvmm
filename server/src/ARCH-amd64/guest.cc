@@ -339,7 +339,10 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
     case Exit::Exec_halt:
       trace().printf("HALT 0x%llx!\n", vms->vmx_read(L4VCPU_VMCS_GUEST_RIP));
       vms->vmx_write(L4VCPU_VMCS_GUEST_ACTIVITY_STATE, 1);
-      lapic(vcpu)->wait_for_irq();
+
+      if (!lapic(vcpu)->is_irq_pending())
+        wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+
       vms->unhalt();
       return L4_EOK;
 
