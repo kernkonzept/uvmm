@@ -37,6 +37,10 @@ SRC_CC-arm-$(CONFIG_VDEV_OPTEE) += device/optee.cc
 SRC_CC-arm64-$(CONFIG_VDEV_OPTEE) += device/optee.cc
 SRC_CC-$(CONFIG_VDEV_VIRTIO_POWER) += device/virtio_input_power.cc
 
+ifeq ($(CONFIG_VDEV_VIRTIO_POWER),y)
+CXXFLAGS += -DVIRTIO_POWER
+endif
+
 ifeq ($(ARCH),mips)
 SRC_CC        += ARCH-$(ARCH)/guest_entry.cc
 CXXFLAGS_guest_entry.cc = -msoft-float

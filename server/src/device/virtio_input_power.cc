@@ -9,6 +9,7 @@
 #include <cstring>
 
 #include "virtio_input.h"
+#include "virtio_input_power.h"
 #include "mmio_device.h"
 #include "irq.h"
 #include "device_factory.h"
@@ -63,6 +64,8 @@ public:
 
   int inject_events(Virtio_input_event *events, size_t num)
   { return Virtio_input<Virtio_input_power_mmio>::inject_events(events, num); }
+
+  void inject_sysreq_event(unsigned char);
 
   void virtio_device_config_written(unsigned reg);
 
@@ -258,6 +261,23 @@ Virtio_input_power_mmio::inject_event(l4_uint16_t event, char const * msg)
   inject_events(events, ARRAY_SIZE(events), msg);
 }
 
+void
+Virtio_input_power_mmio::inject_sysreq_event(unsigned char c)
+{
+  auto event = Vdev::translate_char(c);
+  Vdev::Virtio_input_event events[] = {
+      {L4RE_EV_KEY, L4RE_KEY_LEFTALT, 1},
+      {L4RE_EV_KEY, L4RE_KEY_SYSRQ, 1},
+      {L4RE_EV_KEY, event, 1},
+      {L4RE_EV_SYN, L4RE_SYN_REPORT, 1},
+      {L4RE_EV_KEY, event, 0},
+      {L4RE_EV_KEY, L4RE_KEY_SYSRQ, 0},
+      {L4RE_EV_KEY, L4RE_KEY_LEFTALT, 0},
+      {L4RE_EV_SYN, L4RE_SYN_REPORT, 1}
+  };
+  inject_events(events, ARRAY_SIZE(events), "inject sysreq");
+}
+
 //
 // Helper functions for monitor interface
 //
@@ -269,6 +289,12 @@ int do_inject_events(Virtio_input_event *events, size_t num)
     return -1;
 
   return vip_dev->inject_events(events, num);
+}
+
+void do_inject_sysreq_event(unsigned char event)
+{
+  if (vip_dev)
+    vip_dev->inject_sysreq_event(event);
 }
 
 static L4Re_events_key transtab[] = {
@@ -372,6 +398,15 @@ struct F : Factory
 
     c->register_obj(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, node);
+    if (node.has_prop("l4vmm,monitor"))
+      {
+        if (!vip_dev)
+          vip_dev = c;
+        else
+          Dbg(Dbg::Dev, Dbg::Warn, "virtio")
+            .printf("%s: Ignoring 'l4vmm,monitor' property, "
+                    "monitor event link already set\n", node.get_name());
+      }
     return c;
   }
 };

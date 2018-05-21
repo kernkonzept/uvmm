@@ -10,10 +10,13 @@
 #include <l4/sys/cxx/ipc_epiface>
 
 #include <l4/sys/vcon>
+#include <l4/re/event_enums.h>
 
 #include "cpu_dev_array.h"
 #include "device.h"
 #include "guest.h"
+
+#include "virtio_input_power.h"
 
 class Monitor_console
 : public L4::Irqep_t<Monitor_console>,
@@ -73,9 +76,26 @@ public:
       {
         bool print_prompt = false;
         char cmd;
-        r = _con->read(&cmd, 1);
+        r = _con->read_with_flags(&cmd, 1);
+
+        // Ignore any characters tagged with break
+        if (r & L4_VCON_READ_STAT_BREAK)
+          {
+            brk = true;
+            continue;
+          }
+
         if (r >= 1)
           {
+            if (brk)
+              {
+#ifdef VIRTIO_POWER
+                Vdev::do_inject_sysreq_event(cmd);
+#endif
+                brk = false;
+                continue;
+              }
+
             print_prompt = true;
             switch (cmd)
               {
@@ -100,7 +120,7 @@ public:
               case '\n':
                 break;
               default:
-                fprintf(_f, "\nMonitor: Unknown cmd\n");
+                fprintf(_f, "\nMonitor: Unknown cmd %x\n", cmd);
                 break;
               };
           }
@@ -112,6 +132,7 @@ public:
   }
 
 private:
+  bool brk = false;
   L4::Cap<L4::Vcon> _con;
   Vdev::Device_lookup *_devices;
 };
