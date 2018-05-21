@@ -35,6 +35,7 @@ SRC_CC-$(CONFIG_VDEV_8250) += device/uart_8250.cc
 SRC_CC-$(CONFIG_VDEV_PL011) += device/pl011.cc
 SRC_CC-arm-$(CONFIG_VDEV_OPTEE) += device/optee.cc
 SRC_CC-arm64-$(CONFIG_VDEV_OPTEE) += device/optee.cc
+SRC_CC-$(CONFIG_VDEV_VIRTIO_POWER) += device/virtio_input_power.cc
 
 ifeq ($(ARCH),mips)
 SRC_CC        += ARCH-$(ARCH)/guest_entry.cc
