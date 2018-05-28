@@ -710,6 +710,7 @@ Cpu::handle_eois()
       Irq_array::Irq c = irq(lr.vid());
       if (!lr.pending())
         {
+          c.clear_lr();
           _set_lr(i, Gic_h::Lr(0));
           _set_elsr(ridx, 1U << i);
         }
@@ -742,7 +743,7 @@ Cpu::add_pending_irq(unsigned lr, Irq_array::Irq const &irq,
 
   // uses 0 for "no link register assigned" (see #get_empty_lr())
   irq.set_lr(lr + 1);
-  l4_vcpu_e_write_32(_vcpu, L4_VCPU_E_GIC_LR0 + 4 * lr, new_lr.raw);
+  _set_lr(lr, new_lr);
   _clear_elsr(0, 1U << lr);
   return true;
 }
@@ -769,7 +770,7 @@ Cpu::inject(Irq_array::Irq const &irq, unsigned irq_id, unsigned src_cpu)
             return false;
 
           lr.pending() = 1;
-          l4_vcpu_e_write_32(_vcpu, L4_VCPU_E_GIC_LR0 + lr_idx, lr.raw);
+          _set_lr(lr_idx, lr);
           return true;
         }
       else
