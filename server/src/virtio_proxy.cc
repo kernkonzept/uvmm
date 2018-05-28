@@ -49,8 +49,8 @@ struct F : Factory
       }
 
     auto c = make_device<Virtio_proxy_mmio>((l4_size_t) cfgsz);
-    c->init_device(devs, node);
     c->register_irq(devs->vmm()->registry(), cap);
+    c->init_device(devs, node);
     devs->vmm()->register_mmio_device(c, node);
     return c;
   }
