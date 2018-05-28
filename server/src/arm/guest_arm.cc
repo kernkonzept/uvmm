@@ -29,8 +29,7 @@ typedef void (*Entry)(Vmm::Vcpu_ptr vcpu);
 namespace Vmm {
 
 Guest::Guest()
-: _gic(Vdev::make_device<Gic::Dist>(16, 2)), // 16 * 32 spis, 2 cpus
-  _timer(Vdev::make_device<Vdev::Core_timer>())
+: _gic(Vdev::make_device<Gic::Dist>(16, 2)) // 16 * 32 spis, 2 cpus
 {}
 
 Guest *
@@ -89,8 +88,14 @@ struct F_timer : Factory
   cxx::Ref_ptr<Vdev::Device> create(Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
-    auto timer = devs->vmm()->timer();
-    timer->init_device(devs, node);
+    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, false);
+    if (!ic)
+      return nullptr;
+
+    unsigned irq = ic->dt_get_interrupt(node, 2);
+    auto timer = Vdev::make_device<Vdev::Core_timer>(ic.get(), irq, node);
+
+    devs->vmm()->set_timer(timer);
     return timer;
   }
 };
@@ -300,7 +305,13 @@ Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
 void
 Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
 {
-  _cpus = cpus;
+  // If the device tree does not contain a valid timer node the timer might be
+  // invalid. Since the code relies on a valid timer we have to check before
+  // starting the guest.
+  if (!_timer)
+    L4Re::chksys(-ENODEV, "No timer available, aborting");
+
+ _cpus = cpus;
   for (auto cpu: *cpus.get())
     {
       if (!cpu)

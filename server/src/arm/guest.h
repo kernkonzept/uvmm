@@ -58,6 +58,9 @@ public:
   cxx::Ref_ptr<Vdev::Core_timer> timer() const
   { return _timer; }
 
+  void set_timer(cxx::Ref_ptr<Vdev::Core_timer> &timer)
+  { _timer = timer; }
+
   void wait_for_timer_or_irq(Vcpu_ptr vcpu);
 
   void handle_wfx(Vcpu_ptr vcpu);

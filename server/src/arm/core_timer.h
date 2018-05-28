@@ -17,6 +17,10 @@ namespace Vdev {
 
 struct Core_timer : public Device, public Vmm::Irq_edge_sink
 {
+  Core_timer(Gic::Ic *ic, int irq, Dt_node const &self) : Irq_edge_sink(ic, irq)
+  {
+    init_tick_conversion(self);
+  }
   /*
    * We use "scaling math" as described in a comment in
    * linux/arch/x86/kernel/tsc.c. We use micro seconds instead of nano
@@ -159,14 +163,6 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
       .printf("Guest timer frequency is %d\n"
               "using (%d/%d), (%d/%d) to calculate timeouts\n",
               cntfrq, _scale, _scaled_ticks_per_us, _cyc2ms_scale, _shift);
-  }
-
-  void init_device(Device_lookup *devs, Dt_node const &self)
-  {
-    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(self, true);
-
-    init_tick_conversion(self);
-    rebind(ic.get(), ic->dt_get_interrupt(self, 2));
   }
 
 private:
