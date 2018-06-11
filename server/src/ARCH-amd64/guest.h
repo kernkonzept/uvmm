@@ -60,7 +60,7 @@ public:
                          char const *kernel, char const *cmd_line,
                          l4_addr_t dt_boot_addr);
 
-  void run(cxx::Ref_ptr<Cpu_dev_array> const &cpus);
+  void run(cxx::Ref_ptr<Cpu_dev_array> const &cpus) L4_NORETURN;
 
   void handle_entry(Vcpu_ptr vcpu);
 
@@ -78,7 +78,7 @@ private:
   // guest physical address
   enum : unsigned { Linux_kernel_start_addr = 0x100000 };
 
-  void run_vmx(cxx::Ref_ptr<Cpu_dev> const &cpu_dev);
+  void run_vmx(cxx::Ref_ptr<Cpu_dev> const &cpu_dev) L4_NORETURN;
 
   int handle_exit_vmx(Vcpu_ptr vcpu);
 

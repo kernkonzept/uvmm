@@ -390,7 +390,7 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
     }
 }
 
-void
+void L4_NORETURN
 Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
 {
   unsigned const max_cpuid = cpus->max_cpuid();
@@ -417,7 +417,7 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
   run_vmx(cpus->cpu(0));
 }
 
-void
+void L4_NORETURN
 Guest::run_vmx(cxx::Ref_ptr<Cpu_dev> const &cpu_dev)
 {
   Vcpu_ptr vcpu = cpu_dev->vcpu();
