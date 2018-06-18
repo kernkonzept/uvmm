@@ -111,14 +111,8 @@ public:
       }
   }
 
-  void init_device(Vdev::Device_lookup *devs,
-                   Vdev::Dt_node const &self)
-  {
-    int err = dev()->event_connector()->init_irqs(devs, self);
-    if (err < 0)
-      Dbg(Dbg::Dev, Dbg::Warn, "virtio")
-        .printf("Cannot connect virtio IRQ: %d\n", err);
-  }
+  int init_irqs(Vdev::Device_lookup *devs, Vdev::Dt_node const &self)
+  { return dev()->event_connector()->init_irqs(devs, self); }
 
   void reset() override
   {

@@ -37,14 +37,13 @@ namespace L4virtio { namespace Driver {
 class Device
 {
 public:
-  Device(l4_size_t config_size)
-  : _config_page_size(config_size)
+  Device(L4::Cap<L4virtio::Device> device, l4_size_t config_size)
+  : _device(device), _config_page_size(config_size)
   {}
 
   /**
    * Contacts the device and sets up the config page.
    *
-   * \param srvcap    Capability for device communication.
    * \param guest_irq Irq capability to send to device.
    *
    * \throws L4::Runtime_error if the initialisation fails
@@ -53,11 +52,8 @@ public:
    * channels and the configuration dataspace. After this is done,
    * the caller can set up any dataspaces it needs.
    */
-  void driver_connect(L4::Cap<L4virtio::Device> srvcap,
-                      L4::Cap<L4::Irq> guest_irq)
+  void driver_connect(L4::Cap<L4::Irq> guest_irq)
   {
-    _device = srvcap;
-
     _host_irq = L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
                              "Allocating cap for host irq");
 
@@ -197,35 +193,24 @@ private:
   l4_uint32_t _irq_status_shadow = 0;
 
 public:
-  Virtio_proxy(l4_size_t config_size)
-  : _dev(config_size)
-  {}
-
-  void init_device(Vdev::Device_lookup *devs,
-                   Vdev::Dt_node const &self)
+  Virtio_proxy(L4::Cap<L4virtio::Device> device, l4_size_t config_size,
+               unsigned nnq_id, Vmm::Ram_ds *ram)
+  : _nnq_id(nnq_id), _dev(device, config_size)
   {
-    int err = dev()->event_connector()->init_irqs(devs, self);
-    if (err < 0)
-      Dbg(Dbg::Dev, Dbg::Warn, "virtio")
-        .printf("Cannot connect virtio IRQ: %d\n", err);
-
-    int sz;
-    auto const *prop = self.get_prop<fdt32_t>("l4vmm,no-notify", &sz);
-    if (prop && sz > 0)
-      _nnq_id = fdt32_to_cpu(*prop);
-
-    auto *ram = devs->ram().get();
     L4Re::chksys(_dev.register_ds(ram->ram(), 0, ram->size(),
                                   ram->vm_start()),
                  "Registering RAM for virtio proxy");
   }
 
-  void register_irq(L4::Registry_iface *registry, L4::Cap<L4virtio::Device> host)
+  int init_irqs(Vdev::Device_lookup *devs, Vdev::Dt_node const &self)
+  { return dev()->event_connector()->init_irqs(devs, self); }
+
+  void register_irq(L4::Registry_iface *registry)
   {
     L4::Cap<L4::Irq> guest_irq = L4Re::chkcap(registry->register_irq_obj(this),
                                               "Registering guest IRQ in proxy");
 
-    _dev.driver_connect(host, guest_irq);
+    _dev.driver_connect(guest_irq);
   }
 
   void handle_irq()
@@ -319,8 +304,8 @@ class Virtio_proxy_mmio
   public Virtio::Mmio_connector<Virtio_proxy_mmio>
 {
 public:
-  Virtio_proxy_mmio(l4_size_t config_size)
-  : Virtio_proxy<Virtio_proxy_mmio>(config_size)
+  Virtio_proxy_mmio(L4::Cap<L4virtio::Device> device, l4_size_t config_size, unsigned nnq_id, Vmm::Ram_ds *ram)
+  : Virtio_proxy<Virtio_proxy_mmio>(device, config_size, nnq_id, ram)
   {}
 
   Virtio::Event_connector_irq *event_connector() { return &_evcon; }

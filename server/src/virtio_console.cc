@@ -34,7 +34,9 @@ struct F : Factory
       }
 
     auto c = make_device<Virtio_console_mmio>(devs->ram().get(), cap);
-    c->init_device(devs, node);
+    if (c->init_irqs(devs, node) < 0)
+      return nullptr;
+
     c->register_obj(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, node);
     return c;
@@ -45,4 +47,3 @@ static F f;
 static Device_type t = { "virtio,mmio", "console", &f };
 
 }
-

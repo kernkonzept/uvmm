@@ -48,9 +48,18 @@ struct F : Factory
         throw L4::Runtime_error(-L4_EINVAL);
       }
 
-    auto c = make_device<Virtio_proxy_mmio>((l4_size_t) cfgsz);
-    c->register_irq(devs->vmm()->registry(), cap);
-    c->init_device(devs, node);
+    int sz;
+    unsigned nnq_id = -1U;
+    auto const *prop = node.get_prop<fdt32_t>("l4vmm,no-notify", &sz);
+    if (prop && sz > 0)
+      nnq_id = fdt32_to_cpu(*prop);
+
+    auto c = make_device<Virtio_proxy_mmio>(cap, (l4_size_t) cfgsz, nnq_id,
+                                            devs->ram().get());
+    if (c->init_irqs(devs, node) < 0)
+      return nullptr;
+
+    c->register_irq(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, node);
     return c;
   }
@@ -60,4 +69,3 @@ static F f;
 static Device_type t = { "virtio,mmio", "proxy", &f };
 
 }
-

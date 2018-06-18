@@ -53,7 +53,9 @@ public:
    */
   int init_irqs(Vdev::Device_lookup *devs, Vdev::Dt_node const &node)
   {
-    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, true);
+    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, false);
+    if (!ic)
+      return -1;
 
     _sink.rebind(ic.get(), ic->dt_get_interrupt(node, 0));
     return 0;
