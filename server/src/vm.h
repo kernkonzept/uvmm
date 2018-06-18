@@ -67,8 +67,6 @@ public:
                                                         _ram->size()));
 
     auto vbus_cap = e->get_cap<L4vbus::Vbus>("vbus");
-    if (!vbus_cap)
-      vbus_cap = e->get_cap<L4vbus::Vbus>("vm_bus");
     _vbus = cxx::make_ref_obj<Vmm::Virt_bus>(vbus_cap);
 
     _cpus = Vdev::make_device<Vmm::Cpu_dev_array>();
