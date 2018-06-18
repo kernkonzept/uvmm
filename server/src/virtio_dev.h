@@ -176,11 +176,20 @@ private:
 template<typename DEV>
 class Mmio_connector
 {
-private:
+  enum { Device_config_start = 0x100 };
+
+protected:
   template<typename T>
   void writeback_cache(T const *p)
   {
     l4_cache_clean_data((l4_addr_t)p, (l4_addr_t)p + sizeof(T) - 1);
+  }
+
+  template<typename T>
+  T *virtio_device_config()
+  {
+    return reinterpret_cast<T *>(  (l4_addr_t)dev()->virtio_cfg()
+                                 + Device_config_start);
   }
 
 public:
@@ -202,11 +211,11 @@ public:
 
     if (L4_UNLIKELY(reg & ((1U << size) - 1)))
       return;
-    if (reg >= 0x100)
+    if (reg >= Device_config_start)
       {
         l4_addr_t a = (l4_addr_t)vcfg + reg;
         if (Vmm::Mem_access::write_width(a, value, size) == L4_EOK)
-          dev()->virtio_device_config_written(reg);
+          dev()->virtio_device_config_written(reg - Device_config_start);
         return;
       }
 
