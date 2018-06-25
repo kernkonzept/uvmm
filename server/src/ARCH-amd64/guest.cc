@@ -37,7 +37,11 @@ void Guest::register_io_device(Region const &region,
 {
   // Check for overlapping regions!
   if (_iomap.count(region) != 0)
-    throw L4::Runtime_error(L4_EINVAL, "IO map entry overlapping.");
+    {
+      info().printf("IO map overlap: [0x%lx, 0x%lx]\n", region.start,
+                    region.end);
+      L4Re::chksys(-L4_EINVAL, "IO map entry overlapping.");
+    }
 
   _iomap[region] = dev;
 
@@ -51,7 +55,7 @@ Guest::load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry)
   Boot::Binary_ds image(kernel);
 
   if (image.is_elf_binary())
-    throw  L4::Runtime_error(-L4_EINVAL, "ELF binaries are not supported.");
+    L4Re::chksys(-L4_EINVAL, "ELF binaries are not supported.");
 
   l4_uint8_t num_setup_sects = *((char*)image.get_header() + Bp_setup_sects);
   trace().printf("number of setup sections found: 0x%x\n", num_setup_sects);
@@ -60,9 +64,8 @@ Guest::load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry)
   l4_addr_t setup_sects_size = (num_setup_sects + 1) * 512;
 
   if (Linux_kernel_start_addr < setup_sects_size)
-    throw L4::Runtime_error(-L4_EINVAL,
-                            "Supplied kernel image contains an invalid number "
-                            " of setup sections (zeropage).");
+    L4Re::chksys(-L4_EINVAL, "Supplied kernel image contains an invalid number "
+                             " of setup sections (zeropage).");
 
   *entry = Linux_kernel_start_addr - setup_sects_size;
   trace().printf("size of setup sections: 0x%lx\n", setup_sects_size);
@@ -100,7 +103,7 @@ void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Ram_ds *ram,
       zpage.add_ramdisk(rd_start, rd_end - rd_start);
     }
   else
-    Dbg().printf("No ramdisk found in device tree.\n");
+      warn().printf("No ramdisk found in device tree.\n");
 
   if (cmd_line)
     zpage.add_cmdline(cmd_line);
