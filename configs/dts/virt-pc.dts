@@ -41,4 +41,32 @@
             reg = <0x0 0x0 0x0 0x0>;
         };
 
+        pci0: pci@aaaa0000 {
+            compatible = "virt-pci-bridge";
+            // reg 1: MMIO memory area for PCI devices
+            reg = <0x0 0xaaaa0000 0x0 0x00010000>;
+            interrupt-parent = <&IOAPIC>;
+            bus-range = <0x0 0xff>;
+            #address-cells = <3>;
+            #size-cells = <2>;
+            #interrupt-cells = <1>;
+            // first cell encodes IO[24], MMIO(32[25],64[26:25]), Prefetch[30]
+            ranges = <0x02000000 0x0 0xaaaa0000 0x0 0xaaaa0000 0x0 0x10000>;
+
+            virtio_uart@f000 {
+              compatible = "virtio,pci";
+              // reg 1: MMIO memory for the MSIX table: 2pages;
+              // reg 2: IO ports
+              // first address cells encodes bus-dev-fn(<<16, <<11, <<8);
+              reg = <0x02000000 0x0 0xaaaa0000 0x0 0x2000
+                     0x01000000 0x0 0x800 0x0 0x100>;
+              // XXX The interrupt-parent is used as MSI-interrupt-parent, as
+              // we currently only resolve references for the interrupt-parent
+              // property. This is only a preliminary measure and must be fixed
+              // ASAP.
+              interrupt-parent = <&IOAPIC>;
+              l4vmm,vdev = "console";
+            };
+        };
+
 };

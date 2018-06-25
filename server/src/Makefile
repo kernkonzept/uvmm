@@ -26,7 +26,9 @@ SRC_CC-arm64 = arm/gic.cc arm/guest_arm.cc arm/cpu_dev_arm.cc
 SRC_CC-mips  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc
 SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                ARCH-amd64/rtc.cc ARCH-amd64/virt_lapic.cc \
-               ARCH-amd64/vcpu_ptr.cc ARCH-amd64/vm_state_vmx.cc
+               ARCH-amd64/vcpu_ptr.cc ARCH-amd64/vm_state_vmx.cc \
+               virtio_console_pci.cc virtio_proxy_pci.cc \
+               pci_bus_bridge.cc
 
 SRC_CC-$(CONFIG_VDEV_8250) += device/uart_8250.cc
 SRC_CC-$(CONFIG_VDEV_PL011) += device/pl011.cc

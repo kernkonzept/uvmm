@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Kernkonzept GmbH.
+ * Copyright (C) 2018 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public
@@ -21,6 +21,7 @@
 #include "vm_state.h"
 #include "pt_walker.h"
 #include "ram_ds.h"
+#include "msi_distributor.h"
 
 using L4Re::Rm;
 
@@ -164,7 +165,7 @@ public:
 /**
  * IO-APIC representation for IRQ/MSI routing. WIP!
  */
-class Io_apic : public Ic
+class Io_apic : public Ic, public Msi_distributor
 {
 public:
   Io_apic(cxx::Ref_ptr<Lapic_array> apics) : _apics(apics) {}
@@ -194,6 +195,13 @@ public:
 
   unsigned dt_get_interrupt(Vdev::Dt_node const &, int) override
   { return 1; }
+
+  // Msi_distributor interface
+  void send(Vdev::Msi_msg message) const
+  {
+    // TODO implement MSI-X parsing such that malconfigured MSIs are dropped.
+    _apics->get(0)->set(message.data & 0xff);
+  }
 
 private:
   cxx::Ref_ptr<Lapic_array> _apics;
