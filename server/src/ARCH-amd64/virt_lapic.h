@@ -143,10 +143,6 @@ public:
     _lapics[core_no] = Vdev::make_device<Virt_lapic>(core_no, Lapic_mem_addr);
   }
 
-  // Device interface
-  void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &)
-  {}
-
   // Mmio device if
   l4_umword_t read(unsigned reg, char, unsigned cpu_id)
   {
@@ -172,10 +168,6 @@ class Io_apic : public Ic
 {
 public:
   Io_apic(cxx::Ref_ptr<Lapic_array> apics) : _apics(apics) {}
-
-  // Device interface
-  void init_device(Vdev::Device_lookup *, Vdev::Dt_node const &)
-  {}
 
   // IC interface
   void set(unsigned irq) override
