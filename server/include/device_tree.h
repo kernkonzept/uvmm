@@ -532,11 +532,11 @@ public:
     int len;
     void const *prop = fdt_getprop(_tree, _node, name, &len);
     if (!prop)
-      ERR(this, "could not get '%s' property of %s: %d", name);
+      ERR(this, "could not get property '%s': %s", name, fdt_strerror(len));
 
     if (len < (int) sizeof(T) * size)
-      ERR(this, "property %s is too small (%d need %u)",
-          name, (unsigned) (sizeof(T) * size));
+      ERR(this, "property '%s' is too small (%d need %u)",
+          name, len, (unsigned) (sizeof(T) * size));
 
     return reinterpret_cast<T const *>(prop);
   }
