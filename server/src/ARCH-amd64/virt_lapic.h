@@ -102,6 +102,7 @@ class Virt_lapic : public Vdev::Timer, public Ic
    enum XAPIC_consts : unsigned
    {
      Xapic_mode_local_apic_id_shift = 24,
+     Extended_apic_enable_bit = 1UL << 10,
      Lapic_version = 0x60010, /// 10 = integrated APIC, 6 = max LVT entries - 1
    };
 }; // class Virt_lapic
