@@ -42,7 +42,7 @@ public:
 
   bool mmio_region_valid(l4_uint64_t addr, l4_uint64_t size);
 
-  void __attribute__((noreturn)) halt_vm()
+  void L4_NORETURN halt_vm()
   {
     // XXX Only halts the current CPU. For the SMP case some
     // further signaling might be required.
