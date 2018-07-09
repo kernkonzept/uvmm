@@ -34,7 +34,7 @@ public:
 
   Guest()
   : _ptw(&_memmap, get_max_physical_address_bit()),
-    _apics(Vdev::make_device<Gic::Lapic_array>())
+    _apics(Vdev::make_device<Gic::Lapic_array>(get_max_physical_address_bit()))
   {
     add_mmio_device(_apics->mmio_region(), _apics);
   }

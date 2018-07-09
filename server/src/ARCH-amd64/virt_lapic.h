@@ -88,7 +88,7 @@ class Virt_lapic : public Vdev::Timer, public Ic
     };
 
    L4Re::Util::Unique_cap<L4::Irq> _lapic_irq; /// IRQ to notify VCPU
-   l4_addr_t _lapic_memory_address;
+   l4_addr_t const _lapic_memory_address;
    unsigned _lapic_x2_id;
    unsigned _lapic_version;
    std::mutex _int_mutex;
@@ -120,11 +120,20 @@ class Lapic_array : public Vmm::Mmio_device_t<Lapic_array>, public Vdev::Device
     Lapic_mem_addr = 0xfee00000,
     Lapic_mem_size = 0x1000,
   };
+  static_assert(!(Lapic_mem_addr & 0xfff), "LAPIC memory is 4k-aligned.");
+
+  l4_uint64_t _max_phys_addr_mask;
   cxx::Ref_ptr<Virt_lapic> _lapics[Max_cores];
 
   unsigned reg2msr(unsigned reg) { return (reg >> 4) | X2apic_msr_base; }
 
 public:
+  explicit Lapic_array(unsigned max_phys_addr_bit)
+  : _max_phys_addr_mask((1UL << max_phys_addr_bit) - 1)
+  {
+    assert((Lapic_mem_addr & _max_phys_addr_mask) == Lapic_mem_addr);
+  }
+
   Region mmio_region() const
   { return Region::ss(Lapic_mem_addr, Lapic_mem_size); }
 
