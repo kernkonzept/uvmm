@@ -8,6 +8,7 @@
  */
 #pragma once
 
+#include <l4/util/cpu.h>
 #include <l4/vbus/vbus>
 #include <l4/l4virtio/l4virtio>
 
@@ -32,7 +33,7 @@ public:
   enum { Default_rambase = 0, Boot_offset = 0 };
 
   Guest()
-  : _ptw(Pt_walker(&_memmap)),
+  : _ptw(&_memmap, get_max_physical_address_bit()),
     _apics(Vdev::make_device<Gic::Lapic_array>())
   {
     add_mmio_device(_apics->mmio_region(), _apics);
@@ -75,11 +76,34 @@ public:
 
 private:
   // guest physical address
-  enum : unsigned { Linux_kernel_start_addr = 0x100000 };
+  enum : unsigned
+  {
+    Linux_kernel_start_addr = 0x100000,
+    Max_phys_addr_bits_mask = 0xff,
+  };
 
   void run_vmx(cxx::Ref_ptr<Cpu_dev> const &cpu_dev) L4_NORETURN;
-
   int handle_exit_vmx(Vcpu_ptr vcpu);
+
+  unsigned get_max_physical_address_bit() const
+  {
+    l4_umword_t ax, bx, cx, dx;
+    // check for highest CPUID leaf:
+    l4util_cpu_cpuid(0, &ax, &bx, &cx, &dx);
+
+    if (ax == 0x80000008)
+      l4util_cpu_cpuid(0x80000008, &ax, &bx, &cx, &dx);
+    else
+      {
+        l4util_cpu_cpuid(0x1, &ax, &bx, &cx, &dx);
+        if (dx & (1UL << 6)) // PAE
+          ax = 36;           // minimum if leaf not supported
+        else
+          ax = 32;
+      }
+
+    return ax & Max_phys_addr_bits_mask;
+  }
 
   typedef std::map<Region, cxx::Ref_ptr<Io_device>> Io_mem;
   Io_mem _iomap;

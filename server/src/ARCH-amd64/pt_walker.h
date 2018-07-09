@@ -8,7 +8,6 @@
 #pragma once
 
 #include <l4/sys/types.h>
-#include <l4/util/cpu.h>
 #include <l4/l4virtio/virtqueue>
 
 #include "debug.h"
@@ -20,7 +19,7 @@ namespace Vmm {
 class Pt_walker
 {
 public:
-  Pt_walker(Vm_mem const *mmap)
+  Pt_walker(Vm_mem const *mmap, unsigned max_phys_addr_bit)
   : _mmap(mmap),
     _levels {{Pml4_shift, Pml4_mask},
              {Pdpt_shift, Pdpt_mask},
@@ -29,8 +28,6 @@ public:
             },
     cached_start(-1), cached_end(0), cached_ds_local_start(0)
   {
-    int const max_phys_addr_bit = max_physical_address_bit();
-
     trace().printf("PT_walker: MAXPHYSADDR bits %i\n", max_phys_addr_bit);
     _phys_addr_mask_4k =
       ((1UL << max_phys_addr_bit) - 1) & ~((1UL << Phys_addr_4k) - 1);
@@ -168,27 +165,6 @@ private:
     l4_uint64_t const mask;
   };
 
-  int max_physical_address_bit()
-  {
-      l4_umword_t ax, bx, cx, dx;
-      // check for highest CPUID leaf:
-      l4util_cpu_cpuid(0, &ax, &bx, &cx, &dx);
-      trace().printf("CPUID max supported leaf 0x%lx\n", ax);
-      if (ax == 0x80000008)
-        {
-          l4util_cpu_cpuid(0x80000008, &ax, &bx, &cx, &dx);
-        }
-      else
-        {
-          l4util_cpu_cpuid(0x1, &ax, &bx, &cx, &dx);
-          if (dx & (1UL << 6)) // PAE
-            ax = 36; // minimum if leaf not supported
-          else
-            ax = 32;
-        }
-      trace().printf("Physical address width = 0x%lx\n", ax);
-      return ax & Max_phys_addr_bits_mask;
-  }
 
   static Dbg trace() { return Dbg(Dbg::Core, Dbg::Trace); }
 
@@ -231,7 +207,6 @@ private:
     XD_bit = 1UL << XD_bit_shift,
 
     Pt_levels = 4,
-    Max_phys_addr_bits_mask = 0xff,
   };
 
   Vm_mem const *_mmap;
