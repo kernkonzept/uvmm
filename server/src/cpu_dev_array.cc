@@ -28,7 +28,7 @@ Cpu_dev_array::create_vcpu(Vdev::Dt_node const *node)
     }
 
   unsigned id = Cpu_dev::dtid_to_cpuid(prop_val);
-  if (id >= Max_cpus)
+  if (id >= Cpu_dev::Max_cpus)
     return nullptr;
 
   if (_cpus[id])
@@ -50,7 +50,7 @@ Cpu_dev_array::create_vcpu(Vdev::Dt_node const *node)
 void
 Cpu_dev_array::show_state_registers(FILE *f)
 {
-  for (int i = 0; i < Max_cpus; ++i)
+  for (int i = 0; i < Cpu_dev::Max_cpus; ++i)
     {
       if (!_cpus[i])
         continue;

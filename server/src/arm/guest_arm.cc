@@ -29,7 +29,7 @@ typedef void (*Entry)(Vmm::Vcpu_ptr vcpu);
 namespace Vmm {
 
 Guest::Guest()
-: _gic(Vdev::make_device<Gic::Dist>(16, 2)) // 16 * 32 spis, 2 cpus
+: _gic(Vdev::make_device<Gic::Dist>(16, Vmm::Cpu_dev::Max_cpus))
 {}
 
 Guest *
@@ -311,7 +311,7 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
   if (!_timer)
     L4Re::chksys(-ENODEV, "No timer available, aborting");
 
- _cpus = cpus;
+  _cpus = cpus;
   for (auto cpu: *cpus.get())
     {
       if (!cpu)
@@ -345,9 +345,9 @@ Guest::handle_entry(Vcpu_ptr vcpu)
 Cpu_dev *
 Guest::lookup_cpu(l4_uint32_t hwid) const
 {
-  for (unsigned i = 0; i < Cpu_dev_array::Max_cpus; ++i)
-    if (_cpus->vcpu_exists(i) && _cpus->cpu(i)->matches(hwid))
-      return _cpus->cpu(i).get();
+  for (auto const &cpu : *_cpus.get())
+    if (cpu && cpu->matches(hwid))
+      return cpu.get();
 
   return nullptr;
 }

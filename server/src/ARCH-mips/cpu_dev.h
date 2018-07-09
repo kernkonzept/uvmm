@@ -17,6 +17,9 @@ namespace Vmm {
 class Cpu_dev : public Generic_cpu_dev
 {
 public:
+  // Maximum number of CPUs that are addressable.
+  enum { Max_cpus = 32 };
+
   enum { Default_procid = 0x00010000 };
 
   enum Cm_local_registers

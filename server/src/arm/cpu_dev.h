@@ -19,6 +19,9 @@ namespace Vmm {
 class Cpu_dev : public Generic_cpu_dev
 {
 public:
+  // The ARM GIC has a hard architectural limit of 8 CPUs.
+  enum { Max_cpus = 8 };
+
   enum
   {
     Flags_default_32 = 0x1d3,

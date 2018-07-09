@@ -75,14 +75,11 @@ class Cpu_dev_array : public virtual Vdev::Dev_ref
   };
 
 public:
-  /// Maximum number of supported CPUs.
-  enum { Max_cpus = 32 };
-
   virtual ~Cpu_dev_array() = default;
 
   bool vcpu_exists(unsigned cpuid) const
   {
-    assert(cpuid < Max_cpus);
+    assert(cpuid < Cpu_dev::Max_cpus);
     return !!_cpus[cpuid];
   }
 
@@ -101,7 +98,7 @@ public:
   /// Return the maximum CPU id in use.
   unsigned max_cpuid() const
   {
-    for (unsigned i = Max_cpus - 1; i > 0; --i)
+    for (unsigned i = Cpu_dev::Max_cpus - 1; i > 0; --i)
       if (_cpus[i])
         return i;
 
@@ -117,11 +114,11 @@ public:
   void show_state_registers(FILE *f);
 
   cxx::Ref_ptr<Cpu_dev> *begin() { return _cpus; }
-  cxx::Ref_ptr<Cpu_dev> *end() { return _cpus + Max_cpus; }
+  cxx::Ref_ptr<Cpu_dev> *end() { return _cpus + Cpu_dev::Max_cpus; }
 
 protected:
   Vcpu_placement _placement;
-  cxx::Ref_ptr<Cpu_dev> _cpus[Max_cpus];
+  cxx::Ref_ptr<Cpu_dev> _cpus[Cpu_dev::Max_cpus];
 };
 
 } // namespace

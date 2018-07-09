@@ -16,6 +16,9 @@ namespace Vmm {
 class Cpu_dev : public Generic_cpu_dev
 {
 public:
+  // SMP is currently not supported on amd64.
+  enum { Max_cpus = 1 };
+
   Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *)
   : Generic_cpu_dev(idx, phys_id)
   {}

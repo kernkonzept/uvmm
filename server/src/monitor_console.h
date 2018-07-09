@@ -73,10 +73,9 @@ public:
               case 'i':
                 {
                   fputc('\n', _f);
-                  auto cpus = _devices->cpus();
-                  for (unsigned i = 0; i < Vmm::Cpu_dev_array::Max_cpus; ++i)
-                    if (cpus->vcpu_exists(i))
-                      _devices->vmm()->show_state_interrupts(_f, cpus->vcpu(i));
+                  for (auto &cpu : *_devices->cpus().get())
+                    if (cpu)
+                      _devices->vmm()->show_state_interrupts(_f, cpu->vcpu());
                   break;
                 }
               case 't': Dbg::set_verbosity(Dbg::Trace | Dbg::Info | Dbg::Warn); break;

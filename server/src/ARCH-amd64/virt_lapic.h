@@ -115,7 +115,7 @@ class Lapic_array : public Vmm::Mmio_device_t<Lapic_array>, public Vdev::Device
   enum
   {
     // XXX sync with Max_cpus
-    Max_cores = 4,
+    Max_cores = 1,
     X2apic_msr_base = 0x800,
     Lapic_mem_addr = 0xfee00000,
     Lapic_mem_size = 0x1000,
