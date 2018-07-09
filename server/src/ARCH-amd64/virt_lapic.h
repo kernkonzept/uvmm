@@ -29,133 +29,133 @@ namespace Gic {
 
 class Virt_lapic : public Vdev::Timer, public Ic
 {
- public:
-   Virt_lapic(unsigned id, l4_addr_t baseaddr);
+  struct LAPIC_registers
+  {
+    l4_uint32_t tpr;
+    l4_uint32_t ppr;
+    l4_uint32_t ldr; ///< logical destination register
+    l4_uint32_t dfr; ///< destination format register not existent in x2APIC
+    l4_uint32_t svr; ///< Spurious vector register
+    l4_uint32_t isr[8];
+    l4_uint32_t tmr[8];
+    l4_uint32_t irr[8];
+    l4_uint32_t esr;
+    l4_uint32_t cmci;
+    l4_uint64_t icr;
+    l4_uint32_t timer;
+    l4_uint32_t therm;
+    l4_uint32_t perf;
+    l4_uint32_t lint[2];
+    l4_uint32_t err;
+    l4_uint32_t tmr_init;
+    l4_uint32_t tmr_cur;
+    l4_uint32_t tmr_div;
+  };
 
-   void attach_cpu_thread(L4::Cap<L4::Thread> vthread)
-   {
-     L4Re::chksys(_lapic_irq->bind_thread(vthread, 0),
-                  "Attaching local APIC IRQ to vCPU thread");
-   }
+  enum XAPIC_consts : unsigned
+  {
+    Xapic_mode_local_apic_id_shift = 24,
+    Xapic_mode_logical_apic_id_shift = 24,
+    Xapic_dfr_model_mask = 0xfU << 28,
 
-   // IC interface
-   void set(unsigned irq) override;
-   void clear(unsigned irq) override;
+    Apic_base_bsp_processor = 1UL << 8,
+    Apic_base_x2_enabled = 1UL << 10,
+    Apic_base_enabled = 1U << 11,
 
-   void bind_irq_source(unsigned, cxx::Ref_ptr<Irq_source> const &) override;
-   cxx::Ref_ptr<Irq_source> get_irq_source(unsigned ) const override;
+    Lapic_version = 0x60010, /// 10 = integrated APIC, 6 = max LVT entries - 1
 
-   int dt_get_num_interrupts(Vdev::Dt_node const &) override;
-   unsigned dt_get_interrupt(Vdev::Dt_node const &, int ) override;
+    X2apic_ldr_logical_apic_id_mask = 0xffff,
+    X2apic_ldr_logical_cluster_id_size = 0xffff,
+    X2apic_ldr_logical_cluster_id_shift = 16,
+  };
 
-   // Timer interface
-   void tick() override;
+public:
+  Virt_lapic(unsigned id, l4_addr_t baseaddr);
 
-   // APIC soft Irq to force VCPU to handle IRQs
-   void irq_trigger(l4_uint32_t irq);
+  void attach_cpu_thread(L4::Cap<L4::Thread> vthread)
+  {
+    L4Re::chksys(_lapic_irq->bind_thread(vthread, 0),
+                 "Attaching local APIC IRQ to vCPU thread");
+  }
 
-   // vCPU expected interface
-   int next_pending_irq();
-   bool is_irq_pending();
+  // IC interface
+  void set(unsigned irq) override;
+  void clear(unsigned irq) override;
 
-   // X2APIC MSR interface
-   bool read_msr(unsigned msr, l4_uint64_t *value) const;
-   bool write_msr(unsigned msr, l4_uint64_t value);
+  void bind_irq_source(unsigned, cxx::Ref_ptr<Irq_source> const &) override;
+  cxx::Ref_ptr<Irq_source> get_irq_source(unsigned) const override;
 
-   l4_addr_t apic_base() const { return _lapic_memory_address; }
+  int dt_get_num_interrupts(Vdev::Dt_node const &) override;
+  unsigned dt_get_interrupt(Vdev::Dt_node const &, int) override;
 
-   l4_uint32_t logical_apic_id() const
-   {
-     return _x2apic_enabled ? _regs.ldr
-                            : _regs.ldr >> Xapic_mode_logical_apic_id_shift;
-   }
+  // Timer interface
+  void tick() override;
 
-   /**
-    * Match a destination ID bitmask against this LAPIC's unique logical ID.
-    */
-   bool match_ldr(l4_uint32_t did) const
-   {
-     auto logical_id = logical_apic_id();
+  // APIC soft Irq to force VCPU to handle IRQs
+  void irq_trigger(l4_uint32_t irq);
 
-     if (_x2apic_enabled)
-       {
-         // x2APIC supports only cluster mode
-         // ldr format: 31:16 cluster id, 15:0 logical APIC ID
-         // XXX SMP: assumption cluster id = 0 as no SMP support.
-         logical_id &= X2apic_ldr_logical_apic_id_mask;
-       }
-     else
-       {
-         // Intel SDM: October 2017: cluster modes: flat and hierarchical cluster
-         // flat cluster only in p6 and pentium processors;
-         // hierarchical cluster need cluster manager device.
-         // => flat address mode is the only supported one.
-         // flat address mode: dfr[31:28] = 0b1111;
-         if ((_regs.dfr & Xapic_dfr_model_mask) != Xapic_dfr_model_mask)
-           {
-             trace().printf(
-               "Cluster addressing mode not supported; MSI dropped\n");
-             return false;
-           }
-       }
+  // vCPU expected interface
+  int next_pending_irq();
+  bool is_irq_pending();
 
-     return logical_id & did;
-   }
+  // X2APIC MSR interface
+  bool read_msr(unsigned msr, l4_uint64_t *value) const;
+  bool write_msr(unsigned msr, l4_uint64_t value);
 
- private:
-   struct LAPIC_registers
-   {
-     l4_uint32_t tpr;
-     l4_uint32_t ppr;
-     l4_uint32_t ldr; ///< logical destination register
-     l4_uint32_t dfr; ///< destination format register not existent in x2APIC
-     l4_uint32_t svr; ///< Spurious vector register
-     l4_uint32_t isr[8];
-     l4_uint32_t tmr[8];
-     l4_uint32_t irr[8];
-     l4_uint32_t esr;
-     l4_uint32_t cmci;
-     l4_uint64_t icr;
-     l4_uint32_t timer;
-     l4_uint32_t therm;
-     l4_uint32_t perf;
-     l4_uint32_t lint[2];
-     l4_uint32_t err;
-     l4_uint32_t tmr_init;
-     l4_uint32_t tmr_cur;
-     l4_uint32_t tmr_div;
-    };
+  l4_addr_t apic_base() const { return _lapic_memory_address; }
 
-   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "LAPIC"); }
+  l4_uint32_t logical_apic_id() const
+  {
+    return _x2apic_enabled ? _regs.ldr
+                           : _regs.ldr >> Xapic_mode_logical_apic_id_shift;
+  }
 
-   L4Re::Util::Unique_cap<L4::Irq> _lapic_irq; /// IRQ to notify VCPU
-   l4_addr_t const _lapic_memory_address;
-   l4_uint32_t _lapic_x2_id;
-   unsigned _lapic_version;
-   std::mutex _int_mutex;
-   std::mutex _tmr_mutex;
-   LAPIC_registers _regs;
-   l4_uint64_t _tsc_deadline;
-   bool _x2apic_enabled;
-   unsigned _irq_queued[256];
-   cxx::Ref_ptr<Irq_source> _sources[256];
+  /**
+   * Match a destination ID bitmask against this LAPIC's unique logical ID.
+   */
+  bool match_ldr(l4_uint32_t did) const
+  {
+    auto logical_id = logical_apic_id();
 
-   enum XAPIC_consts : unsigned
-   {
-     Xapic_mode_local_apic_id_shift = 24,
-     Xapic_mode_logical_apic_id_shift = 24,
-     Xapic_dfr_model_mask = 0xfU << 28,
+    if (_x2apic_enabled)
+      {
+        // x2APIC supports only cluster mode
+        // ldr format: 31:16 cluster id, 15:0 logical APIC ID
+        // XXX SMP: assumption cluster id = 0 as no SMP support.
+        logical_id &= X2apic_ldr_logical_apic_id_mask;
+      }
+    else
+      {
+        // Intel SDM: October 2017: cluster modes: flat and hierarchical cluster
+        // flat cluster only in p6 and pentium processors;
+        // hierarchical cluster need a cluster manager device.
+        // => flat address mode is the only supported one.
+        // flat address mode: dfr[31:28] = 0b1111;
+        if ((_regs.dfr & Xapic_dfr_model_mask) != Xapic_dfr_model_mask)
+          {
+            trace().printf(
+              "Cluster addressing mode not supported; MSI dropped\n");
+            return false;
+          }
+      }
 
-     Apic_base_bsp_processor = 1UL << 8,
-     Apic_base_x2_enabled = 1UL << 10,
-     Apic_base_enabled = 1U << 11,
+    return logical_id & did;
+  }
 
-     Lapic_version = 0x60010, /// 10 = integrated APIC, 6 = max LVT entries - 1
+private:
+  static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "LAPIC"); }
 
-     X2apic_ldr_logical_apic_id_mask = 0xffff,
-     X2apic_ldr_logical_cluster_id_size = 0xffff,
-     X2apic_ldr_logical_cluster_id_shift = 16,
-   };
+  L4Re::Util::Unique_cap<L4::Irq> _lapic_irq; /// IRQ to notify VCPU
+  l4_addr_t const _lapic_memory_address;
+  l4_uint32_t _lapic_x2_id;
+  unsigned _lapic_version;
+  std::mutex _int_mutex;
+  std::mutex _tmr_mutex;
+  LAPIC_registers _regs;
+  l4_uint64_t _tsc_deadline;
+  bool _x2apic_enabled;
+  unsigned _irq_queued[256];
+  cxx::Ref_ptr<Irq_source> _sources[256];
 }; // class Virt_lapic
 
 

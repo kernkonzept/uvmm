@@ -32,7 +32,7 @@ Virt_lapic::Virt_lapic(unsigned id, l4_addr_t baseaddr)
   _lapic_version(Lapic_version),
   _x2apic_enabled(false)
 {
-  Dbg().printf("Virt_lapic ctor\n");
+  trace().printf("Virt_lapic ctor; ID 0x%x\n", id);
 
   chksys(L4Re::Env::env()->factory()->create(_lapic_irq.get()),
          "Create APIC IRQ.");
