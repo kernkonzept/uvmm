@@ -179,13 +179,11 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value)
   switch (msr)
     {
     case 0x1b: // APIC base
-      // 1UL << 11 = EN xAPIC global en/disable
-      // 1UL << 8 = processor is BSP
       *value =
-        (_lapic_memory_address & 0xffff00000) | (1UL << 11) | (1UL << 8);
+        _lapic_memory_address | Apic_base_enabled | Apic_base_bsp_processor;
 
       if (_x2apic_enabled)
-        *value |= Extended_apic_enable_bit;
+        *value |= Apic_base_x2_enabled;
       break;
     case 0x6e0: *value = _tsc_deadline; break;
     case 0x802:
@@ -249,7 +247,7 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
   switch(msr)
     {
     case 0x1b: // APIC base
-      _x2apic_enabled = value & Extended_apic_enable_bit;
+      _x2apic_enabled = value & Apic_base_x2_enabled;
       if (_x2apic_enabled)
         Dbg().printf("------ x2APIC enabled\n");
       break;
