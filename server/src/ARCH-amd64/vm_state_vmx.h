@@ -373,6 +373,9 @@ public:
     dbg.printf("(G) DS selector: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_DS_SELECTOR));
     dbg.printf("(G) FS selector: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_FS_SELECTOR));
     dbg.printf("(G) GS selector: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_GS_SELECTOR));
+    dbg.printf("(G) GDTR base: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_GDTR_BASE));
+    dbg.printf("(G) IDTR base: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_IDTR_BASE));
+
     dbg.printf("(G) LDTR selector: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_LDTR_SELECTOR));
     dbg.printf("(G) TR selector: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_TR_SELECTOR));
     dbg.printf("(G) interrupt status: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_INTERRUPT_STATUS));
@@ -407,6 +410,8 @@ public:
     dbg.printf("(G) DS limit: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_DS_LIMIT));
     dbg.printf("(G) FS limit: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_FS_LIMIT));
     dbg.printf("(G) GS limit: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_GS_LIMIT));
+    dbg.printf("(G) GDTR limit: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_GDTR_LIMIT));
+    dbg.printf("(G) IDTR limit: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_IDTR_LIMIT));
     dbg.printf("(G) Activity state: 0x%llx\n",
                vmx_read(L4VCPU_VMCS_GUEST_ACTIVITY_STATE));
 
