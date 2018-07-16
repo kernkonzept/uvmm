@@ -48,7 +48,7 @@ void Guest::register_io_device(Region const &region,
 }
 
 L4virtio::Ptr<void>
-Guest::load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry)
+Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, l4_addr_t *entry)
 {
   Boot::Binary_ds image(kernel);
 
@@ -79,14 +79,14 @@ Guest::load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry)
       auto z = image.load_as_raw(ram, *entry);
       trace().printf("Loaded kernel image as raw to 0x%lx\n", z);
       trace().printf("load kernel as raw entry to 0x%lx\n",
-                     ram->boot_addr(Linux_kernel_start_addr));
+                     ram->guest_phys2boot(Linux_kernel_start_addr));
       _guest_t = Binary_type::Linux;
     }
 
   return l4_round_size(image.get_upper_bound(), L4_LOG2_SUPERPAGESIZE);
 }
 
-void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Ram_ds *ram,
+void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
                               char const * /* kernel */, char const *cmd_line,
                               l4_addr_t dt_boot_addr)
 {
@@ -97,7 +97,7 @@ void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Ram_ds *ram,
     {
       // read initrd addr and size from device tree
       L4virtio::Ptr<void> dt_addr(dt_boot_addr);
-      auto dt = Vdev::Device_tree(ram->access(dt_addr));
+      auto dt = Vdev::Device_tree(ram->guest2host(dt_addr));
       int prop_sz1, prop_sz2;
       auto node = dt.path_offset("/chosen");
       auto prop_start = node.get_prop<fdt32_t>("linux,initrd-start", &prop_sz1);
@@ -118,7 +118,7 @@ void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Ram_ds *ram,
   if (cmd_line)
     zpage.add_cmdline(cmd_line);
 
-  zpage.cfg_e820(ram->size());
+  zpage.cfg_e820(ram->total_size());
   // write zeropage to VM ram
   zpage.write(ram, _guest_t);
 

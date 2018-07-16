@@ -41,6 +41,9 @@ public:
 
   bool mmio_region_valid(l4_uint64_t addr, l4_uint64_t size);
 
+  Vm_mem *memmap()
+  { return &_memmap; }
+
   void L4_NORETURN halt_vm()
   {
     // XXX Only halts the current CPU. For the SMP case some

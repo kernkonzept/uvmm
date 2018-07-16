@@ -103,8 +103,8 @@ protected:
   }
 
 public:
-  Dev(Vmm::Vm_ram *iommu, l4_uint32_t vendor, l4_uint32_t device)
-  : _iommu(iommu)
+  Dev(Vmm::Vm_ram *ram, l4_uint32_t vendor, l4_uint32_t device)
+  : _ram(ram)
   {
     auto *e = L4Re::Env::env();
     auto ds = L4Re::chkcap(L4Re::Util::make_unique_del_cap<L4Re::Dataspace>());
@@ -166,16 +166,10 @@ public:
 
   template<typename T>
   T *devaddr_to_virt(l4_addr_t devaddr, l4_size_t len = 0) const
-  {
-    if (devaddr < _iommu->vm_start()
-        || devaddr - _iommu->vm_start() + len > _iommu->size())
-      L4Re::chksys(-L4_ERANGE, "Virtio pointer outside RAM region");
-
-    return _iommu->access(L4virtio::Ptr<T>(devaddr));
-  }
+  { return _ram->guest_region2host<T>(devaddr, len); }
 
 private:
-  Vmm::Vm_ram *_iommu;
+  Vmm::Vm_ram *_ram;
 };
 
 

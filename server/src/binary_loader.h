@@ -14,7 +14,7 @@
 #include <l4/libloader/elf>
 
 #include "debug.h"
-#include "ram_ds.h"
+#include "vm_ram.h"
 
 namespace Boot {
 
@@ -45,7 +45,7 @@ public:
     return as_elf_header()->is_64();
   }
 
-  l4_addr_t load_as_elf(Vmm::Ram_ds *ram)
+  l4_addr_t load_as_elf(Vmm::Vm_ram *ram)
   {
     auto const *eh = as_elf_header();
 
@@ -55,10 +55,6 @@ public:
     eh->iterate_phdr([this,ram,&img_start,&img_end](Ldr::Elf_phdr ph) {
       if (ph.type() == PT_LOAD)
         {
-          l4_addr_t dest = ram->boot2ram(ph.paddr());
-          if (dest > ram->size() || dest + ph.memsz() > ram->size())
-            L4Re::chksys(-L4_ERANGE, "Binary outside VM RAM region");
-
           l4_addr_t gupper = ph.paddr() + ph.memsz();
           if (gupper > img_end)
             img_end = gupper;
@@ -68,24 +64,25 @@ public:
 
           Dbg(Dbg::Mmio, Dbg::Info, "bin")
             .printf("Copy in ELF binary section @0x%lx from 0x%lx/0x%lx\n",
-                    dest, ph.offset(), ph.filesz());
-          L4Re::chksys(ram->ram()->copy_in(dest, _ds.get(),
-                                           ph.offset(), ph.filesz()));
+                    ph.paddr(), ph.offset(), ph.filesz());
+
+          ram->copy_from_ds(_ds.get(), ph.offset(),
+                            ram->boot2guest_phys<void>(ph.paddr()), ph.filesz());
         }
     });
 
-    _loaded_range_vmm.start = (l4_addr_t)ram->access(ram->boot2guest_phys<void>(img_start));
+    _loaded_range_vmm.start = (l4_addr_t)ram->guest2host(ram->boot2guest_phys<void>(img_start));
     _end = ram->boot2guest_phys<void>(img_end);
-    _loaded_range_vmm.end =   (l4_addr_t)ram->access(_end);
+    _loaded_range_vmm.end =   (l4_addr_t)ram->guest2host(_end);
     return eh->entry();
   }
 
-  l4_addr_t load_as_raw(Vmm::Ram_ds *ram, l4_addr_t ram_offset)
+  l4_addr_t load_as_raw(Vmm::Vm_ram *ram, l4_addr_t ram_offset)
   {
-    L4virtio::Ptr<void> start(ram->vm_start() + ram_offset);
+    L4virtio::Ptr<void> start(ram->base_address() + ram_offset);
     _end = ram->load_file(_ds.get(), start, nullptr);
-    _loaded_range_vmm.start = (l4_addr_t)ram->access(start);
-    _loaded_range_vmm.end =   (l4_addr_t)ram->access(_end);
+    _loaded_range_vmm.start = (l4_addr_t)ram->guest2host(start);
+    _loaded_range_vmm.end =   (l4_addr_t)ram->guest2host(_end);
     return start.get();
   }
 

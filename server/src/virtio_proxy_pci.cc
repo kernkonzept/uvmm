@@ -21,7 +21,7 @@ class Virtio_proxy_pci
 {
 public:
   Virtio_proxy_pci(L4::Cap<L4virtio::Device> device, l4_uint64_t config_sz,
-                   unsigned nnq_id, Vmm::Ram_ds *ram,
+                   unsigned nnq_id, Vmm::Vm_ram *ram,
                    cxx::Ref_ptr<Gic::Msi_distributor> distr,
                    unsigned num_msix_entries)
   : Virtio_proxy<Virtio_proxy_pci>(device, config_sz, nnq_id, ram),

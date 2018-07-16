@@ -32,7 +32,7 @@
 #include "device_factory.h"
 #include "guest.h"
 #include "monitor_console.h"
-#include "ram_ds.h"
+#include "vm_ram.h"
 #include "io_proxy.h"
 #include "vm.h"
 
@@ -120,12 +120,12 @@ phys_dev_cb(Vdev::Dt_node const &node)
 }
 
 static Vdev::Device_tree
-load_device_tree_at(Vmm::Ram_ds *ram, char const *name, L4virtio::Ptr<void> addr,
+load_device_tree_at(Vmm::Vm_ram *ram, char const *name, L4virtio::Ptr<void> addr,
                     l4_size_t padding)
 {
   ram->load_file(name, addr);
 
-  auto dt = Vdev::Device_tree(ram->access(addr));
+  auto dt = Vdev::Device_tree(ram->guest2host(addr));
   dt.check_tree();
   // use 1.25 * size + padding for the time being
   dt.add_to_size(dt.size() / 4 + padding);
@@ -454,14 +454,14 @@ static int run(int argc, char *argv[])
                   rd_size);
     }
 
-  l4_addr_t dt_boot_addr = !device_trees.empty() ? ram->boot_addr(dt_addr) : 0;
+  l4_addr_t dt_boot_addr = !device_trees.empty() ? ram->guest_phys2boot(dt_addr) : 0;
   vmm->prepare_linux_run(vm_instance.cpus()->vcpu(0), entry, ram, kernel_image,
                          cmd_line, dt_boot_addr);
 
   if (!device_trees.empty())
     {
       l4_addr_t ds_start =
-          reinterpret_cast<l4_addr_t>(ram->access(dt_addr));
+          reinterpret_cast<l4_addr_t>(ram->guest2host(dt_addr));
       l4_addr_t ds_end = ds_start + dt.size();
       l4_cache_clean_data(ds_start, ds_end);
       info.printf("Cleaning caches [%lx-%lx] ([%llx])\n",

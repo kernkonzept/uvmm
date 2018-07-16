@@ -24,6 +24,7 @@
 #include "vmprint.h"
 #include "zeropage.h"
 #include "pt_walker.h"
+#include "vm_ram.h"
 
 namespace Vmm {
 
@@ -53,10 +54,10 @@ public:
     _clock.add_timer(dev);
   }
 
-  L4virtio::Ptr<void> load_linux_kernel(Ram_ds *ram, char const *kernel,
+  L4virtio::Ptr<void> load_linux_kernel(Vm_ram *ram, char const *kernel,
                                         l4_addr_t *entry);
 
-  void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Ram_ds *ram,
+  void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
                          char const *kernel, char const *cmd_line,
                          l4_addr_t dt_boot_addr);
 

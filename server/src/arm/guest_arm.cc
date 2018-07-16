@@ -147,34 +147,36 @@ Guest::setup_device_tree(Vdev::Device_tree dt)
 }
 
 void
-Guest::check_guest_constraints(Ram_ds *ram)
+Guest::check_guest_constraints(Vm_ram *ram)
 {
   Dbg warn(Dbg::Mmio, Dbg::Warn, "ram");
 
+  l4_addr_t base = ram->base_address();
+
   if (guest_64bit)
     {
-      if (ram->vm_start() & ((1UL << 21) - 1))
+      if (base & ((1UL << 21) - 1))
         warn.printf(
           "\033[01;31mWARNING: Guest memory not 2MB aligned!\033[m\n"
           "       If you run a 64bit-Linux as a guest,\n"
           "       Linux will likely fail to boot as it expects\n"
           "       a 2MB alignment of its memory.\n"
           "       Current guest RAM alignment is only 0x%x\n",
-          1 << __builtin_ctz(ram->vm_start()));
+          1 << __builtin_ctz(base));
 
       return;
     }
 
-  if (ram->vm_start() & ((1UL << 27) - 1))
+  if (base & ((1UL << 27) - 1))
     warn.printf(
       "\033[01;31mWARNING: Guest memory not 128MB aligned!\033[m\n"
       "       If you run a 32bit-Linux as a guest,\n"
       "       Linux will likely fail to boot as it assumes\n"
       "       a 128MB alignment of its memory.\n"
       "       Current guest RAM alignment is only 0x%x\n",
-      1 << __builtin_ctz(ram->vm_start()));
+      1 << __builtin_ctz(base));
 
-  if (ram->vm_start() & ~0xf0000000)
+  if (base & ~0xf0000000)
     warn.printf(
       "WARNING: Guest memory not 256MB aligned!\n"
       "       If you run a 32bit-Linux as a guest, you might hit a bug\n"
@@ -185,7 +187,7 @@ Guest::check_guest_constraints(Ram_ds *ram)
 }
 
 L4virtio::Ptr<void>
-Guest::load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry)
+Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, l4_addr_t *entry)
 {
   Boot::Binary_ds image(kernel);
   if (image.is_elf_binary())
@@ -235,9 +237,9 @@ Guest::load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry)
    * bss before starting decompression. So we should be safe if we
    * place anything (e.g. initrd/device tree) at 3/4 of the ram.
    */
-  l4_size_t def_offs = l4_round_size((ram->size() * 3) / 4,
+  l4_size_t def_offs = l4_round_size((ram->total_size() * 3) / 4,
                                      L4_SUPERPAGESHIFT);
-  L4virtio::Ptr<void> def_end(ram->vm_start() + def_offs);
+  L4virtio::Ptr<void> def_end(ram->base_address() + def_offs);
 
   if (def_end.get() < end.get())
     L4Re::chksys(-L4_ENOMEM, "Not enough space to run Linux");
@@ -280,7 +282,7 @@ Guest::prepare_vcpu_startup(Vcpu_ptr vcpu, l4_addr_t entry) const
 
 void
 Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
-                         Ram_ds * /* ram */, char const * /* kernel */,
+                         Vm_ram * /* ram */, char const * /* kernel */,
                          char const * /* cmd_line */, l4_addr_t dt_boot_addr)
 {
   prepare_vcpu_startup(vcpu, entry);

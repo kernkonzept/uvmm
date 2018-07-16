@@ -10,7 +10,7 @@
 #include <l4/sys/types.h>
 
 #include "debug.h"
-#include "ram_ds.h"
+#include "vm_ram.h"
 
 namespace Vmm {
 
@@ -141,9 +141,9 @@ public:
     _dtb_size = size;
   }
 
-  void write(Ram_ds *ram, Binary_type const gt)
+  void write(Vm_ram *ram, Binary_type const gt)
   {
-    memset(ram->access(L4virtio::Ptr<char>(_gp_addr)), 0, L4_PAGESIZE);
+    memset(ram->guest2host(L4virtio::Ptr<char>(_gp_addr)), 0, L4_PAGESIZE);
 
     switch (gt)
       {
@@ -164,13 +164,13 @@ public:
 
           // constants taken from $lx_src/Documentation/x86/boot.txt
           l4_uint8_t hsz = *(reinterpret_cast<unsigned char *>(
-            ram->access(L4virtio::Ptr<char>(_kbinary + 0x0201))));
+            ram->guest2host(L4virtio::Ptr<char>(_kbinary + 0x0201))));
 
           // calculate size of the setup_header in the zero page/boot params
           l4_size_t boot_hdr_size = (0x0202 + hsz) - Bp_boot_header;
 
-          memcpy(ram->access(L4virtio::Ptr<char>(_gp_addr + Bp_boot_header)),
-                 ram->access(L4virtio::Ptr<char>(_kbinary + Bp_boot_header)),
+          memcpy(ram->guest2host(L4virtio::Ptr<char>(_gp_addr + Bp_boot_header)),
+                 ram->guest2host(L4virtio::Ptr<char>(_kbinary + Bp_boot_header)),
                  boot_hdr_size);
           break;
         }
@@ -180,7 +180,7 @@ public:
 
     // write e820
     assert(_e820_idx > 0);
-    memcpy(ram->access(L4virtio::Ptr<char>(_gp_addr + Bp_e820_map)), _e820,
+    memcpy(ram->guest2host(L4virtio::Ptr<char>(_gp_addr + Bp_e820_map)), _e820,
            sizeof(E820_entry) * _e820_idx);
     set_header<l4_uint8_t>(ram, Bp_e820_entries, _e820_idx);
 
@@ -199,7 +199,7 @@ public:
 
   l4_addr_t addr() const { return _gp_addr; }
 
-  l4_uint32_t entry(Ram_ds *ram)
+  l4_uint32_t entry(Vm_ram *ram)
   { return get_header<l4_uint32_t>(ram, Bp_code32_start); }
 
 private:
@@ -217,13 +217,13 @@ private:
   }
 
   // add an entry to the single-linked list of Setup_data
-  void add_setup_data(Ram_ds *ram, Setup_data *sd, l4_addr_t guest_addr)
+  void add_setup_data(Vm_ram *ram, Setup_data *sd, l4_addr_t guest_addr)
   {
     sd->next = get_header<l4_uint64_t>(ram, Bp_setup_data);
     set_header<l4_uint64_t>(ram, Bp_setup_data, guest_addr);
   }
 
-  void write_cmdline(Ram_ds *ram)
+  void write_cmdline(Vm_ram *ram)
   {
     if (*_cmdline == 0)
       return;
@@ -231,14 +231,14 @@ private:
     // place the command line bind the boot parameters
     auto cmdline_addr = _gp_addr + Bp_end;
 
-    strcpy(ram->access(L4virtio::Ptr<char>(cmdline_addr)), _cmdline);
+    strcpy(ram->guest2host(L4virtio::Ptr<char>(cmdline_addr)), _cmdline);
     set_header<l4_uint32_t>(ram, Bp_cmdline_ptr, cmdline_addr);
 
     info().printf("cmdline check: %s\n",
-                  ram->access(L4virtio::Ptr<char>(cmdline_addr)));
+                  ram->guest2host(L4virtio::Ptr<char>(cmdline_addr)));
   }
 
-  void write_dtb(Ram_ds *ram)
+  void write_dtb(Vm_ram *ram)
   {
     if (_dtb == 0 || _dtb_size == 0)
       return;
@@ -247,7 +247,7 @@ private:
     // must be the first byte of the DT. The rest of the Setup_data struct
     // must go right before it. Hopefully, there is space.
     unsigned sd_hdr_size = sizeof(Setup_data) + sizeof(Setup_data::data);
-    auto *sd = ram->access(L4virtio::Ptr<Setup_data>(_dtb - sd_hdr_size));
+    auto *sd = ram->guest2host(L4virtio::Ptr<Setup_data>(_dtb - sd_hdr_size));
 
     for (unsigned i = sd_hdr_size; i > 0; i -= sizeof(char))
       {
@@ -264,17 +264,17 @@ private:
   }
 
   template <typename T>
-  void set_header(Ram_ds *ram, unsigned field, T value)
+  void set_header(Vm_ram *ram, unsigned field, T value)
   {
     *(reinterpret_cast<T *>(
-      ram->access(L4virtio::Ptr<char>(_gp_addr + field)))) = value;
+      ram->guest2host(L4virtio::Ptr<char>(_gp_addr + field)))) = value;
   }
 
   template <typename T>
-  T get_header(Ram_ds *ram, unsigned field)
+  T get_header(Vm_ram *ram, unsigned field)
   {
     return *(reinterpret_cast<T *>(
-      ram->access(L4virtio::Ptr<char>(_gp_addr + field))));
+      ram->guest2host(L4virtio::Ptr<char>(_gp_addr + field))));
   }
 };
 

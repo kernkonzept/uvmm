@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Kernkonzept GmbH.
+ * Copyright (C) 2018 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public
@@ -19,11 +19,13 @@
 
 #include "device.h"
 #include "device_tree.h"
-#include "vm_ram.h"
 
 namespace Vmm {
 
-class Ram_ds : public Vm_ram, public virtual Vdev::Dev_ref
+/**
+ * A continuous piece of RAM backed by a part of an L4 dataspace.
+ */
+class Ram_ds
 {
 public:
   enum { Ram_base_identity_mapped = ~0UL };
@@ -35,15 +37,12 @@ public:
    * \param vm_base     Guest physical address where the RAM should be mapped.
    *                    If ~0UL, use the host physical address of the
    *                    backing memory (required for DMA without IOMMU).
-   * \param boot_offset Offset between guest physical and guest virtual address
-   *                    during boot. Required for architectures that use a
-   *                    special virtual boot memory layout instead of
-   *                    simply exposing the physical memory.
    */
-  explicit Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base = ~0UL,
-                  l4_addr_t boot_offset = 0);
+  explicit Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base = ~0UL);
 
-  virtual ~Ram_ds() = default;
+  Ram_ds(Vmm::Ram_ds const &) = delete;
+  Ram_ds(Vmm::Ram_ds &&) = default;
+  ~Ram_ds() = default;
 
   /**
    * Load the contents of the given dataspace into guest RAM.
@@ -57,59 +56,20 @@ public:
    */
   L4virtio::Ptr<void>
   load_file(L4::Cap<L4Re::Dataspace> const &file, L4virtio::Ptr<void> addr,
-            l4_size_t *sz = 0);
+            l4_size_t *sz) const;
 
   /**
-   * Load the contents of the given file into guest RAM.
-   *
-   * \param file     File to load.
-   * \param addr     Guest physical address to load the data space to.
-   * \param[out] sz  (Optional) If not null, contains the number of bytes
-   *                            copied on return.
-   *
-   * \return Points to the first address after the newly copied region.
-   */
-  L4virtio::Ptr<void>
-  load_file(char const *name, L4virtio::Ptr<void> addr, l4_size_t *sz = 0);
-
-  L4::Cap<L4Re::Dataspace> ram() const noexcept
-  { return _ram; }
-
-  /**
-   * Compute the boot address of a guest physical pointer.
+   * Get a VMM-virtual pointer from a guest-physical address
    */
   template <typename T>
-  l4_addr_t boot_addr(L4virtio::Ptr<T> p) const
-  { return p.get() + _boot_offset; }
+  T *guest2host(L4virtio::Ptr<T> p) const
+  { return (T*)(p.get() + _offset); }
 
-  l4_addr_t boot_addr(l4_addr_t p) const noexcept
-  { return p + _boot_offset; }
+  L4::Cap<L4Re::Dataspace> ds() const noexcept
+  { return _ds; }
 
-  /**
-   * Computes the offset into the RAM given a boot virtual address.
-   */
-  l4_addr_t boot2ram(l4_addr_t p) const noexcept
-  { return p - _boot_offset - vm_start(); }
-
-  template <typename T>
-  L4virtio::Ptr<T> boot2guest_phys(l4_addr_t p) const noexcept
-  { return L4virtio::Ptr<T>(p - _boot_offset); }
-
-  void setup_device_tree(Vdev::Device_tree dt)
+  void setup_device_tree(Vdev::Dt_node const &mem_node) const
   {
-    int err = dt.remove_nodes_by_property("device_type", "memory");
-    if (err < 0)
-      {
-        Err().printf("Unable to remove existing memory nodes: %s\n",
-                     fdt_strerror(err));
-        throw L4::Runtime_error(-L4_EINVAL);
-      }
-
-    // "memory@" + 64bit hex address + '\0'
-    char buf[7 + 16 + 1];
-    std::snprintf(buf, sizeof(buf), "memory@%lx", vm_start());
-
-    auto mem_node = dt.first_node().add_subnode(buf);
     mem_node.setprop_string("device_type", "memory");
     mem_node.set_reg_val(vm_start(), size());
 
@@ -119,12 +79,27 @@ public:
     mem_node.appendprop("dma-ranges", _phys_size, mem_node.get_size_cells());
   }
 
+  l4_addr_t vm_start() const noexcept { return _vm_start; }
+  l4_size_t size() const noexcept { return _size; }
+  l4_addr_t local_start() const noexcept { return _local_start; }
+
 private:
-  L4::Cap<L4Re::Dataspace> _ram;
+  /// Offset between guest-physical and host-virtual address.
+  l4_mword_t _offset;
+  /// uvmm local address where the dataspace has been mapped.
+  l4_addr_t _local_start;
+  /// Guest-physical address of the mapped dataspace.
+  l4_addr_t _vm_start;
+  /// Size of the mapped area.
+  l4_size_t _size;
+
+  /// Backing dataspace for the RAM area.
+  L4::Cap<L4Re::Dataspace> _ds;
+  /// DMA space providing device access (if applicable).
   L4Re::Util::Unique_cap<L4Re::Dma_space> _dma;
-  l4_addr_t _boot_offset;
-  /// Device address for DMA ranges in device tree. MIPS specific.
+  /// Host-physical address of the beginning of the mapped area (if applicable).
   L4Re::Dma_space::Dma_addr _phys_ram;
+  /// Size of the continiously mapped area from the beginning of the area.
   l4_size_t _phys_size;
 };
 

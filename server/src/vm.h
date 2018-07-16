@@ -11,7 +11,7 @@
 #include "device.h"
 #include "device_repo.h"
 #include "guest.h"
-#include "ram_ds.h"
+#include "vm_ram.h"
 #include "virt_bus.h"
 
 namespace Vmm {
@@ -29,7 +29,7 @@ public:
   Vmm::Guest *vmm() const override
   { return _vmm; }
 
-  cxx::Ref_ptr<Vmm::Ram_ds> ram() const override
+  cxx::Ref_ptr<Vmm::Vm_ram> ram() const override
   { return _ram; }
 
   cxx::Ref_ptr<Vmm::Virt_bus> vbus() const override
@@ -54,19 +54,10 @@ public:
   void create_default_devices(l4_addr_t rambase)
   {
     _vmm = Vmm::Guest::create_instance();
+    _ram = Vdev::make_device<Vmm::Vm_ram>(rambase, Vmm::Guest::Boot_offset,
+                                          _vmm->memmap());
 
-    L4Re::Env const *e = L4Re::Env::env();
-
-    auto ram = L4Re::chkcap(e->get_cap<L4Re::Dataspace>("ram"),
-                            "ram dataspace cap", -L4_ENOENT);
-    _ram = Vdev::make_device<Vmm::Ram_ds>(ram, rambase,
-                                          Vmm::Guest::Boot_offset);
-    _vmm->add_mmio_device(Region::ss(_ram->vm_start(), _ram->size()),
-                          Vdev::make_device<Ds_handler>(_ram->ram(),
-                                                        _ram->local_start(),
-                                                        _ram->size()));
-
-    auto vbus_cap = e->get_cap<L4vbus::Vbus>("vbus");
+    auto vbus_cap = L4Re::Env::env()->get_cap<L4vbus::Vbus>("vbus");
     _vbus = cxx::make_ref_obj<Vmm::Virt_bus>(vbus_cap);
 
     _cpus = Vdev::make_device<Vmm::Cpu_dev_array>();
@@ -79,7 +70,7 @@ public:
 private:
   Vdev::Device_repository _devices;
   Vmm::Guest *_vmm;
-  cxx::Ref_ptr<Vmm::Ram_ds> _ram;
+  cxx::Ref_ptr<Vmm::Vm_ram> _ram;
   cxx::Ref_ptr<Vmm::Virt_bus> _vbus;
   cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
 };

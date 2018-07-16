@@ -21,6 +21,7 @@
 #include "irq.h"
 #include "vmprint.h"
 #include "mips_instructions.h"
+#include "vm_ram.h"
 
 constexpr l4_addr_t sign_ext(l4_uint32_t addr)
 { return (l4_addr_t) ((l4_mword_t) ((l4_int32_t) addr)); }
@@ -95,10 +96,10 @@ public:
 
   void setup_device_tree(Vdev::Device_tree dt);
 
-  L4virtio::Ptr<void> load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry);
+  L4virtio::Ptr<void> load_linux_kernel(Vm_ram *ram, char const *kernel, l4_addr_t *entry);
 
   void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
-                         Ram_ds *ram, char const *kernel,
+                         Vm_ram *ram, char const *kernel,
                          char const *cmd_line, l4_addr_t dt_boot_addr);
 
   void run(cxx::Ref_ptr<Cpu_dev_array> const &cpus);

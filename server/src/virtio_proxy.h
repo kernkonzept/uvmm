@@ -194,12 +194,15 @@ private:
 
 public:
   Virtio_proxy(L4::Cap<L4virtio::Device> device, l4_size_t config_size,
-               unsigned nnq_id, Vmm::Ram_ds *ram)
+               unsigned nnq_id, Vmm::Vm_ram *ram)
   : _nnq_id(nnq_id), _dev(device, config_size)
   {
-    L4Re::chksys(_dev.register_ds(ram->ram(), 0, ram->size(),
-                                  ram->vm_start()),
-                 "Registering RAM for virtio proxy");
+    ram->foreach_region([this](Vmm::Ram_ds const &r)
+      {
+        L4Re::chksys(_dev.register_ds(r.ds(), 0, r.size(),
+                                      r.vm_start()),
+                     "Registering RAM for virtio proxy.");
+      });
   }
 
   int init_irqs(Vdev::Device_lookup *devs, Vdev::Dt_node const &self)
@@ -304,7 +307,8 @@ class Virtio_proxy_mmio
   public Virtio::Mmio_connector<Virtio_proxy_mmio>
 {
 public:
-  Virtio_proxy_mmio(L4::Cap<L4virtio::Device> device, l4_size_t config_size, unsigned nnq_id, Vmm::Ram_ds *ram)
+  Virtio_proxy_mmio(L4::Cap<L4virtio::Device> device, l4_size_t config_size,
+                    unsigned nnq_id, Vmm::Vm_ram *ram)
   : Virtio_proxy<Virtio_proxy_mmio>(device, config_size, nnq_id, ram)
   {}
 
