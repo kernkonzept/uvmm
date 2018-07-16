@@ -42,14 +42,14 @@ public:
    * \see Device_lookup::get_or_create_ic_dev(Vdev::Dt_node const &node,
    *                                          bool fatal)
    */
-  virtual cxx::Ref_ptr<Gic::Ic> get_or_create_ic_dev(Vdev::Dt_node const &node,
-                                                     bool fatal) override;
+  cxx::Ref_ptr<Gic::Ic> get_or_create_ic_dev(Vdev::Dt_node const &node,
+                                             bool fatal) override;
   /**
    * \see Device_lookup::get_or_create_ic(Vdev::Dt_node const &node,
    *                                      cxx::Ref_ptr<Gic::Ic> *ic_ptr)
    */
-  virtual Ic_error get_or_create_ic(Vdev::Dt_node const &node,
-                                    cxx::Ref_ptr<Gic::Ic> *ic_ptr) override;
+  Ic_error get_or_create_ic(Vdev::Dt_node const &node,
+                            cxx::Ref_ptr<Gic::Ic> *ic_ptr) override;
 
   void create_default_devices(l4_addr_t rambase)
   {
@@ -73,7 +73,7 @@ public:
   }
 
   void add_device(Vdev::Dt_node const &node,
-                  cxx::Ref_ptr<Vdev::Device> dev)
+                  cxx::Ref_ptr<Vdev::Device> dev) override
   { _devices.add(node, dev); }
 
 private:

@@ -343,7 +343,7 @@ public:
   void vmx_write(unsigned field, l4_uint64_t val)
   { l4_vm_vmx_write(_vmcs, field, val); }
 
-  virtual void dump_state() const override
+  void dump_state() const override
   {
     Dbg dbg(Dbg::Guest, Dbg::Warn);
     dbg.printf("========= Dumping VMCS state ============\n");

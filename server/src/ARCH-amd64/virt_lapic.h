@@ -198,7 +198,7 @@ public:
   { return 1; }
 
   // Msi_distributor interface
-  void send(Vdev::Msi_msg message) const
+  void send(Vdev::Msi_msg message) const override
   {
     // TODO implement MSI-X parsing such that malconfigured MSIs are dropped.
     _apics->get(0)->set(message.data & 0xff);
