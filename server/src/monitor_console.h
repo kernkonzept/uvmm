@@ -39,6 +39,19 @@ public:
     fclose(_f);
   }
 
+  static cxx::Ref_ptr<Monitor_console> create(Vdev::Device_lookup *devs)
+  {
+    const char * const capname = "mon";
+    auto mon_con_cap = L4Re::Env::env()->get_cap<L4::Vcon>(capname);
+    if (!mon_con_cap)
+      return nullptr;
+
+    auto moncon = cxx::make_ref_obj<Monitor_console>(capname, mon_con_cap, devs);
+    moncon->register_obj(devs->vmm()->registry());
+
+    return moncon;
+  }
+
   void register_obj(L4::Registry_iface *registry)
   {
     _con->bind(0, L4Re::chkcap(registry->register_irq_obj(this)));
