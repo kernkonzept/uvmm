@@ -113,6 +113,7 @@ private:
   Guest_print_buffer _hypcall_print;
   Pt_walker _ptw;
   cxx::Ref_ptr<Gic::Lapic_array> _apics;
+  Binary_type _guest_t;
 };
 
 } // namespace Vmm

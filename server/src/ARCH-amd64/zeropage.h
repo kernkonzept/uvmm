@@ -14,6 +14,12 @@
 
 namespace Vmm {
 
+enum class Binary_type
+{
+  Elf,
+  Linux
+};
+
 enum Boot_param
 {
   Bp_ext_ramdisk_image = 0x0c0,

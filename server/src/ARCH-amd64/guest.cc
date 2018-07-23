@@ -74,6 +74,7 @@ Guest::load_linux_kernel(Ram_ds *ram, char const *kernel, l4_addr_t *entry)
   trace().printf("Loaded kernel image as raw to 0x%lx\n", z);
   trace().printf("load kernel as raw entry to 0x%lx\n",
                  ram->boot_addr(Linux_kernel_start_addr));
+  _guest_t = Binary_type::Linux;
 
 
   return l4_round_size(image.get_upper_bound(), L4_LOG2_SUPERPAGESIZE);
