@@ -146,8 +146,8 @@ public:
 
   l4_addr_t addr() const { return _gp_addr; }
 
-  char *entry(Ram_ds *ram)
-  { return ram->access(L4virtio::Ptr<char>(_kbinary + Bp_code32_start)); }
+  l4_uint32_t entry(Ram_ds *ram)
+  { return get_header<l4_uint32_t>(ram, Bp_code32_start); }
 
 private:
   static Dbg trace() { return Dbg(Dbg::Core, Dbg::Trace); }

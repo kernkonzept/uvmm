@@ -111,7 +111,7 @@ void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Ram_ds *ram,
   // write zeropage to VM ram
   zpage.write(ram);
 
-  vcpu->r.ip = *(reinterpret_cast<l4_addr_t*>(zpage.entry(ram)));
+  vcpu->r.ip = zpage.entry(ram);
   vcpu->r.si = zpage.addr();
 
   trace().printf("Zeropage setup: vCPU ip: 0x%lx, si: 0x%lx\n", vcpu->r.ip,
