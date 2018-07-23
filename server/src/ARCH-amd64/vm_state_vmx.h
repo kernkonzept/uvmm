@@ -189,8 +189,8 @@ public:
     vmx_write(L4VCPU_VMCS_GUEST_RIP, entry);
     vmx_write(L4VCPU_VMCS_GUEST_RFLAGS, eflags);
     vmx_write(L4VCPU_VMCS_GUEST_RSP, 0);
-    vmx_write(L4VCPU_VMCS_GUEST_CR0, 0x1003b);
-    vmx_write(L4VCPU_VMCS_CR0_READ_SHADOW, 0x1003b);
+    vmx_write(L4VCPU_VMCS_GUEST_CR0, 0x10031);
+    vmx_write(L4VCPU_VMCS_CR0_READ_SHADOW, 0x10031);
     vmx_write(L4VCPU_VMCS_CR0_GUEST_HOST_MASK, ~0ULL);
 
     vmx_write(L4VCPU_VMCS_GUEST_CR3, 0);
