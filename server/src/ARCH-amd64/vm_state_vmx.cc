@@ -110,7 +110,7 @@ Vmx_state::handle_exec_wmsr(l4_vcpu_regs_t *regs,
     {
     case 0xc0000080: // efer
       {
-        l4_uint64_t efer = value & 0xF01;
+        l4_uint64_t efer = value & 0xD01;
         auto vm_entry_ctls = vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS);
 
         Dbg().printf("vmx read CRO: 0x%llx efer 0x%llx, vm_entry_ctls 0x%llx\n",
