@@ -33,16 +33,26 @@ public:
   /**
    * Create a new RAM dataspace.
    *
-   * \param ram         L4Re Dataspace that represents the RAM for the VM.
-   * \param vm_base     Guest physical address where the RAM should be mapped.
-   *                    If ~0UL, use the host physical address of the
-   *                    backing memory (required for DMA without IOMMU).
+   * \param ds       L4Re Dataspace that represents the RAM for the VM.
+   * \param size     Size of the region (default: use dataspace size).
+   * \param offset   Offset into the dataspace.
    */
-  explicit Ram_ds(L4::Cap<L4Re::Dataspace> ram, l4_addr_t vm_base = ~0UL);
+  Ram_ds(L4::Cap<L4Re::Dataspace> ds, l4_size_t size, l4_addr_t offset)
+  : _size(size), _ds_offset(offset), _ds(ds)
+  {}
 
   Ram_ds(Vmm::Ram_ds const &) = delete;
   Ram_ds(Vmm::Ram_ds &&) = default;
   ~Ram_ds() = default;
+
+  /**
+   * Set up the memory for DMA and host access.
+   *
+   * \param vm_base  Guest physical address where the RAM should be mapped.
+   *                 If `Ram_base_identity_mapped`, use the host physical address
+   *                 of the backing memory (required for DMA without IOMMU).
+   */
+  long setup(l4_addr_t vm_base);
 
   /**
    * Load the contents of the given dataspace into guest RAM.
@@ -68,13 +78,10 @@ public:
   L4::Cap<L4Re::Dataspace> ds() const noexcept
   { return _ds; }
 
-  void setup_device_tree(Vdev::Dt_node const &mem_node) const
+  void dt_append_dmaprop(Vdev::Dt_node const &mem_node) const
   {
-    mem_node.setprop_string("device_type", "memory");
-    mem_node.set_reg_val(vm_start(), size());
-
     int addr_cells = mem_node.get_address_cells();
-    mem_node.setprop("dma-ranges", _phys_ram, addr_cells);
+    mem_node.appendprop("dma-ranges", _phys_ram, addr_cells);
     mem_node.appendprop("dma-ranges", vm_start(), addr_cells);
     mem_node.appendprop("dma-ranges", _phys_size, mem_node.get_size_cells());
   }
@@ -82,6 +89,9 @@ public:
   l4_addr_t vm_start() const noexcept { return _vm_start; }
   l4_size_t size() const noexcept { return _size; }
   l4_addr_t local_start() const noexcept { return _local_start; }
+  l4_addr_t ds_offset() const noexcept { return _ds_offset; }
+
+  bool has_phys_addr() const noexcept { return _phys_size > 0; }
 
 private:
   /// Offset between guest-physical and host-virtual address.
@@ -92,6 +102,8 @@ private:
   l4_addr_t _vm_start;
   /// Size of the mapped area.
   l4_size_t _size;
+  /// Offset into the dataspace where the mapped area starts.
+  l4_addr_t _ds_offset;
 
   /// Backing dataspace for the RAM area.
   L4::Cap<L4Re::Dataspace> _ds;

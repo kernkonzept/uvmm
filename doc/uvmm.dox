@@ -6,6 +6,55 @@
  *
  * \page l4re_servers_uvmm Uvmm, the virtual machine monitor
  *
+ * Setting up guest memory
+ * -----------------------
+ *
+ * In the most simple setup, memory for the guest can be provided via a
+ * simple dataspace. In your ned script, create a new dataspace of the
+ * required size and hand it into uvmm as the 'ram' capability:
+ *
+ * \code
+ * local ramds = L4.Env.user_factory:create(L4.Proto.Dataspace, 60 * 1024 * 1024)
+ *
+ * L4.default_loader::startv({caps = {ram = ramds:m("rw")}}, "rom/uvmm")
+ * \endcode
+ *
+ * The memory will be mapped to the most appropriate place and a \memory node
+ * added to the device tree, so that the guest can find the memory.
+ *
+ * For a more complex setup, the memory can be configured via the device tree.
+ * uvmm scans for memory nodes and tries to set up the memory from them. A
+ * memory device node should look like this:
+ *
+ * \code
+ *     memory@0 {
+ *       device_type = "memory";
+ *       reg = <0x00000000 0x00100000,
+ *              0x00200000 0xffffffff>;
+ *       l4vmm,dscap = "memcap";
+ *       l4vmm,physmap;
+ *       dma-ranges = <>;
+ *     }
+ * \endcode
+ *
+ * The `device_type` property is mandatory and needs to be set to `memory`.
+ *
+ * `l4vmm,dscap` contains the name of the capability containing the dataspace
+ * to be used for the RAM. `reg` describe the memory regions to use for the
+ * memory. The regions will be filled up to the size of the supplied dataspace.
+ * If they are larger, then the remaining area will be cut.
+ *
+ * `l4vmm,physmap` indicates that uvmm should try to map the dataspace to its
+ * actual physical address when no IOMMU is available. If the physical address
+ * cannot be determined or an IOMMU is available, then the memory will be
+ * mapped to the addresses supplied in `regs`. It is possible to omit the
+ * `regs` property when `l4vmm.physmap` is set. In this case, uvmm will fail to
+ * start if the physical address cannot be determined.
+ *
+ * If a `dma-ranges` property is given, the host-physical address ranges
+ * for the memory regions will be added here. Note that the property is
+ * not cleared first, so it should be left empty.
+ *
  * How to enable guest suspend/resume
  * ----------------------------------
  *
@@ -14,7 +63,7 @@
  *
  * Uvmm (partially) implements the power state coordination interface (PSCI),
  * which is the standard ARM power management interface. To make use of this
- * interface, you have to announce its availablity to the guest operating
+ * interface, you have to announce its availability to the guest operating
  * system via the device tree like so:
  *
  * \code

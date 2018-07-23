@@ -118,7 +118,7 @@ void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
   if (cmd_line)
     zpage.add_cmdline(cmd_line);
 
-  zpage.cfg_e820(ram->total_size());
+  zpage.cfg_e820(ram);
   // write zeropage to VM ram
   zpage.write(ram, _guest_t);
 

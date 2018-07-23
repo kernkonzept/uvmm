@@ -199,7 +199,7 @@ public:
   {
     ram->foreach_region([this](Vmm::Ram_ds const &r)
       {
-        L4Re::chksys(_dev.register_ds(r.ds(), 0, r.size(),
+        L4Re::chksys(_dev.register_ds(r.ds(), r.ds_offset(), r.size(),
                                       r.vm_start()),
                      "Registering RAM for virtio proxy.");
       });

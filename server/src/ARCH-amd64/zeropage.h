@@ -120,13 +120,21 @@ public:
     _ramdisk_size = sz;
   }
 
-  void cfg_e820(l4_size_t ram_sz)
+  void cfg_e820(Vm_ram *ram)
   {
+    l4_addr_t last_addr = 0;
+    ram->foreach_region([this, &last_addr](Vmm::Ram_ds const &r)
+      {
+        if (_e820_idx < Max_e820_entries)
+          add_e820_entry(r.vm_start(), r.size(), E820_ram);
+        last_addr = r.vm_start() + r.size();
+      });
+
     // e820 memory map: Linux expects at least two entries to be present to
     // qualify as a e820 map. From our side, the second entry is currently
     // unused and has no backing memory. see linux/boot/x86/kernel/e820.c
-    add_e820_entry(0, ram_sz, E820_ram);
-    add_e820_entry(ram_sz, L4_PAGESIZE , E820_reserved);
+    if (last_addr && _e820_idx < 2)
+      add_e820_entry(last_addr, L4_PAGESIZE , E820_reserved);
   }
 
   /**

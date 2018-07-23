@@ -13,31 +13,39 @@
 #include "debug.h"
 #include "ram_ds.h"
 
+static Dbg warn(Dbg::Mmio, Dbg::Warn, "ram");
+static Dbg trace(Dbg::Mmio, Dbg::Warn, "trace");
+
 namespace Vmm {
 
-Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ds, l4_addr_t vm_base)
-: _ds(ds)
+long
+Ram_ds::setup(l4_addr_t vm_base)
 {
   Dbg info(Dbg::Mmio, Dbg::Info, "ram");
 
   _vm_start = vm_base;
-  _size = ds->size();
   auto dma_cap = L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dma_space>());
 
   auto *env = L4Re::Env::env();
 
   int err = l4_error(env->user_factory()->create(dma_cap.get()));
+  if (err < 0)
+    trace.printf("Cannot create DMA capability.\n");
 
   if (err >= 0)
-    err = dma_cap->associate(L4::Ipc::Cap<L4::Task>(L4::Cap<void>::Invalid),
-                             L4Re::Dma_space::Phys_space);
+    {
+      err = dma_cap->associate(L4::Ipc::Cap<L4::Task>(L4::Cap<void>::Invalid),
+                               L4Re::Dma_space::Phys_space);
+      if (err < 0)
+        trace.printf("Cannot access physical address space mappings.\n");
+    }
 
   l4_size_t phys_size = _size;
   L4Re::Dma_space::Dma_addr phys_ram = 0;
 
   if (err >= 0)
-    err = dma_cap->map(L4::Ipc::make_cap(ds, L4_CAP_FPAGE_RW),
-                       0, &phys_size,
+    err = dma_cap->map(L4::Ipc::make_cap(_ds, L4_CAP_FPAGE_RW),
+                       _ds_offset, &phys_size,
                        L4Re::Dma_space::Attributes::None,
                        L4Re::Dma_space::Bidirectional, &phys_ram);
   else
@@ -48,13 +56,12 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ds, l4_addr_t vm_base)
 
   if (err < 0 || phys_size < _size)
     {
-      Dbg warn(Dbg::Mmio, Dbg::Warn, "ram");
-      warn.printf("RAM dataspace not contiguous, should not use DMA w/o IOMMU\n");
-      if (err >= 0 && _vm_start == Ram_base_identity_mapped)
+      if (_vm_start == Ram_base_identity_mapped)
         {
-          _vm_start = phys_ram;
-          ident = true;
+          warn.printf("Identitiy mapping requested but dataspace not continuous.\n");
+          return err < 0 ? err : -L4_ENOMEM;
         }
+      warn.printf("RAM dataspace not contiguous, should not use DMA w/o IOMMU\n");
     }
   else
     {
@@ -72,11 +79,9 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ds, l4_addr_t vm_base)
   _local_start = 0;
   L4Re::chksys(env->rm()->attach(&_local_start, _size,
                                  L4Re::Rm::Search_addr | L4Re::Rm::Eager_map,
-                                 L4::Ipc::make_cap_rw(ds), 0,
+                                 L4::Ipc::make_cap_rw(_ds), _ds_offset,
                                  L4_SUPERPAGESHIFT));
   info.printf("RAM: VMM mapping @ 0x%lx size=0x%lx\n", _local_start, (l4_addr_t)_size);
-
-  assert(_vm_start != ~0UL);
 
   _offset = _local_start - _vm_start;
   info.printf("RAM: VM offset=0x%lx\n", _offset);
@@ -86,6 +91,8 @@ Ram_ds::Ram_ds(L4::Cap<L4Re::Dataspace> ds, l4_addr_t vm_base)
 
   _phys_ram = phys_ram;
   _phys_size = phys_size;
+
+  return L4_EOK;
 }
 
 
@@ -102,15 +109,17 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
   l4_addr_t offset = addr.get() - _vm_start;
   l4_size_t fsize = file->size();
 
-  if (addr.get() < _vm_start || offset >= size() || offset + fsize >= size())
+  if (addr.get() < _vm_start || fsize > size() || offset >= size() - fsize)
     {
-      Err().printf("File does not fit into ram\n");
+      Err().printf("File does not fit into ram. "
+                   "(Loading [0x%llx - 0x%llx] into area [0x%lx - 0x%lx])\n",
+                   addr.get(), addr.get() + fsize, _vm_start, _vm_start + size());
       L4Re::chksys(-L4_EINVAL);
     }
 
   info.printf("copy in: to offset 0x%lx-0x%lx\n", offset, offset + fsize);
 
-  L4Re::chksys(_ds->copy_in(offset, file, 0, fsize), "copy in");
+  L4Re::chksys(_ds->copy_in(offset + _ds_offset, file, 0, fsize), "copy in");
   if (sz)
     *sz = fsize;
 

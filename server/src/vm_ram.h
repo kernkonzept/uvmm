@@ -15,12 +15,14 @@
  */
 #pragma once
 
+#include <cassert>
 #include <vector>
 
 #include <l4/l4virtio/virtqueue>
 
 #include "device.h"
 #include "ds_mmio_mapper.h"
+#include "host_dt.h"
 #include "ram_ds.h"
 
 inline L4virtio::Ptr<void>
@@ -37,18 +39,9 @@ namespace Vmm {
 class Vm_ram : public Vdev::Device
 {
 public:
-  Vm_ram(l4_addr_t vm_base, l4_addr_t boot_offset, Vm_mem *memmap);
-
-  /**
-   * Add a new RAM region.
-   *
-   * \param ds        Dataspace containing the RAM.
-   * \param baseaddr  Guest physical start address of the dataspce.
-   * \param memap     Geust memory map where to register the new region.
-   *
-   */
-  void add_memory_region(L4::Cap<L4Re::Dataspace> ds,
-                         l4_addr_t baseaddr, Vm_mem *memmap);
+  Vm_ram(l4_addr_t boot_offset)
+  : _boot_offset(boot_offset)
+  {}
 
   /**
    * Load the contents of the given dataspace into guest RAM.
@@ -104,26 +97,8 @@ public:
     return r->guest2host(L4virtio::Ptr<T>(gaddr));
   }
 
-  void setup_device_tree(Vdev::Device_tree dt) const
-  {
-    int err = dt.remove_nodes_by_property("device_type", "memory");
-    if (err < 0)
-      {
-        Err().printf("Unable to remove existing memory nodes: %s\n",
-                     fdt_strerror(err));
-        throw L4::Runtime_error(-L4_EINVAL);
-      }
-
-    for (auto const &r : _regions)
-      {
-        // "memory@" + 64bit hex address + '\0'
-        char buf[7 + 16 + 1];
-        std::snprintf(buf, sizeof(buf), "memory@%lx", r.vm_start());
-
-        r.setup_device_tree(dt.first_node().add_subnode(buf));
-      }
-  }
-
+  void setup_from_device_tree(Vdev::Host_dt const &dt, Vm_mem *memmap,
+                              l4_addr_t default_address);
 
   /**
    * Return the base address of the first registered RAM region.
@@ -200,6 +175,26 @@ private:
 
     return nullptr;
   }
+
+  /**
+   * Add a new RAM region.
+   *
+   * \param ds        Dataspace containing the RAM.
+   * \param baseaddr  Guest physical start address of the dataspce.
+   * \param ds_offset Offset into the dataspace where to start mapping.
+   * \param size      Size of the area to map.
+   * \param memap     Geust memory map where to register the new region.
+   *
+   * \return Index into _regions of the newly added region.
+   */
+  l4_size_t add_memory_region(L4::Cap<L4Re::Dataspace> ds,
+                              l4_addr_t baseaddr, l4_addr_t ds_offset,
+                              l4_size_t size, Vm_mem *memmap);
+
+  bool scan_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &node);
+  long add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &node);
+  void setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,
+                            l4_addr_t baseaddr);
 
   std::vector<Vmm::Ram_ds> _regions;
   l4_addr_t _boot_offset;

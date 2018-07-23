@@ -208,9 +208,12 @@ static int run(int argc, char *argv[])
 
   Dbg::set_verbosity(verbosity);
 
-  int use_wakeup_inhibitor = 0;
-  int use_mmio_fallback = 0;
+  vm_instance.create_default_devices();
+  auto mon = Monitor_console::create(&vm_instance);
   Vdev::Host_dt dt;
+
+  auto *vmm = vm_instance.vmm();
+  auto *ram = vm_instance.ram().get();
 
   char const *const options = "+k:d:r:c:b:vqD:";
   struct option const loptions[] =
@@ -220,11 +223,11 @@ static int run(int argc, char *argv[])
       { "ramdisk",  1, NULL, 'r' },
       { "cmdline",  1, NULL, 'c' },
       { "rambase",  1, NULL, 'b' },
-      { "mmio-fallback", 0, &use_mmio_fallback, 1 },
+      { "mmio-fallback", 0, NULL, 'M' },
       { "debug",    1, NULL, 'D' },
       { "verbose",  0, NULL, 'v' },
       { "quiet",    0, NULL, 'q' },
-      { "wakeup-on-system-resume", 0, &use_wakeup_inhibitor, 1},
+      { "wakeup-on-system-resume", 0, NULL, 'W'},
       { 0, 0, 0, 0}
     };
 
@@ -264,6 +267,12 @@ static int run(int argc, char *argv[])
         case 'D':
           set_verbosity(optarg);
           break;
+        case 'M':
+          vmm->set_fallback_mmio_ds(vm_instance.vbus()->io_ds());
+          break;
+        case 'W':
+          vmm->use_wakeup_inhibitor(true);
+          break;
         default:
           Err().printf("unknown command-line option\n");
           return 1;
@@ -272,15 +281,7 @@ static int run(int argc, char *argv[])
 
   warn.printf("Hello out there.\n");
 
-  vm_instance.create_default_devices(rambase);
-  auto mon = Monitor_console::create(&vm_instance);
-
-  auto *vmm = vm_instance.vmm();
-  auto *ram = vm_instance.ram().get();
-
-  vmm->use_wakeup_inhibitor(use_wakeup_inhibitor);
-  if (use_mmio_fallback)
-    vmm->set_fallback_mmio_ds(vm_instance.vbus()->io_ds());
+  ram->setup_from_device_tree(dt, vmm->memmap(), rambase);
 
   l4_addr_t entry;
   info.printf("Loading kernel...\n");
@@ -296,7 +297,6 @@ static int run(int argc, char *argv[])
           node.setprop_string("bootargs", cmd_line);
         }
 
-      ram->setup_device_tree(dt.get());
       vmm->setup_device_tree(dt.get());
 
       // Instantiate all virtual devices

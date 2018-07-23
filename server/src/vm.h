@@ -51,11 +51,10 @@ public:
   Ic_error get_or_create_ic(Vdev::Dt_node const &node,
                             cxx::Ref_ptr<Gic::Ic> *ic_ptr) override;
 
-  void create_default_devices(l4_addr_t rambase)
+  void create_default_devices()
   {
     _vmm = Vmm::Guest::create_instance();
-    _ram = Vdev::make_device<Vmm::Vm_ram>(rambase, Vmm::Guest::Boot_offset,
-                                          _vmm->memmap());
+    _ram = Vdev::make_device<Vmm::Vm_ram>(Vmm::Guest::Boot_offset);
 
     auto vbus_cap = L4Re::Env::env()->get_cap<L4vbus::Vbus>("vbus");
     _vbus = cxx::make_ref_obj<Vmm::Virt_bus>(vbus_cap);

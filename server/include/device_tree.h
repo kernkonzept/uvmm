@@ -294,7 +294,7 @@ public:
    *
    * \return 0 on success, libfdt error codes otherwise
    */
-  int delprop(char const *name)
+  int delprop(char const *name) const
   { return fdt_delprop(_tree, _node, name); }
 
   bool is_enabled() const
