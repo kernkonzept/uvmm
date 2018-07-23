@@ -211,17 +211,19 @@ public:
   // Mmio device if
   l4_umword_t read(unsigned reg, char, unsigned cpu_id)
   {
+    assert(cpu_id < Max_cores && _lapics[cpu_id]);
+
     l4_uint64_t val = -1;
-    if (cpu_id < Max_cores)
-        _lapics[cpu_id]->read_msr(reg2msr(reg), &val);
+    _lapics[cpu_id]->read_msr(reg2msr(reg), &val);
 
     return val;
   }
 
   void write(unsigned reg, char, l4_umword_t value, unsigned cpu_id)
   {
-    if (cpu_id < Max_cores)
-      _lapics[cpu_id]->write_msr(reg2msr(reg), value);
+    assert(cpu_id < Max_cores && _lapics[cpu_id]);
+
+    _lapics[cpu_id]->write_msr(reg2msr(reg), value);
   }
 
 private:
