@@ -35,9 +35,10 @@ enum Boot_param
   Bp_code32_start = 0x214,
   Bp_ramdisk_image = 0x218,
   Bp_ramdisk_size = 0x21c,
-  Bp_cmdline_ptr = 0x228,
   Bp_ext_loader_ver = 0x226,
   Bp_ext_loader_type = 0x227,
+  Bp_cmdline_ptr = 0x228,
+  Bp_setup_data = 0x250,
   Bp_init_size = 0x260,
   Bp_e820_map = 0x2d0,
   Bp_end = 0xeed, // after EDD data array
@@ -45,6 +46,23 @@ enum Boot_param
 
 class Zeropage
 {
+  struct Setup_data
+  {
+    l4_uint64_t next;
+    l4_uint32_t type;
+    l4_uint32_t len;
+    l4_uint8_t data[0];
+  };
+
+  enum Setup_data_types
+  {
+    Setup_none = 0,
+    Setup_e820_ext,
+    Setup_dtb,
+    Setup_pci,
+    Setup_efi,
+  };
+
   enum E820_types
   {
     E820_ram = 1,
@@ -74,6 +92,8 @@ class Zeropage
   unsigned _e820_idx = 0;
   l4_uint32_t _ramdisk_start = 0;
   l4_uint32_t _ramdisk_size = 0;
+  l4_addr_t _dtb = 0;
+  l4_size_t _dtb_size = 0;
 
 public:
   Zeropage(l4_addr_t addr, l4_addr_t kernel)
@@ -104,40 +124,68 @@ public:
     add_e820_entry(ram_sz, L4_PAGESIZE , E820_reserved);
   }
 
-  void write(Ram_ds *ram)
+  /**
+   * Add a device tree.
+   *
+   * \param dt_addr  Address of the device tree in guest RAM.
+   * \param size     Size of the device tree.
+   */
+  void add_dtb(l4_addr_t dt_addr, l4_size_t size)
   {
-    // constants taken from $lx_src/Documentation/x86/boot.txt
-    l4_uint8_t hsz = *(reinterpret_cast<unsigned char *>(
-      ram->access(L4virtio::Ptr<char>(_kbinary + 0x0201))));
+    _dtb = dt_addr;
+    _dtb_size = size;
+  }
 
-    // calculate size of the setup_header in the zero page/boot params
-    l4_size_t boot_hdr_size = (0x0202 + hsz) - Bp_boot_header;
+  void write(Ram_ds *ram, Binary_type const gt)
+  {
+    memset(ram->access(L4virtio::Ptr<char>(_gp_addr)), 0, L4_PAGESIZE);
 
-    memcpy(ram->access(L4virtio::Ptr<char>(_gp_addr + Bp_boot_header)),
-           ram->access(L4virtio::Ptr<char>(_kbinary + Bp_boot_header)),
-           boot_hdr_size);
+    switch (gt)
+      {
+      case Binary_type::Elf:
+        // Note: The _kbinary variable contains the ELF binary entry
+        write_dtb(ram);
+        set_header<l4_addr_t>(ram, Bp_code32_start, _kbinary);
+        set_header<l4_uint32_t>(ram, Bp_signature, 0x53726448); // "HdrS"
 
-    assert(strlen(_cmdline) > 0);
-    strcpy(ram->access(L4virtio::Ptr<char>(_gp_addr + Bp_end)),
-           _cmdline);
+        info().printf("Elf guest zeropage: dtb 0x%llx, entry 0x%lx\n",
+                      get_header<l4_uint64_t>(ram, Bp_setup_data),
+                      get_header<l4_addr_t>(ram, Bp_code32_start));
+        break;
 
-    set_header<l4_uint32_t>(ram, Bp_cmdline_ptr, _gp_addr + Bp_end);
+      case Binary_type::Linux:
+        {
+          // Note: The _kbinary variable contains start of the kernel binary
 
-    info().printf("cmdline check: %s\n",
-                  ram->access(L4virtio::Ptr<char>(_gp_addr + Bp_end)));
+          // constants taken from $lx_src/Documentation/x86/boot.txt
+          l4_uint8_t hsz = *(reinterpret_cast<unsigned char *>(
+            ram->access(L4virtio::Ptr<char>(_kbinary + 0x0201))));
 
+          // calculate size of the setup_header in the zero page/boot params
+          l4_size_t boot_hdr_size = (0x0202 + hsz) - Bp_boot_header;
+
+          memcpy(ram->access(L4virtio::Ptr<char>(_gp_addr + Bp_boot_header)),
+                 ram->access(L4virtio::Ptr<char>(_kbinary + Bp_boot_header)),
+                 boot_hdr_size);
+          break;
+        }
+      }
+
+    write_cmdline(ram);
+
+    // write e820
     assert(_e820_idx > 0);
-    memcpy(ram->access(L4virtio::Ptr<char>(_gp_addr + Bp_e820_map)),
-           _e820,
+    memcpy(ram->access(L4virtio::Ptr<char>(_gp_addr + Bp_e820_map)), _e820,
            sizeof(E820_entry) * _e820_idx);
     set_header<l4_uint8_t>(ram, Bp_e820_entries, _e820_idx);
 
+    // write RAM disk
     set_header<l4_uint32_t>(ram, Bp_ramdisk_image, _ramdisk_start);
     set_header<l4_uint32_t>(ram, Bp_ramdisk_size, _ramdisk_size);
 
     // misc stuff in the boot header
     set_header<l4_uint8_t>(ram, Bp_type_of_loader, 0xff);
-    set_header<l4_uint16_t>(ram, Bp_version, 0x207);
+    set_header<l4_uint16_t>(ram, Bp_version, 0x209); // DTS needs v. 2.09
 
     set_header<l4_uint8_t>(ram, Bp_loadflags,
                            get_header<l4_uint8_t>(ram, Bp_loadflags)
@@ -161,6 +209,53 @@ private:
     _e820[_e820_idx].type = type;
 
     _e820_idx++;
+  }
+
+  // add an entry to the single-linked list of Setup_data
+  void add_setup_data(Ram_ds *ram, Setup_data *sd, l4_addr_t guest_addr)
+  {
+    sd->next = get_header<l4_uint64_t>(ram, Bp_setup_data);
+    set_header<l4_uint64_t>(ram, Bp_setup_data, guest_addr);
+  }
+
+  void write_cmdline(Ram_ds *ram)
+  {
+    if (*_cmdline == 0)
+      return;
+
+    // place the command line bind the boot parameters
+    auto cmdline_addr = _gp_addr + Bp_end;
+
+    strcpy(ram->access(L4virtio::Ptr<char>(cmdline_addr)), _cmdline);
+    set_header<l4_uint32_t>(ram, Bp_cmdline_ptr, cmdline_addr);
+
+    info().printf("cmdline check: %s\n",
+                  ram->access(L4virtio::Ptr<char>(cmdline_addr)));
+  }
+
+  void write_dtb(Ram_ds *ram)
+  {
+    if (_dtb == 0 || _dtb_size == 0)
+      return;
+
+    // dt_boot_addr is the guest address of the DT memory; Setup_data.data
+    // must be the first byte of the DT. The rest of the Setup_data struct
+    // must go right before it. Hopefully, there is space.
+    unsigned sd_hdr_size = sizeof(Setup_data) + sizeof(Setup_data::data);
+    auto *sd = ram->access(L4virtio::Ptr<Setup_data>(_dtb - sd_hdr_size));
+
+    for (unsigned i = sd_hdr_size; i > 0; i -= sizeof(char))
+      {
+        auto *sd_ptr = reinterpret_cast<char *>(sd);
+        if (*sd_ptr)
+          L4Re::chksys(-L4_EEXIST, "DTB Setup_data header memory in use.");
+        sd_ptr++;
+      }
+
+    sd->type = Setup_dtb;
+    sd->len = _dtb_size;
+    // sd->data is the first DT byte.
+    add_setup_data(ram, sd, _dtb - sd_hdr_size);
   }
 
   template <typename T>
