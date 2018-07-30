@@ -11,7 +11,7 @@ TARGET          = uvmm
 SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   cpu_dev_array.cc generic_cpu_dev.cc \
                   ARCH-$(ARCH)/cpu_dev.cc \
-                  device_factory.cc \
+                  host_dt.cc device_factory.cc \
                   virtio_console.cc \
                   virtio_proxy.cc \
                   virtio_device_proxy.cc \
