@@ -8,8 +8,6 @@
 #pragma once
 
 #include <l4/re/env>
-#include <l4/re/rm>
-#include <l4/sys/task>
 #include <l4/sys/scheduler>
 
 #include <debug.h>

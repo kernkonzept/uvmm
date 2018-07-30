@@ -10,7 +10,6 @@
 #include "generic_cpu_dev.h"
 
 #include <cstdio>
-#include <cstring>
 
 #include <l4/sys/debugger.h>
 #include <l4/sys/scheduler>

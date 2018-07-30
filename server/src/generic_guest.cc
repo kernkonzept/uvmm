@@ -6,7 +6,6 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
-#include <l4/sys/cache.h>
 #include <l4/sys/debugger.h>
 
 #include "generic_guest.h"

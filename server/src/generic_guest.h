@@ -12,7 +12,6 @@
 #include <l4/re/util/br_manager>
 #include <l4/re/util/object_registry>
 #include <l4/re/util/unique_cap>
-#include <l4/l4virtio/l4virtio>
 
 #include "debug.h"
 #include "ds_mmio_mapper.h"

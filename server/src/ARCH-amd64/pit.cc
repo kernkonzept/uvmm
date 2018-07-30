@@ -5,7 +5,6 @@
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
-#include <l4/cxx/utils>
 
 #include <l4/re/error_helper>
 

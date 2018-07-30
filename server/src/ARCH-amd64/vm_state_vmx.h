@@ -7,14 +7,13 @@
  */
 #pragma once
 
-#include <tuple>
 #include <l4/sys/vm>
 
 #include <l4/cxx/bitfield>
 #include <l4/vcpu/vmx/vmcs.h>
 
+#include "virt_lapic.h"
 #include "vm_state.h"
-#include "guest.h"
 #include "debug.h"
 
 namespace Vmm {

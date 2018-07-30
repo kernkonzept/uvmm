@@ -16,9 +16,7 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <cerrno>
 #include <cstring>
-#include <iostream>
 
 #include <sys/mman.h>
 #include <sys/stat.h>

@@ -12,9 +12,6 @@
 #include "mem_access.h"
 #include "vm_state.h"
 
-#include <string>
-#include <assert.h>
-
 namespace Vmm {
 
 class Pt_walker;

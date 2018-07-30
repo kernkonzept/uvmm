@@ -7,10 +7,6 @@
  */
 #pragma once
 
-#include <cassert>
-#include <vector>
-
-#include <l4/cxx/ref_ptr>
 #include <l4/vbus/vbus>
 
 #include "debug.h"

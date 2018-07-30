@@ -6,8 +6,6 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
-#include <algorithm>
-
 #include "device_factory.h"
 #include "device_tree.h"
 #include "guest.h"

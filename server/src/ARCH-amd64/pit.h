@@ -9,7 +9,6 @@
 
 #include <mutex>
 #include <l4/cxx/bitfield>
-#include <l4/util/atomic.h>
 
 #include "device.h"
 #include "io_device.h"

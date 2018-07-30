@@ -6,8 +6,6 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
-#include <cstring>
-
 #include "device_tree.h"
 #include "virt_bus.h"
 #include "guest.h"
@@ -19,7 +17,7 @@ Virt_bus::Irq_bitmap::dump_irqs()
   for (int i = 0; i < Num_irqs; ++i)
     {
       if (irq_present(i))
-        printf("Irq %d: %s\n", i, irq_bound(i) ? "bound" : "present");
+        Dbg().printf("Irq %d: %s\n", i, irq_bound(i) ? "bound" : "present");
     }
 }
 

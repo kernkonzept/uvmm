@@ -10,12 +10,10 @@
 #include <l4/cxx/static_container>
 #include <l4/sys/kdebug.h>
 #include <l4/sys/debugger.h>
-#include <l4/re/util/env_ns>
 
 #include "binary_loader.h"
 #include "guest.h"
 #include "debug.h"
-#include "virtio_console.h"
 #include "vm_state_vmx.h"
 #include "consts.h"
 #include "vmx_exit_to_str.h"

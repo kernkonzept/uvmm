@@ -8,7 +8,6 @@
  */
 #pragma once
 
-#include <l4/cxx/static_container>
 #include <l4/vbus/vbus>
 #include <l4/l4virtio/l4virtio>
 

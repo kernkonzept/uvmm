@@ -8,7 +8,6 @@
  */
 
 #include "vm_state_vmx.h"
-#include "mem_access.h"
 #include "consts.h"
 
 namespace Vmm {

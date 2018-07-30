@@ -11,24 +11,16 @@
 #include <vector>
 
 #include <l4/cxx/ref_ptr>
-#include <l4/cxx/ipc_server>
 #include <l4/cxx/bitmap>
 #include <l4/vbus/vbus>
 #include <l4/re/dataspace>
 #include <l4/re/error_helper>
 #include <l4/re/util/cap_alloc>
-#include <l4/re/inhibitor>
-#include <l4/vbus/vbus_inhibitor.h>
 
 #include "debug.h"
-#include "irq.h"
-#include "vm_memmap.h"
-#include "ds_mmio_mapper.h"
 #include "device.h"
 
 namespace Vmm {
-
-class Guest;
 
 class Virt_bus : public cxx::Ref_obj
 {

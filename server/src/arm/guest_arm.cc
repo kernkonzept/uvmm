@@ -8,7 +8,6 @@
 
 #include <l4/cxx/unique_ptr>
 #include <l4/cxx/ref_ptr>
-#include <l4/re/env>
 #include <l4/re/error_helper>
 #include <l4/vbus/vbus>
 
