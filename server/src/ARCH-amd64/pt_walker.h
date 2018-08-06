@@ -53,35 +53,27 @@ public:
                    virt_addr);
 
     if (!(entry & Present_bit))
-      throw L4::Runtime_error(-L4_EINVAL, "PML4 table not present\n");
+      L4Re::chksys(-L4_EINVAL, "PML4 table is present\n");
 
     for (unsigned i = 1; i < Pt_levels; ++i)
       {
         // PML4Entry: no PAT bit (12) --> mask everything except [M-1:12]
         tbl = translate_to_table_base(entry & _phys_addr_mask_4k);
-
-        if (tbl == nullptr)
-          {
-            trace().printf("Level table ptr null for level %i\n", i);
-            throw L4::Runtime_error(-L4_EINVAL, "No next level table found.\n");
-          }
-
         entry = _levels[i].get_entry(tbl, virt_addr);
 
         if (!(entry & Present_bit))
           {
-            trace().printf("entry not present 0x%llx\n", entry);
-            throw L4::Runtime_error(-L4_EINVAL,
-                                    "Found entry is not present.\n");
+            Err().printf("Entry not present 0x%llx\n", entry);
+            L4Re::chksys(-L4_EINVAL, "Found entry is present.\n");
           }
 
         // check for PS = 0 in PDPT & PD entries
-        if (entry & Pagesize_bit)
+        if (i < 3 && entry & Pagesize_bit)
           {
             if (i == 1)
               return add_voffset(translate_to_table_base(entry & _phys_addr_mask_1g),
                                  virt_addr & G1_offset_mask);
-            else if (i == 2)
+            if (i == 2)
               return add_voffset(translate_to_table_base(entry & _phys_addr_mask_2m),
                                  virt_addr & M2_offset_mask);
           }
@@ -98,7 +90,8 @@ private:
     if (f == _mmap->end())
       {
         Dbg().printf("Fail: 0x%llx memory not found.\n", addr);
-        throw L4::Runtime_error(-L4_EINVAL, "No memory registered.");
+        L4Re::chksys(-L4_EINVAL,
+                     "Memory used in page table walk is registered.");
       }
 
     return &*f;
@@ -108,7 +101,8 @@ private:
   {
     Ds_handler const *ds = dynamic_cast<Ds_handler *>(mem->second.get());
     if (!ds)
-      throw L4::Runtime_error(-L4_EINVAL, "No Ds_handler registered\n");
+      L4Re::chksys(-L4_EINVAL,
+                   "Dataspace handler for page table memory registered\n");
 
     return ds;
   }
