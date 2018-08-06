@@ -25,69 +25,12 @@ Generic_guest::Generic_guest()
   _vbus_event.register_obj(registry());
 }
 
-static void
-throw_error(char const *msg,
-            cxx::Ref_ptr<Vmm::Mmio_device> const &dev, Region const &region,
-            cxx::Ref_ptr<Vmm::Mmio_device> const &new_dev, Region const &new_region)
-{
-  char buf[80], buf_new[80];
-  Err().printf("%s: [%lx:%lx] (%s) <-> [%lx:%lx] (%s)\n", msg,
-               region.start, region.end, dev->dev_info(buf, sizeof(buf)),
-               new_region.start, new_region.end,
-               new_dev->dev_info(buf_new, sizeof(buf_new)));
-  L4Re::chksys(-L4_EINVAL, msg);
-}
-
 bool
 Generic_guest::mmio_region_valid(l4_uint64_t addr, l4_uint64_t size)
 {
     Vm_mem::const_iterator f = _memmap.find(addr);
     return (f != _memmap.end()) && (addr + size <= f->first.end + 1);
 
-}
-
-void
-Generic_guest::add_mmio_device(Region const &region,
-                               cxx::Ref_ptr<Vmm::Mmio_device> const &dev)
-{
-  if (_memmap.count(region) == 0)
-    {
-      _memmap[region] = dev;
-      return;
-    }
-
-  auto lower = _memmap.lower_bound(region);
-  auto const &current_region = lower->first;
-  if (current_region.contains(region))
-    {
-      // Region is a subset of an already existing one, there can be
-      // at most one such region
-      if (!lower->second->mergable(dev, region.start, current_region.start))
-        throw_error("Unmergable mmio regions: region is subset",
-                    lower->second, current_region, dev, region);
-      return;
-    }
-
-  auto upper = _memmap.upper_bound(region);
-  for(auto it = lower; it != upper; ++it)
-    {
-      auto const &tmp_region = it->first;
-      // We already handled smaller regions above, so the region is
-      // either a superset or not a candidate for a merge operation
-      if (region.contains(tmp_region))
-        {
-          if (!it->second->mergable(dev, region.start, tmp_region.start))
-            throw_error("Unmergable mmio regions: region is superset",
-                        lower->second, tmp_region, dev, region);
-        }
-      else
-        throw_error("Unmergable mmio regions",
-                    lower->second, tmp_region, dev, region);
-    }
-
-  // [lower, upper) is a subset of region - erase it
-  _memmap.erase(lower, upper);
-  _memmap[region] = dev;
 }
 
 void

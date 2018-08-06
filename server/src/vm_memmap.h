@@ -32,4 +32,9 @@ struct Region
   { return (start <= r.start) && (r.end <= end); } // [ [ ... ] ]
 };
 
-typedef std::map<Region, cxx::Ref_ptr<Vmm::Mmio_device>> Vm_mem;
+class Vm_mem : public std::map<Region, cxx::Ref_ptr<Vmm::Mmio_device>>
+{
+public:
+  void add_mmio_device(Region const &region,
+                       cxx::Ref_ptr<Vmm::Mmio_device> const &dev);
+};

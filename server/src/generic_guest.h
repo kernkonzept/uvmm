@@ -147,7 +147,10 @@ public:
   { _pm.use_wakeup_inhibitor(wakeup_inhibitor); }
 
   void add_mmio_device(Region const &region,
-                       cxx::Ref_ptr<Vmm::Mmio_device> const &dev);
+                       cxx::Ref_ptr<Vmm::Mmio_device> const &dev)
+  {
+    _memmap.add_mmio_device(region, dev);
+  }
 
 protected:
   void process_pending_ipc(Vcpu_ptr vcpu, l4_utcb_t *utcb)
