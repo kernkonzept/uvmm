@@ -56,9 +56,6 @@ public:
   cxx::Ref_ptr<Gic::Dist> gic() const
   { return _gic; }
 
-  cxx::Ref_ptr<Vdev::Core_timer> timer() const
-  { return _timer; }
-
   void set_timer(cxx::Ref_ptr<Vdev::Core_timer> &timer)
   { _timer = timer; }
 

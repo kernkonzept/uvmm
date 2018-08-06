@@ -304,11 +304,8 @@ Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
 void
 Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
 {
-  // If the device tree does not contain a valid timer node the timer might be
-  // invalid. Since the code relies on a valid timer we have to check before
-  // starting the guest.
   if (!_timer)
-    L4Re::chksys(-ENODEV, "No timer available, aborting");
+    warn().printf("WARNING: No timer found. Your guest will likely not work properly!\n");
 
   _cpus = cpus;
   for (auto cpu: *cpus.get())
@@ -585,7 +582,8 @@ Vmm::Guest::wait_for_timer_or_irq(Vcpu_ptr vcpu)
   l4_timeout_t to = L4_IPC_NEVER;
 
   auto *utcb = l4_utcb();
-  if ((l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_CNTVCTL) & 3) == 1) // timer enabled and not masked
+  if (_timer
+      && (l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_CNTVCTL) & 3) == 1) // timer enabled and not masked
     {
       // calculate the timeout based on the VTIMER values !
       auto cnt = vcpu.cntvct();
@@ -627,7 +625,8 @@ Vmm::Guest::handle_ppi(Vcpu_ptr vcpu)
       _gic->handle_maintenance_irq(vmm_current_cpu_id);
       break;
     case 1: // VTMR IRQ
-      _timer->inject();
+      if (_timer)
+        _timer->inject();
       break;
     default:
       Err().printf("unknown virtual PPI: %d\n", (int)vcpu.hsr().svc_imm());
