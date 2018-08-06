@@ -118,7 +118,7 @@ private:
       }
 
     auto *ret = reinterpret_cast<l4_uint64_t *>(
-                  cached_ds_local_start + (addr & _phys_addr_mask_4k));
+                  cached_ds_local_start + addr - cached_start);
     trace().printf("Ram_addr: addr 0x%llx --> %p\n", addr, ret);
     return ret;
   }
