@@ -34,6 +34,7 @@
           compatible = "virt-pit";
           reg = <0x0 0x0 0x0 0x0>;
           interrupt-parent = <&IOAPIC>;
+          interrupts = <32>;
         };
 
         rtc {

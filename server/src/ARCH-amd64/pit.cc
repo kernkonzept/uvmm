@@ -181,8 +181,12 @@ struct F : Vdev::Factory
     if (!ic)
       return nullptr;
 
+    auto irqs = ic->dt_get_num_interrupts(node);
+    if (irqs == 0)
+      return nullptr;
+
     auto dev = Vdev::make_device<Vdev::Pit_timer>(ic.get(),
-                                                  Vdev::Pit_timer::irq_line());
+                                                  ic->dt_get_interrupt(node, 0));
 
     auto *vmm = devs->vmm();
     vmm->register_io_device(Region(0x40, 0x43), dev);
