@@ -26,21 +26,27 @@ public:
              {Pd_shift, Pd_mask},
              {Pt_shift, Pt_mask}
             },
-    cached_start(-1), cached_end(0), cached_ds_local_start(0)
+    cached_start(-1),
+    cached_end(0),
+    cached_ds_local_start(0),
+    _max_phys_addr_mask((1UL << max_phys_addr_bit) - 1)
   {
     trace().printf("PT_walker: MAXPHYSADDR bits %i\n", max_phys_addr_bit);
-    _phys_addr_mask_4k =
-      ((1UL << max_phys_addr_bit) - 1) & ~((1UL << Phys_addr_4k) - 1);
-    _phys_addr_mask_2m =
-      ((1UL << max_phys_addr_bit) - 1) & ~((1UL << Phys_addr_2m) - 1);
-    _phys_addr_mask_1g =
-      ((1UL << max_phys_addr_bit) - 1) & ~((1UL << Phys_addr_1g) - 1);
+
+    _phys_addr_mask_4k = _max_phys_addr_mask & ~((1UL << Phys_addr_4k) - 1);
+    _phys_addr_mask_2m = _max_phys_addr_mask & ~((1UL << Phys_addr_2m) - 1);
+    _phys_addr_mask_1g = _max_phys_addr_mask & ~((1UL << Phys_addr_1g) - 1);
   }
 
   l4_uint64_t walk(l4_uint64_t cr3, l4_uint64_t virt_addr)
   {
     trace().printf("cr3 0x%llx\n", cr3);
-    l4_uint64_t *tbl = guest_phys(cr3);
+
+    // cr3 alignment check -- ignore bits 3 PWT, 4 PCD
+    if (cr3 & (~_max_phys_addr_mask | 0xfe7))
+      L4Re::chksys(-L4_EINVAL, "CR3 address is 4k aligned.");
+
+    l4_uint64_t *tbl = translate_to_table_base(cr3 & ~0x18);
     l4_uint64_t entry = _levels[0].get_entry(tbl, virt_addr);
 
     trace().printf("cr3 0x%llx, entry 0x%llx, vaddr 0x%llx\n", cr3, entry,
@@ -52,7 +58,7 @@ public:
     for (unsigned i = 1; i < Pt_levels; ++i)
       {
         // PML4Entry: no PAT bit (12) --> mask everything except [M-1:12]
-        tbl = guest_phys(entry & _phys_addr_mask_4k);
+        tbl = translate_to_table_base(entry & _phys_addr_mask_4k);
 
         if (tbl == nullptr)
           {
@@ -73,15 +79,15 @@ public:
         if (entry & Pagesize_bit)
           {
             if (i == 1)
-              return add_voffset(guest_phys(entry & _phys_addr_mask_1g),
+              return add_voffset(translate_to_table_base(entry & _phys_addr_mask_1g),
                                  virt_addr & G1_offset_mask);
             else if (i == 2)
-              return add_voffset(guest_phys(entry & _phys_addr_mask_2m),
+              return add_voffset(translate_to_table_base(entry & _phys_addr_mask_2m),
                                  virt_addr & M2_offset_mask);
           }
       }
 
-    return add_voffset(guest_phys(entry & _phys_addr_mask_4k),
+    return add_voffset(translate_to_table_base(entry & _phys_addr_mask_4k),
                        virt_addr & K4_offset_mask);
   }
 
@@ -107,7 +113,7 @@ private:
     return ds;
   }
 
-  l4_uint64_t *guest_phys(l4_uint64_t addr)
+  l4_uint64_t *translate_to_table_base(l4_uint64_t addr)
   {
     if (cached_start == -1U || cached_start > addr || cached_end < addr)
       {
@@ -116,6 +122,9 @@ private:
         cached_end = cached_mem->first.end;
         cached_ds_local_start = mem_to_ds(cached_mem)->local_start();
       }
+
+    if (addr + 512 * 8 > cached_end)
+      L4Re::chksys(-L4_EINVAL, "Page-table end within guest memory\n");
 
     auto *ret = reinterpret_cast<l4_uint64_t *>(
                   cached_ds_local_start + addr - cached_start);
@@ -145,7 +154,7 @@ private:
         if (tbl[i] != 0 && tbl[i] & Present_bit)
           {
             trace().printf("%i :: 0x%16llx\n", i, tbl[i]);
-            dump_level(guest_phys(tbl[i] & _phys_addr_mask_4k));
+            dump_level(translate_to_table_base(tbl[i] & _phys_addr_mask_4k));
           }
       }
     trace().printf(" +++++ Dumped all entries ++++ \n");
@@ -215,6 +224,7 @@ private:
   l4_uint64_t _phys_addr_mask_2m;
   l4_uint64_t _phys_addr_mask_1g;
   l4_addr_t cached_start, cached_end, cached_ds_local_start;
+  l4_uint64_t _max_phys_addr_mask;
 };
 
 } // namespace Vmm
