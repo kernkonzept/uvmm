@@ -96,9 +96,9 @@ Ram_ds::setup(l4_addr_t vm_base)
 }
 
 
-L4virtio::Ptr<void>
+void
 Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
-                  L4virtio::Ptr<void> addr, l4_size_t *sz) const
+                  L4virtio::Ptr<void> addr, l4_size_t sz) const
 {
   Dbg info(Dbg::Mmio, Dbg::Info, "file");
 
@@ -107,23 +107,18 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
     L4Re::chksys(-L4_EINVAL);
 
   l4_addr_t offset = addr.get() - _vm_start;
-  l4_size_t fsize = file->size();
 
-  if (addr.get() < _vm_start || fsize > size() || offset >= size() - fsize)
+  if (addr.get() < _vm_start || sz > size() || offset >= size() - sz)
     {
       Err().printf("File does not fit into ram. "
                    "(Loading [0x%llx - 0x%llx] into area [0x%lx - 0x%lx])\n",
-                   addr.get(), addr.get() + fsize, _vm_start, _vm_start + size());
+                   addr.get(), addr.get() + sz, _vm_start, _vm_start + size());
       L4Re::chksys(-L4_EINVAL);
     }
 
-  info.printf("copy in: to offset 0x%lx-0x%lx\n", offset, offset + fsize);
+  info.printf("copy in: to offset 0x%lx-0x%lx\n", offset, offset + sz);
 
-  L4Re::chksys(_ds->copy_in(offset + _ds_offset, file, 0, fsize), "copy in");
-  if (sz)
-    *sz = fsize;
-
-  return L4virtio::Ptr<void>(addr.get() + fsize);
+  L4Re::chksys(_ds->copy_in(offset + _ds_offset, file, 0, sz), "copy in");
 }
 
 } // namespace

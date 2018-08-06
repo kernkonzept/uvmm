@@ -47,14 +47,16 @@ void Guest::register_io_device(Region const &region,
                  region.start, region.end);
 }
 
-L4virtio::Ptr<void>
-Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, l4_addr_t *entry)
+l4_addr_t
+Guest::load_linux_kernel(Vm_ram *ram, char const *kernel,
+                         Ram_free_list *free_list)
 {
+  l4_addr_t entry;
   Boot::Binary_ds image(kernel);
 
   if (image.is_elf_binary())
     {
-      *entry = image.load_as_elf(ram);
+      entry = image.load_as_elf(ram, free_list);
       _guest_t = Binary_type::Elf;
     }
   else
@@ -71,19 +73,19 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, l4_addr_t *entry)
                      "Supplied kernel image contains an invalid number "
                      " of setup sections (zeropage).");
 
-      *entry = Linux_kernel_start_addr - setup_sects_size;
+      entry = Linux_kernel_start_addr - setup_sects_size;
       trace().printf("size of setup sections: 0x%lx\n", setup_sects_size);
-      trace().printf("loading binary at: 0x%lx\n", *entry);
+      trace().printf("loading binary at: 0x%lx\n", entry);
 
       // load the binary starting after the boot_params
-      auto z = image.load_as_raw(ram, *entry);
+      auto z = image.load_as_raw(ram, entry, free_list);
       trace().printf("Loaded kernel image as raw to 0x%lx\n", z);
       trace().printf("load kernel as raw entry to 0x%lx\n",
                      ram->guest_phys2boot(Linux_kernel_start_addr));
       _guest_t = Binary_type::Linux;
     }
 
-  return l4_round_size(image.get_upper_bound(), L4_LOG2_SUPERPAGESIZE);
+  return entry;
 }
 
 void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,

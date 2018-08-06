@@ -147,11 +147,11 @@ Guest::setup_device_tree(Vdev::Device_tree dt)
 }
 
 void
-Guest::check_guest_constraints(Vm_ram *ram)
+Guest::check_guest_constraints(Ram_free_list *free_list)
 {
   Dbg warn(Dbg::Mmio, Dbg::Warn, "ram");
 
-  l4_addr_t base = ram->base_address();
+  l4_addr_t base = free_list->base_address();
 
   if (guest_64bit)
     {
@@ -186,13 +186,16 @@ Guest::check_guest_constraints(Vm_ram *ram)
       "       is floating around.\n");
 }
 
-L4virtio::Ptr<void>
-Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, l4_addr_t *entry)
+l4_addr_t
+Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_list)
 {
+  check_guest_constraints(free_list);
+
+  l4_addr_t entry = ~0ul;
   Boot::Binary_ds image(kernel);
   if (image.is_elf_binary())
     {
-      *entry = image.load_as_elf(ram);
+      entry = image.load_as_elf(ram, free_list);
       guest_64bit = image.is_elf64();
       if (!Guest_64bit_supported && guest_64bit)
         L4Re::chksys(-L4_EINVAL, "Running a 64bit guest on a 32bit host is "
@@ -202,15 +205,13 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, l4_addr_t *entry)
     {
       char const *h = reinterpret_cast<char const *>(image.get_header());
 
-      *entry = ~0ul;
-
       if (Guest_64bit_supported
           && h[0x38] == 'A' && h[0x39] == 'R'
           && h[0x3A] == 'M' && h[0x3B] == '\x64') // Linux header ARM\x64
         {
           l4_uint64_t l = *reinterpret_cast<l4_uint64_t const *>(&h[8]);
           // Bytes 0xc-0xf have the size
-          *entry = image.load_as_raw(ram, l);
+          entry = image.load_as_raw(ram, l, free_list);
           this->guest_64bit = true;
         }
       else if (   h[0x24] == 0x18 && h[0x25] == 0x28
@@ -218,35 +219,17 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, l4_addr_t *entry)
         {
           l4_uint32_t l = *reinterpret_cast<l4_uint32_t const *>(&h[0x28]);
           // Bytes 0x2c-0x2f have the zImage size
-          *entry = image.load_as_raw(ram, l);
+          entry = image.load_as_raw(ram, l, free_list);
         }
 
-      if (*entry == ~0ul)
+      if (entry == ~0ul)
         {
           enum { Default_entry =  0x208000 };
-          *entry = image.load_as_raw(ram, Default_entry);
+          entry = image.load_as_raw(ram, Default_entry, free_list);
         }
     }
 
-  auto end = image.get_upper_bound();
-
-  check_guest_constraints(ram);
-
-  /* If the kernel relocates itself it either decompresses itself
-   * directly to the final adress or it moves itself behind the end of
-   * bss before starting decompression. So we should be safe if we
-   * place anything (e.g. initrd/device tree) at 3/4 of the ram.
-   */
-  l4_size_t def_offs = l4_round_size((ram->total_size() * 3) / 4,
-                                     L4_SUPERPAGESHIFT);
-  L4virtio::Ptr<void> def_end(ram->base_address() + def_offs);
-
-  if (def_end.get() < end.get())
-    L4Re::chksys(-L4_ENOMEM, "Not enough space to run Linux");
-
-  info().printf("Linux end at %llx, reserving space up to :%llx\n",
-                end.get(), def_end.get());
-  return def_end;
+  return entry;
 }
 
   /*

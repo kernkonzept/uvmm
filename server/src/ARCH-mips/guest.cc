@@ -30,19 +30,21 @@ Guest::setup_device_tree(Vdev::Device_tree dt)
   node.setprop_u32("mips-hpt-frequency", l4re_kip()->frequency_cpu * 1000);
 }
 
-L4virtio::Ptr<void>
-Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, l4_addr_t *entry)
+l4_addr_t
+Guest::load_linux_kernel(Vm_ram *ram, char const *kernel,
+                         Ram_free_list *free_list)
 {
+  l4_addr_t entry;
   Boot::Binary_ds image(kernel);
   if (image.is_elf_binary())
-    *entry = image.load_as_elf(ram);
+    entry = image.load_as_elf(ram, free_list);
   else
     {
-      image.load_as_raw(ram, 0x100000);
-      *entry = ram->guest_phys2boot(0x100400);
+      image.load_as_raw(ram, 0x100000, free_list);
+      entry = ram->guest_phys2boot(0x100400);
     }
 
-  return l4_round_size(image.get_upper_bound(), L4_LOG2_SUPERPAGESIZE);
+  return entry;
 }
 
 void

@@ -57,16 +57,12 @@ public:
   /**
    * Load the contents of the given dataspace into guest RAM.
    *
-   * \param file     Dataspace to load from. The entire dataspace is loaded.
-   * \param addr     Guest physical address to load the data space to.
-   * \param[out] sz  (Optional) If not null, contains the number of bytes
-   *                            copied on return.
-   *
-   * \return Points to the first address after the newly copied region.
+   * \param file  Dataspace to load from.
+   * \param addr  Guest physical address to load the data space to.
+   * \param sz    Number of bytes to copy.
    */
-  L4virtio::Ptr<void>
-  load_file(L4::Cap<L4Re::Dataspace> const &file, L4virtio::Ptr<void> addr,
-            l4_size_t *sz) const;
+  void load_file(L4::Cap<L4Re::Dataspace> const &file,
+                 L4virtio::Ptr<void> addr, l4_size_t sz) const;
 
   /**
    * Get a VMM-virtual pointer from a guest-physical address

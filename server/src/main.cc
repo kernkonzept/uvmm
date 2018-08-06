@@ -281,11 +281,10 @@ static int run(int argc, char *argv[])
 
   warn.printf("Hello out there.\n");
 
-  ram->setup_from_device_tree(dt, vmm->memmap(), rambase);
+  Vmm::Ram_free_list ram_free_list = ram->setup_from_device_tree(dt, vmm->memmap(), rambase);
 
-  l4_addr_t entry;
   info.printf("Loading kernel...\n");
-  auto next_free_addr = vmm->load_linux_kernel(ram, kernel_image, &entry);
+  l4_addr_t entry = vmm->load_linux_kernel(ram, kernel_image, &ram_free_list);
 
   if (dt.valid())
     {
@@ -333,9 +332,11 @@ static int run(int argc, char *argv[])
   if (ram_disk)
     {
       info.printf("Loading ram disk...\n");
-      l4_size_t rd_size = 0;
-      auto rd_start = next_free_addr;
-      next_free_addr = ram->load_file(ram_disk, rd_start, &rd_size);
+      L4virtio::Ptr<void> rd_start;
+      l4_size_t rd_size;
+      L4Re::chksys(ram_free_list.load_file_to_back(ram, ram_disk, &rd_start,
+                                                   &rd_size),
+                   "Copy ram disk into RAM.");
 
       if (dt.valid() && rd_size > 0)
         {
@@ -345,21 +346,14 @@ static int run(int argc, char *argv[])
                                 rd_start.get() + rd_size);
         }
 
-      next_free_addr = l4_round_size(next_free_addr, L4_PAGESHIFT);
-
-      info.printf("Loaded ramdisk image %s to [%llx:%llx] (%08zx)\n",
-                  ram_disk, rd_start.get(), next_free_addr.get() - 1,
-                  rd_size);
+      info.printf("Loaded ramdisk image %s to %llx (size: %08zx)\n",
+                  ram_disk, rd_start.get(), rd_size);
     }
 
   // finally copy in the device tree
-  auto dt_guest_addr = next_free_addr;
   l4_addr_t dt_boot_addr = 0;
   if (dt.valid())
-    {
-      dt.pack_and_move(ram, dt_guest_addr);
-      dt_boot_addr = ram->guest_phys2boot(dt_guest_addr);
-    }
+    dt_boot_addr = ram->guest_phys2boot(dt.pack_and_move(ram, &ram_free_list));
 
   vmm->prepare_linux_run(vm_instance.cpus()->vcpu(0), entry, ram, kernel_image,
                          cmd_line, dt_boot_addr);

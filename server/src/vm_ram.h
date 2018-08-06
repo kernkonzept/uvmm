@@ -24,6 +24,7 @@
 #include "ds_mmio_mapper.h"
 #include "host_dt.h"
 #include "ram_ds.h"
+#include "vm_memmap.h"
 
 inline L4virtio::Ptr<void>
 l4_round_size(L4virtio::Ptr<void> p, unsigned char bits)
@@ -32,6 +33,27 @@ l4_round_size(L4virtio::Ptr<void> p, unsigned char bits)
 class Vm_mem;
 
 namespace Vmm {
+
+class Ram_free_list
+{
+  friend class Vm_ram;
+public:
+  l4_addr_t base_address() const
+  { return _freelist[0].start; }
+
+  bool reserve_fixed(l4_addr_t start, l4_size_t size);
+  bool reserve_back(l4_size_t size, l4_addr_t *start,
+                    unsigned char page_shift = L4_PAGESHIFT);
+
+  long load_file_to_back(Vm_ram *ram, char const *name,
+                         L4virtio::Ptr<void> *start, l4_size_t *size);
+
+private:
+  void add_free_region(l4_addr_t start, l4_size_t size)
+  { _freelist.push_back(Region::ss(start, size)); }
+
+  std::vector<Region> _freelist;
+};
 
 /**
  * The memory device which manages the RAM available to the guest.
@@ -46,34 +68,18 @@ public:
   /**
    * Load the contents of the given dataspace into guest RAM.
    *
-   * \param file     Dataspace to load from. The entire dataspace is loaded.
-   * \param addr     Guest physical address to load the data space to.
-   * \param[out] sz  (Optional) If not null, contains the number of bytes
-   *                            copied on return.
-   *
-   * \return Points to the first address after the newly copied region.
+   * \param file  Dataspace to load from. The entire dataspace is loaded.
+   * \param addr  Guest physical address to load the data space to.
+   * \param sz    Number of bytes to copy.
    */
-  L4virtio::Ptr<void> load_file(L4::Cap<L4Re::Dataspace> const &file,
-                                L4virtio::Ptr<void> addr, l4_size_t *sz = 0) const
+  void load_file(L4::Cap<L4Re::Dataspace> const &file,
+                 L4virtio::Ptr<void> addr, l4_size_t sz) const
   {
     auto *r = find_region(addr.get(), 0);
     assert(r);
 
-    return r->load_file(file, addr, sz);
+    r->load_file(file, addr, sz);
   }
-
-  /**
-   * Load the contents of the given file into guest RAM.
-   *
-   * \param file     File to load.
-   * \param addr     Guest physical address to load the data space to.
-   * \param[out] sz  (Optional) If not null, contains the number of bytes
-   *                            copied on return.
-   *
-   * \return Points to the first address after the newly copied region.
-   */
-  L4virtio::Ptr<void> load_file(char const *name, L4virtio::Ptr<void> addr,
-                                l4_size_t *sz = 0) const;
 
   /**
    * Get a VMM-virtual pointer from a guest-physical address
@@ -97,33 +103,25 @@ public:
     return r->guest2host(L4virtio::Ptr<T>(gaddr));
   }
 
-  void setup_from_device_tree(Vdev::Host_dt const &dt, Vm_mem *memmap,
-                              l4_addr_t default_address);
-
   /**
-   * Return the base address of the first registered RAM region.
+   * Set up the RAM according to the configuration in the given device tree.
+   *
+   * \param dt               Device tree to scan. May be invalid, in which case
+   *                         only a single region from the 'ram' dataspace is
+   *                         set up.
+   * \param memap            Geust memory map where to register the new region.
+   * \param default_address  Address to map RAM to when no config is found
+   *                         in the device tree.
+   *
+   * \return Free list of RAM that may be prefilled with custom content.
+   *         At the moment the list contains all regions that are related to
+   *         the first memory entry in the device tree.
    */
-  l4_addr_t base_address() const
-  {
-    assert(!_regions.empty());
-    return _regions.front().vm_start();
-  }
+  Ram_free_list setup_from_device_tree(Vdev::Host_dt const &dt, Vm_mem *memmap,
+                                       l4_addr_t default_address);
 
-  l4_size_t total_size() const
-  {
-    l4_size_t sz = 0;
-
-    for (auto const &r : _regions)
-      sz += r.size();
-
-    return sz;
-  }
-
-  L4::Cap<L4Re::Dataspace> main_ds() const
-  {
-    assert(!_regions.empty());
-    return _regions.front().ds();
-  }
+  void setup_default_region(Vdev::Host_dt const &dt, Guest *vmm,
+                            l4_addr_t baseaddr);
 
   /**
    * Compute the boot address of a guest physical pointer.
@@ -191,7 +189,6 @@ private:
                               l4_addr_t baseaddr, l4_addr_t ds_offset,
                               l4_size_t size, Vm_mem *memmap);
 
-  bool scan_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &node);
   long add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &node);
   void setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,
                             l4_addr_t baseaddr);

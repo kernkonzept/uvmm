@@ -6,8 +6,6 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
-#include <functional>
-
 #include <l4/cxx/minmax>
 #include <l4/re/env>
 #include <l4/re/error_helper>
@@ -16,9 +14,6 @@
 #include "debug.h"
 #include "vm_memmap.h"
 #include "vm_ram.h"
-
-static Dbg warn(Dbg::Core, Dbg::Warn, "ram");
-static Dbg trace(Dbg::Core, Dbg::Trace, "ram");
 
 namespace {
 
@@ -43,64 +38,59 @@ private:
 
 }
 
-l4_size_t
-Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, l4_addr_t baseaddr,
-                               l4_addr_t ds_offset, l4_size_t size, Vm_mem *memmap)
-{
-  Ram_ds r(ds, size, ds_offset);
-
-  if (r.setup(baseaddr) < 0)
-    return -1;
-
-  auto dsdev = Vdev::make_device<Ds_handler>(ds, r.local_start(), r.size(),
-                                             ds_offset);
-  memmap->add_mmio_device(Region::ss(r.vm_start(), r.size()), std::move(dsdev));
-
-  _regions.push_back(std::move(r));
-
-  return _regions.size() - 1;
-}
-
-
-void
-Vmm::Vm_ram::setup_from_device_tree(Vdev::Host_dt const &dt, Vm_mem *memmap,
-                                    l4_addr_t default_address)
-{
-  bool has_memory_nodes = false;
-
-  if (dt.valid())
-    dt.get().scan(std::bind(&Vm_ram::scan_dt_node, this, memmap, &has_memory_nodes,
-                            std::placeholders::_1),
-                  [] (Vdev::Dt_node const &, unsigned) {});
-
-  if (!has_memory_nodes)
-    setup_default_region(dt, memmap, default_address);
-  else if (_regions.empty())
-    L4Re::chksys(-L4_ENOMEM, "Memory configuration in device tree provides no valid RAM");
-}
+static Dbg warn(Dbg::Core, Dbg::Warn, "ram");
+static Dbg info(Dbg::Core, Dbg::Info, "ram");
+static Dbg trace(Dbg::Core, Dbg::Trace, "ram");
 
 bool
-Vmm::Vm_ram::scan_dt_node(Vm_mem *vmm, bool *found, Vdev::Dt_node const &node)
+Vmm::Ram_free_list::reserve_fixed(l4_addr_t start, l4_size_t size)
 {
-  char const *devtype = node.get_prop<char>("device_type", nullptr);
+  for (auto it = _freelist.begin(); it != _freelist.end(); ++it)
+    {
+      if (!it->contains(Region::ss(start, size)))
+        continue;
 
-  if (!devtype || strcmp("memory", devtype) != 0)
-    return true;
+      if (start == it->start)
+        *it = Region(start + size, it->end);
+      else
+        {
+          auto oldend = it->end;
+          *it = Region(it->start, start - 1);
 
-  if (add_from_dt_node(vmm, found, node) < 0)
-    node.setprop_string("status", "disabled");
+          if (oldend >= start + size)
+            _freelist.insert(it + 1, Region(start + size, oldend));
+        }
 
-  // memory nodes should not have children, so no point in further scanning
+      return true;
+    }
+
   return false;
 }
 
-
-L4virtio::Ptr<void>
-Vmm::Vm_ram::load_file(char const *name, L4virtio::Ptr<void> addr, l4_size_t *sz) const
+bool
+Vmm::Ram_free_list::reserve_back(l4_size_t size, l4_addr_t *start,
+                                 unsigned char page_shift)
 {
-  Dbg info(Dbg::Mmio, Dbg::Info, "file");
+  for (auto rit = _freelist.rbegin(); rit != _freelist.rend(); ++rit)
+    {
+      if (rit->end - rit->start + 1 < size)
+        continue;
 
-  info.printf("load: %s -> 0x%llx\n", name, addr.get());
+      *start = l4_trunc_size(rit->end - size + 1, page_shift);
+
+      if (*start < rit->start)
+        continue;
+
+      return reserve_fixed(*start, size);
+    }
+
+  return false;
+}
+
+long
+Vmm::Ram_free_list::load_file_to_back(Vm_ram *ram, char const *name,
+                                      L4virtio::Ptr<void> *start, l4_size_t *size)
+{
   Auto_fd fd(open(name, O_RDONLY));
   if (fd.get() < 0)
     {
@@ -122,8 +112,85 @@ Vmm::Vm_ram::load_file(char const *name, L4virtio::Ptr<void> addr, l4_size_t *sz
       L4Re::chksys(-L4_EINVAL);
     }
 
-  return load_file(f, addr, sz);
+  l4_addr_t addr;
+  l4_size_t sz = f->size();
+
+  if (!reserve_back(sz, &addr, L4_SUPERPAGESHIFT))
+    return -L4_ENOMEM;
+
+  info.printf("load: %s -> 0x%lx\n", name, addr);
+
+  if (start)
+    *start = L4virtio::Ptr<void>(addr);
+  if (size)
+    *size = sz;
+
+  ram->load_file(f, L4virtio::Ptr<void>(addr), sz);
+
+  return L4_EOK;
 }
+
+l4_size_t
+Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, l4_addr_t baseaddr,
+                               l4_addr_t ds_offset, l4_size_t size, Vm_mem *memmap)
+{
+  Ram_ds r(ds, size, ds_offset);
+
+  if (r.setup(baseaddr) < 0)
+    return -1;
+
+  auto dsdev = Vdev::make_device<Ds_handler>(ds, r.local_start(), r.size(),
+                                             ds_offset);
+  memmap->add_mmio_device(Region::ss(r.vm_start(), r.size()), std::move(dsdev));
+
+  _regions.push_back(std::move(r));
+
+  return _regions.size() - 1;
+}
+
+
+Vmm::Ram_free_list
+Vmm::Vm_ram::setup_from_device_tree(Vdev::Host_dt const &dt, Vm_mem *memmap,
+                                    l4_addr_t default_address)
+{
+  bool has_memory_nodes = false;
+
+  if (dt.valid())
+    dt.get().scan(
+      [this, &memmap, &has_memory_nodes](Vdev::Dt_node const &node, int)
+        {
+          char const *devtype = node.get_prop<char>("device_type", nullptr);
+
+          if (!devtype || strcmp("memory", devtype) != 0)
+          return true;
+
+          if (add_from_dt_node(memmap, &has_memory_nodes, node) < 0)
+          node.setprop_string("status", "disabled");
+
+          // memory nodes should not have children, so no point in further scanning
+          return false;
+        },
+      [] (Vdev::Dt_node const &, unsigned) {});
+
+  if (!has_memory_nodes)
+    setup_default_region(dt, memmap, default_address);
+  else if (_regions.empty())
+    L4Re::chksys(-L4_ENOMEM, "Memory configuration in device tree provides no valid RAM");
+
+  Ram_free_list list;
+  L4::Cap<L4Re::Dataspace> main_ds = _regions[0].ds();
+
+  for (auto const &r : _regions)
+    {
+      if (r.ds() != main_ds)
+        break;
+
+      list.add_free_region(r.vm_start(), r.size());
+    }
+
+  return list;
+}
+
 
 long
 Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &node)

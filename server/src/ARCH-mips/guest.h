@@ -96,7 +96,8 @@ public:
 
   void setup_device_tree(Vdev::Device_tree dt);
 
-  L4virtio::Ptr<void> load_linux_kernel(Vm_ram *ram, char const *kernel, l4_addr_t *entry);
+  l4_addr_t load_linux_kernel(Vm_ram *ram, char const *kernel,
+                              Ram_free_list *free_list);
 
   void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
                          Vm_ram *ram, char const *kernel,

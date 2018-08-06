@@ -12,7 +12,10 @@
 #include "device.h" // TODO typedef Device_tree instead?
 #include "device_tree.h"
 
-namespace Vmm { class Vm_ram; }
+namespace Vmm {
+    class Vm_ram;
+    class Ram_free_list;
+}
 
 namespace Vdev {
 
@@ -35,7 +38,7 @@ public:
   { return Device_tree(_dtmem); }
 
   void add_source(char const *fname);
-  void pack_and_move(Vmm::Vm_ram *ram, L4virtio::Ptr<void> addr);
+  L4virtio::Ptr<void> pack_and_move(Vmm::Vm_ram *ram, Vmm::Ram_free_list *free_list);
 
 private:
   void *_dtmem = nullptr;

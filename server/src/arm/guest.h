@@ -36,8 +36,8 @@ public:
 
   void setup_device_tree(Vdev::Device_tree dt);
 
-  L4virtio::Ptr<void> load_linux_kernel(Vm_ram *ram, char const *kernel,
-                                        l4_addr_t *entry);
+  l4_addr_t load_linux_kernel(Vm_ram *ram, char const *kernel,
+                              Ram_free_list *free_list);
 
   void prepare_vcpu_startup(Vcpu_ptr vcpu, l4_addr_t entry) const;
 
@@ -75,7 +75,7 @@ public:
 
 private:
   Cpu_dev *lookup_cpu(l4_uint32_t hwid) const;
-  void check_guest_constraints(Vm_ram *ram);
+  void check_guest_constraints(Ram_free_list *ram);
   void arm_update_device_tree();
 
   cxx::Ref_ptr<Gic::Dist> _gic;
