@@ -100,12 +100,17 @@ public:
   : _gp_addr(addr), _kbinary(kernel)
   {
     info().printf("Zeropage @ 0x%lx, Kernel @ 0x%lx\n", addr, kernel);
+    memset(_cmdline, 0, Max_cmdline_size);
+    memset(_e820, 0, Max_e820_entries * sizeof(E820_entry));
   }
 
   void add_cmdline(char const *line)
   {
     info().printf("Cmd_line: %s\n", line);
-    assert(strlen(line) < Max_cmdline_size);
+
+    if (strlen(line) >= Max_cmdline_size)
+      L4Re::chksys(-L4_EINVAL, "Maximal command line size is 200 characters.");
+
     strcpy(_cmdline, line);
   }
 
