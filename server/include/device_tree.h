@@ -359,6 +359,14 @@ public:
     return val;
   }
 
+  int set_prop_partial(char const *property, uint32_t idx,
+                        const void *val, int len) const
+  {
+    return fdt_setprop_inplace_namelen_partial(_tree, _node,
+                                               property, strlen(property),
+                                               idx, val, len);
+  }
+
   /**
    * Get address/size pair from reg property
    *

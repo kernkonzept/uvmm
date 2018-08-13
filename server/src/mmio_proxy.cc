@@ -157,6 +157,26 @@ private:
               sz = backend_size - offs;
             else
               sz = 0;
+
+            unsigned poff = ((index + 1) * node.get_address_cells()
+                            + index * node.get_size_cells()) * sizeof(fdt32_t);
+            switch (node.get_size_cells())
+              {
+              case 1:
+                {
+                  fdt32_t tmp = cpu_to_fdt32(sz);
+                  node.set_prop_partial("reg", poff, &tmp, sizeof(tmp));
+                  break;
+                }
+              case 2:
+                {
+                  fdt64_t tmp = cpu_to_fdt64(sz);
+                  node.set_prop_partial("reg", poff, &tmp, sizeof(tmp));
+                  break;
+                }
+              default:
+                L4Re::chksys(-L4_EINVAL, "Unknown size-cells size");
+              }
           }
 
         if (sz)
@@ -190,7 +210,7 @@ private:
                   }
 
                 int addr_cells = node.get_address_cells();
-                node.setprop("dma-ranges", phys_ram, addr_cells);
+                node.appendprop("dma-ranges", phys_ram, addr_cells);
                 node.appendprop("dma-ranges", base, addr_cells);
                 node.appendprop("dma-ranges", sz, node.get_size_cells());
               }
