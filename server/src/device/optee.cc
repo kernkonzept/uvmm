@@ -89,7 +89,7 @@ public:
     if (ret < 0 || p[0] != Optee_uuid_word0 || p[1] != Optee_uuid_word1 ||
         p[2] != Optee_uuid_word2 || p[3] != Optee_uuid_word3)
       {
-        warn.printf("OP-TEE not runing.\n");
+        warn.printf("OP-TEE not running.\n");
         return -L4_ENODEV;
       }
 
