@@ -24,12 +24,12 @@ namespace Vdev
    *
    * If the capability supports the dataspace protocol, the memory
    * from the dataspace is mapped directly into the guest address space.
-   * The region(s) defined in regs must be aligned to page boundaries.
+   * The region(s) defined in reg must be aligned to page boundaries.
    *
    * For the mmio space protocol, all accesses are forwarded via IPC.
-   * Mmio spaces support arbitrary regs regions.
+   * Mmio spaces support arbitrary reg regions.
    *
-   * Devie tree compatible: l4vmm,l4-mmio
+   * Device tree compatible: l4vmm,l4-mmio
    *
    * Device tree parameters:
    *   l4vmm,mmio-cap    - Capability that provides the dataspace or
@@ -37,14 +37,26 @@ namespace Vdev
    *                       for support of the two interfaces via the meta
    *                       protocol. If both interfaces are available
    *                       the dataspace protocol is used.
-   *   regs              - Regions that cover the device.
+   *   reg               - Regions that cover the device.
    *   l4vmm,mmio-offset - Address in the dataspace/mmio space that
    *                       corresponds to the first base address in `regs`.
    *                       Default: 0.
+   *   dma-ranges        - When present, uvmm adds the physical memory addresses
+   *                       of the dataspace. If the addresses cannot be determined
+   *                       because the dataspace does not have the appropriate
+   *                       properties, then startup of uvmm fails with an error.
+   *                       Note: ranges are added, so the property should be
+   *                       initially empty.
    */
   struct Mmio_proxy : public Device
   {
-    // XXX Empty dummy structure
+    friend class F;
+
+    void set_dma_space(L4Re::Util::Unique_cap<L4Re::Dma_space> &&dma)
+    { _dma = cxx::move(dma); }
+
+    /// container for DMA mapping, if applicable.
+    L4Re::Util::Unique_cap<L4Re::Dma_space> _dma;
   };
 }
 
@@ -77,15 +89,33 @@ public:
     auto dscap = L4::cap_dynamic_cast<L4Re::Dataspace>(cap);
     if (dscap)
       {
+        L4Re::Util::Unique_cap<L4Re::Dma_space> dma;
         size_t ds_size = dscap->size();
-        register_mmio_regions<Ds_handler>(dscap, devs, node, ds_size);
-        return Vdev::make_device<Mmio_proxy>();
+
+        if (node.has_prop("dma-ranges"))
+          {
+            dma = L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dma_space>(),
+                               "Create capability for DMA space for memory region.");
+
+            L4Re::chksys(L4Re::Env::env()->user_factory()->create(dma.get()),
+                         "Create DMA space for MMIO proxy region");
+
+            L4Re::chksys(dma->associate(L4::Ipc::Cap<L4::Task>(),
+                                        L4Re::Dma_space::Phys_space),
+                         "Associate with physical address space");
+          }
+
+        register_mmio_regions(dscap, devs, node, dma.get(), ds_size);
+        auto dev = Vdev::make_device<Mmio_proxy>();
+        dev->set_dma_space(cxx::move(dma));
+
+        return dev;
       }
 
     auto mmcap = L4::cap_dynamic_cast<L4Re::Mmio_space>(cap);
     if (mmcap)
       {
-        register_mmio_regions<Mmio_space_handler>(mmcap, devs, node);
+        register_mmio_regions(mmcap, devs, node);
         return Vdev::make_device<Mmio_proxy>();
       }
 
@@ -94,9 +124,9 @@ public:
   }
 
 private:
-  template <typename HANDLERTYPE, typename CAPTYPE>
-  void register_mmio_regions(L4::Cap<CAPTYPE> cap, Device_lookup const *devs,
-                             Dt_node const &node, size_t backend_size = 0)
+  void register_mmio_regions(L4::Cap<L4Re::Dataspace> cap, Device_lookup const *devs,
+                             Dt_node const &node, L4::Cap<L4Re::Dma_space> dma,
+                             size_t backend_size)
   {
     l4_uint64_t regbase, base, size;
     l4_uint64_t offset = 0;
@@ -131,11 +161,77 @@ private:
 
         if (sz)
           {
-            auto handler = Vdev::make_device<HANDLERTYPE>(cap, 0, sz, offs);
+            auto handler = Vdev::make_device<Ds_handler>(cap, 0, sz, offs);
+            devs->vmm()->register_mmio_device(handler, node, index);
+
+            if (dma.is_valid())
+              {
+                L4Re::Dma_space::Dma_addr phys_ram = 0;
+                l4_size_t phys_size = sz;
+                long err = dma->map(L4::Ipc::make_cap(cap, L4_CAP_FPAGE_RW),
+                                    offs, &phys_size,
+                                    L4Re::Dma_space::Attributes::None,
+                                    L4Re::Dma_space::Bidirectional, &phys_ram);
+
+                if (err < 0)
+                  {
+                    Err().printf("%s: Cannot resolve physical address of dataspace. "
+                                 "Dataspace needs to be continuous.\n",
+                                 node.get_name());
+                    L4Re::chksys(err, "Resolve physical address of dataspace.");
+                  }
+                else if (phys_size < sz)
+                  {
+                    Err().printf("%s: Cannot resolve physical address of complete area. "
+                                 "Dataspace not continuous.\n"
+                                 "(dataspace size = 0x%llx, continous size = 0x%zx).\n",
+                                 node.get_name(), sz, phys_size);
+                    L4Re::chksys(-L4_ENOMEM, "Resolve dma-range of dataspace.");
+                  }
+
+                int addr_cells = node.get_address_cells();
+                node.setprop("dma-ranges", phys_ram, addr_cells);
+                node.appendprop("dma-ranges", base, addr_cells);
+                node.appendprop("dma-ranges", sz, node.get_size_cells());
+              }
+          }
+      }
+  }
+
+  void register_mmio_regions(L4::Cap<L4Re::Mmio_space> cap,
+                             Device_lookup const *devs, Dt_node const &node)
+  {
+    l4_uint64_t regbase, base, size;
+    l4_uint64_t offset = 0;
+    int propsz;
+    auto *prop = node.get_prop<fdt32_t>("l4vmm,mmio-offset", &propsz);
+
+    if (prop)
+      offset = node.get_prop_val(prop, propsz, true);
+
+    if (node.get_reg_val(0, &regbase, &size) < 0)
+      L4Re::chksys(-L4_EINVAL, "reg property not found or invalid");
+
+    for (size_t index = 0; node.get_reg_val(index, &base, &size) >= 0; ++index)
+      {
+        if (base < regbase)
+          {
+            Err().printf("%s: reg%zd: %llx smaller than base of %llx\n"
+                         "Smallest address must come first in 'reg' list.\n",
+                         node.get_name(), index, base, regbase);
+            L4Re::chksys(-L4_ERANGE);
+          }
+
+        l4_uint64_t offs = offset + (base - regbase);
+
+        if (size)
+          {
+            auto handler = Vdev::make_device<Mmio_space_handler>(cap, 0, size, offs);
             devs->vmm()->register_mmio_device(handler, node, index);
           }
       }
   }
+
 };
 
 
