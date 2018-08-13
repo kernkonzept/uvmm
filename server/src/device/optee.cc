@@ -103,7 +103,7 @@ public:
         return -L4_EINVAL;
       }
 
-    // check if the OS exports memory
+    // check if OP-TEE exports memory
     ret = fast_call(0xb2000009, p);
 
     if (ret < 0 || p[0] != 0 || !(p[1] & 1))
