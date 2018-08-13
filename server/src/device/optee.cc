@@ -98,8 +98,8 @@ public:
 
     if (ret < 0 || p[0] != Optee_api_major || p[1] != Optee_api_minor)
       {
-        warn.printf("OP-TEE has wrong API (%ld.%ld). Need 2.0.\n",
-                    p[0], p[1]);
+        warn.printf("OP-TEE has wrong API (%ld.%ld). Need %x.%x.\n",
+                    p[0], p[1], Optee_api_major, Optee_api_minor);
         return -L4_EINVAL;
       }
 
