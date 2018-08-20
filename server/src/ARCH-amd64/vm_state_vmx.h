@@ -386,18 +386,19 @@ public:
                   vmx_read(L4VCPU_VMCS_VM_EXIT_MSR_LOAD_ADDRESS));
     warn().printf("(C) Entry MSR load address: 0x%llx\n",
                   vmx_read(L4VCPU_VMCS_VM_ENTRY_MSR_LOAD_ADDRESS));
-    warn().printf("(G) Guest IA32 EFER: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER));
 
     warn().printf("(C) Entry control: 0x%llx\n", vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS));
     warn().printf("(C) Entry error: 0x%llx\n", vmx_read(L4VCPU_VMCS_VM_ENTRY_EXCEPTION_ERROR));
-    warn().printf("(C) VM-instruction error: 0x%llx\n", vmx_read(L4VCPU_VMCS_VM_INSN_ERROR));
     warn().printf("(C) Entry MSR load cnt: 0x%llx\n", vmx_read(L4VCPU_VMCS_VM_ENTRY_MSR_LOAD_COUNT));
-    warn().printf("(C) Exit control: 0x%llx\n", vmx_read(L4VCPU_VMCS_VM_EXIT_CTLS));
-    warn().printf("(C) Exit reason: 0x%llx\n", vmx_read(L4VCPU_VMCS_EXIT_REASON));
     warn().printf("(C) Entry interupt info: 0x%llx\n",
                   vmx_read(L4VCPU_VMCS_VM_ENTRY_INTERRUPT_INFO));
+    warn().printf("(C) VM-instruction error: 0x%llx\n", vmx_read(L4VCPU_VMCS_VM_INSN_ERROR));
+    warn().printf("(C) Exit control: 0x%llx\n", vmx_read(L4VCPU_VMCS_VM_EXIT_CTLS));
+    warn().printf("(C) Exit reason: 0x%llx\n", vmx_read(L4VCPU_VMCS_EXIT_REASON));
     warn().printf("(C) Exit interupt info: 0x%llx\n",
                   vmx_read(L4VCPU_VMCS_VM_EXIT_INTERRUPT_INFO));
+    warn().printf("(C) Exit interupt error: 0x%llx\n",
+                  vmx_read(L4VCPU_VMCS_VM_EXIT_INTERRUPT_ERROR));
     warn().printf("(C) Guest interruptability: 0x%llx\n",
                   vmx_read(L4VCPU_VMCS_GUEST_INTERRUPTIBILITY_STATE));
 
@@ -419,6 +420,7 @@ public:
     warn().printf("(G) CR0: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_CR0));
     warn().printf("(G) CR3: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_CR3));
     warn().printf("(G) CR4: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_CR4));
+    warn().printf("(G) Guest IA32 EFER: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER));
     warn().printf("(G) RFLAGS: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_RFLAGS));
     warn().printf("(G) RIP: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_RIP));
     warn().printf("(G) RSP: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_RSP));
@@ -428,7 +430,6 @@ public:
     warn().printf("(G) DS base: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_DS_BASE));
     warn().printf("(G) FS base: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_FS_BASE));
     warn().printf("(G) GS base: 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_GS_BASE));
-    warn().printf("(G) EFER   : 0x%llx\n", vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER));
 
     warn().printf("=========================================\n");
   }
