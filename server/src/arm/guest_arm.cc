@@ -147,11 +147,9 @@ Guest::setup_device_tree(Vdev::Device_tree dt)
 }
 
 void
-Guest::check_guest_constraints(Ram_free_list *free_list)
+Guest::check_guest_constraints(l4_addr_t base) const
 {
   Dbg warn(Dbg::Mmio, Dbg::Warn, "ram");
-
-  l4_addr_t base = free_list->base_address();
 
   if (guest_64bit)
     {
@@ -189,7 +187,7 @@ Guest::check_guest_constraints(Ram_free_list *free_list)
 l4_addr_t
 Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_list)
 {
-  check_guest_constraints(free_list);
+  l4_addr_t ram_base = free_list->base_address();
 
   l4_addr_t entry = ~0ul;
   Boot::Binary_ds image(kernel);
@@ -228,6 +226,8 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_li
           entry = image.load_as_raw(ram, Default_entry, free_list);
         }
     }
+
+  check_guest_constraints(ram_base);
 
   return entry;
 }

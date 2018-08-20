@@ -75,7 +75,7 @@ public:
 
 private:
   Cpu_dev *lookup_cpu(l4_uint32_t hwid) const;
-  void check_guest_constraints(Ram_free_list *ram);
+  void check_guest_constraints(l4_addr_t ram_base) const;
   void arm_update_device_tree();
 
   cxx::Ref_ptr<Gic::Dist> _gic;
