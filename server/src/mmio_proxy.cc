@@ -39,7 +39,7 @@ namespace Vdev
    *                       the dataspace protocol is used.
    *   reg               - Regions that cover the device.
    *   l4vmm,mmio-offset - Address in the dataspace/mmio space that
-   *                       corresponds to the first base address in `regs`.
+   *                       corresponds to the first base address in `reg`.
    *                       Default: 0.
    *   dma-ranges        - When present, uvmm adds the physical memory addresses
    *                       of the dataspace. If the addresses cannot be determined
@@ -47,6 +47,10 @@ namespace Vdev
    *                       properties, then startup of uvmm fails with an error.
    *                       Note: ranges are added, so the property should be
    *                       initially empty.
+   *   l4vmm,physmap     - When present, export the complete dataspace starting
+   *                       from an optional `l4vmm,mmio-offset`. The `reg`
+   *                       property will be overwritten with the appropriate
+   *                       region. `dma-ranges` must not be set at the same time.
    */
   struct Mmio_proxy : public Device
   {
@@ -90,9 +94,9 @@ public:
     if (dscap)
       {
         L4Re::Util::Unique_cap<L4Re::Dma_space> dma;
-        size_t ds_size = dscap->size();
+        bool physmap = node.has_prop("l4vmm,physmap");
 
-        if (node.has_prop("dma-ranges"))
+        if (physmap || node.has_prop("dma-ranges"))
           {
             dma = L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dma_space>(),
                                "Create capability for DMA space for memory region.");
@@ -105,7 +109,10 @@ public:
                          "Associate with physical address space");
           }
 
-        register_mmio_regions(dscap, devs, node, dma.get(), ds_size);
+        if (physmap)
+          register_physmap_region(dscap, devs, node, dma.get());
+        else
+          register_mmio_regions(dscap, devs, node, dma.get());
         auto dev = Vdev::make_device<Mmio_proxy>();
         dev->set_dma_space(cxx::move(dma));
 
@@ -124,17 +131,31 @@ public:
   }
 
 private:
-  void register_mmio_regions(L4::Cap<L4Re::Dataspace> cap, Device_lookup const *devs,
-                             Dt_node const &node, L4::Cap<L4Re::Dma_space> dma,
-                             size_t backend_size)
+  void register_physmap_region(L4::Cap<L4Re::Dataspace> cap, Device_lookup const *devs,
+                             Dt_node const &node, L4::Cap<L4Re::Dma_space> dma)
   {
-    l4_uint64_t regbase, base, size;
-    l4_uint64_t offset = 0;
-    int propsz;
-    auto *prop = node.get_prop<fdt32_t>("l4vmm,mmio-offset", &propsz);
+    l4_size_t sz = cap->size();
+    l4_uint64_t offset = get_offset_from_node(node);
 
-    if (prop)
-      offset = node.get_prop_val(prop, propsz, true);
+    if (offset > sz)
+      L4Re::chksys(-L4_EINVAL, "l4vmm,mmio-offset outside dataspace");
+
+    sz -= offset;
+
+    auto phys = get_phys_mapping(cap, dma, offset, sz, node.get_name());
+
+    node.set_reg_val(phys, sz, false);
+
+    auto handler = Vdev::make_device<Ds_handler>(cap, 0, sz, offset);
+    devs->vmm()->register_mmio_device(handler, node, 0);
+  }
+
+  void register_mmio_regions(L4::Cap<L4Re::Dataspace> cap, Device_lookup const *devs,
+                             Dt_node const &node, L4::Cap<L4Re::Dma_space> dma)
+  {
+    l4_size_t dssize = cap->size();
+    l4_uint64_t regbase, base, size;
+    l4_uint64_t offset = get_offset_from_node(node);
 
     if (node.get_reg_val(0, &regbase, &size) < 0)
       L4Re::chksys(-L4_EINVAL, "reg property not found or invalid");
@@ -151,12 +172,9 @@ private:
 
         l4_uint64_t sz = size;
         l4_uint64_t offs = offset + (base - regbase);
-        if (backend_size && offs + sz > backend_size)
+        if (offs + sz > dssize)
           {
-            if (offs < backend_size)
-              sz = backend_size - offs;
-            else
-              sz = 0;
+            sz = offs < dssize ? dssize - offs : 0;
 
             unsigned poff = ((index + 1) * node.get_address_cells()
                             + index * node.get_size_cells()) * sizeof(fdt32_t);
@@ -186,31 +204,10 @@ private:
 
             if (dma.is_valid())
               {
-                L4Re::Dma_space::Dma_addr phys_ram = 0;
-                l4_size_t phys_size = sz;
-                long err = dma->map(L4::Ipc::make_cap(cap, L4_CAP_FPAGE_RW),
-                                    offs, &phys_size,
-                                    L4Re::Dma_space::Attributes::None,
-                                    L4Re::Dma_space::Bidirectional, &phys_ram);
-
-                if (err < 0)
-                  {
-                    Err().printf("%s: Cannot resolve physical address of dataspace. "
-                                 "Dataspace needs to be continuous.\n",
-                                 node.get_name());
-                    L4Re::chksys(err, "Resolve physical address of dataspace.");
-                  }
-                else if (phys_size < sz)
-                  {
-                    Err().printf("%s: Cannot resolve physical address of complete area. "
-                                 "Dataspace not continuous.\n"
-                                 "(dataspace size = 0x%llx, continous size = 0x%zx).\n",
-                                 node.get_name(), sz, phys_size);
-                    L4Re::chksys(-L4_ENOMEM, "Resolve dma-range of dataspace.");
-                  }
+                auto phys = get_phys_mapping(cap, dma, offs, sz, node.get_name());
 
                 int addr_cells = node.get_address_cells();
-                node.appendprop("dma-ranges", phys_ram, addr_cells);
+                node.appendprop("dma-ranges", phys, addr_cells);
                 node.appendprop("dma-ranges", base, addr_cells);
                 node.appendprop("dma-ranges", sz, node.get_size_cells());
               }
@@ -222,12 +219,7 @@ private:
                              Device_lookup const *devs, Dt_node const &node)
   {
     l4_uint64_t regbase, base, size;
-    l4_uint64_t offset = 0;
-    int propsz;
-    auto *prop = node.get_prop<fdt32_t>("l4vmm,mmio-offset", &propsz);
-
-    if (prop)
-      offset = node.get_prop_val(prop, propsz, true);
+    l4_uint64_t offset = get_offset_from_node(node);
 
     if (node.get_reg_val(0, &regbase, &size) < 0)
       L4Re::chksys(-L4_EINVAL, "reg property not found or invalid");
@@ -252,6 +244,48 @@ private:
       }
   }
 
+  static L4Re::Dma_space::Dma_addr get_phys_mapping(L4::Cap<L4Re::Dataspace> cap,
+                                                    L4::Cap<L4Re::Dma_space> dma,
+                                                    l4_addr_t offset, l4_size_t size,
+                                                    char const *node_name)
+  {
+    L4Re::Dma_space::Dma_addr phys_ram;
+    l4_size_t phys_size = size;
+    long err = dma->map(L4::Ipc::make_cap(cap, L4_CAP_FPAGE_RW),
+        offset, &phys_size,
+        L4Re::Dma_space::Attributes::None,
+        L4Re::Dma_space::Bidirectional, &phys_ram);
+
+    if (err < 0)
+      {
+        Err().printf("%s: Cannot resolve physical address of dataspace. "
+                     "Dataspace needs to be continuous.\n",
+                     node_name);
+        L4Re::chksys(err, "Resolve physical address of dataspace.");
+      }
+    else if (phys_size < size)
+      {
+        Err().printf("%s: Cannot resolve physical address of complete area. "
+                     "Dataspace not continuous.\n"
+                     "(dataspace size = 0x%lx, continous size = 0x%zx).\n",
+                     node_name, size, phys_size);
+        L4Re::chksys(-L4_ENOMEM, "Resolve dma-range of dataspace.");
+      }
+
+    return phys_ram;
+  }
+
+
+  static l4_size_t get_offset_from_node(Dt_node const &node)
+  {
+    int propsz;
+    auto *prop = node.get_prop<fdt32_t>("l4vmm,mmio-offset", &propsz);
+
+    if (prop)
+      return node.get_prop_val(prop, propsz, true);
+
+    return 0;
+  }
 };
 
 
