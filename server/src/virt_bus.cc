@@ -24,22 +24,23 @@ Virt_bus::Irq_bitmap::dump_irqs()
 void
 Virt_bus::scan_bus()
 {
+  L4vbus::Device io_dev;
+  l4vbus_device_t dev_info;
   L4vbus::Device root = _bus->root();
-  Devinfo info;
 
-  while (root.next_device(&info.io_dev, L4VBUS_MAX_DEPTH, &info.dev_info) == 0)
-    _devices.push_back(info);
+  while (root.next_device(&io_dev, L4VBUS_MAX_DEPTH, &dev_info) == 0)
+    _devices.emplace_back(io_dev, dev_info);
 }
 
 void
 Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
                                 Vdev::Device_lookup const *devs)
 {
-  for (unsigned i = 0; i < dev.dev_info.num_resources; ++i)
+  for (unsigned i = 0; i < dev.dev_info().num_resources; ++i)
     {
       l4vbus_resource_t res;
 
-      L4Re::chksys(dev.io_dev.get_resource(i, &res),
+      L4Re::chksys(dev.io_dev().get_resource(i, &res),
                    "Cannot get resource in collect_resources");
 
       char const *resname = reinterpret_cast<char const *>(&res.id);
@@ -48,7 +49,7 @@ Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
         {
           Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
             .printf("Adding MMIO resource %s.%.4s : [0x%lx - 0x%lx]\n",
-                    dev.dev_info.name, resname, res.start, res.end);
+                    dev.dev_info().name, resname, res.start, res.end);
 
           l4_size_t size = res.end - res.start + 1;
           auto handler = Vdev::make_device<Ds_handler>(io_ds(), 0, size,
@@ -60,7 +61,7 @@ Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
         {
           Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
             .printf("Registering IRQ resource %s.%.4s : 0x%lx\n",
-                    dev.dev_info.name, resname, res.start);
+                    dev.dev_info().name, resname, res.start);
           _irqs.mark_irq_present(res.start);
         }
     }
@@ -71,11 +72,25 @@ Virt_bus::collect_resources(Vdev::Device_lookup const *devs)
 {
   for (auto &iodev : _devices)
     {
-      if (iodev.proxy)
+      if (iodev.allocated())
         continue;
 
       collect_dev_resources(iodev, devs);
     }
 }
 
+Virt_bus::Devinfo *
+Virt_bus::find_unassigned_device_by_hid(char const *hid)
+{
+  L4vbus::Device vdev;
+  while (_bus->root().device_by_hid(&vdev, hid) >= 0)
+    {
+      for (auto &iodev : _devices)
+        if (   iodev.io_dev().dev_handle() == vdev.dev_handle()
+            && !iodev.allocated())
+          return &iodev;
+    }
+
+  return nullptr;
+}
 } // namespace

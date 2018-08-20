@@ -58,12 +58,13 @@ struct F : Factory
     auto gic = devs->vmm()->gic();
     devs->vmm()->register_mmio_device(gic, node);
 
-    L4vbus::Device vdev;
-    L4Re::chksys(vbus->bus()->root().device_by_hid(&vdev, "arm-gicc"),
-                 "getting ARM GIC from IO");
+    Virt_bus::Devinfo *devinfo =
+      vbus->find_unassigned_device_by_hid("arm-gicc");
+    if (!devinfo)
+      L4Re::chksys(-L4_ENODEV, "getting ARM GIC from IO");
 
     l4vbus_resource_t res;
-    L4Re::chksys(vdev.get_resource(0, &res),
+    L4Re::chksys(devinfo->io_dev().get_resource(0, &res),
                  "getting memory resource");
 
     Dbg(Dbg::Irq, Dbg::Info, "GIC").printf("ARM GIC: %08lx-%08lx\n",
@@ -72,6 +73,7 @@ struct F : Factory
     auto g2 = Vdev::make_device<Ds_handler>(vbus->io_ds(), 0,
                                             res.end - res.start + 1, res.start);
     devs->vmm()->register_mmio_device(g2, node, 1);
+    devinfo->set_proxy(gic);
     return gic;
   }
 };

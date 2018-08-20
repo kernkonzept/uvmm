@@ -25,11 +25,47 @@ namespace Vmm {
 class Virt_bus : public cxx::Ref_obj
 {
 public:
-  struct Devinfo
+  class Devinfo
   {
-    L4vbus::Device io_dev;
-    l4vbus_device_t dev_info;
-    cxx::Ref_ptr<Vdev::Device> proxy;
+  public:
+    L4vbus::Device io_dev() const
+    { return _io_dev; }
+
+    l4vbus_device_t dev_info() const
+    { return _dev_info; }
+
+    /*
+     * Return the proxy managing this device.
+     */
+    cxx::Ref_ptr<Vdev::Device> proxy() const
+    { return _proxy; }
+
+    /*
+     * Set the proxy managing this device.
+     *
+     * \param proxy  The proxy managing this device.
+     */
+
+    void set_proxy(cxx::Ref_ptr<Vdev::Device> const &proxy)
+    { _proxy = proxy; }
+
+    /*
+     * Check whether a device is already managed by a proxy.
+     *
+     * \retval true   The device is already managed by a proxy.
+     * \retval false  The device is still free.
+     */
+    bool allocated() const
+    { return _proxy != nullptr; }
+
+    Devinfo(L4vbus::Device io_dev, l4vbus_device_t dev_info)
+    : _io_dev(io_dev), _dev_info(dev_info)
+    {}
+
+  private:
+    L4vbus::Device _io_dev;
+    l4vbus_device_t _dev_info;
+    cxx::Ref_ptr<Vdev::Device> _proxy;
   };
 
 private:
@@ -101,11 +137,26 @@ public:
   {
     for (auto const &i: _devices)
       {
-        if (i.proxy == proxy)
+        if (i.proxy() == proxy)
           return &i;
       }
     return nullptr;
   }
+
+  /*
+   * Lookup unassigned device by hid
+   *
+   * \param hid  The hid we are looking for.
+   *
+   * \return  Pointer to unallocated device, nullptr if device not present or
+   *          already claimed by someone else. To claim the device, invoke
+   *          Devinfo::set_proxy().
+   *
+   * The method iterates over the vbus and tries to find a device matching hid.
+   * If a device is found and not allocated it is returned. Otherwise we
+   * continue the iteration.
+   */
+  Devinfo *find_unassigned_device_by_hid(char const *hid);
 
   /**
    * Collect all resources available on the vbus
@@ -115,7 +166,10 @@ public:
    * \retval true   Successfully collected all resources
    * \retval false  Failed to collect resources
    *
-   * Iterate over all available devices on the vbus and collect
+   * Iterate over all unallocated devices on the vbus and collect available
+   * resources. The function looks at memory and irq resources. Memory is
+   * mapped and added to the memory map. Irqs are tracked in a bitmap and may
+   * be bind later on (see irq_present(), irq_bound(), mark_irq_bound()).
    */
   void collect_resources(Vdev::Device_lookup const *devs);
 
