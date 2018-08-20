@@ -85,10 +85,9 @@ public:
     return eh->entry();
   }
 
-  l4_addr_t load_as_raw(Vmm::Vm_ram *ram, l4_addr_t ram_offset,
+  l4_addr_t load_as_raw(Vmm::Vm_ram *ram, l4_addr_t start,
                         Vmm::Ram_free_list *free_list)
   {
-    l4_addr_t start = free_list->base_address() + ram_offset;
     l4_size_t sz = _ds->size();
 
     if (!free_list->reserve_fixed(start, sz))

@@ -189,7 +189,7 @@ Guest::check_guest_constraints(l4_addr_t base) const
 l4_addr_t
 Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_list)
 {
-  l4_addr_t ram_base = free_list->base_address();
+  l4_addr_t ram_base = free_list->first_free_address();
 
   l4_addr_t entry = ~0ul;
   Boot::Binary_ds image(kernel);
@@ -211,7 +211,7 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_li
         {
           l4_uint64_t l = *reinterpret_cast<l4_uint64_t const *>(&h[8]);
           // Bytes 0xc-0xf have the size
-          entry = image.load_as_raw(ram, l, free_list);
+          entry = image.load_as_raw(ram, ram_base + l, free_list);
           this->guest_64bit = true;
         }
       else if (   h[0x24] == 0x18 && h[0x25] == 0x28
@@ -219,13 +219,13 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_li
         {
           l4_uint32_t l = *reinterpret_cast<l4_uint32_t const *>(&h[0x28]);
           // Bytes 0x2c-0x2f have the zImage size
-          entry = image.load_as_raw(ram, l, free_list);
+          entry = image.load_as_raw(ram, ram_base + l, free_list);
         }
 
       if (entry == ~0ul)
         {
           enum { Default_entry =  0x208000 };
-          entry = image.load_as_raw(ram, Default_entry, free_list);
+          entry = image.load_as_raw(ram, ram_base + Default_entry, free_list);
         }
     }
 

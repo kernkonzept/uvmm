@@ -38,7 +38,13 @@ class Ram_free_list
 {
   friend class Vm_ram;
 public:
-  l4_addr_t base_address() const
+  /**
+   * Return the first available address in the free list.
+   *
+   * This is the first address found in the order that regions were originally
+   * added to the list and that is still available.
+   */
+  l4_addr_t first_free_address() const
   { return _freelist[0].start; }
 
   bool reserve_fixed(l4_addr_t start, l4_size_t size);
