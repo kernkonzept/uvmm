@@ -54,26 +54,33 @@ public:
    */
   void driver_connect(L4::Cap<L4::Irq> guest_irq)
   {
-    _host_irq = L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
-                             "Allocating cap for host irq");
+    auto vicu = L4::cap_dynamic_cast<L4::Icu>(_device);
+
+    if (!vicu.is_valid())
+      L4Re::chksys(-L4_ENOSYS,
+                   "ICU protocol not supported by virtio device. Legacy interface?");
+
+    l4_icu_info_t icu_info;
+    L4Re::chksys(vicu->info(&icu_info));
 
     _config_cap = L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dataspace>(),
                                "Allocating cap for config dataspace");
 
-    L4Re::chksys(_device->register_iface(guest_irq, _host_irq.get(),
-                                         _config_cap.get()),
-                 "Registering interface with device");
+    l4_addr_t ds_offset;
+    L4Re::chksys(_device->device_config(_config_cap.get(), &ds_offset),
+                 "Request device config page");
 
     L4Re::Dataspace::Stats stats;
-    L4Re::chksys(_config_cap->info(&stats),
-                 "Determining size of virtio config page");
-    if (stats.size < _config_page_size)
+    auto ret = _config_cap->info(&stats);
+    if ((ret != -L4_ENOSYS)
+         && (ret != L4_EOK || stats.size < _config_page_size + ds_offset))
       L4Re::chksys(-L4_ENODEV, "Virtio config space too small");
 
     auto *e = L4Re::Env::env();
     L4Re::chksys(e->rm()->attach(&_config, _config_page_size,
                                  L4Re::Rm::Search_addr | L4Re::Rm::Eager_map,
-                                 L4::Ipc::make_cap_rw(_config_cap.get())),
+                                 L4::Ipc::make_cap_rw(_config_cap.get()),
+                                 ds_offset),
                  "Attaching config dataspace");
 
     if (memcmp(&_config->magic, "virt", 4) != 0)
@@ -81,6 +88,18 @@ public:
 
     if (_config->version != 2)
       L4Re::chksys(-L4_ENODEV, "Require virtio version of 2");
+
+    _host_irq = L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
+                             "Allocating cap for host irq");
+
+    if (icu_info.nr_irqs > 0)
+      L4Re::chksys(vicu->bind(0, guest_irq),
+                   "Send notification IRQ to device");
+
+    ret = _device->device_notification_irq(0, _host_irq.get());
+
+    if (ret != L4_EOK && ret != -L4_ENOSYS)
+      L4Re::chksys(ret, "Receive notification IRQ from device");
   }
 
 

@@ -227,6 +227,65 @@ public:
     return -L4_EINVAL;
   }
 
+  long op_device_config(L4virtio::Device::Rights,
+                        L4::Ipc::Cap<L4Re::Dataspace> &config_ds,
+                        l4_addr_t &ds_offset)
+  {
+    config_ds = L4::Ipc::make_cap(mmio_ds(), L4_CAP_FPAGE_RW);
+    ds_offset = 0;
+    return L4_EOK;
+  }
+
+  long op_device_notification_irq(L4virtio::Device::Rights,
+                                  unsigned index,
+                                  L4::Ipc::Cap<L4::Triggerable> &irq)
+  {
+    if (index != 0)
+      return -L4_EINVAL;
+
+    irq = L4::Ipc::make_cap(_host_irq.obj_cap(), L4_CAP_FPAGE_RO);
+    return L4_EOK;
+  }
+
+  int op_bind(L4::Icu::Rights, l4_umword_t idx, L4::Ipc::Snd_fpage irq_cap_fp)
+  {
+    if (idx != 0)
+      return -L4_EINVAL;
+
+    if (!irq_cap_fp.cap_received())
+      return -L4_EINVAL;
+
+    _kick_guest_irq = L4Re::Util::Unique_cap<L4::Irq>(
+        L4Re::chkcap(server_iface()->rcv_cap<L4::Irq>(0)));
+    L4Re::chksys(server_iface()->realloc_rcv_cap(0));
+
+    return L4_EOK;
+  }
+
+  int op_unbind(L4::Icu::Rights, l4_umword_t, L4::Ipc::Snd_fpage)
+  { return -L4_ENOSYS; }
+
+  int op_info(L4::Icu::Rights, L4::Icu::_Info &icu_info)
+  {
+    icu_info.features = 0;
+    icu_info.nr_irqs = 1;
+    icu_info.nr_msis = 0;
+
+    return L4_EOK;
+  }
+
+  int op_msi_info(L4::Icu::Rights, l4_umword_t, l4_uint64_t, l4_icu_msi_info_t &)
+  { return -L4_ENOSYS; }
+
+  int op_mask(L4::Icu::Rights, l4_umword_t)
+  { return -L4_ENOSYS; }
+
+  int op_unmask(L4::Icu::Rights, l4_umword_t)
+  { return -L4_ENOREPLY; }
+
+  int op_set_mode(L4::Icu::Rights, l4_umword_t, l4_umword_t)
+  { return -L4_ENOSYS; }
+
 private:
   L4Re::Util::Unique_cap<L4::Irq> _kick_guest_irq;
   Host_irq _host_irq;
