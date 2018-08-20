@@ -156,21 +156,32 @@ Vmm::Vm_ram::setup_from_device_tree(Vdev::Host_dt const &dt, Vm_mem *memmap,
   bool has_memory_nodes = false;
 
   if (dt.valid())
-    dt.get().scan(
-      [this, &memmap, &has_memory_nodes](Vdev::Dt_node const &node, int)
+    {
+      dt.get().scan(
+        [this, &memmap, &has_memory_nodes](Vdev::Dt_node const &node, int)
+          {
+            char const *devtype = node.get_prop<char>("device_type", nullptr);
+
+            if (!devtype || strcmp("memory", devtype) != 0)
+              return true;
+
+            if (add_from_dt_node(memmap, &has_memory_nodes, node) < 0)
+              node.setprop_string("status", "disabled");
+
+            // memory nodes should not have children, so no point in further
+            // scanning
+            return false;
+          },
+          [] (Vdev::Dt_node const &, unsigned) {});
+
+      int err = dt.get().remove_nodes_by_property("device_type", "memory", true);
+      if (err < 0)
         {
-          char const *devtype = node.get_prop<char>("device_type", nullptr);
-
-          if (!devtype || strcmp("memory", devtype) != 0)
-          return true;
-
-          if (add_from_dt_node(memmap, &has_memory_nodes, node) < 0)
-          node.setprop_string("status", "disabled");
-
-          // memory nodes should not have children, so no point in further scanning
-          return false;
-        },
-      [] (Vdev::Dt_node const &, unsigned) {});
+          Err().printf("Unable to remove disabled memory nodes: %s\n",
+                       fdt_strerror(err));
+          throw L4::Runtime_error(-L4_EINVAL);
+        }
+    }
 
   if (!has_memory_nodes)
     setup_default_region(dt, memmap, default_address);
@@ -297,7 +308,10 @@ Vmm::Vm_ram::setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,
   auto ds = L4Re::chkcap(L4Re::Env::env()->get_cap<L4Re::Dataspace>("ram"));
   long ridx = add_memory_region(ds, baseaddr, 0, ds->size(), memmap);
 
-  if (ridx >= 0 && dt.valid())
+  if (ridx < 0)
+    L4Re::chksys(-L4_ENOMEM, "Setting up RAM region.");
+
+  if (dt.valid())
     {
       auto const &r = _regions[ridx];
       // "memory@" + 64bit hex address + '\0'

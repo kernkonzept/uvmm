@@ -696,14 +696,17 @@ public:
             bool skip_disabled = true) const;
 
   /**
-   * Delete all nodes with specific property value.
+   * Delete all nodes with specific property value and status.
    *
-   * \param prop  Property to compare.
-   * \param value Node is deleted if `prop` has this value.
+   * \param prop             Property to compare.
+   * \param value            Node is deleted if `prop` has this value.
+   * \param delete_disabled  Delete only disabled nodes if true, otherwise
+   *                         delete all
    *
    * \return 0 on success, negative fdt_error otherwise
    */
-  int remove_nodes_by_property(char const *prop, char const *value) const
+  int remove_nodes_by_property(char const *prop, char const *value,
+                               bool delete_disabled) const
   {
     Node node = first_node();
 
@@ -714,7 +717,8 @@ public:
 
         property = node.template get_prop<char>(prop, &prop_size);
 
-        if (property && strncmp(value, property, prop_size) == 0)
+        if (   (property && strncmp(value, property, prop_size) == 0)
+            && (!delete_disabled || !node.is_enabled()))
           {
             int err = node.del_node();
             if (err)
