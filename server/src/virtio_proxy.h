@@ -17,7 +17,6 @@
 #include <l4/re/env>
 #include <l4/re/error_helper>
 #include <l4/re/rm>
-#include <l4/re/util/cap_alloc>
 #include <l4/re/util/unique_cap>
 
 #include <l4/l4virtio/l4virtio>
@@ -92,14 +91,19 @@ public:
     _host_irq = L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
                              "Allocating cap for host irq");
 
+    _config->cfg_driver_notify_index = 0;
+
     if (icu_info.nr_irqs > 0)
       L4Re::chksys(vicu->bind(0, guest_irq),
                    "Send notification IRQ to device");
 
-    ret = _device->device_notification_irq(0, _host_irq.get());
+    ret = _device->device_notification_irq(_config->cfg_device_notify_index,
+                                           _host_irq.get());
 
     if (ret != L4_EOK && ret != -L4_ENOSYS)
       L4Re::chksys(ret, "Receive notification IRQ from device");
+
+    _queue_irqs.resize(_config->num_queues);
   }
 
 
@@ -126,8 +130,21 @@ public:
     if (l4virtio_get_feature(_config->dev_features_map,
                              L4VIRTIO_FEATURE_CMD_CONFIG))
       return _config->config_queue(num, _host_irq.get(), _guest_irq.get());
-    else
-      return _device->config_queue(num);
+
+    int ret = _device->config_queue(num);
+
+    if (ret >= 0)
+      {
+        _queue_irqs.resize(num + 1);
+        l4_uint16_t irq = _config->queues()[num].device_notify_index;
+        auto cap = L4Re::Util::make_unique_cap<L4::Irq>();
+        if (_device->device_notification_irq(irq, cap.get()) >= 0)
+          _queue_irqs[num] = std::move(cap);
+        else
+          _queue_irqs[num].reset();
+      }
+
+    return ret;
   }
 
   L4virtio::Device::Config_hdr *device_config() const
@@ -142,8 +159,11 @@ public:
   L4virtio::Device::Config_queue *queue_config(int num) const
   { return &_config->queues()[num]; }
 
-  void virtio_queue_notify(unsigned)
-  { _host_irq->trigger(); }
+  void virtio_queue_notify(unsigned num)
+  {
+    if (num < _queue_irqs.size())
+      _queue_irqs[num]->trigger();
+  }
 
   void set_status(l4_uint32_t status)
   {
@@ -184,6 +204,7 @@ protected:
   L4Re::Util::Unique_cap<L4::Irq> _guest_irq;
 
 private:
+  std::vector<L4Re::Util::Unique_cap<L4::Irq> > _queue_irqs;
   L4Re::Util::Unique_cap<L4::Irq> _host_irq;
   L4Re::Util::Unique_cap<L4Re::Dataspace> _config_cap;
 
