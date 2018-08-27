@@ -25,7 +25,7 @@ class Virtio_console_pci
 {
 public:
   Virtio_console_pci(Vmm::Vm_ram *iommu, L4::Cap<L4::Vcon> con,
-                     cxx::Ref_ptr<Gic::Msi_distributor> distr,
+                     cxx::Ref_ptr<Gic::Msi_controller> distr,
                      unsigned num_msix_entries)
   : Virtio_console(iommu, con),
     Virtio_device_pci<Virtio_console_pci>(),
@@ -91,7 +91,7 @@ struct F : Factory
       }
 
     auto io_apic = devs->device_from_node(node.find_irq_parent());
-    auto msi_distr = cxx::dynamic_pointer_cast<Gic::Msi_distributor>(io_apic);
+    auto msi_distr = cxx::dynamic_pointer_cast<Gic::Msi_controller>(io_apic);
 
     if (!msi_distr)
       L4Re::chksys(-L4_EINVAL, "IO-APIC is the IRQ parent of the device.");

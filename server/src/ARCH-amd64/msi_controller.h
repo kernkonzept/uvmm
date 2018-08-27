@@ -12,9 +12,9 @@
 
 namespace Gic {
 
-struct Msi_distributor : virtual Vdev::Dev_ref
+struct Msi_controller : virtual Vdev::Dev_ref
 {
-  virtual ~Msi_distributor() = default;
+  virtual ~Msi_controller() = default;
 
   /// Analyse the MSI message and send it to the specified local APIC.
   virtual void send(Vdev::Msi_msg message) const = 0;

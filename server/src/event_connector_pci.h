@@ -8,7 +8,7 @@
 #pragma once
 
 #include "pci_device.h"
-#include "msi_distributor.h"
+#include "msi_controller.h"
 #include "virtio_event_connector.h"
 #include "ds_mmio_mapper.h"
 #include "guest.h"
@@ -23,7 +23,7 @@ namespace Virtio {
 class Event_connector_msix
 {
 public:
-  Event_connector_msix(cxx::Ref_ptr<Gic::Msi_distributor> const &distr,
+  Event_connector_msix(cxx::Ref_ptr<Gic::Msi_controller> const &distr,
                        unsigned max_msix_entries)
   : _distr(distr),
     _msix_mem(
@@ -63,7 +63,7 @@ public:
   }
 
 private:
-  cxx::Ref_ptr<Gic::Msi_distributor> _distr;
+  cxx::Ref_ptr<Gic::Msi_controller> _distr;
   cxx::Ref_ptr<Ds_handler> _msix_mem;
   Vdev::Msix_table _msix_tbl;
 

@@ -21,7 +21,7 @@
 #include "vm_state.h"
 #include "pt_walker.h"
 #include "ram_ds.h"
-#include "msi_distributor.h"
+#include "msi_controller.h"
 
 using L4Re::Rm;
 
@@ -237,7 +237,7 @@ private:
 /**
  * IO-APIC representation for IRQ/MSI routing. WIP!
  */
-class Io_apic : public Ic, public Msi_distributor
+class Io_apic : public Ic, public Msi_controller
 {
   enum
   {
@@ -303,7 +303,7 @@ public:
     return fdt32_to_cpu(prop[0]);
   }
 
-  // Msi_distributor interface
+  // Msi_controller interface
   void send(Vdev::Msi_msg message) const override
   {
     Interrupt_request_compat addr(message.addr);
