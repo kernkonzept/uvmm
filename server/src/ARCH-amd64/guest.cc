@@ -85,6 +85,11 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel,
       _guest_t = Binary_type::Linux;
     }
 
+  // Reserve Zero-page and cmdline space: Two pages.
+  // XXX It shall move to prepare_linux_run, when the parameter set of that
+  // function is changed.
+  free_list->reserve_fixed(0x1000, 0x2000);
+
   return entry;
 }
 

@@ -38,6 +38,7 @@ enum Boot_param
   Bp_ext_loader_ver = 0x226,
   Bp_ext_loader_type = 0x227,
   Bp_cmdline_ptr = 0x228,
+  Bp_cmdline_size = 0x238,
   Bp_setup_data = 0x250,
   Bp_init_size = 0x260,
   Bp_e820_map = 0x2d0,
@@ -78,7 +79,7 @@ class Zeropage
 
   enum
   {
-    Max_cmdline_size = 200,
+    Max_cmdline_size = 4096,
     Max_e820_entries = 5,
 
     Bp_loadflags_keep_segments_bit = 0x40
@@ -108,8 +109,10 @@ public:
   {
     info().printf("Cmd_line: %s\n", line);
 
-    if (strlen(line) >= Max_cmdline_size)
-      L4Re::chksys(-L4_EINVAL, "Maximal command line size is 200 characters.");
+    // strlen excludes the terminating '\0', strcpy copies it. The length check
+    // must care for that additional byte.
+    if (strlen(line) >= Max_cmdline_size - 1)
+      L4Re::chksys(-L4_EINVAL, "Maximal command line size is 4095 characters.");
 
     strcpy(_cmdline, line);
   }
@@ -237,10 +240,11 @@ private:
       return;
 
     // place the command line bind the boot parameters
-    auto cmdline_addr = _gp_addr + Bp_end;
+    auto cmdline_addr = l4_round_page(_gp_addr + Bp_end);
 
     strcpy(ram->guest2host(L4virtio::Ptr<char>(cmdline_addr)), _cmdline);
     set_header<l4_uint32_t>(ram, Bp_cmdline_ptr, cmdline_addr);
+    set_header<l4_uint32_t>(ram, Bp_cmdline_size, strlen(_cmdline));
 
     info().printf("cmdline check: %s\n",
                   ram->guest2host(L4virtio::Ptr<char>(cmdline_addr)));
