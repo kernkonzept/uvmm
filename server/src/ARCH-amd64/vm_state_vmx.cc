@@ -47,7 +47,10 @@ Vmx_state::handle_exception_nmi_ext_int()
 
   switch ((interrupt_info.type()))
     {
-    case 0x6: warn().printf("Software exception\n"); break;
+    case 0x6:
+      warn().printf("Software exception %u\n",
+                    (unsigned)interrupt_info.vector());
+      break;
     case 0x3:
       return handle_hardware_exception(interrupt_info.vector());
 
@@ -126,7 +129,6 @@ Vmx_state::handle_exec_wmsr(l4_vcpu_regs_t *regs,
             vmx_write(L4VCPU_VMCS_VM_ENTRY_CTLS,
                       vm_entry_ctls | Entry_ctrl_ia32e_bit);
             efer |= Efer_lma_bit;
-            info().printf("long mode efer\n");
           }
         else // There is no going back from enabling long mode.
           {
@@ -136,8 +138,8 @@ Vmx_state::handle_exec_wmsr(l4_vcpu_regs_t *regs,
                   efer |= Efer_lma_bit;
               }
           }
-        info().printf("efer: 0x%llx, vm_entry_ctls 0x%llx\n", efer,
-                      vm_entry_ctls);
+        trace().printf("efer: 0x%llx, vm_entry_ctls 0x%llx\n", efer,
+                       vm_entry_ctls);
         vmx_write(L4VCPU_VMCS_GUEST_IA32_EFER, efer);
         return Jump_instr;
       }
@@ -162,7 +164,6 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
     {
     case 0: // mov to cr
       crnum = qual & 0xF;
-      info().printf("mov to cr %d\n", crnum);
       switch ((qual >> 8) & 0xF)
         {
         case 0: newval = regs->ax; break;
@@ -207,7 +208,7 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
           && (vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER) & Efer_lme_bit))
         {
           // enable long mode
-          warn().printf("Enable long mode\n");
+          info().printf("Enable long mode\n");
           vmx_write(L4VCPU_VMCS_VM_ENTRY_CTLS,
                     vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS) | Entry_ctrl_ia32e_bit);
           vmx_write(L4VCPU_VMCS_GUEST_IA32_EFER,
