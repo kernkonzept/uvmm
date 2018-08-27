@@ -21,6 +21,7 @@
 #include "device.h"
 #include "vcpu_ptr.h"
 #include "mem_access.h"
+#include "mem_types.h"
 #include "consts.h"
 
 namespace Vmm {
@@ -34,7 +35,7 @@ struct Mmio_device : public virtual Vdev::Dev_ref
   virtual ~Mmio_device() = 0;
 
   bool mergable(cxx::Ref_ptr<Mmio_device> other,
-                l4_addr_t start_other, l4_addr_t start_this)
+                Guest_addr start_other, Guest_addr start_this)
   {
     if (typeid (*this) != typeid (*other.get()))
       return false;
@@ -97,8 +98,8 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    * This function iterates over the specified local area and maps
    * everything into the address space of the guest.
    */
-  void map_guest_range(L4::Cap<L4::Task> vm_task, l4_addr_t dest, l4_addr_t src,
-                       l4_size_t size, unsigned attr);
+  void map_guest_range(L4::Cap<L4::Task> vm_task, Vmm::Guest_addr dest,
+                       l4_addr_t src, l4_size_t size, unsigned attr);
 
 
   /**
@@ -110,8 +111,8 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    * This function iterates over the local area associated with the region and
    * tries to map everything into the address space of the guest if possible.
    */
-  virtual void map_eager(L4::Cap<L4::Task> vm_task, l4_addr_t start,
-                         l4_addr_t end) = 0;
+  virtual void map_eager(L4::Cap<L4::Task> vm_task, Vmm::Guest_addr start,
+                         Vmm::Guest_addr end) = 0;
 
   /**
    * Page in memory for specified address.
@@ -169,8 +170,8 @@ struct Mmio_device : public virtual Vdev::Dev_ref
 
 private:
   virtual bool _mergable(cxx::Ref_ptr<Mmio_device> /* other */,
-                         l4_addr_t /* start_other */,
-                         l4_addr_t /* start_this */)
+                         Guest_addr /* start_other */,
+                         Guest_addr /* start_this */)
   { return false; }
 };
 
@@ -222,7 +223,7 @@ struct Mmio_device_t : Mmio_device
     return Jump_instr;
   }
 
-  void map_eager(L4::Cap<L4::Task>, l4_addr_t, l4_addr_t) override
+  void map_eager(L4::Cap<L4::Task>, Vmm::Guest_addr, Vmm::Guest_addr) override
   {} // nothing to map
 
 private:
@@ -277,8 +278,8 @@ struct Ro_ds_mapper_t : Mmio_device
     return Jump_instr;
   }
 
-  void map_eager(L4::Cap<L4::Task> vm_task, l4_addr_t start,
-                 l4_addr_t end) override
+  void map_eager(L4::Cap<L4::Task> vm_task, Vmm::Guest_addr start,
+                 Vmm::Guest_addr end) override
   {
 #ifndef MAP_OTHER
     l4_size_t size = end - start + 1;

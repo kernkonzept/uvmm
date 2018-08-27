@@ -19,6 +19,7 @@
 
 #include "device.h"
 #include "device_tree.h"
+#include "mem_types.h"
 
 namespace Vmm {
 
@@ -52,7 +53,7 @@ public:
    *                 If `Ram_base_identity_mapped`, use the host physical address
    *                 of the backing memory (required for DMA without IOMMU).
    */
-  long setup(l4_addr_t vm_base);
+  long setup(Vmm::Guest_addr vm_base);
 
   /**
    * Load the contents of the given dataspace into guest RAM.
@@ -62,14 +63,13 @@ public:
    * \param sz    Number of bytes to copy.
    */
   void load_file(L4::Cap<L4Re::Dataspace> const &file,
-                 L4virtio::Ptr<void> addr, l4_size_t sz) const;
+                 Vmm::Guest_addr addr, l4_size_t sz) const;
 
   /**
    * Get a VMM-virtual pointer from a guest-physical address
    */
-  template <typename T>
-  T *guest2host(L4virtio::Ptr<T> p) const
-  { return (T*)(p.get() + _offset); }
+  l4_addr_t guest2host(Vmm::Guest_addr p) const noexcept
+  { return p.get() + _offset; }
 
   L4::Cap<L4Re::Dataspace> ds() const noexcept
   { return _ds; }
@@ -78,11 +78,11 @@ public:
   {
     int addr_cells = mem_node.get_address_cells();
     mem_node.appendprop("dma-ranges", _phys_ram, addr_cells);
-    mem_node.appendprop("dma-ranges", vm_start(), addr_cells);
+    mem_node.appendprop("dma-ranges", _vm_start.get(), addr_cells);
     mem_node.appendprop("dma-ranges", _phys_size, mem_node.get_size_cells());
   }
 
-  l4_addr_t vm_start() const noexcept { return _vm_start; }
+  Vmm::Guest_addr vm_start() const noexcept { return _vm_start; }
   l4_size_t size() const noexcept { return _size; }
   l4_addr_t local_start() const noexcept { return _local_start; }
   l4_addr_t ds_offset() const noexcept { return _ds_offset; }
@@ -95,7 +95,7 @@ private:
   /// uvmm local address where the dataspace has been mapped.
   l4_addr_t _local_start;
   /// Guest-physical address of the mapped dataspace.
-  l4_addr_t _vm_start;
+  Vmm::Guest_addr _vm_start;
   /// Size of the mapped area.
   l4_size_t _size;
   /// Offset into the dataspace where the mapped area starts.

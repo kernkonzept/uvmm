@@ -84,12 +84,12 @@ public:
   }
 
 private:
-  Vm_mem::value_type const *addr_to_mem(l4_uint64_t addr) const
+  Vm_mem::value_type const *addr_to_mem(Vmm::Guest_addr addr) const
   {
     Vm_mem::const_iterator f = _mmap->find(addr);
     if (f == _mmap->end())
       {
-        Dbg().printf("Fail: 0x%llx memory not found.\n", addr);
+        Dbg().printf("Fail: 0x%lx memory not found.\n", addr.get());
         L4Re::chksys(-L4_EINVAL,
                      "Memory used in page table walk is registered.");
       }
@@ -109,19 +109,20 @@ private:
 
   l4_uint64_t *translate_to_table_base(l4_uint64_t addr)
   {
-    if (cached_start == -1U || cached_start > addr || cached_end < addr)
+    Vmm::Guest_addr ga(addr);
+    if (cached_start.get() == -1U || cached_start > ga || cached_end < ga)
       {
-        auto const *cached_mem = addr_to_mem(addr);
+        auto const *cached_mem = addr_to_mem(ga);
         cached_start = cached_mem->first.start;
         cached_end = cached_mem->first.end;
         cached_ds_local_start = mem_to_ds(cached_mem)->local_start();
       }
 
-    if (addr + 512 * 8 > cached_end)
+    if (ga + 512 * 8 > cached_end)
       L4Re::chksys(-L4_EINVAL, "Page-table end within guest memory\n");
 
     auto *ret = reinterpret_cast<l4_uint64_t *>(
-                  cached_ds_local_start + addr - cached_start);
+                  cached_ds_local_start + (ga - cached_start));
     trace().printf("Ram_addr: addr 0x%llx --> %p\n", addr, ret);
     return ret;
   }
@@ -217,7 +218,8 @@ private:
   l4_uint64_t _phys_addr_mask_4k;
   l4_uint64_t _phys_addr_mask_2m;
   l4_uint64_t _phys_addr_mask_1g;
-  l4_addr_t cached_start, cached_end, cached_ds_local_start;
+  Vmm::Guest_addr cached_start, cached_end;
+  l4_addr_t cached_ds_local_start;
   l4_uint64_t _max_phys_addr_mask;
 };
 

@@ -19,7 +19,7 @@ static Dbg trace(Dbg::Mmio, Dbg::Warn, "trace");
 namespace Vmm {
 
 long
-Ram_ds::setup(l4_addr_t vm_base)
+Ram_ds::setup(Vmm::Guest_addr vm_base)
 {
   Dbg info(Dbg::Mmio, Dbg::Info, "ram");
 
@@ -56,7 +56,7 @@ Ram_ds::setup(l4_addr_t vm_base)
 
   if (err < 0 || phys_size < _size)
     {
-      if (_vm_start == Ram_base_identity_mapped)
+      if (_vm_start == Vmm::Guest_addr(Ram_base_identity_mapped))
         {
           warn.printf("Identitiy mapping requested but dataspace not continuous.\n");
           return err < 0 ? err : -L4_ENOMEM;
@@ -66,15 +66,17 @@ Ram_ds::setup(l4_addr_t vm_base)
   else
     {
       cont = true;
-      if (_vm_start == Ram_base_identity_mapped)
+      if (_vm_start == Vmm::Guest_addr(Ram_base_identity_mapped))
         {
-          _vm_start = phys_ram;
+          _vm_start = Vmm::Guest_addr(phys_ram);
           ident = true;
         }
     }
 
   info.printf("RAM: @ 0x%lx size=0x%lx (%c%c)\n",
-              _vm_start, (l4_addr_t) _size, cont ? 'c' : '-', ident ? 'i' : '-');
+              _vm_start.get(), (l4_addr_t) _size,
+              cont ? 'c' : '-',
+              ident ? 'i' : '-');
 
   _local_start = 0;
   L4Re::chksys(env->rm()->attach(&_local_start, _size,
@@ -83,7 +85,7 @@ Ram_ds::setup(l4_addr_t vm_base)
                                  L4_SUPERPAGESHIFT));
   info.printf("RAM: VMM mapping @ 0x%lx size=0x%lx\n", _local_start, (l4_addr_t)_size);
 
-  _offset = _local_start - _vm_start;
+  _offset = _local_start - _vm_start.get();
   info.printf("RAM: VM offset=0x%lx\n", _offset);
 
   if (err >= 0)
@@ -98,21 +100,22 @@ Ram_ds::setup(l4_addr_t vm_base)
 
 void
 Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
-                  L4virtio::Ptr<void> addr, l4_size_t sz) const
+                  Vmm::Guest_addr addr, l4_size_t sz) const
 {
   Dbg info(Dbg::Mmio, Dbg::Info, "file");
 
-  info.printf("load: @ 0x%llx\n", addr.get());
+  info.printf("load: @ 0x%lx\n", addr.get());
   if (!file)
     L4Re::chksys(-L4_EINVAL);
 
-  l4_addr_t offset = addr.get() - _vm_start;
+  l4_addr_t offset = addr - _vm_start;
 
-  if (addr.get() < _vm_start || sz > size() || offset > size() - sz)
+  if (addr < _vm_start || sz > size() || offset > size() - sz)
     {
-      Err().printf("File does not fit into RAM. "
-                   "(Loading [0x%llx - 0x%llx] into area [0x%lx - 0x%lx])\n",
-                   addr.get(), addr.get() + sz, _vm_start, _vm_start + size());
+      Err().printf("File does not fit into ram. "
+                   "(Loading [0x%lx - 0x%lx] into area [0x%lx - 0x%lx])\n",
+                   addr.get(), addr.get() + sz,
+                   _vm_start.get(), _vm_start.get() + size());
       L4Re::chksys(-L4_EINVAL);
     }
 

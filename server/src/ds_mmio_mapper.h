@@ -21,7 +21,7 @@ class Ds_handler : public Vmm::Mmio_device
   l4_addr_t _offset;
 
   bool _mergable(cxx::Ref_ptr<Mmio_device> other,
-                 l4_addr_t start_other, l4_addr_t start_this) override
+                 Vmm::Guest_addr start_other, Vmm::Guest_addr start_this) override
   {
     // same device type and same underlying dataspace?
     auto dsh = dynamic_cast<Ds_handler *>(other.get());
@@ -32,8 +32,8 @@ class Ds_handler : public Vmm::Mmio_device
     return (_offset + (start_other - start_this)) == dsh->_offset;
   }
 
-  void map_eager(L4::Cap<L4::Task> vm_task, l4_addr_t start,
-                 l4_addr_t end) override
+  void map_eager(L4::Cap<L4::Task> vm_task, Vmm::Guest_addr start,
+                 Vmm::Guest_addr end) override
   {
 #ifndef MAP_OTHER
     map_guest_range(vm_task, start, local_start(), end - start + 1,

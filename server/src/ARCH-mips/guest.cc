@@ -40,8 +40,8 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel,
     entry = image.load_as_elf(ram, free_list);
   else
     {
-      image.load_as_raw(ram, 0x100000, free_list);
-      entry = ram->guest_phys2boot(0x100400);
+      image.load_as_raw(ram, Guest_addr(0x100000), free_list);
+      entry = ram->guest_phys2boot(Guest_addr(0x100400));
     }
 
   return entry;
@@ -55,25 +55,24 @@ Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
   /*
    * Setup arguments for Mips boot protocol
    */
-  L4virtio::Ptr<l4_addr_t> prom_tab(L4_PAGESIZE);
+  Guest_addr prom_tab(L4_PAGESIZE);
 
   size_t size = 2 * sizeof(l4_addr_t);
-  L4virtio::Ptr<char> prom_buf(prom_tab.get() + size);
+  auto prom_buf = prom_tab + size;
 
   size += strlen(kernel) + 1;
-  strcpy(ram->guest2host(prom_buf), kernel);
-  ram->guest2host(prom_tab)[0] = ram->guest_phys2boot(prom_buf);
+  strcpy(ram->guest2host<char *>(prom_buf), kernel);
+  ram->guest2host<l4_addr_t *>(prom_tab)[0] = ram->guest_phys2boot(prom_buf);
 
   if (cmd_line)
     {
-      prom_buf = L4virtio::Ptr<char>(prom_buf.get() + size);
+      strcpy(ram->guest2host<char *>(prom_tab + size), cmd_line);
+      ram->guest2host<l4_addr_t *>(prom_tab)[1] = ram->guest_phys2boot(prom_tab + size);
       size += strlen(cmd_line) + 1;
-      strcpy(ram->guest2host(prom_buf), cmd_line);
-      ram->guest2host(prom_tab)[1] = ram->guest_phys2boot(prom_buf);
     }
 
-  l4_cache_clean_data(reinterpret_cast<l4_addr_t>(ram->guest2host(prom_tab)),
-                      reinterpret_cast<l4_addr_t>(ram->guest2host(prom_tab)) + size);
+  l4_cache_clean_data(ram->guest2host<l4_addr_t>(prom_tab),
+                      ram->guest2host<l4_addr_t>(prom_tab) + size);
 
   // Initial register setup:
   //  a0 - number of kernel arguments

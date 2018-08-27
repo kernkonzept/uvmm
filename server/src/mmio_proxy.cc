@@ -267,7 +267,7 @@ private:
       {
         Err().printf("%s: Cannot resolve physical address of complete area. "
                      "Dataspace not continuous.\n"
-                     "(dataspace size = 0x%lx, continous size = 0x%zx).\n",
+                     "(dataspace size = 0x%zx, continous size = 0x%zx).\n",
                      node_name, size, phys_size);
         L4Re::chksys(-L4_ENOMEM, "Resolve dma-range of dataspace.");
       }

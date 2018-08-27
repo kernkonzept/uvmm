@@ -12,19 +12,19 @@
 
 static void
 throw_error(char const *msg,
-            cxx::Ref_ptr<Vmm::Mmio_device> const &dev, Region const &region,
-            cxx::Ref_ptr<Vmm::Mmio_device> const &new_dev, Region const &new_region)
+            cxx::Ref_ptr<Vmm::Mmio_device> const &dev, Vmm::Region const &region,
+            cxx::Ref_ptr<Vmm::Mmio_device> const &new_dev, Vmm::Region const &new_region)
 {
   char buf[80], buf_new[80];
   Err().printf("%s: [%lx:%lx] (%s) <-> [%lx:%lx] (%s)\n", msg,
-               region.start, region.end, dev->dev_info(buf, sizeof(buf)),
-               new_region.start, new_region.end,
+               region.start.get(), region.end.get(), dev->dev_info(buf, sizeof(buf)),
+               new_region.start.get(), new_region.end.get(),
                new_dev->dev_info(buf_new, sizeof(buf_new)));
   L4Re::chksys(-L4_EINVAL, msg);
 }
 
 void
-Vm_mem::add_mmio_device(Region const &region,
+Vmm::Vm_mem::add_mmio_device(Vmm::Region const &region,
                         cxx::Ref_ptr<Vmm::Mmio_device> const &dev)
 {
   if (count(region) == 0)

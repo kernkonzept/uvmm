@@ -281,7 +281,8 @@ static int run(int argc, char *argv[])
 
   warn.printf("Hello out there.\n");
 
-  Vmm::Ram_free_list ram_free_list = ram->setup_from_device_tree(dt, vmm->memmap(), rambase);
+  Vmm::Ram_free_list ram_free_list
+    = ram->setup_from_device_tree(dt, vmm->memmap(), Vmm::Guest_addr(rambase));
 
   info.printf("Loading kernel...\n");
   l4_addr_t entry = vmm->load_linux_kernel(ram, kernel_image, &ram_free_list);
@@ -332,7 +333,7 @@ static int run(int argc, char *argv[])
   if (ram_disk)
     {
       info.printf("Loading ram disk...\n");
-      L4virtio::Ptr<void> rd_start;
+      Vmm::Guest_addr rd_start;
       l4_size_t rd_size;
       L4Re::chksys(ram_free_list.load_file_to_back(ram, ram_disk, &rd_start,
                                                    &rd_size),
@@ -346,7 +347,7 @@ static int run(int argc, char *argv[])
                                 rd_start.get() + rd_size);
         }
 
-      info.printf("Loaded ramdisk image %s to %llx (size: %08zx)\n",
+      info.printf("Loaded ramdisk image %s to %lx (size: %08zx)\n",
                   ram_disk, rd_start.get(), rd_size);
     }
 

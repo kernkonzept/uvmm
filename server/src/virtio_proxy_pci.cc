@@ -151,7 +151,7 @@ struct F : Factory
                                     msi_distr, num_msix);
 
     if (regs[1].flags & Dt_pci_flags_io)
-      vmm->register_io_device(Region::ss(regs[1].base, regs[1].size), proxy);
+      vmm->register_io_device(Vmm::Io_region::ss(regs[1].base, regs[1].size), proxy);
 
     proxy->register_irq(devs->vmm()->registry());
     proxy->configure(regs, num_msix);

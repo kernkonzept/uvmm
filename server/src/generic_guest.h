@@ -15,6 +15,7 @@
 
 #include "debug.h"
 #include "ds_mmio_mapper.h"
+#include "mem_types.h"
 #include "ram_ds.h"
 #include "vm_memmap.h"
 #include "pm.h"
@@ -39,7 +40,7 @@ public:
   void register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
                             Vdev::Dt_node const &node, size_t index = 0);
 
-  bool mmio_region_valid(l4_uint64_t addr, l4_uint64_t size);
+  bool mmio_region_valid(Vmm::Guest_addr addr, l4_uint64_t size);
 
   Vm_mem *memmap()
   { return &_memmap; }
@@ -69,12 +70,12 @@ public:
 
   int handle_mmio(l4_addr_t pfa, Vcpu_ptr vcpu)
   {
-    Vm_mem::const_iterator f = _memmap.find(pfa);
+    Vm_mem::const_iterator f = _memmap.find(Guest_addr(pfa));
 
     if (f != _memmap.end())
-      return f->second->access(pfa, pfa - f->first.start,
+      return f->second->access(pfa, pfa - f->first.start.get(),
                                vcpu, _task.get(),
-                               f->first.start, f->first.end);
+                               f->first.start.get(), f->first.end.get());
 
     if (!_mmio_fallback)
        return -L4_EFAULT;

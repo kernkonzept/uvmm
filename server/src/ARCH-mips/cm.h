@@ -66,11 +66,12 @@ public:
 #endif
   };
 
-  Coherency_manager(Vm_mem *memmap)
+  Coherency_manager(Vmm::Vm_mem *memmap)
   : _memmap(memmap), _gic_base(0), _cpc_base(0)
   {}
 
-  static Region mem_region() { return Region::ss(Base_address, Cm_size); }
+  static Vmm::Region mem_region()
+  { return Vmm::Region::ss(Vmm::Guest_addr(Base_address), Cm_size); }
 
   void register_cpc(cxx::Ref_ptr<Vdev::Mips_cpc> const &cpc) { _cpc = cpc; }
 
@@ -168,8 +169,8 @@ public:
                 .printf("Mapping CPC @ 0x%lx\n",
                         (l4_addr_t)_cpc_base.base_addr());
 
-              (*_memmap)[Region::ss(_cpc_base.base_addr(),
-                                    Mips_cpc::Cpc_size)] = _cpc;
+              (*_memmap)[Vmm::Region::ss(Vmm::Guest_addr(_cpc_base.base_addr()),
+                                         Mips_cpc::Cpc_size)] = _cpc;
             }
           break;
         }
@@ -185,7 +186,7 @@ public:
 
 private:
   cxx::Ref_ptr<Vdev::Mips_cpc> _cpc;
-  Vm_mem *_memmap;
+  Vmm::Vm_mem *_memmap;
   l4_addr_t _gic_base;
   Cpc_base_addr_reg _cpc_base;
 };

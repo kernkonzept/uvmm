@@ -103,18 +103,18 @@ Vdev::Host_dt::add_source(char const *fname)
   get().add_to_size(padding);
 }
 
-L4virtio::Ptr<void>
+Vmm::Guest_addr
 Vdev::Host_dt::pack_and_move(Vmm::Vm_ram *ram, Vmm::Ram_free_list *free_list)
 {
   fdt_pack(_dtmem);
 
   l4_size_t new_size = get().size();
-  l4_addr_t addr;
+  Vmm::Guest_addr addr;
 
   if (!free_list->reserve_back(new_size, &addr))
     L4Re::chksys(-L4_ENOMEM, "Copy device tree into guest memory.");
 
-  void *target = ram->guest_region2host<void>(addr, new_size);
+  void *target = ram->guest2host<void *>(Vmm::Region::ss(addr, new_size));
 
   fdt_move(_dtmem, target, new_size);
 
@@ -122,10 +122,10 @@ Vdev::Host_dt::pack_and_move(Vmm::Vm_ram *ram, Vmm::Ram_free_list *free_list)
   l4_cache_clean_data(ds_start, ds_start + new_size);
 
   Dbg().printf("Cleaning caches for device tree [%lx-%lx] ([%lx])\n",
-              ds_start, ds_start + new_size, addr);
+              ds_start, ds_start + new_size, addr.get());
 
   free(_dtmem);
   _dtmem = nullptr;
 
-  return L4virtio::Ptr<void>(addr);
+  return addr;
 }

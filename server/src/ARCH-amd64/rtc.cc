@@ -32,7 +32,7 @@ struct F : Vdev::Factory
   {
     auto dev = Vdev::make_device<Vdev::Rtc>();
 
-    devs->vmm()->register_io_device(Region(0x70, 0x71), dev);
+    devs->vmm()->register_io_device(Vmm::Io_region(0x70, 0x71), dev);
 
     return dev;
   }

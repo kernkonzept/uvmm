@@ -104,7 +104,7 @@ struct F : Factory
     if (console->init_irqs(devs, node) < 0)
       return nullptr;
 
-    vmm->register_io_device(Region::ss(regs[1].base, regs[1].size), console);
+    vmm->register_io_device(Vmm::Io_region::ss(regs[1].base, regs[1].size), console);
     console->register_obj(vmm->registry());
     console->configure(regs, num_msix);
     pci->register_device(console);

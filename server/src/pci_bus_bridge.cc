@@ -63,7 +63,7 @@ struct F : Factory
       dev->register_device(dev);
 
     auto io_cfg_connector = make_device<Pci_bus_cfg_io>(dev);
-    devs->vmm()->register_io_device(Region(0xcf8, 0xcff), io_cfg_connector);
+    devs->vmm()->register_io_device(Vmm::Io_region(0xcf8, 0xcff), io_cfg_connector);
 
     info().printf("Created & Registered the PCI host bridge\n");
     return dev;

@@ -189,7 +189,7 @@ public:
     auto ds = L4Re::chkcap(L4::Epiface::server_iface()->rcv_cap<L4Re::Dataspace>(0));
     L4Re::chksys(L4::Epiface::server_iface()->realloc_rcv_cap(0));
 
-    _vmm->add_mmio_device(Region::ss(_drvmem_base + ds_base, sz),
+    _vmm->add_mmio_device(Vmm::Region::ss(Vmm::Guest_addr(_drvmem_base + ds_base), sz),
                           Vdev::make_device<Ds_handler>(ds, 0, sz, offset));
 
     return 0;

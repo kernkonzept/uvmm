@@ -26,11 +26,10 @@ Generic_guest::Generic_guest()
 }
 
 bool
-Generic_guest::mmio_region_valid(l4_uint64_t addr, l4_uint64_t size)
+Generic_guest::mmio_region_valid(Vmm::Guest_addr addr, l4_uint64_t size)
 {
-    Vm_mem::const_iterator f = _memmap.find(addr);
-    return (f != _memmap.end()) && (addr + size <= f->first.end + 1);
-
+  Vm_mem::const_iterator f = _memmap.find(addr);
+  return (f != _memmap.end()) && (addr + size <= f->first.end + 1);
 }
 
 void
@@ -46,9 +45,7 @@ Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
       throw L4::Runtime_error(-L4_EINVAL);
     }
 
-  auto region = Region::ss(base, size);
-
-  add_mmio_device(region, dev);
+  add_mmio_device(Region::ss(Vmm::Guest_addr(base), size), dev);
 
   info().printf("New mmio mapping: @ %llx %llx\n", base, size);
 }

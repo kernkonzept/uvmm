@@ -30,7 +30,7 @@ Guest::create_instance()
   return guest;
 }
 
-void Guest::register_io_device(Region const &region,
+void Guest::register_io_device(Io_region const &region,
                                cxx::Ref_ptr<Io_device> const &dev)
 {
   // Check for overlapping regions!
@@ -78,17 +78,17 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel,
       trace().printf("loading binary at: 0x%lx\n", entry);
 
       // load the binary starting after the boot_params
-      auto z = image.load_as_raw(ram, entry, free_list);
+      auto z = image.load_as_raw(ram, ram->boot2guest_phys(entry), free_list);
       trace().printf("Loaded kernel image as raw to 0x%lx\n", z);
       trace().printf("load kernel as raw entry to 0x%lx\n",
-                     ram->guest_phys2boot(Linux_kernel_start_addr));
+                     ram->guest_phys2boot(Vmm::Guest_addr(Linux_kernel_start_addr)));
       _guest_t = Binary_type::Linux;
     }
 
   // Reserve Zero-page and cmdline space: Two pages.
   // XXX It shall move to prepare_linux_run, when the parameter set of that
   // function is changed.
-  free_list->reserve_fixed(0x1000, 0x2000);
+  free_list->reserve_fixed(Vmm::Guest_addr(0x1000), 0x2000);
 
   return entry;
 }
@@ -98,13 +98,13 @@ void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
                               l4_addr_t dt_boot_addr)
 {
   // use second memory page as zeropage location
-  Zeropage zpage(L4_PAGESIZE, entry);
+  Zeropage zpage(Vmm::Guest_addr(L4_PAGESIZE), entry);
 
   if (dt_boot_addr)
     {
       // read initrd addr and size from device tree
-      L4virtio::Ptr<void> dt_addr(dt_boot_addr);
-      auto dt = Vdev::Device_tree(ram->guest2host(dt_addr));
+      Vmm::Guest_addr dt_addr = ram->boot2guest_phys(dt_boot_addr);
+      auto dt = Vdev::Device_tree(ram->guest2host<void *>(dt_addr));
       int prop_sz1, prop_sz2;
       auto node = dt.path_offset("/chosen");
       auto prop_start = node.get_prop<fdt32_t>("linux,initrd-start", &prop_sz1);
@@ -130,7 +130,7 @@ void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
   zpage.write(ram, _guest_t);
 
   vcpu->r.ip = zpage.entry(ram);
-  vcpu->r.si = zpage.addr();
+  vcpu->r.si = zpage.addr().get();
 
   trace().printf("Zeropage setup: vCPU ip: 0x%lx, si: 0x%lx\n", vcpu->r.ip,
                  vcpu->r.si);

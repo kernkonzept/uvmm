@@ -137,7 +137,7 @@ private:
         val = 0;
         break;
       case L4_VM_CP0_CMGCR_BASE:
-        val = Vdev::Coherency_manager::mem_region().start >> 4;
+        val = Vdev::Coherency_manager::mem_region().start.get() >> 4;
         break;
       case L4_VM_CP0_MAAR_0:
       case L4_VM_CP0_MAAR_1:

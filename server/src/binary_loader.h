@@ -48,17 +48,17 @@ public:
   l4_addr_t load_as_elf(Vmm::Vm_ram *ram, Vmm::Ram_free_list *free_list)
   {
     auto const *eh = as_elf_header();
-    L4virtio::Ptr<void> img_start(-1UL);
-    L4virtio::Ptr<void> img_end(0);
+    Vmm::Guest_addr img_start(-1UL);
+    Vmm::Guest_addr img_end(0);
 
     eh->iterate_phdr([this,ram,free_list,&img_start,&img_end](Ldr::Elf_phdr ph) {
       if (ph.type() == PT_LOAD)
         {
-          auto gstart = ram->boot2guest_phys<void>(ph.paddr());
+          auto gstart = ram->boot2guest_phys(ph.paddr());
           // Note that we need to reserve all the memory, this block will
           // occupy in memory, even though only filesz() will be copied
           // later.
-          if (!free_list->reserve_fixed(gstart.get(), ph.memsz()))
+          if (!free_list->reserve_fixed(gstart, ph.memsz()))
             {
               Err().printf("Failed to load ELF kernel binary. "
                            "Region [0x%lx-0x%lx] not in RAM.\n",
@@ -66,10 +66,10 @@ public:
               L4Re::chksys(-L4_ENOMEM, "Loading ELF binary.");
             }
 
-          if (img_start.get() > gstart.get())
+          if (img_start > gstart)
             img_start = gstart;
           if (img_end.get() < gstart.get() + ph.filesz())
-            img_end = L4virtio::Ptr<void>(gstart.get() + ph.filesz());
+            img_end = gstart + ph.filesz();
 
           Dbg(Dbg::Mmio, Dbg::Info, "bin")
             .printf("Copy in ELF binary section @0x%lx from 0x%lx/0x%lx\n",
@@ -79,13 +79,13 @@ public:
         }
     });
 
-    _loaded_range_start = (l4_addr_t)ram->guest2host(img_start);
-    _loaded_range_end = (l4_addr_t)ram->guest2host(img_end);
+    _loaded_range_start = ram->guest2host<l4_addr_t>(img_start);
+    _loaded_range_end = ram->guest2host<l4_addr_t>(img_end);
 
     return eh->entry();
   }
 
-  l4_addr_t load_as_raw(Vmm::Vm_ram *ram, l4_addr_t start,
+  l4_addr_t load_as_raw(Vmm::Vm_ram *ram, Vmm::Guest_addr start,
                         Vmm::Ram_free_list *free_list)
   {
     l4_size_t sz = _ds->size();
@@ -93,16 +93,16 @@ public:
     if (!free_list->reserve_fixed(start, sz))
       {
         Err().printf("Failed to load kernel binary. Region [0x%lx-0x%lx] not in RAM.\n",
-                     start, _ds->size());
+                     start.get(), _ds->size());
         L4Re::chksys(-L4_ENOMEM, "Loading kernel binary.");
       }
 
-    ram->load_file(_ds.get(), L4virtio::Ptr<void>(start), sz);
+    ram->load_file(_ds.get(), start, sz);
 
-    _loaded_range_start = (l4_addr_t)ram->guest2host(L4virtio::Ptr<void>(start));
+    _loaded_range_start = ram->guest2host<l4_addr_t>(start);
     _loaded_range_end = _loaded_range_start + sz;
 
-    return ram->guest_phys2boot(L4virtio::Ptr<void>(start));
+    return ram->guest_phys2boot(start);
   }
 
   void const *get_header() const

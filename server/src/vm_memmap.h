@@ -13,24 +13,9 @@
 #include <map>
 
 #include "mmio_device.h"
+#include "mem_types.h"
 
-struct Region
-{
-  l4_addr_t start;
-  l4_addr_t end; // inclusive
-
-  Region() {}
-  Region(l4_addr_t a) : start(a), end(a) {}
-  Region(l4_addr_t s, l4_addr_t e) : start(s), end(e) {}
-
-  static Region ss(l4_addr_t start, l4_size_t size)
-  { return Region(start, start + size - 1); }
-
-  bool operator < (Region const &r) const { return end < r.start; }
-
-  bool contains(Region const &r) const
-  { return (start <= r.start) && (r.end <= end); } // [ [ ... ] ]
-};
+namespace Vmm {
 
 class Vm_mem : public std::map<Region, cxx::Ref_ptr<Vmm::Mmio_device>>
 {
@@ -38,3 +23,5 @@ public:
   void add_mmio_device(Region const &region,
                        cxx::Ref_ptr<Vmm::Mmio_device> const &dev);
 };
+
+} // namespace

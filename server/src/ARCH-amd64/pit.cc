@@ -189,8 +189,8 @@ struct F : Vdev::Factory
                                                   ic->dt_get_interrupt(node, 0));
 
     auto *vmm = devs->vmm();
-    vmm->register_io_device(Region(0x40, 0x43), dev);
-    vmm->register_io_device(Region(0x61, 0x61), dev->port61());
+    vmm->register_io_device(Vmm::Io_region(0x40, 0x43), dev);
+    vmm->register_io_device(Vmm::Io_region(0x61, 0x61), dev->port61());
     vmm->register_timer_device(dev);
 
     return dev;

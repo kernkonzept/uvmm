@@ -46,7 +46,7 @@ public:
 
   void show_state_interrupts(FILE *, Vcpu_ptr) {}
 
-  void register_io_device(Region const &region,
+  void register_io_device(Io_region const &region,
                           cxx::Ref_ptr<Io_device> const &dev);
 
   void register_timer_device(cxx::Ref_ptr<Vdev::Timer> const &dev)
@@ -106,7 +106,7 @@ private:
     return ax & Max_phys_addr_bits_mask;
   }
 
-  typedef std::map<Region, cxx::Ref_ptr<Io_device>> Io_mem;
+  typedef std::map<Io_region, cxx::Ref_ptr<Io_device>> Io_mem;
   Io_mem _iomap;
 
   // devices

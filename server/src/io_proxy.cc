@@ -96,7 +96,7 @@ struct F : Factory
         switch (res)
           {
           case 0:
-            if (!vmm->mmio_region_valid(addr, size))
+            if (!vmm->mmio_region_valid(Vmm::Guest_addr(addr), size))
               return false;
             break;
           case -Dt_node::ERR_BAD_INDEX:

@@ -189,7 +189,7 @@ Guest::check_guest_constraints(l4_addr_t base) const
 l4_addr_t
 Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_list)
 {
-  l4_addr_t ram_base = free_list->first_free_address();
+  Guest_addr ram_base = free_list->first_free_address();
 
   l4_addr_t entry = ~0ul;
   Boot::Binary_ds image(kernel);
@@ -229,7 +229,7 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_li
         }
     }
 
-  check_guest_constraints(ram_base);
+  check_guest_constraints(ram_base.get());
 
   return entry;
 }

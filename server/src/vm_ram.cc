@@ -43,7 +43,7 @@ static Dbg info(Dbg::Core, Dbg::Info, "ram");
 static Dbg trace(Dbg::Core, Dbg::Trace, "ram");
 
 bool
-Vmm::Ram_free_list::reserve_fixed(l4_addr_t start, l4_size_t size)
+Vmm::Ram_free_list::reserve_fixed(Vmm::Guest_addr start, l4_size_t size)
 {
   for (auto it = _freelist.begin(); it != _freelist.end(); ++it)
     {
@@ -68,7 +68,7 @@ Vmm::Ram_free_list::reserve_fixed(l4_addr_t start, l4_size_t size)
 }
 
 bool
-Vmm::Ram_free_list::reserve_back(l4_size_t size, l4_addr_t *start,
+Vmm::Ram_free_list::reserve_back(l4_size_t size, Vmm::Guest_addr *start,
                                  unsigned char page_shift)
 {
   for (auto rit = _freelist.rbegin(); rit != _freelist.rend(); ++rit)
@@ -76,10 +76,12 @@ Vmm::Ram_free_list::reserve_back(l4_size_t size, l4_addr_t *start,
       if (rit->end - rit->start + 1 < size)
         continue;
 
-      *start = l4_trunc_size(rit->end - size + 1, page_shift);
+      auto s = l4_trunc_size(rit->end.get() - size + 1, page_shift);
 
-      if (*start < rit->start)
+      if (s < rit->start.get())
         continue;
+
+      *start = Vmm::Guest_addr(s);
 
       return reserve_fixed(*start, size);
     }
@@ -89,7 +91,7 @@ Vmm::Ram_free_list::reserve_back(l4_size_t size, l4_addr_t *start,
 
 long
 Vmm::Ram_free_list::load_file_to_back(Vm_ram *ram, char const *name,
-                                      L4virtio::Ptr<void> *start, l4_size_t *size)
+                                      Vmm::Guest_addr *start, l4_size_t *size)
 {
   Auto_fd fd(open(name, O_RDONLY));
   if (fd.get() < 0)
@@ -112,26 +114,26 @@ Vmm::Ram_free_list::load_file_to_back(Vm_ram *ram, char const *name,
       L4Re::chksys(-L4_EINVAL);
     }
 
-  l4_addr_t addr;
+  Vmm::Guest_addr addr;
   l4_size_t sz = f->size();
 
   if (!reserve_back(sz, &addr, L4_SUPERPAGESHIFT))
     return -L4_ENOMEM;
 
-  info.printf("load: %s -> 0x%lx\n", name, addr);
+  info.printf("load: %s -> 0x%lx\n", name, addr.get());
 
   if (start)
-    *start = L4virtio::Ptr<void>(addr);
+    *start = addr;
   if (size)
     *size = sz;
 
-  ram->load_file(f, L4virtio::Ptr<void>(addr), sz);
+  ram->load_file(f, addr, sz);
 
   return L4_EOK;
 }
 
 l4_size_t
-Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, l4_addr_t baseaddr,
+Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, Vmm::Guest_addr baseaddr,
                                l4_addr_t ds_offset, l4_size_t size, Vm_mem *memmap)
 {
   Ram_ds r(ds, size, ds_offset);
@@ -151,7 +153,7 @@ Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, l4_addr_t baseaddr,
 
 Vmm::Ram_free_list
 Vmm::Vm_ram::setup_from_device_tree(Vdev::Host_dt const &dt, Vm_mem *memmap,
-                                    l4_addr_t default_address)
+                                    Vmm::Guest_addr default_address)
 {
   bool has_memory_nodes = false;
 
@@ -234,8 +236,8 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &
   if (node.has_prop("l4vmm,physmap"))
     {
       trace.printf("%s: trying identity mapping.\n", node.get_name());
-      long ridx = add_memory_region(ds, Ram_ds::Ram_base_identity_mapped, 0,
-                                    remain, memmap);
+      long ridx = add_memory_region(ds, Vmm::Guest_addr(Ram_ds::Ram_base_identity_mapped),
+                                    0, remain, memmap);
 
       if (ridx >= 0)
         remain = 0; // we are done
@@ -270,7 +272,8 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &
       if (reg_addr & ~L4_PAGEMASK)
         L4Re::chksys(-L4_EINVAL, "Start address must be rounded to page size");
 
-      long ridx = add_memory_region(ds, reg_addr, offset, map_size, memmap);
+      long ridx = add_memory_region(ds, Vmm::Guest_addr(reg_addr), offset,
+                                    map_size, memmap);
       if (ridx < 0)
         L4Re::chksys(-L4_ENOMEM, "Setting up RAM region.");
 
@@ -288,7 +291,7 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &
   bool append = false;
   for (l4_size_t i = first_region; i < _regions.size(); ++i)
     {
-      node.set_reg_val(_regions[i].vm_start(), _regions[i].size(), append);
+      node.set_reg_val(_regions[i].vm_start().get(), _regions[i].size(), append);
       append = true;
 
       if (add_dma_ranges)
@@ -303,7 +306,7 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &
 
 void
 Vmm::Vm_ram::setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,
-                                  l4_addr_t baseaddr)
+                                  Vmm::Guest_addr baseaddr)
 {
   auto ds = L4Re::chkcap(L4Re::Env::env()->get_cap<L4Re::Dataspace>("ram"));
   long ridx = add_memory_region(ds, baseaddr, 0, ds->size(), memmap);
@@ -316,11 +319,11 @@ Vmm::Vm_ram::setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,
       auto const &r = _regions[ridx];
       // "memory@" + 64bit hex address + '\0'
       char buf[7 + 16 + 1];
-      std::snprintf(buf, sizeof(buf), "memory@%lx", r.vm_start());
+      std::snprintf(buf, sizeof(buf), "memory@%lx", r.vm_start().get());
 
       auto node = dt.get().first_node().add_subnode(buf);
       node.setprop_string("device_type", "memory");
-      node.set_reg_val(r.vm_start(), r.size());
+      node.set_reg_val(r.vm_start().get(), r.size());
 
       if (r.has_phys_addr())
         r.dt_append_dmaprop(node);
