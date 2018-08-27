@@ -45,7 +45,7 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
       _mode.raw = value;
       if (_mode.channel() == 1)
         {
-          Dbg().printf("WARNING: set mode for channel 1 unsupported\n");
+          warn().printf("set mode for channel 1 unsupported\n");
           return;
         }
       int ch = _mode.channel() >> 1;
@@ -65,12 +65,12 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
       else
         _ch_mode[ch] = 0xFF;
 
-      Dbg().printf("!!! PIT !!!   New timer mode: 0x%x\n", value);
+      trace().printf("New timer mode: 0x%x\n", value);
       break;
     }
     case Channel_0_data:
     case Channel_2_data:
-      Dbg().printf("!!! PIT !!!   Writing 0x%x for channel %d\n", value,
+      trace().printf("Writing 0x%x for channel %d\n", value,
                    port);
       if (!is_latch_count_value_cmd(_mode) && is_current_channel(_mode, port))
         {
@@ -98,13 +98,13 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
           else if (_mode.access() == Access_hibyte)
             set_high_byte(_reload[ch], v);
 
-          Dbg().printf("!!! PIT !!!   enable counter for %d\n", port);
+          trace().printf("enable counter for %d\n", port);
           _counter[ch] = _reload[ch] >> 2;
           if (_reload[ch] != 0)
             _ch_mode[ch] = _mode.access();
         }
       else
-        Dbg().printf("WARNING: PIT access to bad channel\n");
+        warn().printf("PIT access to bad channel\n");
       break;
   }
 }

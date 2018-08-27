@@ -79,6 +79,9 @@ class Pit_timer
 
   static constexpr int port2idx(int port) { return port >> 1; }
 
+  static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "PIT"); }
+  static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "PIT"); }
+
 public:
   Pit_timer(Gic::Ic *ic, int irq);
   virtual ~Pit_timer() = default;
