@@ -176,7 +176,11 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
 
   asm("cpuid"
       : "=a"(a), "=b"(b), "=c"(c), "=d"(d)
-      : "0"(rax), "2"(regs->cx));
+      : "0"(rax), "2"(rcx));
+
+  if (0)
+    trace().printf("CPUID as read 0x%lx/0x%lx: a: 0x%x, b: 0x%x, c: 0x%x, d: 0x%x\n",
+                   rax, rcx, a, b, c, d);
 
   enum : unsigned long
   {
@@ -230,14 +234,33 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
       break;
 
     case 0xd:
-      if (regs->cx == 1)
+      switch(rcx)
         {
+        case 0:
+          {
+            // Check the host-enabled XCR0 bits and report these to the guest,
+            // instead of the physical hardware features.
+            // XXX If we report other than the host-enabled XCR0 bits, we need
+            // to adapt the size returned in ECX!
+            l4_uint32_t ax = 0, dx = 0;
+            asm volatile ("xgetbv" : "=a"(ax), "=d"(dx) : "c"(0));
+            trace().printf("Get XCR0 host state: 0x%x:0x%x\n", dx, ax);
+
+            a = ax;
+            break;
+          }
+
+        case 1:
           trace().printf("Filtering out xsave capabilities\n");
           a &= ~(  Xsave_opt
                    | Xsave_c
                    | Xget_bv // with ECX=1
                    | Xsave_s   // XSAVES/XRSTORS and IA32_XSS MSR
                 );
+          b = 0; // Size of the state of the enabled feature bits.
+          break;
+
+        default: break;
         }
       break;
 
@@ -247,6 +270,10 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
         break;
       }
     }
+
+  if (0)
+    trace().printf("CPUID as modified: a: 0x%x, b: 0x%x, c: 0x%x, d: 0x%x\n",
+                   a, b, c, d);
 
   regs->ax = a;
   regs->bx = b;
@@ -387,7 +414,7 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
           l4_uint64_t value = (l4_uint64_t(regs->ax) & 0xFFFFFFFF)
                               | (l4_uint64_t(regs->dx) << 32);
           vms->vmx_write(L4_VM_VMX_VMCS_XCR0, value);
-          Dbg().printf("Setting xcr0 to 0x%llx\n", value);
+          trace().printf("Setting xcr0 to 0x%llx\n", value);
           return Jump_instr;
         }
       Dbg().printf("Writing unknown extended control register %ld\n", regs->cx);
