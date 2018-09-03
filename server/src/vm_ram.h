@@ -131,6 +131,19 @@ public:
                                        Vmm::Guest_addr default_address);
 
   /**
+   * Move the device tree into guest RAM.
+   *
+   * \param free_list  List of usable RAM regions. The device tree will be
+   *                   copied to the first available area at the end of this
+   *                   list.
+   * \param dt         Host device tree, to be discarded after having been
+   *                   moved to RAM.
+   *
+   * \return Boot address of the begining of the device tree.
+   */
+  l4_addr_t move_in_device_tree(Ram_free_list *free_list, Vdev::Host_dt &&dt);
+
+  /**
    * Compute the boot address of a guest physical pointer.
    */
   l4_addr_t guest_phys2boot(Vmm::Guest_addr p) const noexcept

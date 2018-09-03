@@ -354,7 +354,7 @@ static int run(int argc, char *argv[])
   // finally copy in the device tree
   l4_addr_t dt_boot_addr = 0;
   if (dt.valid())
-    dt_boot_addr = ram->guest_phys2boot(dt.pack_and_move(ram, &ram_free_list));
+    dt_boot_addr = ram->move_in_device_tree(&ram_free_list, cxx::move(dt));
 
   vmm->prepare_linux_run(vm_instance.cpus()->vcpu(0), entry, ram, kernel_image,
                          cmd_line, dt_boot_addr);

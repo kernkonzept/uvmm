@@ -9,6 +9,7 @@
 #include <l4/cxx/minmax>
 #include <l4/re/env>
 #include <l4/re/error_helper>
+#include <l4/sys/cache.h>
 #include <l4/l4re_vfs/backend>
 
 #include "debug.h"
@@ -202,6 +203,30 @@ Vmm::Vm_ram::setup_from_device_tree(Vdev::Host_dt const &dt, Vm_mem *memmap,
     }
 
   return list;
+}
+
+l4_addr_t
+Vmm::Vm_ram::move_in_device_tree(Ram_free_list *free_list, Vdev::Host_dt &&dt)
+{
+  dt.compact();
+
+  l4_size_t new_size = dt.get().size();
+  Guest_addr addr;
+
+  if (!free_list->reserve_back(new_size, &addr))
+    L4Re::chksys(-L4_ENOMEM, "Copy device tree into guest memory.");
+
+  void *target = guest2host<void *>(addr);
+
+  dt.move(target);
+
+  l4_addr_t ds_start = reinterpret_cast<l4_addr_t>(target);
+  l4_cache_clean_data(ds_start, ds_start + new_size);
+
+  Dbg().printf("Cleaning caches for device tree [%lx-%lx] ([%lx])\n",
+               ds_start, ds_start + new_size, addr.get());
+
+  return guest_phys2boot(addr);
 }
 
 

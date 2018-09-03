@@ -14,11 +14,9 @@
 
 #include <l4/cxx/minmax>
 #include <l4/re/error_helper>
-#include <l4/sys/cache.h>
 
 #include "debug.h"
 #include "host_dt.h"
-#include "vm_ram.h"
 
 static Dbg warn(Dbg::Core, Dbg::Warn, "main");
 
@@ -101,31 +99,4 @@ Vdev::Host_dt::add_source(char const *fname)
 
   memcpy(_dtmem, mem.get(), dt.size());
   get().add_to_size(padding);
-}
-
-Vmm::Guest_addr
-Vdev::Host_dt::pack_and_move(Vmm::Vm_ram *ram, Vmm::Ram_free_list *free_list)
-{
-  fdt_pack(_dtmem);
-
-  l4_size_t new_size = get().size();
-  Vmm::Guest_addr addr;
-
-  if (!free_list->reserve_back(new_size, &addr))
-    L4Re::chksys(-L4_ENOMEM, "Copy device tree into guest memory.");
-
-  void *target = ram->guest2host<void *>(Vmm::Region::ss(addr, new_size));
-
-  fdt_move(_dtmem, target, new_size);
-
-  l4_addr_t ds_start = reinterpret_cast<l4_addr_t>(target);
-  l4_cache_clean_data(ds_start, ds_start + new_size);
-
-  Dbg().printf("Cleaning caches for device tree [%lx-%lx] ([%lx])\n",
-              ds_start, ds_start + new_size, addr.get());
-
-  free(_dtmem);
-  _dtmem = nullptr;
-
-  return addr;
 }

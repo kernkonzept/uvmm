@@ -9,14 +9,8 @@
 
 #include <l4/l4virtio/virtqueue>
 
-#include "device.h" // TODO typedef Device_tree instead?
-#include "device_tree.h"
+#include "device.h"
 #include "mem_types.h"
-
-namespace Vmm {
-    class Vm_ram;
-    class Ram_free_list;
-}
 
 namespace Vdev {
 
@@ -26,7 +20,21 @@ namespace Vdev {
 class Host_dt
 {
 public:
-  virtual ~Host_dt()
+  Host_dt() : _dtmem(nullptr) {}
+  Host_dt(Host_dt const &) = delete;
+  Host_dt &operator=(Host_dt const &) = delete;
+  Host_dt &operator=(Host_dt &&) = default;
+
+  Host_dt(Host_dt &&other)
+  {
+    if (_dtmem)
+      free(_dtmem);
+
+    _dtmem = other._dtmem;
+    other._dtmem = nullptr;
+  }
+
+  ~Host_dt()
   {
     if (_dtmem)
       free(_dtmem);
@@ -39,10 +47,33 @@ public:
   { return Device_tree(_dtmem); }
 
   void add_source(char const *fname);
-  Vmm::Guest_addr pack_and_move(Vmm::Vm_ram *ram, Vmm::Ram_free_list *free_list);
+
+  /**
+   * Remove unused entries and pack the device tree.
+   *
+   * \note Only packing is implemented at the moment.
+   */
+  void compact() const
+  { fdt_pack(_dtmem); }
+
+  /**
+   * Move the device tree to the given target address.
+   *
+   * \param target  Target address where to move the device tree.
+   *
+   * After the operation the device tree is invalid and the
+   * corresponding memory freed.
+   */
+  void move(void *target)
+  {
+    fdt_move(_dtmem, target, get().size());
+
+    free(_dtmem);
+    _dtmem = nullptr;
+  }
 
 private:
-  void *_dtmem = nullptr;
+  void *_dtmem;
 };
 
 }
