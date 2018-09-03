@@ -10,6 +10,13 @@
         model = "L4 VM";
         compatible = "l4,virt", "linux,dummy-virt";
 
+        memory@0 {
+            device_type = "memory";
+            reg = <0x0 0x00000000 0x0 0x80000000
+                   0x1 0x00000000 0xffffffff 0x0>;
+            l4vmm,dscap = "ram";
+        };
+
         IOAPIC: ioapic {
             compatible = "intel,ioapic";
             interrupt-controller;
