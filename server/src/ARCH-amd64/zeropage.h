@@ -38,6 +38,7 @@ enum Boot_param
   Bp_ext_loader_ver = 0x226,
   Bp_ext_loader_type = 0x227,
   Bp_cmdline_ptr = 0x228,
+  Bp_xloadflags = 0x236,
   Bp_cmdline_size = 0x238,
   Bp_setup_data = 0x250,
   Bp_init_size = 0x260,
@@ -77,6 +78,16 @@ class Zeropage
     l4_uint32_t type;
   } __attribute__((packed));
 
+  struct Xloadflags
+  {
+    l4_uint16_t raw = 0;
+    /// Kernel has the legacy 64-bit entry point at 0x200.
+    CXX_BITFIELD_MEMBER(0, 0, kernel_64, raw);
+    /// Kernel/Boot_params/cmdline/ramdisk can be above 4G
+    CXX_BITFIELD_MEMBER(1, 1, can_be_loaded_above_4g, raw);
+    // bits 4:2 are EFI related; the remaining bits are unused;
+  };
+
   enum
   {
     Max_cmdline_size = 4096,
@@ -91,8 +102,8 @@ class Zeropage
   char _cmdline[Max_cmdline_size];
   E820_entry _e820[Max_e820_entries];
   unsigned _e820_idx = 0;
-  l4_uint32_t _ramdisk_start = 0;
-  l4_uint32_t _ramdisk_size = 0;
+  l4_uint64_t _ramdisk_start = 0;
+  l4_uint64_t _ramdisk_size = 0;
   l4_addr_t _dtb = 0;
   l4_size_t _dtb_size = 0;
 
@@ -117,7 +128,7 @@ public:
     strcpy(_cmdline, line);
   }
 
-  void add_ramdisk(l4_uint32_t start, l4_uint32_t sz)
+  void add_ramdisk(l4_uint64_t start, l4_uint64_t sz)
   {
     _ramdisk_start = start;
     _ramdisk_size = sz;
@@ -156,6 +167,9 @@ public:
   {
     memset(ram->guest2host(L4virtio::Ptr<char>(_gp_addr)), 0, L4_PAGESIZE);
 
+    // boot_params are setup according to v.2.07
+    unsigned boot_protocol_version = 0x207;
+
     switch (gt)
       {
       case Binary_type::Elf:
@@ -163,6 +177,8 @@ public:
         write_dtb(ram);
         set_header<l4_addr_t>(ram, Bp_code32_start, _kbinary);
         set_header<l4_uint32_t>(ram, Bp_signature, 0x53726448); // "HdrS"
+
+        boot_protocol_version = 0x209; // DTS needs v.2.09
 
         info().printf("Elf guest zeropage: dtb 0x%llx, entry 0x%lx\n",
                       get_header<l4_uint64_t>(ram, Bp_setup_data),
@@ -198,10 +214,20 @@ public:
     // write RAM disk
     set_header<l4_uint32_t>(ram, Bp_ramdisk_image, _ramdisk_start);
     set_header<l4_uint32_t>(ram, Bp_ramdisk_size, _ramdisk_size);
+    if ((_ramdisk_start + _ramdisk_size) >> 32 > 0)
+      {
+        Xloadflags xlf;
+        xlf.can_be_loaded_above_4g() = 1;
+        set_header<l4_uint16_t>(ram, Bp_xloadflags, xlf.raw);
+        set_header<l4_uint32_t>(ram, Bp_ext_ramdisk_image, _ramdisk_start >> 32);
+        set_header<l4_uint32_t>(ram, Bp_ext_ramdisk_size, _ramdisk_size >> 32);
+
+        boot_protocol_version = 0x212; // xloadflags needs v.2.12
+      }
 
     // misc stuff in the boot header
     set_header<l4_uint8_t>(ram, Bp_type_of_loader, 0xff);
-    set_header<l4_uint16_t>(ram, Bp_version, 0x209); // DTS needs v. 2.09
+    set_header<l4_uint16_t>(ram, Bp_version, boot_protocol_version);
 
     set_header<l4_uint8_t>(ram, Bp_loadflags,
                            get_header<l4_uint8_t>(ram, Bp_loadflags)
