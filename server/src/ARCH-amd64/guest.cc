@@ -184,28 +184,36 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
 
   enum : unsigned long
   {
+    // 0x1
     Ecx_monitor_bit = (1UL << 3),
     Ecx_vmx_bit = (1UL << 5),
     Ecx_smx_bit = (1UL << 6),
+    Ecx_speed_step_tech_bit = (1UL << 7),
     Ecx_pcid_bit = (1UL << 17),
     Ecx_x2apic_bit = (1UL << 21),
     Ecx_xsave_bit = (1UL << 26),
     Ecx_hypervisor_bit = (1UL << 31),
 
-    Edx_rdtsc_bit = (1UL << 4),
-    Edx_apic_bit = (1UL << 9),
     Edx_mtrr_bit = (1UL << 12),
+    Edx_acpi_bit = (1UL << 22),
 
-    Kvm_feature_clocksource_bit = 1UL,
+    // 0x6 EAX
+    Power_limit_notification = (1UL << 4),
+    Hwp_feature_mask = (0x1f << 7),
+    // 0x6 ECX
+    Performance_energy_bias_preference = (1UL << 3),
 
-    Rdtscp_bit = (1UL << 27),
-
+    // 0x7
     Invpcid_bit = (1UL << 10),
 
+    // 0xd
     Xsave_opt = 1,
     Xsave_c = (1UL << 1),
     Xget_bv = (1UL << 2),
     Xsave_s = (1UL << 3),
+
+    // 0x8000'0001
+    Rdtscp_bit = (1UL << 27),
   };
 
   switch (rax)
@@ -215,13 +223,18 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
       c &= ~(  Ecx_monitor_bit
              | Ecx_vmx_bit
              | Ecx_smx_bit
+             | Ecx_speed_step_tech_bit
              | Ecx_pcid_bit
-// if xsave is filtered out, CR4 bit not set, busybox userland will fail
-//             | Ecx_xsave_bit
              | Ecx_hypervisor_bit
             );
 
-      d &= ~(Edx_mtrr_bit);
+      d &= ~(Edx_mtrr_bit | Edx_acpi_bit);
+      break;
+
+    case 0x6:
+      a &= ~(Power_limit_notification | Hwp_feature_mask);
+      // filter IA32_ENERGEY_PERF_BIAS
+      c &= ~(Performance_energy_bias_preference);
       break;
 
     case 0x7:
