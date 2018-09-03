@@ -344,9 +344,9 @@ translate_char(unsigned char c)
   if ('0' <= c && c <= '9')
     res = transtab[c - '0'];
   else if ('A' <= c && c <= 'Z')
-    res = transtab[c + 10 - 'A' ];
+    res = transtab[c + 10U - 'A' ];
   else if ('a' <= c && c <= 'z')
-    res = transtab[c + 10 - 'a'];
+    res = transtab[c + 10U - 'a'];
   else
     // map everything to space as default
     res = L4RE_KEY_SPACE;
