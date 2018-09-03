@@ -144,6 +144,8 @@ Vmx_state::handle_exec_wmsr(l4_vcpu_regs_t *regs,
         return Jump_instr;
       }
     case 0x8b: // IA32_BIOS_SIGN_ID
+    case 0x140:  // unknown in Intel 6th gen, but MISC_FEATURE register for xeon
+    case 0xe01: // MSR_UNC_PERF_GLOBAL_CTRL
       // can all be savely ignored
       return Jump_instr;
 
