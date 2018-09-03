@@ -236,6 +236,10 @@ private:
 
 /**
  * IO-APIC representation for IRQ/MSI routing. WIP!
+ *
+ * TODO The MSI routing is not done in the IO APIC and should move to a
+ * separate class or this class should be renamed. Does this need to be an IC
+ * then?
  */
 class Io_apic : public Ic, public Msi_controller
 {
@@ -259,9 +263,6 @@ class Io_apic : public Ic, public Msi_controller
     CXX_BITFIELD_MEMBER_RO(0, 1, reserved_0, raw);
 
     explicit Interrupt_request_compat(l4_uint64_t addr) : raw(addr) {};
-    bool is_phys_addr_mode() { return redirect_hint() && !dest_mode(); }
-    bool is_logical_addr_mode() { return redirect_hint() && dest_mode(); }
-    bool is_direct_addr_mode() { return !redirect_hint(); }
   };
 
   struct Msi_data_register_format
@@ -309,19 +310,21 @@ public:
     Interrupt_request_compat addr(message.addr);
     if (addr.fixed() != Msi_address_interrupt_prefix)
       {
-        trace().printf("Interrupt request prefix invalid; MSI dropped.\n");
+        info().printf("Interrupt request prefix invalid; MSI dropped.\n");
         return;
       }
 
     Virt_lapic *lapic = nullptr;
 
-    if (addr.is_direct_addr_mode())
+    if (addr.redirect_hint())
       {
-        // Direct addressing mode: destination ID references a local APIC ID.
-        unsigned did = addr.dest_id();
-        lapic = _apics->get(did).get();
+        // TODO translate the MSI message and do lowest interrupt priority
+        // arbitration among local APICs. Linux doesn't use this mode anymore.
+        warn().printf("Lowest interrupt priority arbitration not supported.  "
+                      "Ignored. MSI message not translated.\n");
       }
-    else if (addr.is_phys_addr_mode())
+
+    if (!addr.dest_mode())
       {
         // physical addressing mode:
         //   dest_id() references a local APIC ID
@@ -340,12 +343,15 @@ public:
         lapic->set(data.vector());
       }
     else
-      trace().printf("No valid LAPIC found; MSI dropped. MSI address 0x%llx\n",
-                     message.addr);
+      info().printf(
+        "No valid LAPIC found; MSI dropped. MSI address 0x%llx, data 0x%x\n",
+        message.addr, message.data);
   }
 
 private:
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "IO-APIC"); }
+  static Dbg info() { return Dbg(Dbg::Irq, Dbg::Info, "IO-APIC"); }
+  static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "IO-APIC"); }
 
   cxx::Ref_ptr<Lapic_array> _apics;
 }; // class Io_apic
