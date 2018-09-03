@@ -29,12 +29,12 @@
  * \code
  *     memory@0 {
  *       device_type = "memory";
- *       reg = <0x00000000 0x00100000,
+ *       reg = <0x00000000 0x00100000
  *              0x00200000 0xffffffff>;
  *       l4vmm,dscap = "memcap";
  *       l4vmm,physmap;
  *       dma-ranges = <>;
- *     }
+ *     };
  * \endcode
  *
  * The `device_type` property is mandatory and needs to be set to `memory`.
