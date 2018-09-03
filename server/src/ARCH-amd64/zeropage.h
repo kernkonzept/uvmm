@@ -264,7 +264,7 @@ private:
     if (*_cmdline == 0)
       return;
 
-    // place the command line bind the boot parameters
+    // place the command line behind the boot parameters
     auto cmdline_addr = (_gp_addr + Bp_end).round_page();
 
     strcpy(ram->guest2host<char *>(cmdline_addr), _cmdline);
