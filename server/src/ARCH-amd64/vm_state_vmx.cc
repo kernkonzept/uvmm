@@ -199,22 +199,40 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
   switch (crnum)
     {
     case 0:
-      trace().printf("Write to cr0: 0x%llx -> 0x%lx\n",
-                     vmx_read(L4VCPU_VMCS_GUEST_CR0), newval);
-      // 0x10 => Extension Type; hardcoded to 1 see manual
-      vmx_write(L4VCPU_VMCS_GUEST_CR0, newval | 0x10);
-      vmx_write(L4VCPU_VMCS_CR0_READ_SHADOW, newval);
-      if ((newval & Cr0_pg_bit)
-          && (vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER) & Efer_lme_bit))
-        {
-          // enable long mode
-          info().printf("Enable long mode\n");
-          vmx_write(L4VCPU_VMCS_VM_ENTRY_CTLS,
-                    vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS) | Entry_ctrl_ia32e_bit);
-          vmx_write(L4VCPU_VMCS_GUEST_IA32_EFER,
-                    vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER) | Efer_lma_bit);
-        }
-      break;
+      {
+        auto old_cr0 = vmx_read(L4VCPU_VMCS_GUEST_CR0);
+        trace().printf("Write to cr0: 0x%llx -> 0x%lx\n", old_cr0, newval);
+        // 0x10 => Extension Type; hardcoded to 1 see manual
+        vmx_write(L4VCPU_VMCS_GUEST_CR0, newval | 0x10);
+        vmx_write(L4VCPU_VMCS_CR0_READ_SHADOW, newval);
+        if ((newval & Cr0_pg_bit)
+            && (old_cr0 & Cr0_pg_bit) == 0
+            && (vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER) & Efer_lme_bit))
+          {
+            // enable long mode
+            info().printf("Enable long mode\n");
+            vmx_write(L4VCPU_VMCS_VM_ENTRY_CTLS,
+                      vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS)
+                        | Entry_ctrl_ia32e_bit);
+            vmx_write(L4VCPU_VMCS_GUEST_IA32_EFER,
+                      vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER) | Efer_lma_bit);
+          }
+
+        if ((newval & Cr0_pg_bit) == 0
+            && (old_cr0 & Cr0_pg_bit))
+          {
+            trace().printf("Disabling paging ...\n");
+            vmx_write(L4VCPU_VMCS_VM_ENTRY_CTLS,
+                      vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS)
+                        & ~Entry_ctrl_ia32e_bit);
+
+            if (vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER) & Efer_lme_bit)
+              vmx_write(L4VCPU_VMCS_GUEST_IA32_EFER,
+                        vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER) & ~Efer_lma_bit);
+          }
+
+        break;
+      }
     case 4:
       // force VMXE bit but hide it from guest
       trace().printf("mov to cr4: 0x%lx, RIP 0x%lx\n", newval, ip());
