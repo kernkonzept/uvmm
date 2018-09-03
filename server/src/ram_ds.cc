@@ -108,9 +108,9 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
 
   l4_addr_t offset = addr.get() - _vm_start;
 
-  if (addr.get() < _vm_start || sz > size() || offset >= size() - sz)
+  if (addr.get() < _vm_start || sz > size() || offset > size() - sz)
     {
-      Err().printf("File does not fit into ram. "
+      Err().printf("File does not fit into RAM. "
                    "(Loading [0x%llx - 0x%llx] into area [0x%lx - 0x%lx])\n",
                    addr.get(), addr.get() + sz, _vm_start, _vm_start + size());
       L4Re::chksys(-L4_EINVAL);
