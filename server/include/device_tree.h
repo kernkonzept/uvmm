@@ -476,12 +476,13 @@ public:
   /**
    * Check whether a node has irq resources associated
    *
-   * This function checks whether the node has an "interrupts" property.
+   * This function checks whether the node has an "interrupts"
+   * or "interrupts-extended" property.
    *
    * \return True if there is an "interrupts" property.
    */
   bool has_irqs() const
-  { return get_prop<fdt32_t>("interrupts", nullptr) != nullptr; }
+  { return has_prop("interrupts") || has_prop("interrupts-extended"); }
 
 
   /**
@@ -549,6 +550,11 @@ public:
     return reinterpret_cast<T const *>(prop);
   }
 
+  Node find_phandle(fdt32_t const *prop) const
+  {
+    return Node(_tree, fdt_node_offset_by_phandle(_tree, fdt32_to_cpu(*prop)));
+  }
+
   /**
    * Find IRQ parent of node.
    *
@@ -569,12 +575,7 @@ public:
         auto *prop = node.get_prop<fdt32_t>("interrupt-parent", &size);
 
         if (prop)
-          {
-            int idx = (size > 0)
-                        ? fdt_node_offset_by_phandle(_tree, fdt32_to_cpu(*prop))
-                        : -1;
-            node = Node(_tree, idx);
-          }
+          node = (size > 0) ? find_phandle(prop) : Node(_tree, -1);
         else
           node = node.parent_node();
 

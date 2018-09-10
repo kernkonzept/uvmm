@@ -1,6 +1,7 @@
 #include "device_factory.h"
 #include "guest.h"
 #include "irq.h"
+#include "irq_dt.h"
 #include "mmio_device.h"
 
 static L4::Cap<L4::Irq>
@@ -59,19 +60,15 @@ struct F_rcv : Factory
     if (!cap)
       return nullptr;
 
-    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, false);
-    if (!ic)
+    Vdev::Irq_dt_iterator it(devs, node);
+
+    if (it.next(devs) < 0)
       return nullptr;
 
-    int propsz;
-    auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
+    if (!it.ic_is_virt())
+      L4Re::chksys(-L4_EINVAL, "Irq_rcv requires a virtual interrupt controller");
 
-    int irq = ic->dt_get_interrupt(irq_prop, propsz, nullptr);
-
-    if (irq < 0)
-      L4Re::chksys(-L4_EINVAL, "Scanning interrupt for Irq_rcv from device tree");
-
-    auto c = make_device<Irq_rcv>(ic.get(), irq);
+    auto c = make_device<Irq_rcv>(it.ic().get(), it.irq());
     L4Re::chkcap(devs->vmm()->registry()->register_obj(c.get(), cap));
     return c;
   }

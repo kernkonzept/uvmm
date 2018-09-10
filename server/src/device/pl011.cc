@@ -18,6 +18,7 @@
 #include "device_factory.h"
 #include "guest.h"
 #include "irq.h"
+#include "irq_dt.h"
 #include "mmio_device.h"
 
 namespace {
@@ -334,18 +335,15 @@ struct F : Vdev::Factory
           }
       }
 
-    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, false);
-    if (!ic)
+    Vdev::Irq_dt_iterator it(devs, node);
+
+    if (it.next(devs) < 0)
       return nullptr;
 
-    int propsz;
-    auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
-    int irq = ic->dt_get_interrupt(irq_prop, propsz, nullptr);
+    if (!it.ic_is_virt())
+      L4Re::chksys(-L4_EINVAL, "PL011 requires a virtual interrupt controller");
 
-    if (irq < 0)
-      L4Re::chksys(-L4_EINVAL, "Parsing interrupt of PL011 device from device tree");
-
-    auto c = Vdev::make_device<Pl011_mmio>(ic.get(), irq, cap);
+    auto c = Vdev::make_device<Pl011_mmio>(it.ic().get(), it.irq(), cap);
     c->register_obj(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, node);
     return c;

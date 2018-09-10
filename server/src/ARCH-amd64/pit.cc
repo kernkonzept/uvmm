@@ -8,6 +8,7 @@
 
 #include <l4/re/error_helper>
 
+#include "irq_dt.h"
 #include "pit.h"
 
 namespace Vdev {
@@ -177,18 +178,15 @@ struct F : Vdev::Factory
   cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
-    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, true);
-    if (!ic)
+    Vdev::Irq_dt_iterator it(devs, node);
+
+    if (it.next(devs) < 0)
       return nullptr;
 
-    int propsz;
-    auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
-    int irq = ic->dt_get_interrupt(irq_prop, propsz, nullptr);
+    if (!it.ic_is_virt())
+      L4Re::chksys(-L4_EINVAL, "PIT requires a virtual interrupt controller");
 
-    if (irq < 0)
-      return nullptr;
-
-    auto dev = Vdev::make_device<Vdev::Pit_timer>(ic.get(), irq);
+    auto dev = Vdev::make_device<Vdev::Pit_timer>(it.ic().get(), it.irq());
 
     auto *vmm = devs->vmm();
     vmm->register_io_device(Vmm::Io_region(0x40, 0x43), dev);

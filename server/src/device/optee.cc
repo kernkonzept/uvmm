@@ -13,6 +13,7 @@
 #include "ds_mmio_mapper.h"
 #include "guest.h"
 #include "io_proxy.h"
+#include "irq_dt.h"
 #include "smc_device.h"
 
 namespace {
@@ -185,17 +186,12 @@ struct F : Vdev::Factory
     if (c->map_optee_memory(devs->vmm(), dscap) < 0)
       return nullptr;
 
-    auto ic = devs->get_or_create_ic_dev(node, false);
+    Vdev::Irq_dt_iterator it(devs, node);
 
-    if (ic)
+    if (it.next(devs) >= 0)
       {
-        int propsz;
-        auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
-
-        int dt_irq = ic->dt_get_interrupt(irq_prop, propsz, nullptr);
-
-        if (dt_irq < 0)
-          L4Re::chksys(-L4_ENOMEM, "Resolving interrupt from device tree for OP-TEE device.");
+        if (!it.ic_is_virt())
+          L4Re::chksys(-L4_EINVAL, "OP-TEE device requires a virtual interrupt controller");
 
         // XXX Using a standard IO interrupt here. Possibly better to
         // write our own non-masking irq svr.
@@ -208,8 +204,9 @@ struct F : Vdev::Factory
         L4Re::chksys(icu->bind(0, irq_svr->obj_cap()),
             "Bind to IRQ to OP-TEE service.");
 
-        irq_svr->set_sink(ic.get(), dt_irq);
-        ic->bind_irq_source(dt_irq, irq_svr);
+        int dt_irq = it.irq();
+        irq_svr->set_sink(it.ic().get(), dt_irq);
+        it.ic()->bind_irq_source(dt_irq, irq_svr);
       }
 
     devs->vmm()->register_smc_handler(c);

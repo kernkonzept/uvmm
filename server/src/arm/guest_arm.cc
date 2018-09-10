@@ -16,6 +16,7 @@
 #include "guest.h"
 #include "guest_subarch.h"
 #include "irq.h"
+#include "irq_dt.h"
 #include "pm.h"
 #include "virt_bus.h"
 
@@ -89,28 +90,16 @@ struct F_timer : Factory
   cxx::Ref_ptr<Vdev::Device> create(Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
-    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, false);
-    if (!ic)
-      return nullptr;
-
-    int propsz;
-    auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
+    Vdev::Irq_dt_iterator it(devs, node);
 
     // skip the first two interrupts
-    for (unsigned i = 0; i < 2; ++i)
-      {
-        int len;
-        if (ic->dt_get_interrupt(irq_prop, propsz, &len) < 0)
-          L4Re::chksys(-L4_EINVAL, "Parsing timer interrupt");
-        irq_prop += len;
-        propsz -= len;
-      }
+    for (int i = 0; i < 3; ++i)
+      L4Re::chksys(it.next(devs), "Parsing timer interrupt");
 
-    int irq = ic->dt_get_interrupt(irq_prop, propsz, nullptr);
-    if (irq < 0)
-      L4Re::chksys(-L4_EINVAL, "Parsing timer interrupt");
+    if (!it.ic_is_virt())
+      L4Re::chksys(-L4_EINVAL, "Timer not connected to virtual interrupt controller");
 
-    auto timer = Vdev::make_device<Vdev::Core_timer>(ic.get(), irq, node);
+    auto timer = Vdev::make_device<Vdev::Core_timer>(it.ic().get(), it.irq(), node);
 
     devs->vmm()->set_timer(timer);
     return timer;

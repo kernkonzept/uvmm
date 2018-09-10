@@ -16,6 +16,7 @@
 #include "device_factory.h"
 #include "guest.h"
 #include "irq.h"
+#include "irq_dt.h"
 #include "mmio_device.h"
 
 static Dbg warn(Dbg::Mmio, Dbg::Warn, "uart_8250");
@@ -381,18 +382,16 @@ struct F : Vdev::Factory
           }
       }
 
-    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, false);
-    if (!ic)
+    Vdev::Irq_dt_iterator it(devs, node);
+
+    if (it.next(devs) < 0)
       return nullptr;
 
-    int propsz;
-    auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
-    int irq = ic->dt_get_interrupt(irq_prop, propsz, nullptr);
+    if (!it.ic_is_virt())
+      L4Re::chksys(-L4_EINVAL, "Uart 8250 requires a virtual interrupt controller");
 
-    if (irq < 0)
-      L4Re::chksys(-L4_EINVAL, "Parsing interrupt of 8250 device from device tree");
 
-    auto c = Vdev::make_device<Uart_8250_mmio>(cap, regshift, ic.get(), irq);
+    auto c = Vdev::make_device<Uart_8250_mmio>(cap, regshift, it.ic().get(), it.irq());
     c->register_obj(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, node);
     return c;

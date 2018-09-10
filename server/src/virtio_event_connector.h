@@ -8,6 +8,7 @@
 #pragma once
 
 #include "irq.h"
+#include "irq_dt.h"
 #include "virtio_dev.h"
 
 namespace Virtio {
@@ -59,19 +60,12 @@ public:
    */
   int init_irqs(Vdev::Device_lookup *devs, Vdev::Dt_node const &node)
   {
-    cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(node, false);
-    if (!ic)
+    Vdev::Irq_dt_iterator it(devs, node);
+
+    if (it.next(devs) < 0 || !it.ic_is_virt())
       return -1;
 
-    int propsz;
-    auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
-
-    int irq = ic->dt_get_interrupt(irq_prop, propsz, nullptr);
-
-    if (irq < 0)
-      return -1;
-
-    _sink.rebind(ic.get(), irq);
+    _sink.rebind(it.ic().get(), it.irq());
     return 0;
   }
 

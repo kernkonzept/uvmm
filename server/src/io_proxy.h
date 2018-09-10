@@ -67,8 +67,6 @@ public:
   static void prepare_factory(Device_lookup const *devs);
 
 private:
-  bool check_and_bind_irqs(Device_lookup const *devs,
-                           Dt_node const &node);
   L4vbus::Device _dev;
 };
 

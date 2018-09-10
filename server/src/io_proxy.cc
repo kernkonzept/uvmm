@@ -9,6 +9,7 @@
 #include "device_factory.h"
 #include "device_tree.h"
 #include "guest.h"
+#include "irq_dt.h"
 #include "io_proxy.h"
 #include "virt_bus.h"
 
@@ -125,65 +126,38 @@ struct F : Factory
     if (!node.has_irqs())
       return true;
 
-    cxx::Ref_ptr<Gic::Ic> ic;
-    Device_lookup::Ic_error res = devs->get_or_create_ic(node, &ic);
-    if (res != Device_lookup::Ic_ok)
-      {
-        // We did not get an interrupt parent because
-        // * node does not have one or
-        // * the interrupt parent device is a hardware device or
-        // * one of the interrupt parent devices could not be created and
-        //   was/will be disabled
-        // We return true if the parent device is not a virtual interrupt
-        // controller.
-        if (res == Device_lookup::Ic_e_no_virtic)
-          {
-            Dbg(Dbg::Dev, Dbg::Info).
-                printf("%s: Interrupt parent physical device - ignore irqs\n",
-                       node.get_name());
-            return true;
-          }
-
-        Dbg(Dbg::Dev, Dbg::Warn).
-            printf("%s: Failed to get interrupt parent: %s\n",
-                   node.get_name(), Device_lookup::ic_err_str(res));
-        return false;
-
-      }
-
-    auto vbus = devs->vbus().get();
-    int propsz;
-    auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
-
-    if (!irq_prop || propsz == 0)
-      return true; // device has no interrupts
-
     // Check whether all IRQs are available
-    auto *prop = irq_prop;
-    for (int sz = propsz; sz > 0; )
+    auto vbus = devs->vbus().get();
+
+    Irq_dt_iterator it(devs, node);
+    do
       {
-        int len;
-        int dt_irq = ic->dt_get_interrupt(prop, sz, &len);
-        if (dt_irq < 0 || !vbus->irq_present(dt_irq))
+        if (it.next(devs) < 0)
           return false;
 
-        prop += len;
-        sz -= len;
+        // Check that the IRQ is available on the vbus when a
+        // virtual interrupt handler needs to be connected.
+        if (it.ic_is_virt() && ! vbus->irq_present(it.irq()))
+          return false;
       }
+    while (it.has_next());
 
-    // Bind IRQs
-    prop = irq_prop;
-    L4vbus::Device const dummy;
-    for (int sz = propsz; sz > 0; )
+    // Now bind the IRQs.
+    it = Irq_dt_iterator(devs, node);
+    do
       {
-        int len;
-        int dt_irq = ic->dt_get_interrupt(prop, sz, &len);
-        bind_irq(devs->vmm(), vbus, ic.get(), dt_irq, dt_irq, node.get_name());
-        vbus->mark_irq_bound(dt_irq);
+        it.next(devs);
 
-        prop += len;
-        sz -= len;
+        if (it.ic_is_virt())
+          {
+            int dt_irq = it.irq();
+            bind_irq(devs->vmm(), vbus, it.ic().get(), dt_irq, dt_irq,
+                     node.get_name());
+            vbus->mark_irq_bound(dt_irq);
+          }
       }
+    while (it.has_next());
+
     return true;
   }
 
