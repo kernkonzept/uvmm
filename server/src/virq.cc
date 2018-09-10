@@ -63,7 +63,15 @@ struct F_rcv : Factory
     if (!ic)
       return nullptr;
 
-    auto c = make_device<Irq_rcv>(ic.get(), ic->dt_get_interrupt(node, 0));
+    int propsz;
+    auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
+
+    int irq = ic->dt_get_interrupt(irq_prop, propsz, nullptr);
+
+    if (irq < 0)
+      L4Re::chksys(-L4_EINVAL, "Scanning interrupt for Irq_rcv from device tree");
+
+    auto c = make_device<Irq_rcv>(ic.get(), irq);
     L4Re::chkcap(devs->vmm()->registry()->register_obj(c.get(), cap));
     return c;
   }

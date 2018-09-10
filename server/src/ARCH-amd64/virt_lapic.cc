@@ -77,21 +77,8 @@ Virt_lapic::get_irq_source(unsigned irq) const
 }
 
 int
-Virt_lapic::dt_get_num_interrupts(Vdev::Dt_node const &node)
-{
-  int size;
-  auto ret = node.get_prop<fdt32_t>("interrupts", &size);
-  Dbg().printf("VIRT_LAPIC: num interrupts: %i\n", size);
-  if (!ret || size == 0)
-    return 0;
-  return 1;
-}
-
-unsigned
-Virt_lapic::dt_get_interrupt(Vdev::Dt_node const &, int)
-{
-  return 1;
-}
+Virt_lapic::dt_get_interrupt(fdt32_t const *, int, int *) const
+{ return 1; }
 
 void
 Virt_lapic::tick()

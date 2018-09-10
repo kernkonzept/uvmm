@@ -187,8 +187,16 @@ struct F : Vdev::Factory
 
     auto ic = devs->get_or_create_ic_dev(node, false);
 
-    if (ic && ic->dt_get_num_interrupts(node) > 0)
+    if (ic)
       {
+        int propsz;
+        auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
+
+        int dt_irq = ic->dt_get_interrupt(irq_prop, propsz, nullptr);
+
+        if (dt_irq < 0)
+          L4Re::chksys(-L4_ENOMEM, "Resolving interrupt from device tree for OP-TEE device.");
+
         // XXX Using a standard IO interrupt here. Possibly better to
         // write our own non-masking irq svr.
         auto irq_svr = Vdev::make_device<Vdev::Irq_svr>(0);
@@ -199,8 +207,6 @@ struct F : Vdev::Factory
         auto icu = L4::cap_dynamic_cast<L4::Icu>(cap);
         L4Re::chksys(icu->bind(0, irq_svr->obj_cap()),
             "Bind to IRQ to OP-TEE service.");
-
-        unsigned dt_irq = ic->dt_get_interrupt(node, 0);
 
         irq_svr->set_sink(ic.get(), dt_irq);
         ic->bind_irq_source(dt_irq, irq_svr);

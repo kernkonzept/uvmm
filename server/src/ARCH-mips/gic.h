@@ -153,20 +153,17 @@ public:
   cxx::Ref_ptr<Irq_source> get_irq_source(unsigned irq) const override
   { return _sources[irq]; }
 
-  int dt_get_num_interrupts(Vdev::Dt_node const &node) override
+  int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override
   {
-    int size;
-    if (!node.get_prop<fdt32_t>("interrupts", &size))
-      return 0;
+    if (propsz < 3)
+      return -L4_ERANGE;
 
-    return size / 3;
-  }
+    int irq = fdt32_to_cpu(prop[1]);
 
-  unsigned dt_get_interrupt(Vdev::Dt_node const &node, int irq) override
-  {
-    auto *prop = node.check_prop<fdt32_t>("interrupts", 3 * (irq + 1));
+    if (read)
+      *read = 3;
 
-    return fdt32_to_cpu(prop[3 * irq + 1]);
+    return irq;
   }
 
   void reset_mask(unsigned reg, char size, l4_umword_t mask);

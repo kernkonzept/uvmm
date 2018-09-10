@@ -62,18 +62,19 @@ struct Ic : public Vdev::Device
   virtual cxx::Ref_ptr<Irq_source> get_irq_source(unsigned irq) const = 0;
 
   /**
-   * Determines the number of interrupts required for a device node
-   * in the device tree.
-   */
-  virtual int dt_get_num_interrupts(Vdev::Dt_node const &node) = 0;
-
-  /**
-   * Get the id of the nth interrupt for a device node in the device tree.
+   * Extract the interrupt id from a device tree property.
    *
-   * \return The GIC-internal id of the interrupt the device should be
-   *         connected to. Use this to create the Irq_sink.
+   * \param prop       Pointer to the property containing the interrupt
+   *                   description. This may also point into the middle
+   *                   of a property list.
+   * \param propsz     Remaining length of the property list.
+   * \param[out] read  If read is not a nullptr, then it contains the number
+   *                   of elements that have been read.
+   *
+   * \retval >=0  Interrupt number to use with the controller.
+   * \retval <0   Error reading property.
    */
-  virtual unsigned dt_get_interrupt(Vdev::Dt_node const &node, int irq) = 0;
+  virtual int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const = 0;
 
 };
 

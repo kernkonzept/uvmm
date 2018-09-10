@@ -12,64 +12,67 @@
 #include "io_proxy.h"
 #include "virt_bus.h"
 
-namespace Vdev {
-
 static Dbg info(Dbg::Dev, Dbg::Info, "ioproxy");
 static Dbg warn(Dbg::Dev, Dbg::Warn, "ioproxy");
 
+namespace {
+
+  void
+  bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
+           unsigned dt_irq, unsigned io_irq, char const *dev_name)
+  {
+    info.printf("IO device '%s' - registering irq 0x%x -> 0x%x\n",
+                dev_name, io_irq, dt_irq);
+    if (!ic->get_irq_source(dt_irq))
+      {
+        auto irq_svr = Vdev::make_device<Vdev::Irq_svr>(io_irq);
+
+        L4Re::chkcap(vmm->registry()->register_irq_obj(irq_svr.get()),
+                     "Invalid capability");
+
+        // We have a 1:1 association, so if the irq is not bound yet we
+        // should be able to bind the icu irq
+        L4Re::chksys(vbus->icu()->bind(io_irq, irq_svr->obj_cap()),
+                     "Cannot bind to IRQ");
+
+        // Point irq_svr to ic:dt_irq for upstream events (like
+        // interrupt delivery)
+        irq_svr->set_sink(ic, dt_irq);
+
+        // Point ic to irq_svr for downstream events (like eoi handling)
+        ic->bind_irq_source(dt_irq, irq_svr);
+
+        irq_svr->eoi();
+        return;
+      }
+
+    warn.printf("IO device '%s': irq 0x%x -> 0x%x already registered\n",
+                dev_name, io_irq, dt_irq);
+
+    // Ensure we have the correct binding of the currently registered
+    // source
+    auto irq_source = ic->get_irq_source(dt_irq);
+    auto other_svr = dynamic_cast<Vdev::Irq_svr const *>(irq_source.get());
+    if (other_svr && (io_irq == other_svr->get_io_irq()))
+      return;
+
+    if (other_svr)
+      Err().printf("bind_irq: ic:0x%x -> 0x%x -- "
+                   "irq already bound to different io irq: 0x%x  \n",
+                   dt_irq, io_irq, other_svr->get_io_irq());
+    else
+      Err().printf("ic:0x%x is bound to a different irq type\n",
+                   dt_irq);
+    throw L4::Runtime_error(-L4_EEXIST);
+  }
+
+}
+
+
+namespace Vdev {
+
 // default set to false
 static bool phys_dev_prepared;
-
-void
-Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
-                   Dt_node const &self, unsigned dt_idx, unsigned io_irq)
-{
-  auto dt_irq = ic->dt_get_interrupt(self, dt_idx);
-
-  info.printf("IO device '%s' - registering irq%d=0x%x -> 0x%x\n",
-              self.get_name(), dt_idx, io_irq, dt_irq);
-  if (!ic->get_irq_source(dt_irq))
-    {
-      auto irq_svr = Vdev::make_device<Vdev::Irq_svr>(io_irq);
-
-      L4Re::chkcap(vmm->registry()->register_irq_obj(irq_svr.get()),
-                   "Invalid capability");
-
-      // We have a 1:1 association, so if the irq is not bound yet we
-      // should be able to bind the icu irq
-      L4Re::chksys(vbus->icu()->bind(io_irq, irq_svr->obj_cap()),
-                   "Cannot bind to IRQ");
-
-      // Point irq_svr to ic:dt_irq for upstream events (like
-      // interrupt delivery)
-      irq_svr->set_sink(ic, dt_irq);
-
-      // Point ic to irq_svr for downstream events (like eoi handling)
-      ic->bind_irq_source(dt_irq, irq_svr);
-
-      irq_svr->eoi();
-      return;
-    }
-
-  warn.printf("IO device '%s': irq%d=0x%x -> 0x%x already registered\n",
-              self.get_name(), dt_idx, io_irq, dt_irq);
-
-  // Ensure we have the correct binding of the currently registered
-  // source
-  auto irq_source = ic->get_irq_source(dt_irq);
-  auto other_svr = dynamic_cast<Irq_svr const *>(irq_source.get());
-  if (other_svr && (io_irq == other_svr->get_io_irq()))
-    return;
-
-  if (other_svr)
-    Err().printf("bind_irq: ic:0x%x -> 0x%x -- "
-                 "irq already bound to different io irq: 0x%x  \n",
-                 dt_irq, io_irq, other_svr->get_io_irq());
-  else
-    Err().printf("ic:0x%x is bound to a different irq type\n",
-                 dt_irq);
-  throw L4::Runtime_error(-L4_EEXIST);
-}
 
 void
 Io_proxy::prepare_factory(Device_lookup const *devs)
@@ -149,23 +152,37 @@ struct F : Factory
       }
 
     auto vbus = devs->vbus().get();
-    int numint = ic->dt_get_num_interrupts(node);
+    int propsz;
+    auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
+
+    if (!irq_prop || propsz == 0)
+      return true; // device has no interrupts
 
     // Check whether all IRQs are available
-    for (int i = 0; i < numint; ++i)
+    auto *prop = irq_prop;
+    for (int sz = propsz; sz > 0; )
       {
-        unsigned dt_irq = ic->dt_get_interrupt(node, i);
-        if (!vbus->irq_present(dt_irq))
+        int len;
+        int dt_irq = ic->dt_get_interrupt(prop, sz, &len);
+        if (dt_irq < 0 || !vbus->irq_present(dt_irq))
           return false;
+
+        prop += len;
+        sz -= len;
       }
 
     // Bind IRQs
+    prop = irq_prop;
     L4vbus::Device const dummy;
-    for (int i = 0; i < numint; ++i)
+    for (int sz = propsz; sz > 0; )
       {
-        unsigned int dt_irq = ic->dt_get_interrupt(node, i);
-        Io_proxy::bind_irq(devs->vmm(), vbus, ic.get(), node, i, dt_irq);
+        int len;
+        int dt_irq = ic->dt_get_interrupt(prop, sz, &len);
+        bind_irq(devs->vmm(), vbus, ic.get(), dt_irq, dt_irq, node.get_name());
         vbus->mark_irq_bound(dt_irq);
+
+        prop += len;
+        sz -= len;
       }
     return true;
   }

@@ -93,7 +93,23 @@ struct F_timer : Factory
     if (!ic)
       return nullptr;
 
-    unsigned irq = ic->dt_get_interrupt(node, 2);
+    int propsz;
+    auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
+
+    // skip the first two interrupts
+    for (unsigned i = 0; i < 2; ++i)
+      {
+        int len;
+        if (ic->dt_get_interrupt(irq_prop, propsz, &len) < 0)
+          L4Re::chksys(-L4_EINVAL, "Parsing timer interrupt");
+        irq_prop += len;
+        propsz -= len;
+      }
+
+    int irq = ic->dt_get_interrupt(irq_prop, propsz, nullptr);
+    if (irq < 0)
+      L4Re::chksys(-L4_EINVAL, "Parsing timer interrupt");
+
     auto timer = Vdev::make_device<Vdev::Core_timer>(ic.get(), irq, node);
 
     devs->vmm()->set_timer(timer);

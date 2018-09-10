@@ -66,9 +66,6 @@ public:
    */
   static void prepare_factory(Device_lookup const *devs);
 
-  static void bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus, Gic::Ic *ic,
-                       Dt_node const &self, unsigned dt_idx, unsigned io_irq);
-
 private:
   bool check_and_bind_irqs(Device_lookup const *devs,
                            Dt_node const &node);

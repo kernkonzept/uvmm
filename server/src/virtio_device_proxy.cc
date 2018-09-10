@@ -84,7 +84,12 @@ public:
   {
     cxx::Ref_ptr<Gic::Ic> ic = devs->get_or_create_ic_dev(self, true);
 
-    _irq_sink.rebind(ic.get(), ic->dt_get_interrupt(self, 0));
+    int propsz;
+    auto *irq_prop = self.get_prop<fdt32_t>("interrupts", &propsz);
+    int irq = ic->dt_get_interrupt(irq_prop, propsz, nullptr);
+
+    if (irq >= 0)
+      _irq_sink.rebind(ic.get(), irq);
 
     if (self.get_reg_val(1, &_drvmem_base, &_drvmem_size) < 0)
       {

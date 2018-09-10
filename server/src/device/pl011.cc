@@ -338,8 +338,14 @@ struct F : Vdev::Factory
     if (!ic)
       return nullptr;
 
-    auto c = Vdev::make_device<Pl011_mmio>(ic.get(),
-                                           ic->dt_get_interrupt(node, 0), cap);
+    int propsz;
+    auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
+    int irq = ic->dt_get_interrupt(irq_prop, propsz, nullptr);
+
+    if (irq < 0)
+      L4Re::chksys(-L4_EINVAL, "Parsing interrupt of PL011 device from device tree");
+
+    auto c = Vdev::make_device<Pl011_mmio>(ic.get(), irq, cap);
     c->register_obj(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, node);
     return c;

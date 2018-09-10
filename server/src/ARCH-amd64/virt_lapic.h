@@ -85,8 +85,7 @@ public:
   void bind_irq_source(unsigned, cxx::Ref_ptr<Irq_source> const &) override;
   cxx::Ref_ptr<Irq_source> get_irq_source(unsigned) const override;
 
-  int dt_get_num_interrupts(Vdev::Dt_node const &) override;
-  unsigned dt_get_interrupt(Vdev::Dt_node const &, int) override;
+  int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override;
 
   // Timer interface
   void tick() override;
@@ -293,25 +292,15 @@ public:
   cxx::Ref_ptr<Irq_source> get_irq_source(unsigned irq) const override
   { return _apics->get(0)->get_irq_source(irq); }
 
-  int dt_get_num_interrupts(Vdev::Dt_node const &node) override
+  int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override
   {
-    int size = 0;
-    auto prop = node.get_prop<fdt32_t>("interrupts", &size);
+    if (propsz < Irq_cells)
+      return -L4_ERANGE;
 
-    trace().printf("%s has %i interrupts\n", node.get_name(), size);
+    if (read)
+      *read = Irq_cells;
 
-    return prop ? (size / Irq_cells) : 0;
-  }
-
-  unsigned dt_get_interrupt(Vdev::Dt_node const &node, int irq) override
-  {
-    auto *prop = node.check_prop<fdt32_t[Irq_cells]>("interrupts", irq + 1);
-
-    int irqnr = fdt32_to_cpu(prop[irq][0]);
-
-    trace().printf("%s gets interrupt %i\n", node.get_name(), irqnr);
-
-    return irqnr;
+    return fdt32_to_cpu(prop[0]);
   }
 
   // Msi_distributor interface

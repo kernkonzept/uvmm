@@ -63,7 +63,15 @@ public:
     if (!ic)
       return -1;
 
-    _sink.rebind(ic.get(), ic->dt_get_interrupt(node, 0));
+    int propsz;
+    auto *irq_prop = node.get_prop<fdt32_t>("interrupts", &propsz);
+
+    int irq = ic->dt_get_interrupt(irq_prop, propsz, nullptr);
+
+    if (irq < 0)
+      return -1;
+
+    _sink.rebind(ic.get(), irq);
     return 0;
   }
 

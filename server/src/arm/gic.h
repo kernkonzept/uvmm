@@ -947,27 +947,27 @@ public:
   cxx::Ref_ptr<Irq_source> get_irq_source(unsigned irq) const override
   { return spi(irq - Cpu::Num_local).get_source(); }
 
-  int dt_get_num_interrupts(Vdev::Dt_node const &node) override
+  int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override
   {
-    int size;
-    auto prop = node.get_prop<fdt32_t>("interrupts", &size);
+    if (propsz < Irq_cells)
+      return -L4_ERANGE;
 
-    return prop ? (size / Irq_cells) : 0;
-  }
+    int irqnr = fdt32_to_cpu(prop[Irq_cell_number]);
 
-  unsigned dt_get_interrupt(Vdev::Dt_node const &node, int irq) override
-  {
-    auto *prop = node.check_prop<fdt32_t[Irq_cells]>("interrupts", irq + 1);
+    if (fdt32_to_cpu(prop[Irq_cell_type]) == 0)
+      irqnr += Irq_spi_base;
+    else
+      {
+        if (irqnr >= Irq_ppi_max)
+          L4Re::chksys(-L4_EINVAL, "Only 16 PPI interrupts allowed");
 
-    int irqnr = fdt32_to_cpu(prop[irq][Irq_cell_number]);
+        irqnr += Irq_ppi_base;
+      }
 
-    if (fdt32_to_cpu(prop[irq][Irq_cell_type]) == 0)
-      return irqnr + Irq_spi_base;
+    if (read)
+      *read = Irq_cells;
 
-    if (irqnr >= Irq_ppi_max)
-      L4Re::chksys(-L4_EINVAL, "Only 16 PPI interrupts allowed");
-
-    return irqnr + Irq_ppi_base;
+    return irqnr;
   }
 
   Dist(unsigned tnlines, unsigned char cpus);
