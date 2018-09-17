@@ -40,7 +40,7 @@ struct Device_type : public cxx::H_list_item_t<Device_type>
             if (!t->l4type)
               return t;
 
-            if (strlen(t->l4type) != (unsigned)l4type_len)
+            if (!l4type || (strlen(t->l4type) != (unsigned)l4type_len))
               continue;
 
             if (strncmp(l4type, t->l4type, l4type_len) == 0)
