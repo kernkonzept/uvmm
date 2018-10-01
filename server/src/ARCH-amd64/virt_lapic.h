@@ -141,6 +141,9 @@ public:
     return logical_id & did;
   }
 
+  l4_uint32_t id() const { return _lapic_x2_id; }
+  l4_uint32_t task_prio_class() const { return _regs.tpr & 0xf0; }
+
 private:
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "LAPIC"); }
 
@@ -198,6 +201,28 @@ public:
   cxx::Ref_ptr<Virt_lapic> get(unsigned core_no)
   {
     return (core_no < Max_cores) ? _lapics[core_no] : nullptr;
+  }
+
+  Virt_lapic *get_lowest_prio() const
+  {
+    // init value greater 15, as task priority is between 1 and 15;
+    l4_uint32_t prio = 20;
+    Virt_lapic *lowest_prio_apic = nullptr;
+
+    for (auto &lapic : _lapics)
+      {
+        if (!lapic)
+          continue;
+
+        auto apic_prio = lapic->task_prio_class();
+        if (apic_prio < prio)
+          {
+            prio = apic_prio;
+            lowest_prio_apic = lapic.get();
+          }
+      }
+
+    return lowest_prio_apic;
   }
 
   void register_core(unsigned core_no)
@@ -289,22 +314,29 @@ public:
   void send(Vdev::Msi_msg message) const override
   {
     Interrupt_request_compat addr(message.addr);
+    Msi_data_register_format data(message.data);
 
     if (addr.fixed() != Msi_address_interrupt_prefix)
       {
-        info().printf("Interrupt request prefix invalid; MSI dropped.\n");
+        trace().printf("Interrupt request prefix invalid; MSI dropped.\n");
         return;
       }
 
     if (addr.redirect_hint())
       {
-        // TODO translate the MSI message and do lowest interrupt priority
-        // arbitration among local APICs. Linux doesn't use this mode anymore.
-        warn().printf("Lowest interrupt priority arbitration not supported.  "
-                      "Ignored. MSI message not translated.\n");
-      }
+        // Find LAPIC with lowest TPR and send the MSI its way. We shortcut it
+        // here to improve performance. Alternatively, we can rewrite the MSI
+        // address to physical destination mode and wirte the local APIC ID to
+        // the DID field.
+        Virt_lapic *lapic = _apics->get_lowest_prio();
 
-    Msi_data_register_format data(message.data);
+        trace().printf(
+          "Lowest interrupt priority arbitration: send to LAPIC 0x%x\n",
+          lapic->id());
+
+        lapic->set(data.vector());
+        return;
+      }
 
     if (!addr.dest_mode())
       {
