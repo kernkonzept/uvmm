@@ -1,5 +1,6 @@
 #include "device_factory.h"
 #include "virt_bus.h"
+#include "l4/re/env"
 
 namespace Vdev {
 
@@ -89,5 +90,35 @@ Factory::create_dev(Device_lookup *devs, Dt_node const &node)
 
   devs->add_device(node, dev);
   return dev;
+}
+
+L4::Cap<void>
+_get_cap(Vdev::Dt_node const &node, char const *prop, L4::Cap<void> def_cap)
+{
+  int size;
+  char const *cap_name = node.get_prop<char>(prop, &size);
+  if (!cap_name)
+    {
+      if (def_cap)
+        return def_cap;
+
+      Dbg(Dbg::Dev, Dbg::Warn)
+        .printf("%s: Failed to get property '%s': %s\n", node.get_name(),
+                prop, fdt_strerror(size));
+      return L4::Cap<void>();
+    }
+
+  // According to the device tree spec strings are null terminated. Since the
+  // device tree is provided by the user we are careful and ensure that we are
+  // using the correct length.
+  size = strnlen(cap_name, size);
+
+  auto cap = L4Re::Env::env()->get_cap<void>(cap_name, size);
+  if (!cap)
+    Dbg(Dbg::Dev, Dbg::Warn)
+    .printf("%s.%s: capability %.*s is invalid.\n",
+            node.get_name(), prop, size, cap_name);
+
+  return cap;
 }
 }

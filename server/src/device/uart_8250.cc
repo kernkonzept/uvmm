@@ -360,7 +360,11 @@ struct F : Vdev::Factory
                                     Vdev::Dt_node const &node) override
   {
     Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual 8250 console\n");
-    L4::Cap<L4::Vcon> cap = L4Re::Env::env()->log();
+
+    auto cap = Vdev::get_cap<L4::Vcon>(node, "l4vmm,8250cap",
+                                       L4Re::Env::env()->log());
+    if (!cap)
+      return nullptr;
 
     int regshift_size;
     fdt32_t const *regshift_prop = node.get_prop<fdt32_t>("reg-shift",
@@ -369,18 +373,6 @@ struct F : Vdev::Factory
     if (regshift_prop)
       regshift = node.get_prop_val(regshift_prop, regshift_size, true);
 
-    int cap_name_len;
-    char const *cap_name = node.get_prop<char>("l4vmm,8250cap", &cap_name_len);
-    if (cap_name)
-      {
-        cap = L4Re::Env::env()->get_cap<L4::Vcon>(cap_name, cap_name_len);
-        if (!cap)
-          {
-            warn.printf("'l4vmm,8250cap' property: capability %.*s is invalid.\n",
-                        cap_name_len, cap_name);
-            return nullptr;
-          }
-      }
 
     Vdev::Irq_dt_iterator it(devs, node);
 

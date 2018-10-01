@@ -15,6 +15,7 @@
 #include "debug.h"
 #include "vm_memmap.h"
 #include "vm_ram.h"
+#include "device_factory.h"
 
 namespace {
 
@@ -233,16 +234,12 @@ Vmm::Vm_ram::move_in_device_tree(Ram_free_list *free_list, Vdev::Host_dt &&dt)
 long
 Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &node)
 {
-  int sz;
-  char const *dscap = node.get_prop<char>("l4vmm,dscap", &sz);
-
-  if (!dscap)
+  if (!node.has_prop("l4vmm,dscap"))
     return -L4_ENOSYS;
 
   *found = true;
-  auto ds = L4Re::Env::env()->get_cap<L4Re::Dataspace>(dscap);
-
-  if (!ds.is_valid())
+  auto ds = Vdev::get_cap<L4Re::Dataspace>(node, "l4vmm,dscap");
+  if (!ds)
     return -L4_EINVAL;
 
   L4Re::Dataspace::Stats ds_stats;

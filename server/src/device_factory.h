@@ -130,4 +130,31 @@ protected:
 
 inline Factory::~Factory() {}
 
+L4::Cap<void>
+_get_cap(Vdev::Dt_node const &node, char const *prop, L4::Cap<void> def_cap);
+
+/**
+ * Get capability specified by property
+ *
+ * \param  node    The node containing the property.
+ * \param  prop    Pointer to the name of the property containing the name
+ *                 of the capability.
+ * \param  def_cap Default capability returned if no property is found.
+ *
+ * \return  On success a valid capability is returned. If the property is
+ *          missing the default capability is returned. Otherwise an invalid
+ *          capability is returned.
+ *
+ * This functions tries to lookup a capability name in the device tree and then
+ * tries to get the referenced capability. It either returns
+ * * a valid capability on success
+ * * the default capability if the property is missing
+ * * an invalid capability.
+ * The function also generates warnings if the property is missing and no valid
+ * default capability was passed or the referenced capability is invalid */
+template <typename T>
+L4::Cap<T> get_cap(Vdev::Dt_node const &node, char const *prop,
+                   L4::Cap<void> def_cap = L4::Cap<void>())
+{ return L4::cap_cast<T>(_get_cap(node, prop, def_cap)); }
+
 }

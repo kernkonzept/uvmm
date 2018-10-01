@@ -74,21 +74,9 @@ public:
   cxx::Ref_ptr<Device> create(Device_lookup *devs,
                               Dt_node const &node) override
   {
-    char const *capname = node.get_prop<char>("l4vmm,mmio-cap", nullptr);
-
-    if (!capname)
-      {
-        warn.printf("l4vmm,mmio device has no l4vmm,mmio-cap property.\n");
-        return nullptr;
-      }
-
-    auto cap = L4Re::Env::env()->get_cap<void>(capname);
-
+    auto cap = Vdev::get_cap<void>(node, "l4vmm,mmio-cap");
     if (!cap)
-      {
-        warn.printf("Capability '%s' not found.\n", capname);
-        return nullptr;
-      }
+      return nullptr;
 
     auto dscap = L4::cap_dynamic_cast<L4Re::Dataspace>(cap);
     if (dscap)

@@ -4,32 +4,6 @@
 #include "irq_dt.h"
 #include "mmio_device.h"
 
-static L4::Cap<L4::Irq>
-get_irq_cap(Vdev::Dt_node const &node)
-{
-  int cap_name_len;
-  char const *cap_name = node.get_prop<char>("l4vmm,virqcap", &cap_name_len);
-  if (!cap_name)
-    {
-      Dbg(Dbg::Dev, Dbg::Warn, "virq")
-        .printf("%s: 'l4vmm,virqcap' property missing.\n", node.get_name());
-      return L4::Cap<L4::Irq>();
-    }
-
-  cap_name_len = strnlen(cap_name, cap_name_len);
-
-  auto cap = L4Re::Env::env()->get_cap<L4::Irq>(cap_name, cap_name_len);
-  if (!cap)
-    {
-      Dbg(Dbg::Dev, Dbg::Warn, "virq")
-        .printf("%s: 'l4vmm,virq' property: capability %.*s is invalid.\n",
-                node.get_name(), cap_name_len, cap_name);
-      return L4::Cap<L4::Irq>();
-    }
-
-  return cap;
-}
-
 namespace {
 
 using namespace Vdev;
@@ -56,7 +30,7 @@ struct F_rcv : Factory
   cxx::Ref_ptr<Device> create(Device_lookup *devs,
                               Dt_node const &node) override
   {
-    auto cap = get_irq_cap(node);
+    auto cap = Vdev::get_cap<L4::Irq>(node, "l4vmm,virqcap");
     if (!cap)
       return nullptr;
 
@@ -102,7 +76,7 @@ struct F_snd : Factory
   cxx::Ref_ptr<Device> create(Device_lookup *devs,
                               Dt_node const &node) override
   {
-    auto cap = get_irq_cap(node);
+    auto cap = Vdev::get_cap<L4::Irq>(node, "l4vmm,virqcap");
     if (!cap)
       return nullptr;
 

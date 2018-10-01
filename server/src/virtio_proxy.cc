@@ -19,25 +19,9 @@ struct F : Factory
 {
   cxx::Ref_ptr<Device> create(Device_lookup *devs, Dt_node const &node) override
   {
-    int cap_name_len;
-    char const *cap_name = node.get_prop<char>("l4vmm,virtiocap", &cap_name_len);
-    if (!cap_name)
-      {
-        Dbg(Dbg::Dev, Dbg::Warn, "virtio")
-          .printf("'l4vmm,virtiocap' property missing for virtio proxy device.\n");
-        return nullptr;
-      }
-
-    cap_name_len = strnlen(cap_name, cap_name_len);
-
-    auto cap = L4Re::Env::env()->get_cap<L4virtio::Device>(cap_name, cap_name_len);
+    auto cap = Vdev::get_cap<L4virtio::Device>(node, "l4vmm,virtiocap");
     if (!cap)
-      {
-        Dbg(Dbg::Dev, Dbg::Warn, "virtio")
-          .printf("'l4vmm,virtiocap' property: capability %.*s is invalid.\n",
-                  cap_name_len, cap_name);
-        return nullptr;
-      }
+      return nullptr;
 
     l4_uint64_t base, cfgsz;
     int res = node.get_reg_val(0, &base, &cfgsz);

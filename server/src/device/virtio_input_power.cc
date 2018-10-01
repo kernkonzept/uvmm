@@ -365,32 +365,9 @@ struct F : Factory
   {
     Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual input device\n");
 
-    L4::Cap<L4::Vcon> cap;
-    int cap_name_len;
-
-    char const *cap_name = node.get_prop<char>("l4vmm,virtiocap",
-                                               &cap_name_len);
-    if (!cap_name)
-      {
-        Dbg(Dbg::Dev, Dbg::Warn, "virtio")
-          .printf("%s: missing 'l4vmm,virtiocap' property.\n",
-                  node.get_name());
-        return nullptr;
-      }
-
-    if (cap_name)
-      {
-        cap_name_len = strnlen(cap_name, cap_name_len);
-
-        cap = L4Re::Env::env()->get_cap<L4::Vcon>(cap_name, cap_name_len);
-        if (!cap)
-          {
-            Dbg(Dbg::Dev, Dbg::Warn, "virtio")
-              .printf("'%s.l4vmm,virtiocap' property: capability %.*s is invalid.\n",
-                      node.get_name(), cap_name_len, cap_name);
-            return nullptr;
-          }
-      }
+    auto cap = Vdev::get_cap<L4::Vcon>(node, "l4vmm,virtiocap");
+    if (!cap)
+      return nullptr;
 
     auto c = make_device<Virtio_input_power_mmio>(devs->ram().get(), cap);
     if (c->init_irqs(devs, node) < 0)
