@@ -179,13 +179,17 @@ public:
     assert((Lapic_mem_addr & _max_phys_addr_mask) == Lapic_mem_addr);
   }
 
-  Virt_lapic *get_by_dest_id(l4_uint32_t did) const
+  bool send_to_logical_dest_id(l4_uint32_t did, unsigned vec) const
   {
+    bool sent = false;
     for (auto &lapic : _lapics)
       if (lapic && lapic->match_ldr(did))
-        return lapic.get();
+        {
+          lapic->set(vec);
+          sent = true;
+        }
 
-    return nullptr;
+    return sent;
   }
 
   Vmm::Region mmio_region() const
@@ -235,19 +239,20 @@ private:
 
 
 /**
- * IO-APIC representation for IRQ/MSI routing. WIP!
+ * MSI control for MSI routing. WIP!
  *
- * TODO The MSI routing is not done in the IO APIC and should move to a
- * separate class or this class should be renamed. Does this need to be an IC
- * then?
+ * This class checks if the Redirection Hint is set, then it selects the LAPIC
+ * with the lowest interrupt priority as recipient and rewrites the DID field
+ * according to the Destination Mode.
+ * If RH=0 the MSI is sent to the specified LAPIC(s) according to the DM.
+ *
+ * Design wise, this class is located between IO-MMU and all LAPICs.
  */
-class Io_apic : public Ic, public Msi_controller
+class Msi_control : public Msi_controller, public Vdev::Device
 {
   enum
   {
     Msi_address_interrupt_prefix = 0xfee,
-
-    Irq_cells = 1,// keep in sync with virt-pc.dts
   };
 
   struct Interrupt_request_compat
@@ -278,6 +283,82 @@ class Io_apic : public Ic, public Msi_controller
   };
 
 public:
+  Msi_control(cxx::Ref_ptr<Lapic_array> apics) : _apics(apics) {}
+
+  // Msi_controller interface
+  void send(Vdev::Msi_msg message) const override
+  {
+    Interrupt_request_compat addr(message.addr);
+
+    if (addr.fixed() != Msi_address_interrupt_prefix)
+      {
+        info().printf("Interrupt request prefix invalid; MSI dropped.\n");
+        return;
+      }
+
+    if (addr.redirect_hint())
+      {
+        // TODO translate the MSI message and do lowest interrupt priority
+        // arbitration among local APICs. Linux doesn't use this mode anymore.
+        warn().printf("Lowest interrupt priority arbitration not supported.  "
+                      "Ignored. MSI message not translated.\n");
+      }
+
+    Msi_data_register_format data(message.data);
+
+    if (!addr.dest_mode())
+      {
+        // physical addressing mode:
+        //   dest_id() references a local APIC ID
+        auto lapic = _apics->get(addr.dest_id()).get();
+        if (lapic)
+          {
+            lapic->set(data.vector());
+            return;
+          }
+      }
+    else
+      {
+        // logical addressing mode:
+        //   dest_id() is a bitmask of logical APIC ID targets
+        if (_apics->send_to_logical_dest_id(addr.dest_id(), data.vector()))
+          return;
+      }
+
+    info().printf(
+      "No valid LAPIC found; MSI dropped. MSI address 0x%llx, data 0x%x\n",
+      message.addr, message.data);
+  }
+
+private:
+  static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "MSI-CTLR"); }
+  static Dbg info() { return Dbg(Dbg::Irq, Dbg::Info, "MSI-CTLR"); }
+  static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "MSI-CTLR"); }
+
+  cxx::Ref_ptr<Lapic_array> _apics;
+}; // class Msi_control
+
+/**
+ * IO-APIC stub. WIP!
+ *
+ * TODO The Ic interface is a bit off, as there is no way to clear an IRQ, as
+ * the IO-APIC sends an MSI to the MSI-controller when a device sends a legacy
+ * IRQ.
+ *  set: send an MSI instead of the legacy IRQ (programmed by OS)
+ *  clear: nop
+ *  bind_irq_source:  ?
+ *  get_irq_source: ?
+ *  dt_get_interrupt: parse DT
+ *
+ */
+class Io_apic : public Ic
+{
+  enum
+  {
+    Irq_cells = 1,// keep in sync with virt-pc.dts
+  };
+
+public:
   Io_apic(cxx::Ref_ptr<Lapic_array> apics) : _apics(apics) {}
 
   // IC interface
@@ -302,50 +383,6 @@ public:
       *read = Irq_cells;
 
     return fdt32_to_cpu(prop[0]);
-  }
-
-  // Msi_controller interface
-  void send(Vdev::Msi_msg message) const override
-  {
-    Interrupt_request_compat addr(message.addr);
-    if (addr.fixed() != Msi_address_interrupt_prefix)
-      {
-        info().printf("Interrupt request prefix invalid; MSI dropped.\n");
-        return;
-      }
-
-    Virt_lapic *lapic = nullptr;
-
-    if (addr.redirect_hint())
-      {
-        // TODO translate the MSI message and do lowest interrupt priority
-        // arbitration among local APICs. Linux doesn't use this mode anymore.
-        warn().printf("Lowest interrupt priority arbitration not supported.  "
-                      "Ignored. MSI message not translated.\n");
-      }
-
-    if (!addr.dest_mode())
-      {
-        // physical addressing mode:
-        //   dest_id() references a local APIC ID
-        lapic = _apics->get(addr.dest_id()).get();
-      }
-    else
-      {
-        // logical addressing mode:
-        //   dest_id() is a bitmask of logical APIC ID targets
-        lapic = _apics->get_by_dest_id(addr.dest_id());
-      }
-
-    if (lapic)
-      {
-        Msi_data_register_format data(message.data);
-        lapic->set(data.vector());
-      }
-    else
-      info().printf(
-        "No valid LAPIC found; MSI dropped. MSI address 0x%llx, data 0x%x\n",
-        message.addr, message.data);
   }
 
 private:

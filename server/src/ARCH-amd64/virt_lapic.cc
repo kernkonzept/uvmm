@@ -320,16 +320,30 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
 
 namespace {
 
-struct G : Vdev::Factory
-{
-  cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
-                                    Vdev::Dt_node const &) override
+  struct G : Vdev::Factory
   {
-    auto apics = devs->vmm()->apic_array();
-    return Vdev::make_device<Gic::Io_apic>(apics);
-  }
-};
+    cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
+                                      Vdev::Dt_node const &) override
+    {
+      auto apics = devs->vmm()->apic_array();
+      return Vdev::make_device<Gic::Io_apic>(apics);
+    }
+  };
 
-static G g;
-static Vdev::Device_type d = {"intel,ioapic", nullptr, &g};
+  static G g;
+  static Vdev::Device_type d = {"intel,ioapic", nullptr, &g};
+
+  struct F : Vdev::Factory
+  {
+    cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
+                                      Vdev::Dt_node const &) override
+    {
+      auto apics = devs->vmm()->apic_array();
+      return Vdev::make_device<Gic::Msi_control>(apics);
+    }
+  };
+
+  static F f;
+  static Vdev::Device_type e = {"intel,msi-controller", nullptr, &f};
+
 } // namespace
