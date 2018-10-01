@@ -23,6 +23,12 @@
             #interrupt-cells = <1>;
         };
 
+        msi_ctlr: msictlr {
+            compatible = "intel,msi-controller";
+            msi-controller;
+            #msi-cells = <0>;
+        };
+
         cpus {
           #address-cells = <1>;
           #size-cells = <0>;
@@ -72,7 +78,7 @@
               // we currently only resolve references for the interrupt-parent
               // property. This is only a preliminary measure and must be fixed
               // ASAP.
-              interrupt-parent = <&IOAPIC>;
+              msi-parent = <&msi_ctlr>;
               l4vmm,vdev = "console";
             };
         };
