@@ -11,6 +11,7 @@
 #include "device.h"
 #include "device_factory.h"
 #include "debug.h"
+#include "msi_controller.h"
 
 namespace Vmm {
 Vdev::Device_lookup::Ic_error
@@ -60,4 +61,25 @@ Vm::get_or_create_ic_dev(Vdev::Dt_node const &node, bool fatal)
 
   return nullptr;
 }
+
+cxx::Ref_ptr<Gic::Msi_controller>
+Vm::get_or_create_mc_dev(Vdev::Dt_node const &node)
+{
+  Vdev::Dt_node msi_parent = find_msi_parent(node);
+
+  if (!msi_parent.is_valid())
+    L4Re::chksys(-L4_EINVAL, "Node has an MSI parent.");
+
+  if (!Vdev::Factory::is_vdev(msi_parent))
+    L4Re::chksys(-L4_EINVAL, "MSI parent node is a device.");
+
+  auto dev = Vdev::Factory::create_dev(this, msi_parent);
+  auto msi_ctlr = cxx::dynamic_pointer_cast<Gic::Msi_controller>(dev);
+
+  if (!msi_ctlr)
+    L4Re::chksys(-L4_EINVAL, "MSI controller is the MSI parent of the device.");
+
+  return msi_ctlr;
+}
+
 }

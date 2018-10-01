@@ -15,6 +15,7 @@
 
 namespace Gic {
   struct Ic;
+  struct Msi_controller;
 }
 namespace Vmm {
   class Guest;
@@ -200,8 +201,17 @@ struct Device_lookup
    * points to the virtual device of the interrupt parent. Otherwise one of the
    * remaining return codes describes the error.
    */
-   virtual Ic_error get_or_create_ic(Vdev::Dt_node const &node,
-                                     cxx::Ref_ptr<Gic::Ic> *ic_ptr) = 0;
+  virtual Ic_error get_or_create_ic(Vdev::Dt_node const &node,
+                                    cxx::Ref_ptr<Gic::Ic> *ic_ptr) = 0;
 
+  /**
+   * Get the virtual MSI controller device for a given node.
+   *
+   * \param node   The device tree node to look for the MSI parent for.
+   *
+   * \returns  A virtual MSI controller device or an exception is thrown.
+   */
+  virtual cxx::Ref_ptr<Gic::Msi_controller>
+  get_or_create_mc_dev(Vdev::Dt_node const &node) = 0;
 };
 } // namespace

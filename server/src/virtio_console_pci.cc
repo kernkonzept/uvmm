@@ -90,11 +90,8 @@ struct F : Factory
         return nullptr;
       }
 
-    auto io_apic = devs->device_from_node(node.find_irq_parent());
-    auto msi_distr = cxx::dynamic_pointer_cast<Gic::Msi_controller>(io_apic);
-
-    if (!msi_distr)
-      L4Re::chksys(-L4_EINVAL, "IO-APIC is the IRQ parent of the device.");
+    auto msi_distr = devs->get_or_create_mc_dev(node);
+    Dbg().printf("Msi controller %p\n", msi_distr.get());
 
     auto vmm = devs->vmm();
     int const num_msix = 5;

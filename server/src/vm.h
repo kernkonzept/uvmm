@@ -51,6 +51,12 @@ public:
   Ic_error get_or_create_ic(Vdev::Dt_node const &node,
                             cxx::Ref_ptr<Gic::Ic> *ic_ptr) override;
 
+  /**
+   * \see Device_lookup::get_or_create_mc_dev()
+   */
+  cxx::Ref_ptr<Gic::Msi_controller>
+  get_or_create_mc_dev(Vdev::Dt_node const &node) override;
+
   void create_default_devices()
   {
     _vmm = Vmm::Guest::create_instance();
@@ -65,6 +71,26 @@ public:
   void add_device(Vdev::Dt_node const &node,
                   cxx::Ref_ptr<Vdev::Device> dev) override
   { _devices.add(node, dev); }
+
+  /**
+   * Find MSI parent of node.
+   *
+   * \param node  Node to find the MSI parent of.
+   *
+   * \return  The node of the MSI parent or an invalid node, if the 'msi-parent'
+   *          property is not specified or references an invalid node.
+   *
+   * \note  Currently, this function only returns the simple case of one
+   *        referenced MSI parent node in the device tree.
+   */
+  Vdev::Dt_node find_msi_parent(Vdev::Dt_node const &node) const
+  {
+    int size = 0;
+    auto *prop = node.get_prop<fdt32_t>("msi-parent", &size);
+
+    return (prop && size > 0) ? node.find_phandle(prop)
+                              : Vdev::Dt_node();
+  }
 
 private:
   Vdev::Device_repository _devices;
