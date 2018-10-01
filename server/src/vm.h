@@ -88,6 +88,10 @@ public:
     int size = 0;
     auto *prop = node.get_prop<fdt32_t>("msi-parent", &size);
 
+    if (size > 1)
+      L4Re::chksys(-L4_EINVAL,
+                   "MSI parent is a single reference without sideband data.");
+
     return (prop && size > 0) ? node.find_phandle(prop)
                               : Vdev::Dt_node();
   }
