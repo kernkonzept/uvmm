@@ -24,26 +24,26 @@ struct Device_type : public cxx::H_list_item_t<Device_type>
   }
 
   static cxx::H_list_t<Device_type> types;
-  static Device_type const *find(char const *cid, int cid_len,
-                                 char const *l4type, int l4type_len)
+  static Device_type const *find(char const *cid, l4_size_t cid_len,
+                                 char const *l4type, l4_size_t l4type_len)
   {
     if (l4type)
       l4type_len = strnlen(l4type, l4type_len);
 
     for (auto const *t: types)
       {
-        if (strlen(t->cid) != (unsigned)cid_len)
+        if (strlen(t->cid) != cid_len)
           continue;
 
-        if (strncmp(cid, t->cid, cid_len) == 0)
+        if (memcmp(cid, t->cid, cid_len) == 0)
           {
             if (!t->l4type)
               return t;
 
-            if (!l4type || (strlen(t->l4type) != (unsigned)l4type_len))
+            if (!l4type || (strlen(t->l4type) != l4type_len))
               continue;
 
-            if (strncmp(l4type, t->l4type, l4type_len) == 0)
+            if (memcmp(l4type, t->l4type, l4type_len) == 0)
               return t;
           }
       }
