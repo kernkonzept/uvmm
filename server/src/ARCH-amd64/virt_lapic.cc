@@ -40,7 +40,7 @@ Virt_lapic::Virt_lapic(unsigned id, l4_addr_t baseaddr)
   // Set reset values of the LAPIC registers
   memset(&_regs, 0, sizeof(_regs));
   _regs.dfr = -1U;
-  _regs.cmci = _regs.timer = _regs.therm = _regs.perf = 0x00010000;
+  _regs.cmci = _regs.therm = _regs.perf = 0x00010000;
   _regs.lint[0] = _regs.lint[1] = _regs.err = 0x00010000;
   _regs.svr = 0x000000ff;
 }
@@ -83,33 +83,26 @@ Virt_lapic::dt_get_interrupt(fdt32_t const *, int, int *) const
 void
 Virt_lapic::tick()
 {
-  enum
-  {
-    TSC_deadline = 0x40000,
-    Mask = 0x10000,
-    Periodic_deadline = 0x20000,
-    Timer_vector_mask = 0xff,
-    Int_pending_bit = 0x1 << 12,
-  };
-
   std::lock_guard<std::mutex> lock(_tmr_mutex);
 
-  if (0)
+  if (0 & !_timer.masked())
     {
       static unsigned cnt = 0;
       if ((++cnt % 100) == 0)
         Dbg()
-          .printf("VAPIC: Tick TSC DL ? %s : %llx, now: %llx, timer reg: %x\n",
-                  (_regs.timer & TSC_deadline) ? "yes" : "no", _tsc_deadline,
-                  l4_rdtsc(), _regs.timer);
+          .printf("VAPIC: Tick TSC DL ? %s : %llx, now: %llx, _timer reg: %x\n",
+                  _timer.tsc_deadline() ? "yes" : "no", _tsc_deadline,
+                  l4_rdtsc(), _timer.raw);
     }
 
-  if (_regs.timer & TSC_deadline)
+  if (_timer.tsc_deadline())
     {
       if (_tsc_deadline > 0 && _tsc_deadline <= l4_rdtsc())
         {
-          if (!(_regs.timer & Mask))
-              irq_trigger(_regs.timer & Timer_vector_mask);
+          if (_timer.masked())
+            _timer.pending() = 1;
+          else
+            irq_trigger(_timer.vector());
 
           _tsc_deadline = 0;
         }
@@ -118,10 +111,12 @@ Virt_lapic::tick()
     {
       if (--_regs.tmr_cur == 0)
         {
-          if (!(_regs.timer & Mask))
-            irq_trigger(_regs.timer & Timer_vector_mask);
+          if (_timer.masked())
+            _timer.pending() = 1;
+          else
+            irq_trigger(_timer.vector());
 
-          if (_regs.timer & Periodic_deadline)
+          if (_timer.periodic())
             _regs.tmr_cur = _regs.tmr_init;
         }
     }
@@ -222,7 +217,7 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
     case 0x828: *value = _regs.esr; break;
     case 0x82f: *value = _regs.cmci; break;
     case 0x830: *value = _regs.icr; break;
-    case 0x832: *value = _regs.timer; break;
+    case 0x832: *value = _timer.raw; break;
     case 0x833: *value = _regs.therm; break;
     case 0x834: *value = _regs.perf; break;
     case 0x835: *value = _regs.lint[0]; break;
@@ -264,7 +259,7 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
         if (0)
           Dbg()
             .printf("New TSC dealine: 0x%llx (now: 0x%llx) timer status: %x\n",
-                    value, l4_rdtsc(), _regs.timer);
+                    value, l4_rdtsc(), _timer.raw);
         break;
       }
     case 0x803: _lapic_version = value; break;
@@ -289,7 +284,17 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
     case 0x828: _regs.esr = 0; break;
     case 0x82f: _regs.cmci = value; break;
     case 0x830: _regs.icr = value; break;
-    case 0x832: _regs.timer = value; break;
+    case 0x832:
+      {
+        Timer_reg new_timer(value);
+
+        if (   _timer.pending() && !new_timer.masked()
+            && _timer.vector() == new_timer.vector())
+          irq_trigger(_timer.vector());
+
+        _timer = new_timer;
+        break;
+      }
     case 0x833: _regs.therm = value; break;
     case 0x834: _regs.perf = value; break;
     case 0x835: _regs.lint[0] = value; break;

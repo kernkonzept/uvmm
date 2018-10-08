@@ -42,7 +42,6 @@ class Virt_lapic : public Vdev::Timer, public Ic
     l4_uint32_t esr;
     l4_uint32_t cmci;
     l4_uint64_t icr;
-    l4_uint32_t timer;
     l4_uint32_t therm;
     l4_uint32_t perf;
     l4_uint32_t lint[2];
@@ -50,6 +49,24 @@ class Virt_lapic : public Vdev::Timer, public Ic
     l4_uint32_t tmr_init;
     l4_uint32_t tmr_cur;
     l4_uint32_t tmr_div;
+  };
+
+  struct Timer_reg
+  {
+    l4_uint32_t raw;
+    CXX_BITFIELD_MEMBER(17, 18, mode, raw);
+    CXX_BITFIELD_MEMBER(16, 16, masked, raw);
+    CXX_BITFIELD_MEMBER(12, 12, pending, raw);
+    CXX_BITFIELD_MEMBER(0, 7, vector, raw);
+
+    Timer_reg() : raw(0x00010000) {}
+    explicit Timer_reg(l4_uint32_t t) : raw(t) {}
+
+    Timer_reg &operator = (l4_uint32_t t) { raw = t; return *this; }
+
+    bool one_shot() const { return !mode(); }
+    bool periodic() const { return mode() == 1; }
+    bool tsc_deadline() const { return mode() == 2; }
   };
 
   enum XAPIC_consts : unsigned
@@ -154,6 +171,7 @@ private:
   std::mutex _int_mutex;
   std::mutex _tmr_mutex;
   LAPIC_registers _regs;
+  Timer_reg _timer;
   l4_uint64_t _tsc_deadline;
   bool _x2apic_enabled;
   unsigned _irq_queued[256];
