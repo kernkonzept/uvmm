@@ -1,0 +1,61 @@
+/*
+ * Device tree for a virtual machine without any hardware pass-through.
+ */
+
+/dts-v1/;
+/include/ "skeleton64.dtsi"
+/include/ "vmm-devices-arm.dtsi"
+
+/ {
+    model = "L4 VM";
+    compatible = "l4,virt", "linux,dummy-virt";
+
+    interrupt-parent = <&gic>;
+
+    memory@0 {
+        device_type = "memory";
+        l4vmm,dscap = "ram";
+        l4vmm,physmap;
+    };
+
+    icsoc {
+        compatible = "simple-bus";
+        #address-cells = <2>;
+        #size-cells = <2>;
+        ranges;
+
+        gic: interrupt-controller {
+            compatible = "arm,gic-400", "arm,cortex-a15-gic", "arm,cortex-a9-gic";
+            #interrupt-cells = <3>;
+            #address-cells = <0>;
+            interrupt-controller;
+            reg = <0 0xf1040000 0 0x10000>,
+                  <0 0xf1060000 0 0x10000>;
+            };
+    };
+
+    timer {
+      compatible = "arm,armv8-timer";
+      interrupts = <1 13 0xf08>,
+                   <1 14 0xf08>,
+                   <1 11 0xf08>,
+                   <1 10 0xf08>;
+      always-on;
+    };
+
+    cpus {
+      #address-cells = <2>;
+      #size-cells = <0>;
+
+      cpu@0 {
+        device_type = "cpu";
+        compatible = "arm,armv8";
+        reg = <0x0 0x0>;
+        enable-method = "psci";
+      };
+    };
+
+    l4vmm {
+        ranges = <0x0  0x0  0xf1100000  0x41000>;
+    };
+};
