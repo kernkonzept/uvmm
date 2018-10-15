@@ -325,12 +325,6 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
               vms->vmx_read(L4VCPU_VMCS_EXIT_REASON),
               vms->vmx_read(L4VCPU_VMCS_EXIT_QUALIFICATION));
 
-  enum Apic_access_exit_qualifications
-  {
-    Page_offset_length = 12,
-    Page_offset_mask = (1 << Page_offset_length) - 1,
-  };
-
   switch (reason)
     {
     case Exit::Cpuid: return handle_cpuid(regs);
