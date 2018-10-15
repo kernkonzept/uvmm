@@ -180,7 +180,34 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
   auto rax = regs->ax;
   auto rcx = regs->cx;
 
-  asm("cpuid"
+  if (rax >= 0x40000000 && rax < 0x40010000)
+    {
+      switch (rax)
+        {
+        case 0x40000000:
+          a = 0x40000001;   // max CPUID leaf in the 0x4000'0000 range.
+          b = 0x4b4d564b;   // "KVMK"
+          c = 0x564b4d56;   // "VMKV"
+          d = 0x4d;         // "M\0\0\0"
+          break;
+
+        case 0x40000001:
+          enum Cpuid_kvm_constants
+          {
+            Kvm_feature_clocksource = 1UL, // clock at msr 0x11 & 0x12
+            Kvm_feature_clocksource2 = 1UL << 3, // clock at msrs 0x4b564d00 & 01;
+          };
+          a = Kvm_feature_clocksource2;
+          d = 0;
+          b = c = 0;
+          break;
+
+        default:
+          a = b = c = d = 0;
+        }
+    }
+  else
+    asm("cpuid"
       : "=a"(a), "=b"(b), "=c"(c), "=d"(d)
       : "0"(rax), "2"(rcx));
 
@@ -198,6 +225,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     Ecx_pcid_bit = (1UL << 17),
     Ecx_x2apic_bit = (1UL << 21),
     Ecx_xsave_bit = (1UL << 26),
+    // used to indicate the hypervisor presence to linux -- no hardware bit.
     Ecx_hypervisor_bit = (1UL << 31),
 
     Edx_mtrr_bit = (1UL << 12),
@@ -234,8 +262,8 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
              | Ecx_smx_bit
              | Ecx_speed_step_tech_bit
              | Ecx_pcid_bit
-             | Ecx_hypervisor_bit
             );
+      c |= Ecx_hypervisor_bit;
 
       d &= ~(Edx_mtrr_bit | Edx_mca | Edx_pat | Edx_acpi_bit);
       break;
@@ -314,6 +342,8 @@ Guest::handle_vm_call(l4_vcpu_regs_t *regs)
       return Jump_instr;
     }
 
+  // NOTE: If the hypervisor bit is enabled in CPUID.01 there can be other VMCALL
+  // numbers defined for KVM, e.g. 0x9 for PTP_KVM.
   Err().printf("Unknown VMCALL 0x%lx\n", regs->ax);
   return -L4_ENOSYS;
 }

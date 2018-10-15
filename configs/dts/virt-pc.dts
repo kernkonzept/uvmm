@@ -55,6 +55,11 @@
             reg = <0x0 0x0 0x0 0x0>;
         };
 
+        kvm_clock {
+            compatible = "kvm-clock";
+            reg = <0x0 0x0 0x0 0x0>;
+        };
+
         pci0: pci@aaaa0000 {
             compatible = "virt-pci-bridge";
             // reg 1: MMIO memory area for PCI devices

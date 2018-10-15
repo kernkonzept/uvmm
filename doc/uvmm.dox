@@ -175,4 +175,33 @@
  *
  * The `pfc` cap can also be implemented by IO. In that case the guest can
  * start a machine suspend/shutdown/reboot.
+ *
+ *
+ * KVM clock for uvmm/amd64 guests
+ * -------------------------
+ *
+ * When executing L4Re + uvmm on QEMU, the PIT as clock source is not reliable.
+ * The paravirtualized KVM clock provides the guest with a stable clock source.
+ *
+ * A KVM clock device is available to the guest, if the device tree contains
+ * the corresponding entry:
+ *
+ *     kvm_clock {
+ *         compatible = "kvm-clock";
+ *         reg = <0x0 0x0 0x0 0x0>;
+ *     };
+ *
+ * To make use of this clock, the Linux guest must be built with the following
+ * configuration options:
+ *
+ * CONFIG_HYPERVISOR_GUEST=y
+ * CONFIG_KVM_GUEST=y
+ * CONFIG_PTP_1588_CLOCK_KVM is not set
+ *
+ * Note: KVM calls besides the KVM clock are unhandled and lead to failure
+ * in the uvmm, e.g. vmcall 0x9 for the PTP_1588_CLOCK_KVM.
+ *
+ * This is considered a development feature. The KVM clock is not required when
+ * running on physical hardware as TSC calibration via the PIT works as
+ * expected.
  */
