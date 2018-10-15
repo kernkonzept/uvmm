@@ -14,11 +14,11 @@
 namespace Vdev {
 
 Pit_timer::Pit_timer(Gic::Ic *ic, int irq)
-: _irq(ic, irq), _port61(make_device<Port61>())
+: _irq(ic, irq), _ch_mode {0xff, 0xff},
+  _read_high(false), _wait_for_high_byte(false),
+  _port61(make_device<Port61>())
 {
-  _ch_mode[0] = -1;
-  _ch_mode[1] = -1;
-  _wait_for_high_byte = false;
+  l4_tsc_init(L4_TSC_INIT_AUTO, l4re_kip());
 }
 
 void Pit_timer::set_high_byte(l4_uint16_t &reg, l4_uint8_t value)
@@ -100,9 +100,11 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
             set_high_byte(_reload[ch], v);
 
           trace().printf("enable counter for %d\n", port);
-          _counter[ch] = _reload[ch] >> 2;
+          _counter[ch] = _reload[ch];
           if (_reload[ch] != 0)
-            _ch_mode[ch] = _mode.access();
+            _ch_mode[ch] = _mode.opmode();
+
+          _tsc_start[ch] = l4_rdtsc();
         }
       else
         warn().printf("PIT access to bad channel\n");
@@ -117,52 +119,56 @@ void Pit_timer::io_in(unsigned port, Vmm::Mem_access::Width width,
     return;
 
   switch (port)
-  {
-  case Mode_command:
-    *value = _mode.raw;
-    break;
-  case Channel_0_data:
-  case Channel_2_data:
     {
-      l4_uint16_t reg = _counter[port2idx(port)] << 2;
-      *value = _read_high ? (reg >> 8) : (reg & 0xFF);
-      _read_high = !_read_high;
-      break;
-    }
-  }
-}
+    case Mode_command: *value = _mode.raw; break;
 
-void Pit_timer::tick()
-{
-  std::lock_guard<std::mutex> lock(_mutex);
+    case Channel_0_data:
+    case Channel_2_data:
+      {
+        l4_uint16_t reg;
+        int ch = port2idx(port);
 
-  if (_ch_mode[0] != 0xFF)
-    {
-      if (_ch_mode[0] <= 1 && _counter[0] == 0)
-          _irq.inject();
+        if (!_read_high)
+          {
+            // take current time
+            auto now = l4_rdtsc();
+            auto diff_ns = l4_tsc_to_ns(now - _tsc_start[ch]);
+            // ns / Hz
+            l4_uint32_t pit_period_len = 1000UL * 1000 * 1000 / Pit_tick_rate;
+            l4_uint32_t ticks = diff_ns / pit_period_len;
 
-      if (_ch_mode[0] > 1)
-        {
-// Note: The PIT sets the level of the IRQ line to low. This is not reflected
-// by this implementation.
-          _irq.inject();
-        }
+            {
+              std::lock_guard<std::mutex> lock(_mutex);
 
-      _counter[0]--;
-    }
+              if (_ch_mode[ch] <= 1 && ticks / _reload[ch] >= 1)
+                reg = 0;
+              else
+                reg = _counter[ch] - (l4_uint16_t)(ticks % _reload[ch]);
 
-  if (_ch_mode[1] != 0xFF)
-    {
-      _counter[1]--;
+              // use latch to store the computed counter value to allow for
+              // consistent reads of high an low bytes.
+              _latch[ch] = reg;
+            }
+          }
+        else
+          reg = _latch[ch];
 
-      if (_ch_mode[1] > 1 && _counter[1] == 0xFFFF)
-        _counter[1] = _reload[1];
+        switch (_mode.access())
+          {
+          case Access_lobyte: *value = reg & 0xff; break;
 
-      if(_counter[1] == 0)
-        {
-          _irq.inject();
-          _port61->val |= (1 << 5);
-        }
+          case Access_hibyte: *value = (reg >> 8) & 0xff; break;
+
+          case Access_lohi:
+            *value = _read_high ? (reg >> 8) : (reg & 0xFF);
+            _read_high = !_read_high;
+            break;
+
+          default:
+            warn().printf("Invalid access mode during read: Mode: 0x%x\n",
+                          _mode.raw);
+          }
+      }
     }
 }
 
@@ -191,7 +197,6 @@ struct F : Vdev::Factory
     auto *vmm = devs->vmm();
     vmm->register_io_device(Vmm::Io_region(0x40, 0x43), dev);
     vmm->register_io_device(Vmm::Io_region(0x61, 0x61), dev->port61());
-    vmm->register_timer_device(dev);
 
     return dev;
   }

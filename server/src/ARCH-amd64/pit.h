@@ -9,6 +9,7 @@
 
 #include <mutex>
 #include <l4/cxx/bitfield>
+#include <l4/util/rdtsc.h>
 
 #include "device.h"
 #include "io_device.h"
@@ -24,8 +25,7 @@ namespace Vdev {
  */
 class Pit_timer
 : public Vmm::Io_device,
-  public Vdev::Device,
-  public Timer
+  public Vdev::Device
 {
   struct Port61 : public Vmm::Io_device
   {
@@ -35,10 +35,14 @@ class Pit_timer
 
     void io_out(unsigned, Vmm::Mem_access::Width, l4_uint32_t value) override
     { val = value & 0xff; }
+
+    bool channel_2_on() const { return val & 0x1; }
+    void set_output() { val |= (1 << 5); }
   };
 
   enum
   {
+    Pit_tick_rate = 1193182,
     Channel_0_data = 0,
     Channel_2_data = 2,
     Mode_command = 3,
@@ -93,8 +97,6 @@ public:
   void io_in(unsigned port, Vmm::Mem_access::Width width,
              l4_uint32_t *value) override;
 
-  void tick() override;
-
 private:
   Vmm::Irq_edge_sink _irq;
   l4_uint16_t _latch[2];
@@ -102,10 +104,11 @@ private:
   l4_uint16_t _reload[2];
   l4_uint8_t _ch_mode[2];
   bool _read_high;
+  bool _wait_for_high_byte;
   Mode _mode;
   std::mutex _mutex;
   cxx::Ref_ptr<Port61> const _port61;
-  bool _wait_for_high_byte;
+  l4_cpu_time_t _tsc_start[2];
 
   void set_high_byte(l4_uint16_t &reg, l4_uint8_t value);
   void set_low_byte(l4_uint16_t &reg, l4_uint8_t value);
