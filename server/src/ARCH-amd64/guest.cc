@@ -195,6 +195,8 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     Ecx_hypervisor_bit = (1UL << 31),
 
     Edx_mtrr_bit = (1UL << 12),
+    Edx_mca = (1UL << 14),
+    Edx_pat = (1UL << 16),
     Edx_acpi_bit = (1UL << 22),
 
     // 0x6 EAX
@@ -204,6 +206,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     Performance_energy_bias_preference = (1UL << 3),
 
     // 0x7
+    Tsc_adjust = (1UL << 1),
     Invpcid_bit = (1UL << 10),
 
     // 0xd
@@ -228,7 +231,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
              | Ecx_hypervisor_bit
             );
 
-      d &= ~(Edx_mtrr_bit | Edx_acpi_bit);
+      d &= ~(Edx_mtrr_bit | Edx_mca | Edx_pat | Edx_acpi_bit);
       break;
 
     case 0x6:
@@ -239,7 +242,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
 
     case 0x7:
       if (!rcx)
-        b &= ~(Invpcid_bit); // filter, as it leads to unhandled VMM-entries.
+        b &= ~(Invpcid_bit | Tsc_adjust); // filter, as it leads to unhandled VMM-entries.
       break;
 
     case 0xa:
