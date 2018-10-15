@@ -220,7 +220,7 @@ public:
     return Exit(vmx_read(L4VCPU_VMCS_EXIT_REASON) & 0xffffU);
   }
 
-  unsigned msr_shadow_reg(l4_umword_t msr)
+  unsigned msr_shadow_reg(l4_umword_t msr) const
   {
     switch (msr)
     {
@@ -436,8 +436,10 @@ public:
 
   int handle_cr_access(l4_vcpu_regs_t *regs);
   int handle_exception_nmi_ext_int();
-  int handle_exec_rmsr(l4_vcpu_regs_t *regs, Gic::Virt_lapic *apic);
-  int handle_exec_wmsr(l4_vcpu_regs_t *regs, Gic::Virt_lapic *apic);
+
+  bool read_msr(unsigned msr, l4_uint64_t *value) const override;
+  bool write_msr(unsigned msr, l4_uint64_t value) override;
+
   int handle_hardware_exception(unsigned num);
 
 private:

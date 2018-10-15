@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Kernkonzept GmbH.
+ * Copyright (C) 2018 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *            Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *
@@ -43,8 +43,14 @@ void Guest::register_io_device(Io_region const &region,
 
   _iomap[region] = dev;
 
-  trace().printf("New io mappping: %p @ [0x%lx, 0x%lx]\n", dev.get(),
+  trace().printf("New io mapping: %p @ [0x%lx, 0x%lx]\n", dev.get(),
                  region.start, region.end);
+}
+
+void Guest::register_msr_device(cxx::Ref_ptr<Msr_device> const &dev)
+{
+  _msr_devices.push_back(dev);
+  trace().printf("New MSR device %p\n", dev.get());
 }
 
 l4_addr_t
@@ -312,6 +318,35 @@ Guest::handle_vm_call(l4_vcpu_regs_t *regs)
   return -L4_ENOSYS;
 }
 
+bool
+Guest::msr_devices_rwmsr(l4_vcpu_regs_t *regs, bool write, unsigned vcpu_no)
+{
+  auto msr = regs->cx;
+
+  for (auto &dev : _msr_devices)
+    {
+      if (write)
+        {
+          l4_uint64_t value = (l4_uint64_t(regs->ax) & 0xFFFFFFFF)
+                              | (l4_uint64_t(regs->dx) << 32);
+          if (dev->write_msr(msr, value, vcpu_no))
+            return true;
+        }
+      else
+        {
+          l4_uint64_t result = 0;
+          if (dev->read_msr(msr, &result, vcpu_no))
+            {
+              regs->ax = (l4_uint32_t)result;
+              regs->dx = (l4_uint32_t)(result >> 32);
+              return true;
+            }
+        }
+    }
+
+  return false;
+}
+
 int
 Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
 {
@@ -407,10 +442,23 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
       return vms->handle_cr_access(regs);
 
     case Exit::Exec_rdmsr:
-      return vms->handle_exec_rmsr(regs, lapic(vcpu));
+      if (!msr_devices_rwmsr(regs, false, vcpu.get_vcpu_id()))
+        {
+          warn().printf("Reading unsupported MSR 0x%lx\n", regs->cx);
+          regs->ax = 0;
+          regs->dx = 0;
+        }
+
+      return Jump_instr;
 
     case Exit::Exec_wrmsr:
-      return vms->handle_exec_wmsr(regs, lapic(vcpu));
+      if (msr_devices_rwmsr(regs, true, vcpu.get_vcpu_id()))
+        return Jump_instr;
+      else
+        {
+          warn().printf("Writing unsupported MSR 0x%lx\n", regs->cx);
+          return -L4_ENOSYS;
+        }
 
     case Exit::Virtualized_eoi:
       Dbg().printf("INFO: EOI virtualized for vector 0x%llx\n",
@@ -470,6 +518,8 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
       _apics->get(vcpu_id)->attach_cpu_thread(cpu->thread_cap());
     }
 
+  register_msr_device(Vdev::make_device<Vcpu_msr_handler>(cpus.get()));
+
   Dbg(Dbg::Guest, Dbg::Info).printf("Starting VMM @ 0x%lx\n", cpus->vcpu(0)->r.ip);
 
   // TODO If SVM is implemented, we need to branch here for the Vm_state_t
@@ -483,6 +533,7 @@ Guest::run_vmx(cxx::Ref_ptr<Cpu_dev> const &cpu_dev)
   Vcpu_ptr vcpu = cpu_dev->vcpu();
   Vmx_state *vm = dynamic_cast<Vmx_state *>(vcpu.vm_state());
   assert(vm);
+
   L4::Cap<L4::Thread> myself;
   trace().printf("Starting vCPU 0x%lx\n", vcpu->r.ip);
 

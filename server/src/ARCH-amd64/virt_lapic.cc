@@ -226,6 +226,7 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
     case 0x838: *value = _regs.tmr_init; break;
     case 0x839: *value = _regs.tmr_cur; break;
     case 0x83e: *value = _regs.tmr_div; break;
+
     default: return false;
     }
 
@@ -278,7 +279,6 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
       if (value != 0)
         {
           Dbg().printf("WARNING: write to EOI not zero, 0x%llx\n", value);
-          return false;
         }
       break;
     case 0x828: _regs.esr = 0; break;
@@ -308,8 +308,8 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
     case 0x83f:
       Dbg().printf("TODO: self IPI\n");
       break;
-    default:
-      return false;
+
+    default: return false;
     }
 
   if (0 && msr != 0x80b)

@@ -32,6 +32,9 @@ public:
   virtual void enable_interrupt_window() = 0;
 
   virtual void dump_state() const = 0;
+
+  virtual bool read_msr(unsigned msr, l4_uint64_t *value) const = 0;
+  virtual bool write_msr(unsigned msr, l4_uint64_t value) = 0;
 };
 
 } // namespace Vmm

@@ -22,6 +22,9 @@
 #include "pt_walker.h"
 #include "ram_ds.h"
 #include "msi_controller.h"
+#include "msr_device.h"
+#include "mem_types.h"
+#include "mmio_device.h"
 
 using L4Re::Rm;
 
@@ -163,6 +166,7 @@ public:
 
 private:
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "LAPIC"); }
+  static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "LAPIC"); }
 
   L4Re::Util::Unique_cap<L4::Irq> _lapic_irq; /// IRQ to notify VCPU
   l4_addr_t const _lapic_memory_address;
@@ -179,9 +183,10 @@ private:
 }; // class Virt_lapic
 
 
-#include "mmio_device.h"
-
-class Lapic_array : public Vmm::Mmio_device_t<Lapic_array>, public Vdev::Device
+class Lapic_array
+: public Vmm::Mmio_device_t<Lapic_array>,
+  public Vdev::Device,
+  public Vmm::Msr_device
 {
   enum
   {
@@ -270,6 +275,21 @@ public:
     assert(cpu_id < Max_cores && _lapics[cpu_id]);
 
     _lapics[cpu_id]->write_msr(reg2msr(reg), value);
+  }
+
+  // Msr_device interface
+  bool read_msr(unsigned msr, l4_uint64_t *value, unsigned vcpu_no) override
+  {
+    assert(vcpu_no < Max_cores && _lapics[vcpu_no]);
+
+    return _lapics[vcpu_no]->read_msr(msr, value);
+  };
+
+  bool write_msr(unsigned msr, l4_uint64_t value, unsigned vcpu_no) override
+  {
+    assert(vcpu_no < Max_cores && _lapics[vcpu_no]);
+
+    return _lapics[vcpu_no]->write_msr(msr, value);
   }
 
 private:

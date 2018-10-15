@@ -61,53 +61,39 @@ Vmx_state::handle_exception_nmi_ext_int()
   return -L4_ENOSYS;
 }
 
-int
-Vmx_state::handle_exec_rmsr(l4_vcpu_regs_t *regs,
-                            Gic::Virt_lapic *apic)
+bool
+Vmx_state::read_msr(unsigned msr, l4_uint64_t *value) const
 {
-  l4_uint64_t result = 0;
-  auto msr = regs->cx;
-
   unsigned shadow = msr_shadow_reg(msr);
   if (shadow > 0)
     {
-      result = vmx_read(shadow);
+      *value = vmx_read(shadow);
     }
-  else if (!apic->read_msr(msr, &result))
+  else
     {
       switch (msr)
         {
         case 0xc0000080: // efer
-          result = vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER);
+          *value = vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER);
           break;
 
         default:
-          warn().printf("Warning: reading unsupported MSR 0x%lx\n", regs->cx);
+          return false;
         }
     }
 
-  regs->ax = (l4_uint32_t)result;
-  regs->dx = (l4_uint32_t)(result >> 32);
-  return Jump_instr;
+  return true;
 }
 
-int
-Vmx_state::handle_exec_wmsr(l4_vcpu_regs_t *regs,
-                            Gic::Virt_lapic *apic)
+bool
+Vmx_state::write_msr(unsigned msr, l4_uint64_t value)
 {
-  auto msr = regs->cx;
-  l4_uint64_t value =
-    (l4_uint64_t(regs->ax) & 0xFFFFFFFF) | (l4_uint64_t(regs->dx) << 32);
-
   unsigned shadow = msr_shadow_reg(msr);
   if (shadow > 0)
     {
       vmx_write(shadow, value);
-      return Jump_instr;
+      return true;
     }
-
-  if (apic->write_msr(msr, value))
-    return Jump_instr;
 
   switch (msr)
     {
@@ -141,18 +127,19 @@ Vmx_state::handle_exec_wmsr(l4_vcpu_regs_t *regs,
         trace().printf("efer: 0x%llx, vm_entry_ctls 0x%llx\n", efer,
                        vm_entry_ctls);
         vmx_write(L4VCPU_VMCS_GUEST_IA32_EFER, efer);
-        return Jump_instr;
+        break;
       }
     case 0x8b: // IA32_BIOS_SIGN_ID
     case 0x140:  // unknown in Intel 6th gen, but MISC_FEATURE register for xeon
     case 0xe01: // MSR_UNC_PERF_GLOBAL_CTRL
       // can all be savely ignored
-      return Jump_instr;
+      break;
 
     default:
-      warn().printf("FATAL: Writing unhandled MSR: 0x%lx\n", regs->cx);
-      return -L4_ENOSYS;
+      return false;
     }
+
+  return true;
 }
 
 int

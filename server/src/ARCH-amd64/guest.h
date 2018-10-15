@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Kernkonzept GmbH.
+ * Copyright (C) 2018 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *            Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *
@@ -13,10 +13,12 @@
 #include <l4/l4virtio/l4virtio>
 
 #include <map>
+#include <vector>
 
 #include "cpu_dev_array.h"
 #include "generic_guest.h"
 #include "io_device.h"
+#include "msr_device.h"
 #include "mem_access.h"
 #include "timer.h"
 #include "vcpu_ptr.h"
@@ -38,6 +40,8 @@ public:
     _apics(Vdev::make_device<Gic::Lapic_array>(get_max_physical_address_bit()))
   {
     add_mmio_device(_apics->mmio_region(), _apics);
+
+    register_msr_device(_apics);
   }
 
   static Guest *create_instance();
@@ -48,6 +52,8 @@ public:
 
   void register_io_device(Io_region const &region,
                           cxx::Ref_ptr<Io_device> const &dev);
+
+  void register_msr_device(cxx::Ref_ptr<Msr_device> const &dev);
 
   void register_timer_device(cxx::Ref_ptr<Vdev::Timer> const &dev)
   {
@@ -106,8 +112,12 @@ private:
     return ax & Max_phys_addr_bits_mask;
   }
 
+  bool msr_devices_rwmsr(l4_vcpu_regs_t *regs, bool write, unsigned vcpu_no);
+
   typedef std::map<Io_region, cxx::Ref_ptr<Io_device>> Io_mem;
   Io_mem _iomap;
+
+  std::vector<cxx::Ref_ptr<Msr_device>> _msr_devices;
 
   // devices
   Vdev::Clock_source _clock;
@@ -115,6 +125,29 @@ private:
   Pt_walker _ptw;
   cxx::Ref_ptr<Gic::Lapic_array> _apics;
   Binary_type _guest_t;
+};
+
+/**
+ * Handler for MSR read/write to a specific vCPU with its corresponding
+ * VM state.
+ */
+class Vcpu_msr_handler : public Msr_device
+{
+public:
+  Vcpu_msr_handler(Cpu_dev_array *cpus) : _cpus(cpus) {};
+
+  bool read_msr(unsigned msr, l4_uint64_t *value, unsigned vcpu_no) override
+  {
+    return _cpus->vcpu(vcpu_no).vm_state()->read_msr(msr, value);
+  }
+
+  bool write_msr(unsigned msr, l4_uint64_t value, unsigned vcpu_no) override
+  {
+    return _cpus->vcpu(vcpu_no).vm_state()->write_msr(msr, value);
+  }
+
+private:
+  Cpu_dev_array *_cpus;
 };
 
 } // namespace Vmm
