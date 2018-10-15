@@ -44,12 +44,79 @@
  * actual physical address when no IOMMU is available. If the physical address
  * cannot be determined or an IOMMU is available, then the memory will be
  * mapped to the addresses supplied in `regs`. It is possible to omit the
- * `regs` property when `l4vmm.physmap` is set. In this case, uvmm will fail to
+ * `regs` property when `l4vmm,physmap` is set. In this case, uvmm will fail to
  * start if the physical address cannot be determined.
  *
  * If a `dma-ranges` property is given, the host-physical address ranges
  * for the memory regions will be added here. Note that the property is
  * not cleared first, so it should be left empty.
+ *
+ * Forwarding hardware resources to the guest
+ * ------------------------------------------
+ *
+ * Hardware resources must be specified in two places: the device tree contains
+ * the description of all hardware devices the guest could see and the Vbus
+ * describes which resources are actually available to the uvmm.
+ *
+ * The vbus allows the uvmm access to hardware resources in the same way as
+ * any other L4 application. uvmm expects a capability named 'vbus' where it
+ * can access its hardware resources. It is possible to leave out the capability
+ * for purely virtual guests (Note that this is not actually practical on some
+ * architectures. On ARM, for example, the guest needs hardware access to the
+ * interrupt controller. Without a 'vbus' capability, interrupts will not work.)
+ * For information on how to configure a vbus, see the \ref io "IO documentation".
+ *
+ * The device tree needs to contain the hardware description the guest should
+ * see. For hardware devices this usually means to use a device tree that would
+ * also be used when running the guest directly on hardware.
+ *
+ * On startup, uvmm scans the device tree for any devices that require memory
+ * or interrupt resources and compares the required resources with the ones
+ * available from its vbus. When all resources are available, it sets up the
+ * appropriate forwarding, so that the guest now has direct access to the
+ * hardware. If the resources are not available, the device will be marked
+ * as 'disabled'. This mechanism allows to work with a standard device tree
+ * for all guests in the system while handling the actual resource allocation
+ * in a flexible manner via the vbus configuration.
+ *
+ *
+ * The default mechanism assigns all resources 1:1, i.e. with the same memory
+ * address and interrupt number as on hardware. It is also possible to map a
+ * hardware device to a different location. In this case, the assignment
+ * between vbus device and device tree device must be known in advance and
+ * marked in the device tree using the `l4vmm,vbus-dev` property.
+ *
+ * The following device will for example be bound with the vbus device with
+ * the HID 'l4-test,dev':
+ *
+ *     test@e0000000 {
+ *         compatible = "memdev,bar";
+ *         reg = <0 0xe0000000 0 0x50000>,
+ *               <0 0xe1000000 0 0x50000>;
+ *         l4vmm,vbus-dev = "l4-test,dev";
+ *         interrupts-extended = <&gic 0 139 4>;
+ *     };
+ *
+ * Resources are then matched by name. Memory resources in the vbus must
+ * be named `reg0` to `reg9` to match against the address ranges in the
+ * device tree `reg` property. Interrupts must be called `irq0` to `irq9`
+ * and will be matched against `interrupts` or `interrupts-extended` entries
+ * in the device tree. The vbus must expose resources for all resources
+ * defined in the device tree entry or the initialisation will fail.
+ *
+ * An appropriate IO entry for the above device would thus be:
+ *     MEM = Io.Hw.Device(function()
+ *         Property.hid = "l4-test,dev"
+ *         Resource.reg0 = Io.Res.mmio(0x41000000, 0x4104ffff)
+ *         Resource.reg1 = Io.Res.mmio(0x42000000, 0x4204ffff)
+ *         Resource.irq0 = Io.Res.irq(134);
+ *     end)
+ *
+ * Please note that HIDs on the vbus are not necessarily unique. If multiple
+ * devices with the HID given in `l4vmm,vbus-dev` are available on the vbus,
+ * then one device is chosen at random.
+ *
+ * If no vbus device with the given HID is available, the device is disabled.
  *
  * How to enable guest suspend/resume
  * ----------------------------------

@@ -110,6 +110,7 @@ public:
 private:
   bool add_virt_device(Vdev::Dt_node const &node);
   bool add_phys_device(Vdev::Dt_node const &node);
+  bool add_phys_device_by_vbus_id(Vdev::Dt_node const &node);
 
   Vdev::Device_repository _devices;
   Vmm::Guest *_vmm;

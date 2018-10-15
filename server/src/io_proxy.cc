@@ -13,6 +13,7 @@
 #include "io_proxy.h"
 #include "virt_bus.h"
 
+static Dbg trace(Dbg::Dev, Dbg::Trace, "ioproxy");
 static Dbg info(Dbg::Dev, Dbg::Info, "ioproxy");
 static Dbg warn(Dbg::Dev, Dbg::Warn, "ioproxy");
 
@@ -67,6 +68,46 @@ namespace {
     throw L4::Runtime_error(-L4_EEXIST);
   }
 
+  unsigned num_reg_entries(Vdev::Dt_node const &node)
+  {
+    if (!node.has_mmio_regs())
+      return 0;
+
+    for (unsigned num = 0;; ++num)
+      {
+        l4_uint64_t dtaddr, dtsize;
+        int ret = node.get_reg_val(num, &dtaddr, &dtsize);
+
+        if (ret == -Vdev::Dt_node::ERR_BAD_INDEX)
+          return num;
+
+        if (ret < 0)
+          L4Re::chksys(-L4_EINVAL, "Check reg descriptor in device tree.");
+      }
+
+    return 0;
+  }
+
+  unsigned num_interrupts(Vdev::Device_lookup *devs, Vdev::Dt_node const &node)
+  {
+    if (!node.has_irqs())
+      return 0;
+
+    auto it = Vdev::Irq_dt_iterator(devs, node);
+
+    for (unsigned num = 0;; ++num)
+      {
+        int ret = it.next(devs);
+
+        if (ret == -L4_ERANGE)
+          return num;
+
+        if (ret < 0)
+          L4Re::chksys(ret, "Check interrupt descriptions in device tree");
+      }
+
+    return 0;
+  }
 }
 
 
@@ -161,9 +202,133 @@ struct F : Factory
     return true;
   }
 
+  cxx::Ref_ptr<Device> create_from_vbus_dev(Device_lookup *devs,
+                                            Dt_node const &node,
+                                            char const *hid)
+  {
+    auto *vdev = devs->vbus()->find_unassigned_device_by_hid(hid);
+
+    if (!vdev)
+      {
+        warn.printf("%s: requested vbus device '%s' not available.\n",
+                    node.get_name(), hid);
+        return nullptr;
+      }
+
+    // Count number of expected resources as a cheap means of validation.
+    // This also checks that the device tree properties are correctly parsable.
+    unsigned todo_regs = num_reg_entries(node);
+    unsigned todo_irqs = num_interrupts(devs, node);
+
+    // collect resources directly for device
+    auto vbus = devs->vbus().get();
+    for (unsigned i = 0; i < vdev->dev_info().num_resources; ++i)
+      {
+        l4vbus_resource_t res;
+
+        L4Re::chksys(vdev->io_dev().get_resource(i, &res),
+                     "Cannot get resource in collect_resources");
+
+        char const *resname = reinterpret_cast<char const *>(&res.id);
+
+        if (res.type == L4VBUS_RESOURCE_MEM)
+          {
+            if (strncmp(resname, "reg", 3) || resname[3] < '0' || resname[3] > '9')
+              {
+                warn.printf("%s: Vbus memory resource '%.4s' has no recognisable name.\n",
+                            node.get_name(), resname);
+                continue;
+              }
+
+            unsigned resid = resname[3] - '0';
+            l4_uint64_t dtaddr, dtsize;
+            L4Re::chksys(node.get_reg_val(resid, &dtaddr, &dtsize),
+                         "Match reg entry of device entry with vbus resource.");
+
+            if (res.end - res.start + 1 != dtsize)
+              L4Re::chksys(-L4_ENOMEM,
+                           "Matching resource size of VBUS resource and device tree entry");
+
+            trace.printf("Adding MMIO resource %s.%.4s : [0x%lx - 0x%lx] -> [0x%llx - 0x%llx]\n",
+                      vdev->dev_info().name, resname, res.start, res.end,
+                      dtaddr, dtaddr + (dtsize - 1));
+
+            auto handler = Vdev::make_device<Ds_handler>(vbus->io_ds(),
+                                                         0, dtsize, res.start);
+
+            devs->vmm()->add_mmio_device(Vmm::Region::ss(Vmm::Guest_addr(dtaddr), dtsize),
+                                         handler);
+            --todo_regs;
+          }
+        else if (res.type == L4VBUS_RESOURCE_IRQ)
+          {
+            if (strncmp(resname, "irq", 3) || resname[3] < '0' || resname[3] > '9')
+              {
+                warn.printf("%s: Vbus memory resource '%.4s' has no recognisable name.\n",
+                            node.get_name(), resname);
+                continue;
+              }
+
+            unsigned resid = resname[3] - '0';
+
+            if (resid >= todo_irqs)
+              {
+                Err().printf("%s: VBUS interupts resource '%.4s' has no matching device tree entry.",
+                             node.get_name(), resname);
+                L4Re::chksys(-L4_ENOMEM,
+                             "Matching VBUS interrupt resources against device tree.");
+              }
+
+            auto it = Irq_dt_iterator(devs, node);
+
+            for (unsigned n = 0; n < resid; ++n)
+              {
+                // Just advance the iterator without error checking. num_interrupts()
+                // above already checked that 'todo_irqs' interrupts are well defined.
+                it.next(devs);
+              }
+
+            if (it.ic_is_virt())
+              {
+                int dt_irq = it.irq();
+                bind_irq(devs->vmm(), vbus, it.ic().get(), dt_irq, res.start,
+                         node.get_name());
+              }
+
+            trace.printf("Registering IRQ resource %s.%.4s : 0x%lx\n",
+                         vdev->dev_info().name, resname, res.start);
+            --todo_irqs;
+          }
+      }
+
+    if (todo_regs > 0)
+      {
+        Err().printf("%s: not enough memory resources found in VBUS device '%s'.\n",
+                     node.get_name(), hid);
+        L4Re::chksys(-L4_EINVAL, "Match memory resources");
+      }
+    if (todo_irqs > 0)
+      {
+        Err().printf("%s: not enough interrupt resources found in VBUS device '%s'.\n",
+                     node.get_name(), hid);
+        L4Re::chksys(-L4_EINVAL, "Match interrupt resources");
+      }
+
+    auto device = make_device<Io_proxy>(vdev->io_dev());
+
+    vdev->set_proxy(device);
+
+    return device;
+  }
+
   cxx::Ref_ptr<Device> create(Device_lookup *devs,
                               Dt_node const &node) override
   {
+    char const *prop = node.get_prop<char>("l4vmm,vbus-dev", nullptr);
+
+    if (prop)
+      return create_from_vbus_dev(devs, node, prop);
+
     if (!phys_dev_prepared)
       {
         Err().printf("%s: Io_proxy::create() invoked before prepare_factory()\n"

@@ -96,6 +96,11 @@ Vm::scan_device_tree(Vdev::Device_tree dt)
           { return add_virt_device(node); },
           [] (Vdev::Dt_node const &, unsigned) {});
 
+  // Instantiate physical devices that request a specific vbus device
+  dt.scan([this] (Vdev::Dt_node const &node, unsigned /* depth */)
+          { return add_phys_device_by_vbus_id(node); },
+          [] (Vdev::Dt_node const &, unsigned) {});
+
   // Prepare creation of physical devices
   Vdev::Io_proxy::prepare_factory(this);
 
@@ -174,7 +179,26 @@ Vm::add_phys_device(Vdev::Dt_node const &node)
       return true;
     }
 
-  warn.printf("Device creation for %s failed. Disabling device \n",
+  warn.printf("Device creation for %s failed. Disabling device.\n",
+              node.get_name());
+
+  node.setprop_string("status", "disabled");
+  return false;
+}
+
+bool
+Vm::add_phys_device_by_vbus_id(Vdev::Dt_node const &node)
+{
+  if (!node.has_irqs() && !node.has_mmio_regs())
+    return true;
+
+  if (!node.has_prop("l4vmm,vbus-dev"))
+    return true;
+
+  if (Vdev::Factory::create_dev(this, node))
+    return true;
+
+  warn.printf("Device creation for %s failed. Disabling device.\n",
               node.get_name());
 
   node.setprop_string("status", "disabled");
