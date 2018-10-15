@@ -17,6 +17,7 @@
 #include "vm_state_vmx.h"
 #include "consts.h"
 #include "vmx_exit_to_str.h"
+#include "msr_devices.h"
 
 static cxx::Static_container<Vmm::Guest> guest;
 
@@ -549,6 +550,8 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
     }
 
   register_msr_device(Vdev::make_device<Vcpu_msr_handler>(cpus.get()));
+  register_msr_device(
+    Vdev::make_device<Vdev::Microcode_revision>(cpus->vcpu(0)));
 
   Dbg(Dbg::Guest, Dbg::Info).printf("Starting VMM @ 0x%lx\n", cpus->vcpu(0)->r.ip);
 
