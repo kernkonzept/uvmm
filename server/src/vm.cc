@@ -11,9 +11,13 @@
 #include "device.h"
 #include "device_factory.h"
 #include "debug.h"
+#include "io_proxy.h"
 #include "msi_controller.h"
 
+static Dbg warn(Dbg::Core, Dbg::Warn, "vm");
+
 namespace Vmm {
+
 Vdev::Device_lookup::Ic_error
 Vm::get_or_create_ic(Vdev::Dt_node const &node, cxx::Ref_ptr<Gic::Ic> *ic_ptr)
 {
@@ -80,6 +84,101 @@ Vm::get_or_create_mc_dev(Vdev::Dt_node const &node)
     L4Re::chksys(-L4_EINVAL, "MSI controller is the MSI parent of the device.");
 
   return msi_ctlr;
+}
+
+void
+Vm::scan_device_tree(Vdev::Device_tree dt)
+{
+  vmm()->setup_device_tree(dt);
+
+  // Instantiate all virtual devices
+  dt.scan([this] (Vdev::Dt_node const &node, unsigned /* depth */)
+          { return add_virt_device(node); },
+          [] (Vdev::Dt_node const &, unsigned) {});
+
+  // Prepare creation of physical devices
+  Vdev::Io_proxy::prepare_factory(this);
+
+  // Instantiate all devices which have the necessary resources
+  dt.scan([this] (Vdev::Dt_node const &node, unsigned /* depth */)
+          { return add_phys_device(node); },
+          [] (Vdev::Dt_node const &, unsigned) {});
+}
+
+bool
+Vm::add_virt_device(Vdev::Dt_node const &node)
+{
+  // Ignore non virtual devices
+  if (!Vdev::Factory::is_vdev(node))
+    return true;
+
+  if (Vdev::Factory::create_dev(this, node))
+    return true;
+
+  warn.printf("Device creation for virtual device %s failed. Disabling device.\n",
+              node.get_name());
+
+  node.setprop_string("status", "disabled");
+
+  return false;
+}
+
+bool
+Vm::add_phys_device(Vdev::Dt_node const &node)
+{
+  // device_type is a deprecated option and should be set for "cpu"
+  // and "memory" devices only. Currently there are some more uses
+  // like "pci", "network", "phy", "soc2, "mdio", but we ignore these
+  // here, since they do not need special treatment.
+  char const *devtype = node.get_prop<char>("device_type", nullptr);
+
+  // Ignore memory nodes
+  if (devtype && strcmp("memory", devtype) == 0)
+    {
+      // there should be no subnode to memory devices so it should be
+      // safe to return false to stop traversal of subnodes
+      return false;
+    }
+
+  cxx::Ref_ptr<Vdev::Device> dev;
+  bool is_cpu_dev = devtype && strcmp("cpu", devtype) == 0;
+
+  // Cpu devices need to be treated specially because they use a
+  // different factory (there are too many compatible attributes to
+  // use the normal factory mechanism).
+  if (is_cpu_dev)
+    {
+      dev = cpus()->create_vcpu(&node);
+      if (!dev)
+        return false;
+
+      // XXX Other create methods directly add the created device to the device
+      // repository; We might want to do the same in create_vcpu.
+      add_device(node, dev);
+      return true;
+    }
+  else
+    {
+      if (!node.has_irqs() && !node.has_mmio_regs())
+        return true;
+
+      if (Vdev::Factory::create_dev(this, node))
+        return true;
+    }
+
+  // Device creation failed
+  if (node.has_prop("l4vmm,force-enable"))
+    {
+      warn.printf("Device creation for %s failed, 'l4vmm,force-enable' set\n",
+                  node.get_name());
+      return true;
+    }
+
+  warn.printf("Device creation for %s failed. Disabling device \n",
+              node.get_name());
+
+  node.setprop_string("status", "disabled");
+  return false;
 }
 
 }

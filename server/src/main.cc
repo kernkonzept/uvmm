@@ -27,96 +27,16 @@
 #include <l4/re/env>
 
 #include "debug.h"
-#include "device_factory.h"
 #include "guest.h"
 #include "host_dt.h"
 #include "monitor_console.h"
 #include "vm_ram.h"
-#include "io_proxy.h"
 #include "vm.h"
 
 Vmm::Vm vm_instance;
 
 static Dbg info(Dbg::Core, Dbg::Info, "main");
 static Dbg warn(Dbg::Core, Dbg::Warn, "main");
-
-static bool
-might_need_vbus_resources(Vdev::Dt_node const &node)
-{ return node.has_irqs() || node.has_mmio_regs(); }
-
-static bool
-virt_dev_cb(Vdev::Dt_node const &node)
-{
-  // Ignore non virtual devices
-  if (!Vdev::Factory::is_vdev(node))
-    return true;
-
-  if (Vdev::Factory::create_dev(&vm_instance, node))
-    return true;
-
-  warn.printf("Device creation for %s failed. Disabling device \n",
-              node.get_name());
-  node.setprop_string("status", "disabled");
-  return false;
-}
-
-static bool
-phys_dev_cb(Vdev::Dt_node const &node)
-{
-  // device_type is a deprecated option and should be set for "cpu"
-  // and "memory" devices only. Currently there are some more uses
-  // like "pci", "network", "phy", "soc2, "mdio", but we ignore these
-  // here, since they do not need special treatment.
-  char const *devtype = node.get_prop<char>("device_type", nullptr);
-
-  // Ignore memory nodes
-  if (devtype && strcmp("memory", devtype) == 0)
-    {
-      // there should be no subnode to memory devices so it should be
-      // safe to return false to stop traversal of subnodes
-      return false;
-    }
-
-  cxx::Ref_ptr<Vdev::Device> dev;
-  bool is_cpu_dev = devtype && strcmp("cpu", devtype) == 0;
-
-  // Cpu devices need to be treated specially because they use a
-  // different factory (there are too many compatible attributes to
-  // use the normal factory mechanism).
-  if (is_cpu_dev)
-    {
-      dev = vm_instance.cpus()->create_vcpu(&node);
-      if (!dev)
-        return false;
-
-      // XXX Other create methods directly add the created device to the device
-      // repository; We might want to do the same in create_vcpu.
-      vm_instance.add_device(node, dev);
-      return true;
-    }
-  else
-    {
-      if (!might_need_vbus_resources(node))
-        return true;
-
-      if (Vdev::Factory::create_dev(&vm_instance, node))
-        return true;
-    }
-
-  // Device creation failed
-  if (node.has_prop("l4vmm,force-enable"))
-    {
-      warn.printf("Device creation for %s failed, 'l4vmm,force-enable' set\n",
-                  node.get_name());
-      return true;
-    }
-
-  warn.printf("Device creation for %s failed. Disabling device \n",
-              node.get_name());
-
-  node.setprop_string("status", "disabled");
-  return false;
-}
 
 static int
 verbosity_mask_from_string(char const *str, unsigned *mask)
@@ -297,22 +217,7 @@ static int run(int argc, char *argv[])
           node.setprop_string("bootargs", cmd_line);
         }
 
-      vmm->setup_device_tree(dt.get());
-
-      // Instantiate all virtual devices
-      dt.get().scan([] (Vdev::Dt_node const &node, unsigned /* depth */)
-                    { return virt_dev_cb(node); },
-                    [] (Vdev::Dt_node const &, unsigned)
-                    {});
-
-      // Prepare creation of physical devices
-      Vdev::Io_proxy::prepare_factory(&vm_instance);
-
-      // Instantiate all devices which have the necessary resources
-      dt.get().scan([] (Vdev::Dt_node const &node, unsigned /* depth */)
-                    { return phys_dev_cb(node); },
-                    [] (Vdev::Dt_node const &, unsigned)
-                    {});
+      vm_instance.scan_device_tree(dt.get());
     }
 
   if (!vm_instance.cpus()->vcpu_exists(0))

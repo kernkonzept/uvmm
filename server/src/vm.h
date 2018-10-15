@@ -96,7 +96,21 @@ public:
                               : Vdev::Dt_node();
   }
 
+  /**
+   * Collect and instantiate all devices described in the device tree.
+   *
+   * \param dt  Device tree to scan.
+   *
+   * This function first instantiates all device for which a virtual
+   * implementation exists and then goes through the remaining devices
+   * and tries to assign any missing resources from the vbus (if existing).
+   */
+  void scan_device_tree(Vdev::Device_tree dt);
+
 private:
+  bool add_virt_device(Vdev::Dt_node const &node);
+  bool add_phys_device(Vdev::Dt_node const &node);
+
   Vdev::Device_repository _devices;
   Vmm::Guest *_vmm;
   cxx::Ref_ptr<Vmm::Vm_ram> _ram;
