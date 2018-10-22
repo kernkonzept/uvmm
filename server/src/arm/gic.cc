@@ -258,7 +258,7 @@ Gic::Dist::write(unsigned reg, char size, l4_uint32_t value, unsigned cpu_id)
   unsigned r = reg & ~3;
   switch (r)
     {
-    case CTLR: ctlr = value;
+    case CTLR: ctlr = value; return;
     default: break;
     };
 
