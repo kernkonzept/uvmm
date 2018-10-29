@@ -164,23 +164,31 @@ struct F : Vdev::Factory
 
     if (it.next(devs) >= 0)
       {
-        if (!it.ic_is_virt())
-          L4Re::chksys(-L4_EINVAL, "OP-TEE device requires a virtual interrupt controller");
-
-        // XXX Using a standard IO interrupt here. Possibly better to
-        // write our own non-masking irq svr.
-        auto irq_svr = Vdev::make_device<Vdev::Irq_svr>(0);
-
-        L4Re::chkcap(devs->vmm()->registry()->register_irq_obj(irq_svr.get()),
-            "Register IRQ handling server.");
-
         auto icu = L4::cap_dynamic_cast<L4::Icu>(cap);
-        L4Re::chksys(icu->bind(0, irq_svr->obj_cap()),
-            "Bind to IRQ to OP-TEE service.");
 
-        int dt_irq = it.irq();
-        irq_svr->set_sink(it.ic().get(), dt_irq);
-        it.ic()->bind_irq_source(dt_irq, irq_svr);
+        if (icu)
+          {
+            if (!it.ic_is_virt())
+              L4Re::chksys(-L4_EINVAL, "OP-TEE device requires a virtual interrupt controller");
+
+            // XXX Using a standard IO interrupt here. Possibly better to
+            // write our own non-masking irq svr.
+            auto irq_svr = Vdev::make_device<Vdev::Irq_svr>(0);
+
+            L4Re::chkcap(devs->vmm()->registry()->register_irq_obj(irq_svr.get()),
+                "Register IRQ handling server.");
+
+            L4Re::chksys(icu->bind(0, irq_svr->obj_cap()),
+                "Bind to IRQ to OP-TEE service.");
+
+            int dt_irq = it.irq();
+            irq_svr->set_sink(it.ic().get(), dt_irq);
+            it.ic()->bind_irq_source(dt_irq, irq_svr);
+          }
+        else
+          // When no proxy is used, there is also no notification available.
+          // So it is not necessarily an error, when no ICU can be found.
+          warn.printf("SMC device does not support notification interrupts.\n");
       }
 
     devs->vmm()->register_smc_handler(c);
