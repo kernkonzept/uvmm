@@ -51,6 +51,33 @@
  * for the memory regions will be added here. Note that the property is
  * not cleared first, so it should be left empty.
  *
+ * ### Memory layout
+ *
+ * uvmm populates the RAM with the following data:
+ *
+ * * kernel binary
+ * * (optional) ramdisk
+ * * (optional) device tree
+ *
+ * The kernel binary is put at the predefined address. For ELF binaries, this
+ * is an absolute physical address. If the binary supports relative addressing,
+ * the binary is put to the requested offset relative to beginning of the
+ * first 'memory' region defined in the device tree.
+ *
+ * The ramdisk and device tree are placed as far as possible to the end of the
+ * regions defined in the first 'memory' node.
+ *
+ * If there is a part of RAM that must remain empty, then define an extra
+ * memory node for it in the device tree. uvmm only writes to memory in
+ * the first memory node it finds.
+ *
+ * Warning: uvmm does not touch any unpopulated memory. In particular, it does
+ * not ensure that the memory is cleared. It is the responsibility of the provider
+ * of the RAM dataspace to make sure that no data leakage can happen. Normally
+ * this is not an issue because dataspaces are guaranteed to be cleaned when
+ * they are newly created but users should be careful when reusing memory or
+ * dataspaces, for example, when restarting the uvmm.
+ *
  * Forwarding hardware resources to the guest
  * ------------------------------------------
  *
