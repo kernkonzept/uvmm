@@ -1,0 +1,62 @@
+## This file states the license of this package and possibly its subpackages
+## in machine and human readable format. The PackageName refers to the package
+## whose license is defined by PackageLicenseConcluded.
+## For more information about this file format visit the SPDX website at
+## https://spdx.org
+
+SPDXVersion: SPDX-2.1
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-Document
+DocumentNamespace: spdx:kernkonzept/uvmm-c9ac5a16-e7f6-11e8-9023-e32cdff45c32
+DocumentName: LICENSE.spdx
+
+Creator: Organization: Kernkonzept GmbH (info@kernkonzept.com)
+
+## Package Information
+PackageName: uvmm
+PackageOriginator: Organization: Kernkonzept GmbH (info@kernkonzept.com)
+PackageLicenseDeclared: (GPL-2.0-only OR LicenseRef-kk-custom)
+PackageLicenseConcluded: (GPL-2.0-only OR LicenseRef-kk-custom)
+FilesAnalyzed: false
+PackageCopyrightText: NOASSERTION
+PackageDownloadLocation: NOASSERTION
+
+FileName: ./configs/dts/ls1021a-twr.dts
+SPDXID: SPDXRef-dts-ls1021a-twr-dts
+FileChecksum: SHA1: 4b04ebe93e8a5e54b146fc747caac8dad9e5ae7f
+LicenseConcluded: GPL-2.0
+LicenseInfoInFile: NOASSERTION
+FileCopyrightText: NOASSERTION
+
+FileName: ./configs/dts/ls1021a.dtsi
+SPDXID: SPDXRef-dts-ls1021a-dtsi
+FileChecksum: SHA1: 5bef3b89ece57550403d1b1b86e6883865b3fe03
+LicenseConcluded: GPL-2.0
+LicenseInfoInFile: NOASSERTION
+FileCopyrightText: NOASSERTION
+
+FileName: ./configs/dts/include/dt-bindings/interrupt-controller/irq.h
+SPDXID: SPDXRef-dts-irq-h
+FileChecksum: SHA1: 0d238c52bf1100fc7ae3af295aea7642dfd24671
+LicenseConcluded: GPL-2.0 OR MIT
+LicenseInfoInFile: NOASSERTION
+FileCopyrightText: NOASSERTION
+
+FileName: ./configs/dts/include/dt-bindings/interrupt-controller/arm-gic.h
+SPDXID: SPDXRef-dts-arm-gic-h
+FileChecksum: SHA1: e9aa955b4ba6e154879dd45206f2cee1ec57ed69
+LicenseConcluded: GPL-2.0 OR MIT
+LicenseInfoInFile: NOASSERTION
+FileCopyrightText: NOASSERTION
+
+## License Information
+LicenseID: LicenseRef-kk-custom
+ExtractedText: <text>Kernkonzept Custom License
+
+If you have sought a special licensing agreement with Kernkonzept GmbH the
+terms and conditions from therein apply to this package.
+
+If you require a different licensing scheme please contact us at
+info@kernkonzept.com.
+</text>
+LicenseName: Kernkonzept Custom License
