@@ -13,9 +13,7 @@
 #include <pthread-l4.h>
 
 #include <l4/re/error_helper>
-#include <l4/re/env>
-#include <l4/re/rm>
-#include <l4/sys/task>
+#include <l4/re/util/kumem_alloc>
 
 #include <debug.h>
 #include <device.h>
@@ -29,13 +27,9 @@ public:
   Generic_cpu_dev(unsigned idx, unsigned phys_id)
   : _vcpu(nullptr), _phys_cpu_id(phys_id)
   {
-    auto *e = L4Re::Env::env();
-    l4_addr_t vcpu_addr = 0x10000000;
+    l4_addr_t vcpu_addr;
 
-    L4Re::chksys(e->rm()->reserve_area(&vcpu_addr, L4_PAGESIZE,
-                                       L4Re::Rm::Search_addr));
-    L4Re::chksys(e->task()->add_ku_mem(
-                   l4_fpage(vcpu_addr, L4_PAGESHIFT, L4_FPAGE_RW)),
+    L4Re::chksys(L4Re::Util::kumem_alloc(&vcpu_addr, 0),
                  "kumem alloc for vCPU");
 
     Dbg(Dbg::Cpu, Dbg::Info).printf("Created VCPU %u @ %lx\n", idx, vcpu_addr);
