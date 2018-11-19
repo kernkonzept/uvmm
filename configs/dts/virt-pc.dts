@@ -89,10 +89,6 @@
               // first address cells encodes bus-dev-fn(<<16, <<11, <<8);
               reg = <0x02000000 0x0 0xaaaa0000 0x0 0x2000
                      0x01000000 0x0 0x800 0x0 0x100>;
-              // XXX The interrupt-parent is used as MSI-interrupt-parent, as
-              // we currently only resolve references for the interrupt-parent
-              // property. This is only a preliminary measure and must be fixed
-              // ASAP.
               msi-parent = <&msi_ctlr>;
               l4vmm,vdev = "console";
             };
