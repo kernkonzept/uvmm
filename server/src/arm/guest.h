@@ -8,6 +8,7 @@
 #pragma once
 
 #include <l4/cxx/ref_ptr>
+#include <l4/sys/vm>
 
 #include "core_timer.h"
 #include "device.h"
@@ -67,6 +68,21 @@ public:
     if (_smc_handler)
       L4Re::chksys(-L4_ENOMEM, "Only one handler for SMC calls can be defined.");
     _smc_handler = handler;
+  }
+
+  void map_gicc(Vdev::Dt_node const &node) const
+  {
+    l4_uint64_t base, size;
+    int res = node.get_reg_val(1, &base, &size);
+    if (res < 0)
+      {
+        Err().printf("Failed to read 'reg' from node %s: %s\n",
+                     node.get_name(), node.strerror(res));
+        throw L4::Runtime_error(-L4_EINVAL);
+      }
+
+    l4_fpage_t fp = l4_fpage(base, L4_PAGESHIFT, L4_FPAGE_RW);
+    L4Re::chksys(_task->vgicc_map(fp));
   }
 
   void handle_wfx(Vcpu_ptr vcpu);

@@ -48,33 +48,11 @@ struct F : Factory
   cxx::Ref_ptr<Vdev::Device> create(Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
-    auto *vbus = devs->vbus().get();
-    if (!vbus->io_ds())
-      {
-        Err().printf("ERROR: ARM GIC virtualization does not work without passing the virtual GICC via the vbus\n");
-        return nullptr; // missing hardware part, disable GIC
-      }
-
-    // attach GICD to VM
     auto gic = devs->vmm()->gic();
+    // attach GICD to VM
     devs->vmm()->register_mmio_device(gic, node);
-
-    Virt_bus::Devinfo *devinfo =
-      vbus->find_unassigned_device_by_hid("arm-gicc");
-    if (!devinfo)
-      L4Re::chksys(-L4_ENODEV, "getting ARM GIC from IO");
-
-    l4vbus_resource_t res;
-    L4Re::chksys(devinfo->io_dev().get_resource(0, &res),
-                 "getting memory resource");
-
-    Dbg(Dbg::Irq, Dbg::Info, "GIC").printf("ARM GIC: %08lx-%08lx\n",
-                                           res.start, res.end);
-
-    auto g2 = Vdev::make_device<Ds_handler>(vbus->io_ds(), 0,
-                                            res.end - res.start + 1, res.start);
-    devs->vmm()->register_mmio_device(g2, node, 1);
-    devinfo->set_proxy(gic);
+    // attach GICC to VM
+    devs->vmm()->map_gicc(node);
     return gic;
   }
 };
