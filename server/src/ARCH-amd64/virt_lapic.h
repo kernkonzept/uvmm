@@ -87,6 +87,7 @@ class Virt_lapic : public Vdev::Timer, public Ic
     bool one_shot() const { return !mode(); }
     bool periodic() const { return mode() == 1; }
     bool tsc_deadline() const { return mode() == 2; }
+    void disarm() { masked() = 1; }
   };
 
   enum XAPIC_consts : unsigned

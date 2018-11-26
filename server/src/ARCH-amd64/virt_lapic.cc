@@ -315,6 +315,8 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
     case 0x838:
       _regs.tmr_init = value;
       _regs.tmr_cur = value;
+      if (value == 0)
+        _timer.disarm();
       break;
     case 0x83e: _timer_div = value; break;
     case 0x83f:
