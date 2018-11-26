@@ -51,7 +51,24 @@ class Virt_lapic : public Vdev::Timer, public Ic
     l4_uint32_t err;
     l4_uint32_t tmr_init;
     l4_uint32_t tmr_cur;
-    l4_uint32_t tmr_div;
+  };
+
+  struct Timer_div
+  {
+    l4_uint32_t raw;
+    CXX_BITFIELD_MEMBER_RO(3, 3, upper, raw);
+    CXX_BITFIELD_MEMBER_RO(0, 1, lower, raw);
+
+    Timer_div() : raw(0U) {}
+    Timer_div(l4_uint32_t val) : raw(val) {}
+    Timer_div(Timer_div const &o) : raw(o.raw) {}
+
+    unsigned divisor() const
+    {
+      unsigned shift = lower() + (upper() << 2);
+
+      return shift == 7 ? 1 : 2u << shift;
+    }
   };
 
   struct Timer_reg
@@ -176,7 +193,9 @@ private:
   std::mutex _tmr_mutex;
   LAPIC_registers _regs;
   Timer_reg _timer;
+  Timer_div _timer_div;
   l4_uint64_t _tsc_deadline;
+  l4_kernel_clock_t _last_ticks_tsc;
   bool _x2apic_enabled;
   unsigned _irq_queued[256];
   cxx::Ref_ptr<Irq_source> _sources[256];

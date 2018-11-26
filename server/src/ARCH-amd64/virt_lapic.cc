@@ -30,6 +30,7 @@ Virt_lapic::Virt_lapic(unsigned id, l4_addr_t baseaddr)
   _lapic_memory_address(baseaddr),
   _lapic_x2_id(id),
   _lapic_version(Lapic_version),
+  _last_ticks_tsc(0),
   _x2apic_enabled(false)
 {
   trace().printf("Virt_lapic ctor; ID 0x%x\n", id);
@@ -109,7 +110,18 @@ Virt_lapic::tick()
     }
   else if (_regs.tmr_cur > 0)
     {
-      if (--_regs.tmr_cur == 0)
+      l4_kernel_clock_t current_tsc = l4_rdtsc();
+      l4_kernel_clock_t tsc_diff = current_tsc - _last_ticks_tsc;
+      _last_ticks_tsc = current_tsc;
+
+      tsc_diff /= _timer_div.divisor();
+
+      if (_regs.tmr_cur < tsc_diff)
+        _regs.tmr_cur = 0;
+      else
+        _regs.tmr_cur -= tsc_diff;
+
+      if (_regs.tmr_cur == 0)
         {
           if (_timer.masked())
             _timer.pending() = 1;
@@ -225,7 +237,7 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
     case 0x837: *value = _regs.err; break;
     case 0x838: *value = _regs.tmr_init; break;
     case 0x839: *value = _regs.tmr_cur; break;
-    case 0x83e: *value = _regs.tmr_div; break;
+    case 0x83e: *value = _timer_div.raw; break;
 
     default: return false;
     }
@@ -304,7 +316,7 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
       _regs.tmr_init = value;
       _regs.tmr_cur = value;
       break;
-    case 0x83e: _regs.tmr_div = value; break;
+    case 0x83e: _timer_div = value; break;
     case 0x83f:
       Dbg().printf("TODO: self IPI\n");
       break;
