@@ -527,14 +527,59 @@ Guest::handle_smc_call(Vcpu_ptr vcpu)
   vcpu->r.ip += 4;
 }
 
+bool
+Guest::handle_uvmm_call(Vcpu_ptr vcpu)
+{
+  enum Uvmm_functions
+  {
+    Print_char = 0,
+  };
+
+  if ((vcpu->r.r[0] & 0xbfffff00) != 0x86000000)
+    return false;
+
+  unsigned func = vcpu->r.r[0] & 0xff;
+  switch (func)
+    {
+    case Print_char:
+        {
+          char c = vcpu->r.r[1];
+          _hypcall_print.print_char(c);
+        }
+      break;
+
+    default:
+      Err().printf("... Unknown l4 function 0x%x called\n", func);
+      break;
+    };
+
+  return true;
+}
 
 static void dispatch_vm_call(Vcpu_ptr vcpu)
 {
-  if (guest->handle_psci_call(vcpu))
-    return;
+  enum Hvc_functions
+    {
+      Psci = 0,
+      Uvmm   = 1
+    };
 
-  Err().printf("Unknown HVC call: a0=%lx a1=%lx ip=%lx\n",
-               vcpu->r.r[0], vcpu->r.r[1], vcpu->r.ip);
+  l4_mword_t imm = vcpu->r.err & 0xffff;
+
+  switch(imm)
+    {
+    case Psci:
+          if (guest->handle_psci_call(vcpu))
+            return;
+      break;
+    case Uvmm:
+          if (guest->handle_uvmm_call(vcpu))
+            return;
+      break;
+    }
+
+  Err().printf("Unknown HVC call: imm=%x, a0=%lx a1=%lx ip=%lx\n",
+               (unsigned)imm, vcpu->r.r[0], vcpu->r.r[1], vcpu->r.ip);
 }
 
 static void dispatch_smc(Vcpu_ptr vcpu)

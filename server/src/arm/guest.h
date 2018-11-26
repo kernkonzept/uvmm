@@ -17,6 +17,7 @@
 #include "vm_ram.h"
 #include "cpu_dev_array.h"
 #include "smc_device.h"
+#include "vmprint.h"
 
 namespace Vmm {
 
@@ -72,6 +73,7 @@ public:
   void handle_ppi(Vcpu_ptr vcpu);
   bool handle_psci_call(Vcpu_ptr vcpu);
   void handle_smc_call(Vcpu_ptr vcpu);
+  bool handle_uvmm_call(Vcpu_ptr vcpu);
 
 private:
   Cpu_dev *lookup_cpu(l4_uint32_t hwid) const;
@@ -83,6 +85,7 @@ private:
   bool guest_64bit = false;
   cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
   cxx::Ref_ptr<Vmm::Smc_device> _smc_handler;
+  Guest_print_buffer _hypcall_print;
 };
 
 } // namespace
