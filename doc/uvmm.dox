@@ -194,9 +194,9 @@
  * To make use of this clock, the Linux guest must be built with the following
  * configuration options:
  *
- * CONFIG_HYPERVISOR_GUEST=y
- * CONFIG_KVM_GUEST=y
- * CONFIG_PTP_1588_CLOCK_KVM is not set
+ *     CONFIG_HYPERVISOR_GUEST=y
+ *     CONFIG_KVM_GUEST=y
+ *     CONFIG_PTP_1588_CLOCK_KVM is not set
  *
  * Note: KVM calls besides the KVM clock are unhandled and lead to failure
  * in the uvmm, e.g. vmcall 0x9 for the PTP_1588_CLOCK_KVM.
