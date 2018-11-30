@@ -1,0 +1,25 @@
+
+How to build a Linux kernel to be used as a guest kernel in uvmm?
+
+The following brief instructions assume that the reader has
+a basic knowledge how to build Linux and has the necessary
+environment and tools installed.
+
+This directory contains patches against various versions
+of the Linux kernel. Choose the appropriate patch and apply with
+
+/tmp $ cd linux-4.6
+/tmp/linux-4.6 $ patch -p1 -i /path/to/pkg/uvmm/configs/guests/Linux/mips/0001-MIPS-Add-virtual-platform-linux-4.6.patch
+
+Configure the kernel:
+
+/tmp/linux-4.6 $ make ARCH=mips mach_virt_defconfig
+
+Further configure the kernel to your needs.
+
+Build:
+
+/tmp/linux-4.6 $ make ARCH=mips CROSS_COMPILE=mips-linux-
+
+The resulting file /tmp/linux-4.6/vmlinux is used as a kernel
+for uvmm.

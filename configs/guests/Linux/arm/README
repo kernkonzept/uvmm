@@ -1,0 +1,60 @@
+
+
+Do the following to compile a Linux to be used as a guest.
+
+Any recent Linux kernel as well as older ones are supposed work
+out of the box with vanilla Linux, including 3.16 and also 4.4
+and more recent versions.
+
+Select the 'multi_v7_defconfig' config:
+
+$ make ARCH=arm CROSS_COMPILE=arm-linux- multi_v7_defconfig
+$ make ARCH=arm CROSS_COMPILE=arm-linux- menuconfig
+
+Enable at least:
+CONFIG_VIRTIO_CONSOLE
+
+and probably some RAM disk support or similar.
+
+Beginners may also want to enable those:
+DEBUG_LL
+DEBUG_ICEDCC
+EARLY_PRINTK
+
+
+Build the kernel
+$ make ARCH=arm CROSS_COMPILE=arm-linux- -j40
+
+Then use arch/arm/boot/zImage
+
+
+Use an appropriate device tree file from dts/ directory.
+
+IO configurations are in bsp/platform
+
+
+Caveats with at least Linux 3.14.1, 3.15 and 3.16:
+ - With the multiplatform config enabling CONFIG_DEBUG_LL /
+   CONFIG_EARLY_PRINTK selects the PL0X1 debug UART because of some
+   (unfortunate?) settings in arch/arm/Kconfig.debug.  Remove / modify the
+   CONFIG_DEBUG_UART_PL01X option in a way so that CONFIG_DEBUG_LL_INCLUDE
+   is set to debug/icedcc.S and also select CONFIG_DEBUG_ICEDCC
+   accordingly. If this is given, early-printk should work.
+ - The Linux boot code misses an 'ISB' instruction that might hit in your
+   setup. You'll be seeing unresolvable page-faults or other unusual
+   behavior if you hit it. The issue triggers depending on memory layout.
+
+--- a/arch/arm/boot/compressed/head.S
++++ b/arch/arm/boot/compressed/head.S
+@@ -403,6 +403,7 @@
+ 		tst	r4, #1
+ 		bleq	cache_clean_flush
+ 
++		isb
+ 		adr	r0, BSYM(restart)
+ 		add	r0, r0, r6
+ 		mov	pc, r0
+
+   According to the internet, a patch is floating around for this which
+   hopefully gets merged soon.
+   

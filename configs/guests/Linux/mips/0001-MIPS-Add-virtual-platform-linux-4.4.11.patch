@@ -1,0 +1,439 @@
+From ff7d86bc5cabf33461a33fbfab2b85ac252c101c Mon Sep 17 00:00:00 2001
+From: Adam Lackorzynski <adam@l4re.org>
+Date: Wed, 25 May 2016 00:36:10 +0200
+Subject: [PATCH] MIPS: Add virtual platform
+
+This adds a virtual platform to use as a guest in VZ-enabled
+virtualization environments.
+
+Signed-off-by: Adam Lackorzynski <adam@l4re.org>
+---
+ arch/mips/Kbuild.platforms                         |   1 +
+ arch/mips/Kconfig                                  |  26 ++++++
+ arch/mips/configs/mach_virt_defconfig              |  11 +++
+ .../include/asm/mach-virt/cpu-feature-overrides.h  |  15 +++
+ arch/mips/include/asm/mach-virt/hypcall.h          |  96 ++++++++++++++++++++
+ arch/mips/include/asm/timex.h                      |   6 +-
+ arch/mips/mach-virt/Makefile                       |   3 +
+ arch/mips/mach-virt/Platform                       |   9 ++
+ arch/mips/mach-virt/early_printk.c                 |  13 +++
+ arch/mips/mach-virt/irq.c                          |  17 ++++
+ arch/mips/mach-virt/setup.c                        | 101 +++++++++++++++++++++
+ arch/mips/mm/c-r4k.c                               |   2 +
+ 12 files changed, 297 insertions(+), 3 deletions(-)
+ create mode 100644 arch/mips/configs/mach_virt_defconfig
+ create mode 100644 arch/mips/include/asm/mach-virt/cpu-feature-overrides.h
+ create mode 100644 arch/mips/include/asm/mach-virt/hypcall.h
+ create mode 100644 arch/mips/mach-virt/Makefile
+ create mode 100644 arch/mips/mach-virt/Platform
+ create mode 100644 arch/mips/mach-virt/early_printk.c
+ create mode 100644 arch/mips/mach-virt/irq.c
+ create mode 100644 arch/mips/mach-virt/setup.c
+
+diff --git a/arch/mips/Kbuild.platforms b/arch/mips/Kbuild.platforms
+index a96c81d..f83c5b2 100644
+--- a/arch/mips/Kbuild.platforms
++++ b/arch/mips/Kbuild.platforms
+@@ -17,6 +17,7 @@ platforms += lantiq
+ platforms += lasat
+ platforms += loongson32
+ platforms += loongson64
++platforms += mach-virt
+ platforms += mti-malta
+ platforms += mti-sead3
+ platforms += netlogic
+diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
+index db45961..e8b4c3b 100644
+--- a/arch/mips/Kconfig
++++ b/arch/mips/Kconfig
+@@ -481,6 +481,32 @@ config MIPS_MALTA
+ 	  This enables support for the MIPS Technologies Malta evaluation
+ 	  board.
+ 
++config MIPS_VIRT
++	bool "MIPS virtual platform"
++	select HW_HAS_PCI
++	select BOOT_ELF32
++	select BOOT_RAW
++	select CEVT_R4K
++	select CSRC_R4K
++	select COMMON_CLK
++	select IRQ_MIPS_CPU
++	select DMA_NONCOHERENT
++	select MIPS_GIC
++	select MIPS_CPU_SCACHE
++	select LIBFDT
++	select HW_HAS_PCI
++	select SMP_UP if SMP
++	select SWAP_IO_SPACE
++	select SYS_HAS_CPU_MIPS32_R2
++	select SYS_HAS_CPU_MIPS32_R3_5
++	select SYS_HAS_EARLY_PRINTK
++	select SYS_SUPPORTS_32BIT_KERNEL
++	select SYS_SUPPORTS_HIGHMEM
++	select SYS_SUPPORTS_LITTLE_ENDIAN
++	select SYS_SUPPORTS_MIPS_CPS
++	select SYS_SUPPORTS_SMARTMIPS
++	select USE_OF
++
+ config MIPS_SEAD3
+ 	bool "MIPS SEAD3 board"
+ 	select BOOT_ELF32
+diff --git a/arch/mips/configs/mach_virt_defconfig b/arch/mips/configs/mach_virt_defconfig
+new file mode 100644
+index 0000000..20a0353
+--- /dev/null
++++ b/arch/mips/configs/mach_virt_defconfig
+@@ -0,0 +1,11 @@
++CONFIG_MIPS_VIRT=y
++CONFIG_BLK_DEV_INITRD=y
++CONFIG_BLK_DEV_RAM=y
++# CONFIG_KEYBOARD_ATKBD is not set
++# CONFIG_MOUSE_PS2 is not set
++# CONFIG_SERIO is not set
++CONFIG_VIRTIO_CONSOLE=y
++CONFIG_VIRTIO_MMIO=y
++CONFIG_EXT4_FS=y
++CONFIG_EXT4_FS_POSIX_ACL=y
++CONFIG_EXT4_FS_SECURITY=y
+diff --git a/arch/mips/include/asm/mach-virt/cpu-feature-overrides.h b/arch/mips/include/asm/mach-virt/cpu-feature-overrides.h
+new file mode 100644
+index 0000000..ded8a1a9
+--- /dev/null
++++ b/arch/mips/include/asm/mach-virt/cpu-feature-overrides.h
+@@ -0,0 +1,15 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ */
++#ifndef __ASM_MACH_VIRT_CPU_FEATURE_OVERRIDES_H
++#define __ASM_MACH_VIRT_CPU_FEATURE_OVERRIDES_H
++
++#define cpu_has_maar		0
++#define cpu_has_htw             0
++#define cpu_has_dc_aliases	1
++#define kernel_uses_llsc	0
++#define cpu_has_nan_legacy	1
++
++#endif /* __ASM_MACH_VIRT_CPU_FEATURE_OVERRIDES_H */
+diff --git a/arch/mips/include/asm/mach-virt/hypcall.h b/arch/mips/include/asm/mach-virt/hypcall.h
+new file mode 100644
+index 0000000..8a7e881
+--- /dev/null
++++ b/arch/mips/include/asm/mach-virt/hypcall.h
+@@ -0,0 +1,96 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ *
++ * (C) 2016 Kernkonzept GmbH, Adam Lackorzynski <adam@l4re.org>
++ */
++#pragma once
++
++enum {
++	L4VMM_FUNC_BASE      = 0x160,
++	L4VMM_FUNC_PRINTCHAR = L4VMM_FUNC_BASE + 0,
++};
++
++static inline unsigned long
++l4vmm_hypcall1(unsigned func, unsigned long a0)
++{
++	register unsigned long _a0 asm ("a0") = a0;
++	asm volatile(".set push; .set virt; hypcall %[func]; .set pop"
++	             : "=r" (_a0)
++	             : [func] "K" (func),
++	               "0" (_a0)
++	             : "cc", "memory");
++	return _a0;
++}
++
++static inline unsigned long
++l4vmm_hypcall2(unsigned func, unsigned long a0, unsigned long a1)
++{
++	register unsigned long _a0 asm ("a0") = a0;
++	register unsigned long _a1 asm ("a1") = a1;
++	asm volatile(".set push; .set virt; hypcall %[func]; .set pop"
++	             : "=r" (_a0),
++	               "=r" (_a1)
++	             : [func] "K" (func),
++	               "0" (_a0),
++	               "1" (_a1)
++	             : "cc", "memory");
++	return _a0;
++}
++
++static inline unsigned long
++l4vmm_hypcall2_ret(unsigned func, unsigned long a0, unsigned long *a1)
++{
++	register unsigned long _a0 asm ("a0") = a0;
++	register unsigned long _a1 asm ("a1") = *a1;
++	asm volatile(".set push; .set virt; hypcall %[func]; .set pop"
++	             : "=r" (_a0),
++	               "=r" (_a1)
++	             : [func] "K" (func),
++	               "0" (_a0),
++	               "1" (_a1)
++	             : "cc", "memory");
++	*a1 = _a1;
++	return _a0;
++}
++
++static inline unsigned long
++l4vmm_hypcall3(unsigned func, unsigned long a0, unsigned long a1,
++                              unsigned long a2)
++{
++	register unsigned long _a0 asm ("a0") = a0;
++	register unsigned long _a1 asm ("a1") = a1;
++	register unsigned long _a2 asm ("a2") = a2;
++	asm volatile(".set push; .set virt; hypcall %[func]; .set pop"
++	             : "=r" (_a0),
++	               "=r" (_a1),
++	               "=r" (_a2)
++	             : [func] "K" (func),
++	               "0" (_a0),
++	               "1" (_a1),
++	               "2" (_a2)
++	             : "cc", "memory");
++	return _a0;
++}
++
++static inline unsigned long
++l4vmm_hypcall3_ret(unsigned func, unsigned long a0, unsigned long *a1,
++                                  unsigned long *a2)
++{
++	register unsigned long _a0 asm ("a0") = a0;
++	register unsigned long _a1 asm ("a1") = *a1;
++	register unsigned long _a2 asm ("a2") = *a2;
++	asm volatile(".set push; .set virt; hypcall %[func]; .set pop"
++	             : "=r" (_a0),
++	               "=r" (_a1),
++	               "=r" (_a2)
++	             : [func] "K" (func),
++	               "0" (_a0),
++	               "1" (_a1),
++	               "2" (_a2)
++	             : "cc", "memory");
++	*a1 = _a1;
++	*a2 = _a2;
++	return _a0;
++}
+diff --git a/arch/mips/include/asm/timex.h b/arch/mips/include/asm/timex.h
+index b05bb70..3222504 100644
+--- a/arch/mips/include/asm/timex.h
++++ b/arch/mips/include/asm/timex.h
+@@ -71,7 +71,7 @@ static inline int can_use_mips_counter(unsigned int prid)
+ 
+ static inline cycles_t get_cycles(void)
+ {
+-	if (can_use_mips_counter(read_c0_prid()))
++	if (IS_ENABLED(CONFIG_MIPS_VIRT) || can_use_mips_counter(read_c0_prid()))
+ 		return read_c0_count();
+ 	else
+ 		return 0;	/* no usable counter */
+@@ -86,10 +86,10 @@ static inline cycles_t get_cycles(void)
+  */
+ static inline unsigned long random_get_entropy(void)
+ {
+-	unsigned int prid = read_c0_prid();
++	unsigned int prid = IS_ENABLED(CONFIG_MIPS_VIRT) ? 0 : read_c0_prid();
+ 	unsigned int imp = prid & PRID_IMP_MASK;
+ 
+-	if (can_use_mips_counter(prid))
++	if (IS_ENABLED(CONFIG_MIPS_VIRT) || can_use_mips_counter(prid))
+ 		return read_c0_count();
+ 	else if (likely(imp != PRID_IMP_R6000 && imp != PRID_IMP_R6000A))
+ 		return read_c0_random();
+diff --git a/arch/mips/mach-virt/Makefile b/arch/mips/mach-virt/Makefile
+new file mode 100644
+index 0000000..4ae5b28
+--- /dev/null
++++ b/arch/mips/mach-virt/Makefile
+@@ -0,0 +1,3 @@
++obj-y                        += setup.o irq.o
++
++obj-$(CONFIG_EARLY_PRINTK)   += early_printk.o
+diff --git a/arch/mips/mach-virt/Platform b/arch/mips/mach-virt/Platform
+new file mode 100644
+index 0000000..52ddca7
+--- /dev/null
++++ b/arch/mips/mach-virt/Platform
+@@ -0,0 +1,9 @@
++#
++# Virtual platform.
++#
++platform-$(CONFIG_MIPS_VIRT)	+= mach-virt/
++cflags-$(CONFIG_MIPS_VIRT)	+= -I$(srctree)/arch/mips/include/asm/mach-virt
++
++load-$(CONFIG_MIPS_VIRT)	+= 0xffffffff80100000
++
++all-$(CONFIG_MIPS_VIRT)		:= $(COMPRESSION_FNAME).bin
+diff --git a/arch/mips/mach-virt/early_printk.c b/arch/mips/mach-virt/early_printk.c
+new file mode 100644
+index 0000000..591ed45
+--- /dev/null
++++ b/arch/mips/mach-virt/early_printk.c
+@@ -0,0 +1,13 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ *
++ * Copyright (C) 2016 Kernkonzept GmbH
++ */
++#include <asm/mach-virt/hypcall.h>
++
++void prom_putchar(char c)
++{
++	l4vmm_hypcall1(L4VMM_FUNC_PRINTCHAR, c);
++}
+diff --git a/arch/mips/mach-virt/irq.c b/arch/mips/mach-virt/irq.c
+new file mode 100644
+index 0000000..8a4c9ad
+--- /dev/null
++++ b/arch/mips/mach-virt/irq.c
+@@ -0,0 +1,17 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ *
++ * Copyright (C) 2016 Kernkonzept GmbH
++ */
++
++#include <linux/init.h>
++#include <linux/irqchip.h>
++
++#include <asm/irq.h>
++
++void __init arch_init_irq(void)
++{
++	irqchip_init();
++}
+diff --git a/arch/mips/mach-virt/setup.c b/arch/mips/mach-virt/setup.c
+new file mode 100644
+index 0000000..e570b10
+--- /dev/null
++++ b/arch/mips/mach-virt/setup.c
+@@ -0,0 +1,101 @@
++/*
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License.  See the file "COPYING" in the main directory of this archive
++ * for more details.
++ *
++ * Copyright (C) 2016 Kernkonzept GmbH
++ */
++
++#include <linux/init.h>
++#include <linux/initrd.h>
++#include <linux/of.h>
++#include <linux/of_fdt.h>
++#include <linux/of_platform.h>
++#include <linux/clk-provider.h>
++#include <linux/clocksource.h>
++
++#include <asm/bootinfo.h>
++#include <asm/cpu-features.h>
++#include <asm/irq_cpu.h>
++#include <asm/prom.h>
++#include <asm/time.h>
++
++const char *get_system_type(void)
++{
++	return "MIPS Virtual Platform";
++}
++
++static void __init init_mips_cpu_timer(void)
++{
++	struct device_node *np;
++	u32 freq;
++
++	mips_hpt_frequency = 0;
++
++	/* The timer frequency must be defined in the device tree.
++	   If the definition is missing, we assume that the timer should
++	   not be used.
++	*/
++	np = of_find_node_by_name(NULL, "cpus");
++	if (np && of_property_read_u32(np, "mips-hpt-frequency", &freq) >= 0) {
++		mips_hpt_frequency = freq;
++
++		printk("CPU frequency %d.%02d MHz\n", freq/1000000,
++		       (freq%1000000)*100/1000000);
++	} else
++		pr_warn("MIPS CPU core timer not used. %p, %u\n", np, freq);
++
++	of_node_put(np);
++}
++
++void __init plat_time_init(void)
++{
++	init_mips_cpu_timer();
++}
++
++void __init prom_init(void)
++{
++	int i;
++	int argc = fw_arg0;
++	char **argv = (char **)fw_arg1;
++
++	for (i = 0; i < argc; i++) {
++		strlcat(arcs_cmdline, argv[i], COMMAND_LINE_SIZE);
++		if (i < argc - 1)
++			strlcat(arcs_cmdline, " ", COMMAND_LINE_SIZE);
++	}
++
++	printk("DT at address %p\n", (void *)fw_arg3);
++	__dt_setup_arch((void *)fw_arg3);
++}
++
++void __init plat_mem_setup(void)
++{
++#ifdef CONFIG_BLK_DEV_INITRD
++	if (initrd_start)
++		initrd_start = (unsigned long)__va(initrd_start);
++	if (initrd_end)
++		initrd_end = (unsigned long)__va(initrd_end);
++#endif
++}
++
++void __init prom_free_prom_memory(void)
++{
++}
++
++void __init device_tree_init(void)
++{
++	unflatten_and_copy_device_tree();
++}
++
++static int __init publish_devices(void)
++{
++	if (!of_have_populated_dt())
++		return 0;
++
++	if (of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL))
++		panic("Failed to populate DT");
++
++	return 0;
++}
++device_initcall(publish_devices);
+diff --git a/arch/mips/mm/c-r4k.c b/arch/mips/mm/c-r4k.c
+index 5d3a25e..355e7c6 100644
+--- a/arch/mips/mm/c-r4k.c
++++ b/arch/mips/mm/c-r4k.c
+@@ -1505,9 +1505,11 @@ static void setup_scache(void)
+ 				       way_string[c->scache.ways], c->scache.linesz);
+ 			}
+ #else
++#ifndef CONFIG_MIPS_VIRT
+ 			if (!(c->scache.flags & MIPS_CACHE_NOT_PRESENT))
+ 				panic("Dunno how to handle MIPS32 / MIPS64 second level cache");
+ #endif
++#endif
+ 			return;
+ 		}
+ 		sc_present = 0;
+-- 
+2.8.1
+

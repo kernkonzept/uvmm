@@ -1,0 +1,27 @@
+/ {
+	syscon {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges;
+		
+		l4syscon: syscon {
+			compatible = "syscon", "syscon-l4vmm";
+			little-endian;
+		};
+		
+		reboot {
+			compatible = "syscon-reboot";
+			regmap = <&l4syscon>;
+			offset = <0x0>;
+			mask = <0x66>;
+		};
+		
+		poweroff {
+			compatible = "syscon-poweroff";
+			regmap = <&l4syscon>;
+			offset = <0x0>;
+			mask = <0x0>;
+		};
+	};
+};

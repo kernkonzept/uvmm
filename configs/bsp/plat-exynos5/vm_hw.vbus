@@ -1,0 +1,23 @@
+
+Io.add_vbusses
+{
+  vm_hw = Io.Vi.System_bus(function()
+    VGIC = wrap(Io.system_bus():match("arm-gicc"))
+    VCPUID = wrap(Io.system_bus():match("exynos-cpuid"))
+    CLOCK = wrap(Io.system_bus():match("exynos5250-clock"))
+    SATA = wrap(Io.system_bus():match("exynos5-sata-ahci"))
+    SATA_PHY = wrap(Io.system_bus():match("exynos5-sata-phy"))
+    SATA_PHY_I2C = wrap(Io.system_bus():match("exynos5-sata-phy-i2c"))
+    USB2 = wrap(Io.system_bus():match("exynos4210-ehci"))
+    USB1 = wrap(Io.system_bus():match("exynos4210-ohci"))
+    USB_PHY = wrap(Io.system_bus():match("exynos5250-usb2phy"))
+    USB3 = wrap(Io.system_bus():match("exynos5-usb3"));
+    INT_COMB = wrap(Io.system_bus():match("exynos-comb"))
+    RTC = wrap(Io.system_bus():match("exynos-rtc"))
+    AUDSS = wrap(Io.system_bus():match("exynos-audss"))
+    UART0 = wrap(Io.system_bus():match("exynos-serial0"))
+    UART1 = wrap(Io.system_bus():match("exynos-serial1"))
+    UART3 = wrap(Io.system_bus():match("exynos-serial3"))
+    ex = wrap(Io.system_bus():match("exynos"));
+  end);
+}

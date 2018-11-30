@@ -1,0 +1,7 @@
+
+Io.add_vbusses
+{
+  vm_hw = Io.Vi.System_bus(function()
+    VGIC = wrap(Io.system_bus():match("arm-gicc"))
+  end);
+}
