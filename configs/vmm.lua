@@ -123,7 +123,8 @@ function start_vm(options)
   end
 
   local opts = {
-    log  = l.log_fab:create(L4.Proto.Log, "vm" .. nr, "w", keyb_shortcut);
+    log  = options.log or l.log_fab:create(L4.Proto.Log, "vm" .. nr, "w",
+                                           keyb_shortcut);
     caps = caps;
   };
 
