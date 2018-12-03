@@ -542,10 +542,10 @@ Guest::handle_uvmm_call(Vcpu_ptr vcpu)
   switch (func)
     {
     case Print_char:
-        {
-          char c = vcpu->r.r[1];
-          _hypcall_print.print_char(c);
-        }
+      {
+        char c = vcpu->r.r[1];
+        _hypcall_print.print_char(c);
+      }
       break;
 
     default:
@@ -561,20 +561,20 @@ static void dispatch_vm_call(Vcpu_ptr vcpu)
   enum Hvc_functions
     {
       Psci = 0,
-      Uvmm   = 1
+      Uvmm = 1,
     };
 
   l4_mword_t imm = vcpu->r.err & 0xffff;
 
-  switch(imm)
+  switch (imm)
     {
     case Psci:
-          if (guest->handle_psci_call(vcpu))
-            return;
+      if (guest->handle_psci_call(vcpu))
+        return;
       break;
     case Uvmm:
-          if (guest->handle_uvmm_call(vcpu))
-            return;
+      if (guest->handle_uvmm_call(vcpu))
+        return;
       break;
     }
 
