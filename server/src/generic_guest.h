@@ -8,6 +8,7 @@
 #pragma once
 
 #include <l4/cxx/ref_ptr>
+#include <l4/sys/vm>
 #include <l4/re/dataspace>
 #include <l4/re/util/br_manager>
 #include <l4/re/util/object_registry>
@@ -181,7 +182,7 @@ protected:
   L4Re::Util::Br_manager _bm;
   L4Re::Util::Object_registry _registry;
   Vm_mem _memmap;
-  L4Re::Util::Unique_cap<L4::Task> _task;
+  L4Re::Util::Unique_cap<L4::Vm> _task;
   Pm _pm;
   Vbus_event _vbus_event;
   L4::Cap<L4Re::Dataspace> _mmio_fallback;
