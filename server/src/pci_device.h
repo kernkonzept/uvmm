@@ -423,7 +423,7 @@ protected:
 
     CAP *ret = reinterpret_cast<CAP *>(&(_hdr.qword[_next_free_idx / 8]));
     l4_uint8_t cap_offset = _next_free_idx;
-    dbg().printf("cap offset 0x%x, cap size 0x%lx\n", cap_offset, sizeof(*ret));
+    dbg().printf("cap offset 0x%x, cap size 0x%zx\n", cap_offset, sizeof(*ret));
 
     _hdr.byte[_last_cap_ptr_idx] = _next_free_idx;
     _last_cap_ptr_idx =  cap_offset + 1; // next ptr is at 2nd byte into cap
