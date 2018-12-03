@@ -22,7 +22,7 @@ Generic_guest::Generic_guest()
 
   if (l4_error(ret) < 0)
     {
-      Err().printf("Cannot create guest VM. Virtualization support may be missing.");
+      Err().printf("Cannot create guest VM. Virtualization support may be missing.\n");
       L4Re::chksys(ret, "Create VM task.");
     }
   l4_debugger_set_object_name(_task.get().cap(), "vm-task");
