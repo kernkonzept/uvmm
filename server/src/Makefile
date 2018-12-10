@@ -29,7 +29,8 @@ SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                ARCH-amd64/rtc.cc ARCH-amd64/virt_lapic.cc \
                ARCH-amd64/vcpu_ptr.cc ARCH-amd64/vm_state_vmx.cc \
                virtio_console_pci.cc virtio_proxy_pci.cc \
-               pci_bus_bridge.cc ARCH-amd64/kvm_clock.cc
+               pci_bus_bridge.cc ARCH-amd64/kvm_clock.cc \
+               ARCH-amd64/legacy_pic.cc
 
 SRC_CC-$(CONFIG_VDEV_8250) += device/uart_8250.cc
 SRC_CC-$(CONFIG_VDEV_PL011) += device/pl011.cc

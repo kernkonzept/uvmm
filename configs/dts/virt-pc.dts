@@ -43,11 +43,21 @@
             };
         };
 
+        PIC: pic {
+          compatible = "virt-i8259-pic";
+          reg = <0x0 0x0 0x0 0x0>;
+          interrupt-parent = <&IOAPIC>;
+          interrupt-controller;
+          #interrupt-cells = <1>;
+          interrupts = <0>;  // legacy interrupts are connected 1:1 to the
+          // IO-APIC. Mimic this here.
+        };
+
         pit {
           compatible = "virt-pit";
           reg = <0x0 0x0 0x0 0x0>;
-          interrupt-parent = <&IOAPIC>;
-          interrupts = <32>;
+          interrupt-parent = <&PIC>;
+          interrupts = <0>;
         };
 
         rtc {
