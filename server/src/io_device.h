@@ -10,7 +10,7 @@
 #include <l4/sys/l4int.h>
 #include <l4/sys/types.h>
 
-#include "generic_vcpu_ptr.h"
+#include "device.h"
 #include "mem_access.h"
 
 namespace Vmm {

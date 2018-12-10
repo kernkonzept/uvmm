@@ -7,6 +7,7 @@
  */
 
 #include <l4/re/error_helper>
+#include <l4/re/env.h> // l4re_kip
 
 #include "irq_dt.h"
 #include "pit.h"
