@@ -15,7 +15,7 @@
 namespace Vdev {
 
 Pit_timer::Pit_timer(Gic::Ic *ic, int irq)
-: _irq(ic, irq), _ch_mode {0xff, 0xff},
+: _irq(ic, irq),
   _read_high(false), _wait_for_high_byte(false),
   _port61(make_device<Port61>())
 {
@@ -60,7 +60,7 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
           break;
         }
       else
-        _ch_mode[ch] = 0xFF;
+        _channel[ch].reset_op_mode();
 
       trace().printf("New timer mode: 0x%x\n", value);
       break;
@@ -96,9 +96,9 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
             set_high_byte(_reload, v);
 
           trace().printf("set counter for %d to %d\n", port, _reload);
-          _counter[ch].reset(l4_rdtsc(), _reload);
+          _channel[ch].reset(l4_rdtsc(), _reload);
           if (_reload != 0)
-            _ch_mode[ch] = _mode.opmode();
+            _channel[ch].op_mode(_mode.opmode());
         }
       else
         warn().printf("PIT access to bad channel\n");
@@ -126,17 +126,17 @@ void Pit_timer::io_in(unsigned port, Vmm::Mem_access::Width width,
           {
             std::lock_guard<std::mutex> lock(_mutex);
 
-            unsigned wraps = _counter[ch].update();
+            unsigned wraps = _channel[ch].update(l4_rdtsc());
 
-            if (_ch_mode[ch] <= 1 && wraps > 0)
+            if (_channel[ch].one_shot_mode() && wraps > 0)
               reg = 0;
             else
-              reg = _counter[ch].current();
+              reg = _channel[ch].current();
           }
         else
           {
             std::lock_guard<std::mutex> lock(_mutex);
-            reg = _counter[ch].current();
+            reg = _channel[ch].current();
           }
 
         switch (_mode.access())
@@ -156,6 +156,23 @@ void Pit_timer::io_in(unsigned port, Vmm::Mem_access::Width width,
           }
       }
     }
+}
+
+void Pit_timer::tick()
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+
+  auto now = l4_rdtsc();
+  bool trigger = _channel[0].tick(now);
+
+  if (_port61->channel_2_on() && _channel[1].tick(now))
+    {
+      trigger = true;
+      _port61->set_output();
+    }
+
+  if (trigger)
+    _irq.inject();
 }
 
 } // namespace Vdev
@@ -183,6 +200,7 @@ struct F : Vdev::Factory
     auto *vmm = devs->vmm();
     vmm->register_io_device(Vmm::Io_region(0x40, 0x43), dev);
     vmm->register_io_device(Vmm::Io_region(0x61, 0x61), dev->port61());
+    vmm->register_timer_device(dev);
 
     return dev;
   }

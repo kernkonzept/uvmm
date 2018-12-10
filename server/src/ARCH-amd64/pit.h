@@ -25,13 +25,17 @@ namespace Vdev {
  */
 class Pit_timer
 : public Vmm::Io_device,
-  public Vdev::Device
+  public Vdev::Device,
+  public Vdev::Timer
 {
   struct Port61 : public Vmm::Io_device
   {
     l4_uint8_t val = 0;
     void io_in(unsigned, Vmm::Mem_access::Width, l4_uint32_t *value) override
-    { *value = val; }
+    {
+      *value = val;
+      val &= ~(1 << 5); // destructive read
+    }
 
     void io_out(unsigned, Vmm::Mem_access::Width, l4_uint32_t value) override
     { val = value & 0xff; }
@@ -42,6 +46,7 @@ class Pit_timer
 
   enum
   {
+    Channels = 2,
     Pit_tick_rate = 1193182,
     Pit_period_len = 1000UL * 1000 * 1000 / Pit_tick_rate,
     Channel_0_data = 0,
@@ -63,12 +68,36 @@ class Pit_timer
     Access_lohi = 3,
   };
 
-  class Counter
+  class Channel
   {
    public:
-     Counter()
-     : _start(0), _now(0), _reload(0), _wraps(0), _ticks(0)
+     Channel()
+     : _start(0), _now(0), _reload(0), _wraps(0), _ticks(0), _op_mode(0xff)
      {}
+
+     /**
+      * Return if the channel's counter reached an interrupt event.
+      *
+      * \param now  TSC value to use a current timestamp.
+      */
+     bool tick(l4_cpu_time_t now)
+     {
+       if (off())
+         return false;
+
+       unsigned wraps = update(now);
+       bool trigger = false;
+
+       if (one_shot_mode() && wraps > 0)
+         trigger = true;
+       else
+         {
+           if (current() == 0 || wraps > 0)
+             trigger = true;
+         }
+
+       return trigger;
+     }
 
      /**
       * Load the counter with new values and reset wrap and tick counter.
@@ -91,7 +120,7 @@ class Pit_timer
       *
       * \return Counter wrap arounds since last update call.
       */
-     unsigned update(l4_cpu_time_t now = l4_rdtsc())
+     unsigned update(l4_cpu_time_t now)
      {
        _now = now;
        auto diff_ns = l4_tsc_to_ns(_now - _start);
@@ -104,16 +133,25 @@ class Pit_timer
      }
 
      /**
-      * Compute the current counter number.
+      * Return the counter value of the last call to update().
       *
       * \pre update() was called.
       *
-      * The counter assumes reload for wrap arounds.
+      * The counter assumes the value of reload for wrap arounds.
       */
      l4_uint16_t current() const
      { return _reload - (l4_uint16_t)(_ticks % _reload); }
 
      bool off() const { return _reload == 0; }
+
+     void op_mode(l4_uint8_t m)
+     {
+       assert(m < 8);
+       _op_mode = m;
+     }
+
+     void reset_op_mode() { _op_mode = 0xff; }
+     bool one_shot_mode() const { return _op_mode <= 1; }
 
    private:
      l4_cpu_time_t _start;
@@ -121,6 +159,7 @@ class Pit_timer
      l4_uint16_t _reload;
      unsigned _wraps;
      l4_uint32_t _ticks;
+     l4_uint8_t _op_mode;
   };
 
   struct Mode
@@ -158,11 +197,12 @@ public:
   void io_in(unsigned port, Vmm::Mem_access::Width width,
              l4_uint32_t *value) override;
 
+  void tick() override;
+
 private:
   Vmm::Irq_edge_sink _irq;
   l4_uint16_t _reload;
-  Counter _counter[2];
-  l4_uint8_t _ch_mode[2];
+  Channel _channel[Channels];
   bool _read_high;
   bool _wait_for_high_byte;
   Mode _mode;
