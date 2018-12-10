@@ -6,9 +6,9 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 #pragma once
-#include <l4/re/util/object_registry>
-#include <l4/re/error_helper>
+
 #include <l4/cxx/ipc_server>
+#include <l4/re/error_helper>
 #include <l4/re/util/event>
 /**
  * Interface for incoming vbus events.
@@ -21,21 +21,9 @@
 class Vbus_event: public L4::Irqep_t<Vbus_event>
 {
 public:
-  Vbus_event();
+  Vbus_event(L4::Cap<L4Re::Event> vbus, L4::Registry_iface *registry);
 
   void handle_irq();
-
-  L4::Cap<L4::Irq> event_irq() const
-  { return L4::cap_cast<L4::Irq>(_vbus_event.irq()); }
-
-  void register_obj(L4::Registry_iface *registry)
-  {
-    if (!_vbus_event.irq().is_valid())
-      return;
-
-    L4Re::chkcap(registry->register_obj(this, L4::cap_cast<L4::Irq>(_vbus_event.irq())),
-                 "Registering guest IRQ in proxy");
-  }
 
 private:
   L4Re::Util::Event _vbus_event;

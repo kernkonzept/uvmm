@@ -19,6 +19,7 @@
 
 #include "debug.h"
 #include "device.h"
+#include "vbus_event.h"
 
 namespace Vmm {
 
@@ -97,8 +98,8 @@ private:
   };
 
 public:
-  explicit Virt_bus(L4::Cap<L4vbus::Vbus> bus)
-  : _bus(bus)
+  explicit Virt_bus(L4::Cap<L4vbus::Vbus> bus, L4::Registry_iface *registry)
+  : _bus(bus), _vbus_event(bus, registry)
   {
     if (!bus.is_valid())
       {
@@ -186,6 +187,7 @@ private:
   void scan_bus();
 
   L4::Cap<L4vbus::Vbus> _bus;
+  Vbus_event _vbus_event;
   L4::Cap<L4::Icu> _icu;
   std::vector<Devinfo> _devices;
   Irq_bitmap _irqs;

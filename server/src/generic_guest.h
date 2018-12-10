@@ -20,7 +20,6 @@
 #include "ram_ds.h"
 #include "vm_memmap.h"
 #include "pm.h"
-#include "vbus_event.h"
 #include "consts.h"
 
 #include <cstdio>
@@ -184,7 +183,6 @@ protected:
   Vm_mem _memmap;
   L4Re::Util::Unique_cap<L4::Vm> _task;
   Pm _pm;
-  Vbus_event _vbus_event;
   L4::Cap<L4Re::Dataspace> _mmio_fallback;
 };
 

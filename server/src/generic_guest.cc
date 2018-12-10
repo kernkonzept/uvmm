@@ -26,8 +26,6 @@ Generic_guest::Generic_guest()
       L4Re::chksys(ret, "Create VM task.");
     }
   l4_debugger_set_object_name(_task.get().cap(), "vm-task");
-
-  _vbus_event.register_obj(registry());
 }
 
 bool

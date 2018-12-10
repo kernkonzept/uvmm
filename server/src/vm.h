@@ -63,7 +63,7 @@ public:
     _ram = Vdev::make_device<Vmm::Vm_ram>(Vmm::Guest::Boot_offset);
 
     auto vbus_cap = L4Re::Env::env()->get_cap<L4vbus::Vbus>("vbus");
-    _vbus = cxx::make_ref_obj<Vmm::Virt_bus>(vbus_cap);
+    _vbus = cxx::make_ref_obj<Vmm::Virt_bus>(vbus_cap, _vmm->registry());
 
     _cpus = Vdev::make_device<Vmm::Cpu_dev_array>();
   }
