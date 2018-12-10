@@ -43,6 +43,7 @@ class Pit_timer
   enum
   {
     Pit_tick_rate = 1193182,
+    Pit_period_len = 1000UL * 1000 * 1000 / Pit_tick_rate,
     Channel_0_data = 0,
     Channel_2_data = 2,
     Mode_command = 3,
@@ -60,6 +61,66 @@ class Pit_timer
     Access_lobyte = 1,
     Access_hibyte = 2,
     Access_lohi = 3,
+  };
+
+  class Counter
+  {
+   public:
+     Counter()
+     : _start(0), _now(0), _reload(0), _wraps(0), _ticks(0)
+     {}
+
+     /**
+      * Load the counter with new values and reset wrap and tick counter.
+      *
+      * \param new_start   TSC timestamp at the start of the countdown.
+      * \param new_reload  Value to count down from.
+      */
+     void reset(l4_cpu_time_t new_start, l4_uint16_t new_reload)
+     {
+       _start = _now = new_start;
+       _reload = new_reload;
+       _wraps = 0;
+       _ticks = 0;
+     }
+
+     /**
+      * Compute ticks and wrap arounds since last reset.
+      *
+      * \param now  TSC value to use a current timestamp.
+      *
+      * \return Counter wrap arounds since last update call.
+      */
+     unsigned update(l4_cpu_time_t now = l4_rdtsc())
+     {
+       _now = now;
+       auto diff_ns = l4_tsc_to_ns(_now - _start);
+       // ns / Hz
+       _ticks = diff_ns / Pit_period_len;
+       unsigned old_wraps = _wraps;
+       _wraps = _ticks / _reload;
+
+       return _wraps - old_wraps;
+     }
+
+     /**
+      * Compute the current counter number.
+      *
+      * \pre update() was called.
+      *
+      * The counter assumes reload for wrap arounds.
+      */
+     l4_uint16_t current() const
+     { return _reload - (l4_uint16_t)(_ticks % _reload); }
+
+     bool off() const { return _reload == 0; }
+
+   private:
+     l4_cpu_time_t _start;
+     l4_cpu_time_t _now;
+     l4_uint16_t _reload;
+     unsigned _wraps;
+     l4_uint32_t _ticks;
   };
 
   struct Mode
@@ -99,16 +160,14 @@ public:
 
 private:
   Vmm::Irq_edge_sink _irq;
-  l4_uint16_t _latch[2];
-  l4_uint16_t _counter[2];
-  l4_uint16_t _reload[2];
+  l4_uint16_t _reload;
+  Counter _counter[2];
   l4_uint8_t _ch_mode[2];
   bool _read_high;
   bool _wait_for_high_byte;
   Mode _mode;
   std::mutex _mutex;
   cxx::Ref_ptr<Port61> const _port61;
-  l4_cpu_time_t _tsc_start[2];
 
   void set_high_byte(l4_uint16_t &reg, l4_uint8_t value);
   void set_low_byte(l4_uint16_t &reg, l4_uint8_t value);

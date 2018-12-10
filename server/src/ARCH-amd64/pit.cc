@@ -52,17 +52,12 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
         }
       int ch = _mode.channel() >> 1;
 
-      if (is_latch_count_value_cmd(_mode))
+      if (   is_latch_count_value_cmd(_mode)
+          || (   _mode.channel() == Read_back_cmd
+              && _mode.access() == Read_back_latch_cnt))
         {
-          _latch[ch] = _counter[ch];
-        }
-      else if ((_mode.channel() == Read_back_cmd
-                && _mode.access() == Read_back_latch_cnt))
-        {
-          if (_mode.opmode() == Read_back_latch_0)
-            _latch[0] = _counter[0];
-          if (_mode.opmode() == Read_back_latch_2)
-            _latch[1] = _counter[1];
+          // We don't emulate the latch register
+          break;
         }
       else
         _ch_mode[ch] = 0xFF;
@@ -83,29 +78,27 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
             {
               if (_wait_for_high_byte)
                 {
-                  set_high_byte(_reload[ch], v);
+                  set_high_byte(_reload, v);
                   _wait_for_high_byte = false;
                 }
               else
                 {
                   // lobyte first
-                  set_low_byte(_reload[ch], v);
+                  set_low_byte(_reload, v);
                   // wait for sequential write to high byte
                   _wait_for_high_byte = true;
                   return;
                 }
             }
           else if (_mode.access() == Access_lobyte)
-            set_low_byte(_reload[ch], v);
+            set_low_byte(_reload, v);
           else if (_mode.access() == Access_hibyte)
-            set_high_byte(_reload[ch], v);
+            set_high_byte(_reload, v);
 
-          trace().printf("enable counter for %d\n", port);
-          _counter[ch] = _reload[ch];
-          if (_reload[ch] != 0)
+          trace().printf("set counter for %d to %d\n", port, _reload);
+          _counter[ch].reset(l4_rdtsc(), _reload);
+          if (_reload != 0)
             _ch_mode[ch] = _mode.opmode();
-
-          _tsc_start[ch] = l4_rdtsc();
         }
       else
         warn().printf("PIT access to bad channel\n");
@@ -131,28 +124,20 @@ void Pit_timer::io_in(unsigned port, Vmm::Mem_access::Width width,
 
         if (!_read_high)
           {
-            // take current time
-            auto now = l4_rdtsc();
-            auto diff_ns = l4_tsc_to_ns(now - _tsc_start[ch]);
-            // ns / Hz
-            l4_uint32_t pit_period_len = 1000UL * 1000 * 1000 / Pit_tick_rate;
-            l4_uint32_t ticks = diff_ns / pit_period_len;
+            std::lock_guard<std::mutex> lock(_mutex);
 
-            {
-              std::lock_guard<std::mutex> lock(_mutex);
+            unsigned wraps = _counter[ch].update();
 
-              if (_ch_mode[ch] <= 1 && ticks / _reload[ch] >= 1)
-                reg = 0;
-              else
-                reg = _counter[ch] - (l4_uint16_t)(ticks % _reload[ch]);
-
-              // use latch to store the computed counter value to allow for
-              // consistent reads of high an low bytes.
-              _latch[ch] = reg;
-            }
+            if (_ch_mode[ch] <= 1 && wraps > 0)
+              reg = 0;
+            else
+              reg = _counter[ch].current();
           }
         else
-          reg = _latch[ch];
+          {
+            std::lock_guard<std::mutex> lock(_mutex);
+            reg = _counter[ch].current();
+          }
 
         switch (_mode.access())
           {
