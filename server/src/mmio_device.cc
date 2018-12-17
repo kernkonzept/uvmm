@@ -9,7 +9,7 @@
 #include "mmio_device.h"
 #include "debug.h"
 
-void Vmm::Mmio_device::map_guest_range(L4::Cap<L4::Task> vm_task,
+void Vmm::Mmio_device::map_guest_range(L4::Cap<L4::Vm> vm_task,
                                        Vmm::Guest_addr dest, l4_addr_t src,
                                        l4_size_t size, unsigned attr)
 {

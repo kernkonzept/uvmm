@@ -34,7 +34,7 @@ Ram_ds::setup(Vmm::Guest_addr vm_base)
 
   if (err >= 0)
     {
-      err = dma_cap->associate(L4::Ipc::Cap<L4::Task>(L4::Cap<void>::Invalid),
+      err = dma_cap->associate(L4::Ipc::Cap<L4::Task>(),
                                L4Re::Dma_space::Phys_space);
       if (err < 0)
         trace.printf("Cannot access physical address space mappings.\n");

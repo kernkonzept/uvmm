@@ -13,7 +13,7 @@
 #include <l4/re/util/cap_alloc>
 #include <l4/re/util/unique_cap>
 #include <l4/re/env>
-#include <l4/sys/task>
+#include <l4/sys/vm>
 #include <l4/sys/l4int.h>
 #include <l4/sys/types.h>
 #include <l4/util/util.h>
@@ -98,7 +98,7 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    * This function iterates over the specified local area and maps
    * everything into the address space of the guest.
    */
-  void map_guest_range(L4::Cap<L4::Task> vm_task, Vmm::Guest_addr dest,
+  void map_guest_range(L4::Cap<L4::Vm> vm_task, Vmm::Guest_addr dest,
                        l4_addr_t src, l4_size_t size, unsigned attr);
 
 
@@ -111,7 +111,7 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    * This function iterates over the local area associated with the region and
    * tries to map everything into the address space of the guest if possible.
    */
-  virtual void map_eager(L4::Cap<L4::Task> vm_task, Vmm::Guest_addr start,
+  virtual void map_eager(L4::Cap<L4::Vm> vm_task, Vmm::Guest_addr start,
                          Vmm::Guest_addr end) = 0;
 
   /**
@@ -157,7 +157,7 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    * \
    */
   virtual int access(l4_addr_t pfa, l4_addr_t offset, Vcpu_ptr vcpu,
-                     L4::Cap<L4::Task> vm_task, l4_addr_t s, l4_addr_t e) = 0;
+                     L4::Cap<L4::Vm> vm_task, l4_addr_t s, l4_addr_t e) = 0;
   virtual char const *dev_info(char *buf, size_t size) const
   {
     if (size > 0)
@@ -194,7 +194,7 @@ template<typename DEV>
 struct Mmio_device_t : Mmio_device
 {
   int access(l4_addr_t pfa, l4_addr_t offset, Vcpu_ptr vcpu,
-             L4::Cap<L4::Task>, l4_addr_t, l4_addr_t) override
+             L4::Cap<L4::Vm>, l4_addr_t, l4_addr_t) override
   {
     auto insn = vcpu.decode_mmio();
 
@@ -223,7 +223,7 @@ struct Mmio_device_t : Mmio_device
     return Jump_instr;
   }
 
-  void map_eager(L4::Cap<L4::Task>, Vmm::Guest_addr, Vmm::Guest_addr) override
+  void map_eager(L4::Cap<L4::Vm>, Vmm::Guest_addr, Vmm::Guest_addr) override
   {} // nothing to map
 
 private:
@@ -246,7 +246,7 @@ template<typename BASE>
 struct Ro_ds_mapper_t : Mmio_device
 {
   int access(l4_addr_t pfa, l4_addr_t offset, Vcpu_ptr vcpu,
-             L4::Cap<L4::Task> vm_task, l4_addr_t min, l4_addr_t max) override
+             L4::Cap<L4::Vm> vm_task, l4_addr_t min, l4_addr_t max) override
   {
     auto insn = vcpu.decode_mmio();
 
@@ -278,7 +278,7 @@ struct Ro_ds_mapper_t : Mmio_device
     return Jump_instr;
   }
 
-  void map_eager(L4::Cap<L4::Task> vm_task, Vmm::Guest_addr start,
+  void map_eager(L4::Cap<L4::Vm> vm_task, Vmm::Guest_addr start,
                  Vmm::Guest_addr end) override
   {
 #ifndef MAP_OTHER
@@ -317,7 +317,7 @@ struct Ro_ds_mapper_t : Mmio_device
     return Mem_access::read_width(local_addr() + offset, width);
   }
 
-  void map_mmio(l4_addr_t pfa, l4_addr_t offset, L4::Cap<L4::Task> vm_task,
+  void map_mmio(l4_addr_t pfa, l4_addr_t offset, L4::Cap<L4::Vm> vm_task,
                 l4_addr_t min, l4_addr_t max)
   {
 #ifdef MAP_OTHER
