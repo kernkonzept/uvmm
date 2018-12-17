@@ -2,7 +2,6 @@
 Io.add_vbusses
 {
   vm_hw = Io.Vi.System_bus(function()
-    VGIC = wrap(Io.system_bus():match("arm-gicc"))
     VCPUID = wrap(Io.system_bus():match("exynos-cpuid"))
     CLOCK = wrap(Io.system_bus():match("exynos5250-clock"))
     SATA = wrap(Io.system_bus():match("exynos5-sata-ahci"))

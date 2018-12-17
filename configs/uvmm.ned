@@ -19,7 +19,6 @@ L4.default_loader:start(
 -- virtual IO busses
 local io_busses = {
   vm_hw = 1,
-  vm_nohw = 1,
 }
 
 -- virtio network ports
@@ -47,7 +46,6 @@ vmm.start_vm{
 vmm.start_vm{
   id=2,
   mem=128,
-  vbus=io_busses.vm_nohw,
   net=net_ports.net1,
   rd="rom/ramdisk-arm.rd",
   fdt="rom/virt-omap5.dtb",
