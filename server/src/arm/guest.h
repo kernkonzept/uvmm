@@ -70,21 +70,7 @@ public:
     _smc_handler = handler;
   }
 
-  void map_gicc(Vdev::Dt_node const &node) const
-  {
-    l4_uint64_t base, size;
-    int res = node.get_reg_val(1, &base, &size);
-    if (res < 0)
-      {
-        Err().printf("Failed to read 'reg' from node %s: %s\n",
-                     node.get_name(), node.strerror(res));
-        throw L4::Runtime_error(-L4_EINVAL);
-      }
-
-    l4_fpage_t fp = l4_fpage(base, L4_PAGESHIFT, L4_FPAGE_RW);
-    L4Re::chksys(_task->vgicc_map(fp));
-  }
-
+  void map_gicc(Vdev::Device_lookup *devs, Vdev::Dt_node const &node) const;
   void handle_wfx(Vcpu_ptr vcpu);
   void handle_ppi(Vcpu_ptr vcpu);
   bool handle_psci_call(Vcpu_ptr vcpu);

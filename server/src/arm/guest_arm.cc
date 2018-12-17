@@ -52,7 +52,7 @@ struct F : Factory
     // attach GICD to VM
     devs->vmm()->register_mmio_device(gic, node);
     // attach GICC to VM
-    devs->vmm()->map_gicc(node);
+    devs->vmm()->map_gicc(devs, node);
     return gic;
   }
 };
@@ -87,6 +87,45 @@ struct F_timer : Factory
 static F_timer ftimer;
 static Vdev::Device_type tt1 = { "arm,armv7-timer", nullptr, &ftimer };
 static Vdev::Device_type tt2 = { "arm,armv8-timer", nullptr, &ftimer };
+
+/**
+ * Mmio access handler that maps the GICC page.
+ *
+ * This handler maps the page during the eager-mapping stage before the
+ * guest is started. It is also able to respond to page faults in the region
+ * and will map the page again. Note, however, that this should normally
+ * not happen because the page is pinned in the VM task during its life time.
+ * Therefore a warning is printed when the access() function is called.
+ */
+class Gicc_region_mapper : public Vmm::Mmio_device
+{
+public:
+  Gicc_region_mapper(l4_addr_t base)
+  : _fp(l4_fpage(base, L4_PAGESHIFT, L4_FPAGE_RW))
+  {}
+
+  int access(l4_addr_t, l4_addr_t, Vcpu_ptr,
+             L4::Cap<L4::Vm> vm, l4_addr_t, l4_addr_t) override
+  {
+    Dbg(Dbg::Core, Dbg::Warn)
+      .printf("Access to GICC page trapped into guest handler. Restoring mapping.\n");
+
+    remap_page(vm);
+
+    return Jump_instr;
+  }
+
+  void map_eager(L4::Cap<L4::Vm> vm, Vmm::Guest_addr, Vmm::Guest_addr) override
+  { remap_page(vm); }
+
+private:
+  void remap_page(L4::Cap<L4::Vm> vm) const
+  { L4Re::chksys(vm->vgicc_map(_fp), "Mapping VGICC area into guest task"); }
+
+  l4_fpage_t _fp;
+};
+
+
 
 } // namespace
 
@@ -129,6 +168,31 @@ Guest::setup_device_tree(Vdev::Device_tree dt)
 
   node.setprop_string("compatible", "arm,psci-0.2");
   node.setprop_string("method", "hvc");
+}
+
+void
+Guest::map_gicc(Device_lookup *devs, Vdev::Dt_node const &node) const
+{
+  l4_uint64_t base, size;
+  int res = node.get_reg_val(1, &base, &size);
+  if (res < 0)
+    {
+      Err().printf("Failed to read 'reg' from node %s: %s\n",
+                   node.get_name(), node.strerror(res));
+      throw L4::Runtime_error(-L4_EINVAL,
+                              "Reading device tree entry for GIC");
+    }
+
+  if (size < L4_PAGESIZE)
+    {
+      Err().printf("The GICC page is too small in the device tree.\n"
+                   "It must be at least %lukB. Current size: 0x%llx byte.\n",
+                   L4_PAGESIZE / 1024, size);
+      L4Re::chksys(-L4_EINVAL, "Setting up GICC page");
+    }
+
+  auto gerr = Vdev::make_device<Gicc_region_mapper>(base);
+  devs->vmm()->register_mmio_device(cxx::move(gerr), node, 1);
 }
 
 void
