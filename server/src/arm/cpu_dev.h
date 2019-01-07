@@ -76,6 +76,7 @@ private:
     Mpidr_aff_mask  = (0xffULL << 32) | 0xfffULL,
   };
   l4_umword_t _dt_affinity;
+  l4_umword_t _dt_vpidr = 0;
 };
 
 }

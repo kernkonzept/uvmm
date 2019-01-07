@@ -29,6 +29,9 @@ Cpu_dev::dtid_to_cpuid(l4_umword_t)
 Cpu_dev::Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *node)
 : Generic_cpu_dev(idx, phys_id)
 {
+  // use idx as default affinity, overwritten by device tree
+  _dt_affinity = idx;
+
   if (node)
     {
       int prop_size;
@@ -36,11 +39,12 @@ Cpu_dev::Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *node)
       if (prop && prop_size > 0)
         {
           _dt_affinity = node->get_prop_val(prop, prop_size, true);
-          return;
         }
-    }
 
-  _dt_affinity = idx;
+      prop = node->get_prop<fdt32_t>("vpidr", &prop_size);
+      if (prop && prop_size > 0)
+        _dt_vpidr = node->get_prop_val(prop, prop_size, true);
+    }
 }
 
 void
@@ -75,6 +79,13 @@ Cpu_dev::reset()
   l4_vcpu_e_write(*_vcpu, L4_VCPU_E_VMPIDR,
                   (vmpidr & ~(Mpidr_up_sys | Mpidr_mt_sys | Mpidr_aff_mask))
                   | (_dt_affinity & Mpidr_aff_mask));
+
+  if (_dt_vpidr)
+    {
+      l4_uint32_t vpidr = l4_vcpu_e_read_32(*_vcpu, L4_VCPU_E_VPIDR);
+      Dbg().printf("Using VPIDR %x instead of %lx\n", _dt_vpidr, vpidr);
+      l4_vcpu_e_write_32(*_vcpu, L4_VCPU_E_VPIDR,  _dt_vpidr);
+    }
 
   arm_subarch_setup(*_vcpu, !(_vcpu->r.flags & Flags_mode_32));
 
