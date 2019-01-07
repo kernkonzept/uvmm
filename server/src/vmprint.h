@@ -5,6 +5,7 @@
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
+#pragma once
 
 #include "debug.h"
 
