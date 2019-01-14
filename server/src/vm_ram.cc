@@ -188,9 +188,13 @@ Vmm::Vm_ram::setup_from_device_tree(Vdev::Host_dt const &dt, Vm_mem *memmap,
     }
 
   if (!has_memory_nodes)
-    setup_default_region(dt, memmap, default_address);
+    {
+      warn.printf("No memory nodes found, setting up default region\n");
+      setup_default_region(dt, memmap, default_address);
+    }
   else if (_regions.empty())
-    L4Re::chksys(-L4_ENOMEM, "Memory configuration in device tree provides no valid RAM");
+    L4Re::chksys(-L4_ENOMEM,
+                 "Memory configuration in device tree provides no valid RAM");
 
   Ram_free_list list;
   L4::Cap<L4Re::Dataspace> main_ds = _regions[0].ds();
@@ -224,8 +228,8 @@ Vmm::Vm_ram::move_in_device_tree(Ram_free_list *free_list, Vdev::Host_dt &&dt)
   l4_addr_t ds_start = reinterpret_cast<l4_addr_t>(target);
   l4_cache_clean_data(ds_start, ds_start + new_size);
 
-  Dbg().printf("Cleaning caches for device tree [%lx-%lx] ([%lx])\n",
-               ds_start, ds_start + new_size, addr.get());
+  warn.printf("Cleaning caches for device tree [%lx-%lx] ([%lx])\n",
+              ds_start, ds_start + new_size, addr.get());
 
   return guest_phys2boot(addr);
 }
@@ -330,11 +334,12 @@ void
 Vmm::Vm_ram::setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,
                                   Vmm::Guest_addr baseaddr)
 {
-  auto ds = L4Re::chkcap(L4Re::Env::env()->get_cap<L4Re::Dataspace>("ram"));
+  auto ds = L4Re::chkcap(L4Re::Env::env()->get_cap<L4Re::Dataspace>("ram"),
+                         "Grabbing default \"ram\" capability", -L4_ENOENT);
   long ridx = add_memory_region(ds, baseaddr, 0, ds->size(), memmap);
 
   if (ridx < 0)
-    L4Re::chksys(-L4_ENOMEM, "Setting up RAM region.");
+    L4Re::chksys(-L4_ENOMEM, "Setting up default RAM region.");
 
   if (dt.valid())
     {
