@@ -394,6 +394,30 @@ Guest::lookup_cpu(l4_uint32_t hwid) const
 }
 
 bool
+Guest::cpus_off() const
+{
+  bool first = true;
+  for (auto const &cpu : *_cpus.get())
+    {
+      // ignore boot cpu
+      if (first)
+        {
+          first = false;
+          continue;
+        }
+
+      if (cpu && cpu->online())
+          return false;
+    }
+
+  return true;
+}
+
+Cpu_dev *
+Guest::current_cpu() const
+{ return _cpus->cpu(vmm_current_cpu_id).get(); }
+
+bool
 Guest::handle_psci_call(Vcpu_ptr vcpu)
 {
   enum Psci_error_codes
@@ -439,6 +463,13 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
     Tos_not_present_mp = 2,
   };
 
+  enum Psci_affinity_info
+  {
+    Aff_info_on         = 0,
+    Aff_info_off        = 1,
+    Aff_info_on_pending = 2,
+  };
+
   // Check this is a supported PSCI function call id.
   if (!is_psci_func_id(vcpu->r.r[0]))
       return false;
@@ -472,8 +503,12 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
       break;
 
     case Cpu_off:
-      vcpu->r.r[0] = Not_supported;
-      Err().printf("... PSCI CPU OFF\n");
+      {
+        Cpu_dev *target = current_cpu();
+        target->stop();
+        // should never return
+        vcpu->r.r[0] =  Internal_failure;
+      }
       break;
 
     case Cpu_on:
@@ -484,19 +519,44 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
         if (target)
           {
             // XXX There is currently no way to detect error conditions like
-            // INVALID_ADDRESS or ALREADY_ON
-            l4_mword_t ip = vcpu->r.r[2];
-            l4_mword_t context =  vcpu->r.r[3];
-            target->vcpu()->r.r[0] = context;
-            prepare_vcpu_startup(target->vcpu(), ip);
-            target->start_vcpu();
-            vcpu->r.r[0] = Success;
+            // INVALID_ADDRESS
+            if (!target->online())
+              {
+                l4_mword_t ip = vcpu->r.r[2];
+                l4_mword_t context =  vcpu->r.r[3];
+                target->vcpu()->r.r[0] = context;
+                prepare_vcpu_startup(target->vcpu(), ip);
+                if (target->start_vcpu())
+                  vcpu->r.r[0] = Success;
+                else
+                  vcpu->r.r[0] = Internal_failure;
+              }
+            else
+              vcpu->r.r[0] = Already_on;
           }
         else
           vcpu->r.r[0] = Invalid_parameters;
       }
       break;
+    case Affinity_info:
+      {
+        // parameters:
+        // * target_affinity
+        // * lowest affinity level
+        l4_mword_t hwid = vcpu->r.r[1];
+        l4_umword_t lvl = vcpu->r.r[2];
 
+        vcpu->r.r[0] = Invalid_parameters;
+
+        // PCSI >= 1.0 does not support affinity levels > 0
+        if (lvl == 0)
+          {
+            Cpu_dev *target = lookup_cpu(hwid);
+            if (target)
+              vcpu->r.r[0] = target->online() ? Aff_info_on : Aff_info_off;
+          }
+      }
+      break;
     case Migrate_info_type:
       vcpu->r.r[0] = Tos_not_present_mp;
       break;
@@ -528,6 +588,8 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
             break;
           case Psci_version:
           case Cpu_on:
+          case Cpu_off:
+          case Affinity_info:
           case Migrate_info_type:
           case System_off:
           case System_reset:
@@ -543,30 +605,30 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
       break;
 
     case System_suspend:
-      {
-        l4_addr_t entry_gpa = vcpu->r.r[1];
-        l4_umword_t context_id = vcpu->r.r[2];
+        {
+          // Request has to be executed on CPU0 (requirement imposed by us) and
+          // all other CPUs have to be off (specification requirement)
+          if (vmm_current_cpu_id != 0 || !cpus_off())
+            {
+              vcpu->r.r[0] = Denied;
+              break;
+            }
 
-        // TODO: Check that all other cores are off
-        // if not:
-        if (0)
-          {
-            vcpu->r.r[0] = Denied;
-            return true;
-          }
+          l4_addr_t entry_gpa = vcpu->r.r[1];
+          l4_umword_t context_id = vcpu->r.r[2];
 
-        /* Go to sleep */
-        if (_pm.suspend())
-          wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
-        /* Back alive */
-        _pm.resume();
+          /* Go to sleep */
+          if (_pm.suspend())
+            wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+          /* Back alive */
+          _pm.resume();
 
-        memset(&vcpu->r, 0, sizeof(vcpu->r));
-        prepare_vcpu_startup(vcpu, entry_gpa);
-        vcpu->r.r[0]  = context_id;
-        l4_vcpu_e_write_32(*vcpu, L4_VCPU_E_SCTLR,
-                           l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_SCTLR) & ~1U);
-      }
+          memset(&vcpu->r, 0, sizeof(vcpu->r));
+          prepare_vcpu_startup(vcpu, entry_gpa);
+          vcpu->r.r[0]  = context_id;
+          l4_vcpu_e_write_32(*vcpu, L4_VCPU_E_SCTLR,
+                             l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_SCTLR) & ~1U);
+        }
       break;
 
     default:

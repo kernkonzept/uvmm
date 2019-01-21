@@ -63,6 +63,10 @@ Generic_cpu_dev::powerup_cpu()
 void
 Generic_cpu_dev::reschedule()
 {
+  Dbg(Dbg::Cpu, Dbg::Info)
+    .printf("reschedule(): Initiating cpu startup for %lx\n",
+            Pthread::L4::cap(_thread).cap());
+
   l4_sched_param_t sp = l4_sched_param(2);
   sp.affinity = l4_sched_cpu_set(_phys_cpu_id, 0);
 

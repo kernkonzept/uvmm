@@ -95,6 +95,19 @@ public:
 
 private:
   Cpu_dev *lookup_cpu(l4_uint32_t hwid) const;
+
+  /**
+   * Get the current CPU device
+   */
+  Cpu_dev *current_cpu() const;
+
+  /**
+   * Check whether all CPUs except the boot CPU are off
+   *
+   * \return True if all CPUs except the boot CPU are off-line
+   */
+  bool cpus_off() const;
+
   void check_guest_constraints(l4_addr_t ram_base) const;
   void arm_update_device_tree();
 

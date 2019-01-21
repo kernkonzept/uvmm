@@ -33,12 +33,28 @@ public:
 
   void show_state_registers(FILE *f);
 
-  void
+  bool
   start_vcpu()
   {
+    if (_online)
+      {
+        Err().printf("%s: CPU%d already online", __func__, _phys_cpu_id);
+        return true;
+      }
+
+    _online = true;
     Dbg(Dbg::Cpu, Dbg::Info)
       .printf("Initiating cpu startup @ 0x%lx\n", _vcpu->r.ip);
-    reschedule();
+
+    if (_vcpu->entry_sp && !restart())
+      {
+        _online = false;
+        return false;
+      }
+    else
+      reschedule();
+
+    return true;
   }
 
   void init_vgic(void *vcpu);
@@ -52,6 +68,26 @@ public:
    * default values, therefore we have to initialize this state here.
    */
   void reset() override;
+
+  /**
+   * Restart a CPU
+   *
+   * Restarts a stopped CPU and enters the virtual machine using reset().
+   *
+   * \return Returns true if restart was successful, false otherwise.
+   */
+  bool restart();
+
+  /**
+   * Stop a CPU
+   */
+  void L4_NORETURN stop();
+
+  /**
+   * Get the online state of a CPU.
+   */
+  bool online() const
+  { return _online; }
 
   /**
    * Translate a device tree "reg" value to an internally usable CPU id.
@@ -77,6 +113,7 @@ private:
   };
   l4_umword_t _dt_affinity;
   l4_umword_t _dt_vpidr = 0;
+  bool _online = false;
 };
 
 }

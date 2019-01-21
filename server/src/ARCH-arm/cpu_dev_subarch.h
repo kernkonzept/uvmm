@@ -9,6 +9,7 @@
 
 #include <l4/sys/compiler.h>
 
+extern "C" void vcpu_entry(l4_vcpu_state_t *vcpu);
 asm
 (
  "vcpu_entry:                     \n"
@@ -36,3 +37,19 @@ asm
  "  mcr    p15, 0, r5, c13, c0, 2 \n"
  "  mov    pc, #" L4_stringify(L4_SYSCALL_INVOKE) " \n"
 );
+
+/**
+ * Trampolin code used to invoke restart_fkt(Cpu_dev *cpu)
+ */
+namespace Vmm {
+
+class Cpu_dev;
+extern "C" void reset_helper_trampoline();
+extern "C" void reset_helper(Cpu_dev *cpu);
+asm
+(
+  "reset_helper_trampoline:     \n"
+  "   ldr    r0, [sp]           \n"
+  "   b reset_helper            \n"
+);
+}

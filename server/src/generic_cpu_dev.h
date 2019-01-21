@@ -36,6 +36,12 @@ public:
 
     _vcpu = Vcpu_ptr((l4_vcpu_state_t *)vcpu_addr);
     _vcpu.set_vcpu_id(idx);
+
+    // entry_sp signals the state the CPU is in. When it starts for the very
+    // first time, entry_sp is zero and needs to be initialised based on the
+    // currently used stack. When the CPU is switched off and on again the
+    // stack is re-used as is.
+    _vcpu->entry_sp = 0;
   }
 
   Vcpu_ptr vcpu() const

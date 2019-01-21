@@ -9,8 +9,7 @@
 
 #include "cpu_dev.h"
 #include "cpu_dev_subarch.h"
-
-extern "C" void vcpu_entry(l4_vcpu_state_t *vcpu);
+#include <l4/sys/ipc.h>
 
 namespace Vmm {
 
@@ -98,8 +97,14 @@ Cpu_dev::reset()
     | L4_VCPU_F_PAGE_FAULTS
     | L4_VCPU_F_EXCEPTIONS;
   _vcpu->entry_ip = (l4_umword_t) &vcpu_entry;
-  // entry_sp is derived from thread local stack pointer
-  asm volatile ("mov %0, sp" : "=r"(_vcpu->entry_sp));
+
+  if (!_vcpu->entry_sp)
+    {
+      // entry_sp is derived from thread local stack pointer
+      asm volatile ("mov %0, sp" : "=r"(_vcpu->entry_sp));
+    }
+  else
+    Dbg().printf("Re-using stack address %lx\n", _vcpu->entry_sp);
 
   Dbg().printf("Starting Cpu%d @ 0x%lx in %dBit mode (handler @ %lx,"
                " stack: %lx, task: %lx, mpidr: %llx (orig: %llx)\n",
@@ -112,6 +117,45 @@ Cpu_dev::reset()
   L4::Cap<L4::Thread> myself;
   myself->vcpu_resume_commit(myself->vcpu_resume_start());
   // XXX Error handling?
+}
+
+/**
+ * Stub function used to invoke Cpu_dev::reset()
+ */
+void
+reset_helper(Cpu_dev *cpu)
+{ cpu->reset(); }
+
+
+bool
+Cpu_dev::restart()
+{
+  assert(_vcpu->entry_sp);
+
+  auto sp = _vcpu->entry_sp - sizeof(this);
+  auto target = Pthread::L4::cap(_thread);
+
+  Dbg().printf("Triggering reset using exregs on %lx\n",
+               pthread_l4_cap(_thread));
+
+  *(l4_umword_t *)sp = (l4_umword_t)this;
+  l4_msgtag_t res = target->ex_regs((l4_addr_t)reset_helper_trampoline,
+                                    sp, L4_THREAD_EX_REGS_CANCEL);
+
+  // XXX What to do here?
+  if (!l4_error(res))
+    return true;
+
+  Dbg().printf("Error in exregs: %lx\n", l4_error(res));
+  return false;
+}
+
+void
+Cpu_dev::stop()
+{
+  _online = false;
+  for (;;)
+    l4_ipc_sleep(L4_IPC_NEVER);
 }
 
 }
