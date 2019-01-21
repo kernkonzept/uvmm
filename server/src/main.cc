@@ -33,7 +33,7 @@
 #include "vm_ram.h"
 #include "vm.h"
 
-Vmm::Vm vm_instance;
+static Vmm::Vm vm_instance;
 
 static Dbg info(Dbg::Core, Dbg::Info, "main");
 static Dbg warn(Dbg::Core, Dbg::Warn, "main");
