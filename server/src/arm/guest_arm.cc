@@ -514,6 +514,14 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
             case SYSTEM_SUSPEND:
               vcpu->r.r[0] = 1 << 1;
               break;
+            case PSCI_VERSION:
+            case CPU_ON:
+            case MIGRATE_INFO_TYPE:
+            case SYSTEM_OFF:
+            case SYSTEM_RESET:
+            case PSCI_FEATURES:
+              vcpu->r.r[0] = SUCCESS;
+              break;
             default:
               vcpu->r.r[0] = NOT_SUPPORTED;
               break;
