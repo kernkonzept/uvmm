@@ -83,7 +83,7 @@ Cpu_dev::reset()
   if (_dt_vpidr)
     {
       l4_uint32_t vpidr = l4_vcpu_e_read_32(*_vcpu, L4_VCPU_E_VPIDR);
-      Dbg().printf("Using VPIDR %x instead of %lx\n", _dt_vpidr, vpidr);
+      Dbg().printf("Using VPIDR %lx instead of %x\n", _dt_vpidr, vpidr);
       l4_vcpu_e_write_32(*_vcpu, L4_VCPU_E_VPIDR,  _dt_vpidr);
     }
 
