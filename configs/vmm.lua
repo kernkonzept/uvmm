@@ -1,10 +1,10 @@
 local L4 = require "L4";
 
-local l = L4.Loader.new({factory = L4.Env.factory, mem = L4.Env.user_factory});
+local l = L4.Loader.new({mem = L4.Env.user_factory});
 loader = l;
 
 function new_sched(prio, cpus)
-  return l.sched_fab:create(L4.Proto.Scheduler, prio + 10, prio, cpus);
+  return  L4.Env.user_factory:create(L4.Proto.Scheduler, prio + 10, prio, cpus);
 end
 
 function start_io(busses, opts)
