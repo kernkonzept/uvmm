@@ -118,9 +118,20 @@ public:
   void map_eager(L4::Cap<L4::Vm> vm, Vmm::Guest_addr, Vmm::Guest_addr) override
   { remap_page(vm); }
 
+  static bool verify_region(l4_uint64_t base, l4_uint64_t size)
+  {
+    l4_addr_t base_offs = base & (L4_PAGESIZE - 1);
+    return (base_offs + size) <= L4_PAGESIZE;
+  }
+
 private:
   void remap_page(L4::Cap<L4::Vm> vm) const
-  { L4Re::chksys(vm->vgicc_map(_fp), "Mapping VGICC area into guest task"); }
+  {
+    Dbg(Dbg::Mmio, Dbg::Info, "mmio")
+      .printf("\tMapping [GICC] -> [%lx - %lx]\n", l4_fpage_memaddr(_fp),
+              l4_fpage_memaddr(_fp) + L4_PAGESIZE);
+    L4Re::chksys(vm->vgicc_map(_fp), "Mapping VGICC area into guest task");
+  }
 
   l4_fpage_t _fp;
 };
@@ -177,17 +188,17 @@ Guest::map_gicc(Device_lookup *devs, Vdev::Dt_node const &node) const
   int res = node.get_reg_val(1, &base, &size);
   if (res < 0)
     {
-      Err().printf("Failed to read 'reg' from node %s: %s\n",
+      Err().printf("Failed to read 'reg[1]' from node %s: %s\n",
                    node.get_name(), node.strerror(res));
       throw L4::Runtime_error(-L4_EINVAL,
                               "Reading device tree entry for GIC");
     }
 
-  if (size < L4_PAGESIZE)
+  // Check whether area to be mapped matches the GICC region
+  if (!Gicc_region_mapper::verify_region(base, size))
     {
-      Err().printf("The GICC page is too small in the device tree.\n"
-                   "It must be at least %lukB. Current size: 0x%llx byte.\n",
-                   L4_PAGESIZE / 1024, size);
+      Err().printf("%s:The GICC page does not match the GICC reg entry: <%llx, %llx>.\n",
+                   node.get_name(), base, size);
       L4Re::chksys(-L4_EINVAL, "Setting up GICC page");
     }
 
