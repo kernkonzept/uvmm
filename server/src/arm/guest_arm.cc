@@ -511,7 +511,6 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
           switch (feat_func)
             {
             case CPU_SUSPEND:
-            case SYSTEM_SUSPEND:
               vcpu->r.r[0] = 1 << 1;
               break;
             case PSCI_VERSION:
@@ -520,6 +519,7 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
             case SYSTEM_OFF:
             case SYSTEM_RESET:
             case PSCI_FEATURES:
+            case SYSTEM_SUSPEND:
               vcpu->r.r[0] = SUCCESS;
               break;
             default:
