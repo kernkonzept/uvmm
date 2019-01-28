@@ -398,66 +398,59 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
 {
   enum Psci_error_codes
   {
-    SUCCESS            = 0,
-    NOT_SUPPORTED      = -1,
-    INVALID_PARAMETERS = -2,
-    DENIED             = -3,
-    ALREADY_ON         = -4,
-    ON_PENDING         = -5,
-    INTERNAL_FAILURE   = -6,
-    NOT_PRESENT        = -7,
-    DISABLED           = -8,
-    INVALID_ADDRESS    = -9,
+    Success            = 0,
+    Not_supported      = -1,
+    Invalid_parameters = -2,
+    Denied             = -3,
+    Already_on         = -4,
+    On_pending         = -5,
+    Internal_failure   = -6,
+    Not_present        = -7,
+    Disabled           = -8,
+    Invalid_address    = -9,
   };
 
   enum Psci_functions
   {
-    PSCI_VERSION          = 0,
-    CPU_SUSPEND           = 1,
-    CPU_OFF               = 2,
-    CPU_ON                = 3,
-    AFFINITY_INFO         = 4,
-    MIGRATE               = 5,
-    MIGRATE_INFO_TYPE     = 6,
-    MIGRATE_INFO_UP_CPU   = 7,
-    SYSTEM_OFF            = 8,
-    SYSTEM_RESET          = 9,
-    PSCI_FEATURES         = 10,
-    CPU_FREEZE            = 11,
-    CPU_DEFAULT_SUSPEND   = 12,
-    NODE_HW_STATE         = 13,
-    SYSTEM_SUSPEND        = 14,
-    PSCI_SET_SUSPEND_MODE = 15,
-    PSCI_STAT_RESIDENCY   = 16,
-    PSCI_STAT_COUNT       = 17,
+    Psci_version          = 0,
+    Cpu_suspend           = 1,
+    Cpu_off               = 2,
+    Cpu_on                = 3,
+    Affinity_info         = 4,
+    Migrate               = 5,
+    Migrate_info_type     = 6,
+    Migrate_info_up_cpu   = 7,
+    System_off            = 8,
+    System_reset          = 9,
+    Psci_features         = 10,
+    Cpu_freeze            = 11,
+    Cpu_default_suspend   = 12,
+    Node_hw_state         = 13,
+    System_suspend        = 14,
+    Psci_set_suspend_mode = 15,
+    Psci_stat_residency   = 16,
+    Psci_stat_count       = 17,
   };
 
   enum Psci_migrate_info
   {
-    TOS_UP_MIG_CAP     = 0,
-    TOS_NOT_UP_MIG_CAP = 1,
-    TOS_NOT_PRESENT_MP = 2,
+    Tos_up_mig_cap     = 0,
+    Tos_not_up_mig_cap = 1,
+    Tos_not_present_mp = 2,
   };
 
-  if ((vcpu->r.r[0] & 0xbfffff00) != 0x84000000)
-    return false;
+  // Check this is a supported PSCI function call id.
+  if (!is_psci_func_id(vcpu->r.r[0]))
+      return false;
 
-  bool is64bit = vcpu->r.r[0] & 0x40000000;
-
-  if (is64bit && sizeof(long) == 4)
-    {
-      vcpu->r.r[0] = NOT_SUPPORTED;
-      return true;
-    }
-
-  unsigned func = vcpu->r.r[0] & 0xff;
+  l4_uint8_t func = vcpu->r.r[0] & 0x1f;
   switch (func)
     {
-    case PSCI_VERSION:
+    case Psci_version:
       vcpu->r.r[0] = 0x00010000; // v1.0
       break;
 
-    case CPU_SUSPEND:
+    case Cpu_suspend:
       {
         l4_addr_t power_state  = vcpu->r.r[1];
         l4_addr_t entry_gpa    = vcpu->r.r[2];
@@ -474,16 +467,16 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
                                l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_SCTLR) & ~1U);
           }
         else
-          vcpu->r.r[0] = SUCCESS;
+          vcpu->r.r[0] = Success;
       }
       break;
 
-    case CPU_OFF:
-      vcpu->r.r[0] = NOT_SUPPORTED;
+    case Cpu_off:
+      vcpu->r.r[0] = Not_supported;
       Err().printf("... PSCI CPU OFF\n");
       break;
 
-    case CPU_ON:
+    case Cpu_on:
       {
         unsigned long hwid = vcpu->r.r[1];
         Cpu_dev *target = lookup_cpu(hwid);
@@ -497,79 +490,88 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
             target->vcpu()->r.r[0] = context;
             prepare_vcpu_startup(target->vcpu(), ip);
             target->start_vcpu();
-            vcpu->r.r[0] = SUCCESS;
+            vcpu->r.r[0] = Success;
           }
         else
-          vcpu->r.r[0] = INVALID_PARAMETERS;
+          vcpu->r.r[0] = Invalid_parameters;
       }
       break;
 
-    case MIGRATE_INFO_TYPE:
-      vcpu->r.r[0] = TOS_NOT_PRESENT_MP;
+    case Migrate_info_type:
+      vcpu->r.r[0] = Tos_not_present_mp;
       break;
 
-    case SYSTEM_OFF:
+    case System_off:
       _pm.shutdown();
       exit(0);
 
-    case SYSTEM_RESET:
+    case System_reset:
       _pm.shutdown(true);
       exit(102); // 0x66 is also used by our syscon config
 
-    case PSCI_FEATURES:
-        {
-          unsigned feat_func = vcpu->r.r[1] & 0xff;
-          switch (feat_func)
-            {
-            case CPU_SUSPEND:
-              vcpu->r.r[0] = 1 << 1;
-              break;
-            case PSCI_VERSION:
-            case CPU_ON:
-            case MIGRATE_INFO_TYPE:
-            case SYSTEM_OFF:
-            case SYSTEM_RESET:
-            case PSCI_FEATURES:
-            case SYSTEM_SUSPEND:
-              vcpu->r.r[0] = SUCCESS;
-              break;
-            default:
-              vcpu->r.r[0] = NOT_SUPPORTED;
-              break;
-            };
-        }
+    case Psci_features:
+      {
+        // Check this uses an allowed SMCCC bitness and is a valid PSCI
+        // function id.
+        if (   !is_smccc_bitness_allowed(vcpu->r.r[1])
+            || !is_psci_func_id(vcpu->r.r[1]))
+          {
+            vcpu->r.r[0] = Not_supported;
+            return true;
+          }
+
+        l4_uint8_t feat_func = vcpu->r.r[1] & 0x1f;
+        switch (feat_func)
+          {
+          case Cpu_suspend:
+            vcpu->r.r[0] = 1 << 1;
+            break;
+          case Psci_version:
+          case Cpu_on:
+          case Migrate_info_type:
+          case System_off:
+          case System_reset:
+          case Psci_features:
+          case System_suspend:
+            vcpu->r.r[0] = Success;
+            break;
+          default:
+            vcpu->r.r[0] = Not_supported;
+            break;
+          };
+      }
       break;
 
-    case SYSTEM_SUSPEND:
-        {
-          l4_addr_t entry_gpa = vcpu->r.r[1];
-          l4_umword_t context_id = vcpu->r.r[2];
+    case System_suspend:
+      {
+        l4_addr_t entry_gpa = vcpu->r.r[1];
+        l4_umword_t context_id = vcpu->r.r[2];
 
-          // TODO: Check that all other cores are off
-          // if not:
-          if (0)
-            {
-              vcpu->r.r[0] = DENIED;
-              return true;
-            }
+        // TODO: Check that all other cores are off
+        // if not:
+        if (0)
+          {
+            vcpu->r.r[0] = Denied;
+            return true;
+          }
 
-          /* Go to sleep */
-          if (_pm.suspend())
-            wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
-          /* Back alive */
-          _pm.resume();
+        /* Go to sleep */
+        if (_pm.suspend())
+          wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+        /* Back alive */
+        _pm.resume();
 
-          memset(&vcpu->r, 0, sizeof(vcpu->r));
-          prepare_vcpu_startup(vcpu, entry_gpa);
-          vcpu->r.r[0]  = context_id;
-          l4_vcpu_e_write_32(*vcpu, L4_VCPU_E_SCTLR,
-                             l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_SCTLR) & ~1U);
-        }
+        memset(&vcpu->r, 0, sizeof(vcpu->r));
+        prepare_vcpu_startup(vcpu, entry_gpa);
+        vcpu->r.r[0]  = context_id;
+        l4_vcpu_e_write_32(*vcpu, L4_VCPU_E_SCTLR,
+                           l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_SCTLR) & ~1U);
+      }
       break;
 
     default:
-      Err().printf("... Unknown PSCI function 0x%x called\n", func);
-      vcpu->r.r[0] = NOT_SUPPORTED;
+      warn().printf("... Not supported PSCI function 0x%x called\n", (unsigned)func);
+      vcpu->r.r[0] = Not_supported;
       break;
     };
 
@@ -610,7 +612,7 @@ Guest::handle_uvmm_call(Vcpu_ptr vcpu)
       break;
 
     default:
-      Err().printf("... Unknown l4 function 0x%x called\n", func);
+      warn().printf("... Unknown l4 function 0x%x called\n", func);
       break;
     };
 
@@ -620,18 +622,33 @@ Guest::handle_uvmm_call(Vcpu_ptr vcpu)
 static void dispatch_vm_call(Vcpu_ptr vcpu)
 {
   enum Hvc_functions
-    {
-      Psci = 0,
-      Uvmm = 1,
-    };
+  {
+    Psci = 0,
+    Uvmm = 1,
+  };
+
+  enum Smc_error : l4_int64_t
+  {
+    Not_supported = -1
+  };
 
   l4_mword_t imm = vcpu->r.err & 0xffff;
 
   switch (imm)
     {
     case Psci:
-      if (guest->handle_psci_call(vcpu))
-        return;
+      {
+        // Check if this is a 64 bit call on a 32 bit system. If so, reject.
+        if (!guest->is_smccc_bitness_allowed(vcpu->r.r[0]))
+          {
+            vcpu->r.r[0] = Not_supported;
+            return;
+          }
+        if (guest->handle_psci_call(vcpu))
+          return;
+        // If this wasn't a PSCI function return unsupported
+        vcpu->r.r[0] = Not_supported;
+      }
       break;
     case Uvmm:
       if (guest->handle_uvmm_call(vcpu))

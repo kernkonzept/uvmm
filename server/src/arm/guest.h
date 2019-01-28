@@ -77,6 +77,22 @@ public:
   void handle_smc_call(Vcpu_ptr vcpu);
   bool handle_uvmm_call(Vcpu_ptr vcpu);
 
+  bool is_smccc_bitness_allowed(l4_umword_t reg) const
+  {
+    // Check for SMC calling convention bitness:
+    // - 64 bit SMCCC is only allowed on a 64 bit host
+    return !(reg & (1 << 30) && sizeof(long) == 4);
+  }
+  bool is_psci_func_id(l4_umword_t reg) const
+  {
+    // Check for the correct SMC calling convention:
+    // - this must be a fast call (bit 31)
+    // - it is within the Standard Secure Service range (bits 29:24)
+    // - it is within the PSCI range (bits 4:0)
+    // - the rest must be zero
+    return (reg & 0xbfffffe0) == 0x84000000;
+  }
+
 private:
   Cpu_dev *lookup_cpu(l4_uint32_t hwid) const;
   void check_guest_constraints(l4_addr_t ram_base) const;
