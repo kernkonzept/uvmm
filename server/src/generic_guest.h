@@ -40,7 +40,7 @@ public:
   void register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
                             Vdev::Dt_node const &node, size_t index = 0);
 
-  bool mmio_region_valid(Vmm::Guest_addr addr, l4_uint64_t size);
+  int mmio_region_valid(Vmm::Guest_addr addr, l4_uint64_t size);
 
   Vm_mem *memmap()
   { return &_memmap; }
@@ -170,13 +170,13 @@ protected:
   }
 
   static Dbg warn()
-  { return Dbg(Dbg::Core, Dbg::Warn); }
+  { return Dbg(Dbg::Core, Dbg::Warn, "guest"); }
 
   static Dbg info()
-  { return Dbg(Dbg::Core, Dbg::Info); }
+  { return Dbg(Dbg::Core, Dbg::Info, "guest"); }
 
   static Dbg trace()
-  { return Dbg(Dbg::Core, Dbg::Trace); }
+  { return Dbg(Dbg::Core, Dbg::Trace, "guest"); }
 
   L4Re::Util::Br_manager _bm;
   L4Re::Util::Object_registry _registry;

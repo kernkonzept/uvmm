@@ -141,8 +141,18 @@ struct F : Factory
         switch (res)
           {
           case 0:
-            if (!vmm->mmio_region_valid(Vmm::Guest_addr(addr), size))
+            switch (vmm->mmio_region_valid(Vmm::Guest_addr(addr), size))
+            {
+            case -L4_ENODEV:
+              warn.printf("No corresponding IO resource for '%s'.reg[%d].\n",
+                          node.get_name(), index);
               return false;
+            case -L4_ERANGE:
+              warn.printf(
+                  "Reg entry '%s'.reg[%d] exceeds corresponding IO resource.\n",
+                  node.get_name(), index);
+              return false;
+            }
             break;
           case -Dt_node::ERR_BAD_INDEX:
             // reached end of reg entries

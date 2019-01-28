@@ -28,11 +28,17 @@ Generic_guest::Generic_guest()
   l4_debugger_set_object_name(_task.get().cap(), "vm-task");
 }
 
-bool
+int
 Generic_guest::mmio_region_valid(Vmm::Guest_addr addr, l4_uint64_t size)
 {
   Vm_mem::const_iterator f = _memmap.find(addr);
-  return (f != _memmap.end()) && (addr + size <= f->first.end + 1);
+  if (f == _memmap.end())
+    return -L4_ENODEV;
+
+  if (addr + size > f->first.end + 1)
+    return -L4_ERANGE;
+
+  return L4_EOK;
 }
 
 void
