@@ -571,8 +571,8 @@ Guest::handle_smc_call(Vcpu_ptr vcpu)
   if (_smc_handler)
     _smc_handler->smc(vcpu);
   else
-    Err().printf("No handler for SMC call: a0=%lx a1=%lx ip=%lx\n",
-                 vcpu->r.r[0], vcpu->r.r[1], vcpu->r.ip);
+    Err().printf("No handler for SMC call: a0=%lx a1=%lx ip=%lx lr=%lx\n",
+                 vcpu->r.r[0], vcpu->r.r[1], vcpu->r.ip, vcpu.get_lr());
 
   vcpu->r.ip += 4;
 }
@@ -628,8 +628,8 @@ static void dispatch_vm_call(Vcpu_ptr vcpu)
       break;
     }
 
-  Err().printf("Unknown HVC call: imm=%x, a0=%lx a1=%lx ip=%lx\n",
-               (unsigned)imm, vcpu->r.r[0], vcpu->r.r[1], vcpu->r.ip);
+  Err().printf("Unknown HVC call: imm=%lx, a0=%lx a1=%lx ip=%lx lr=%lx\n",
+               imm, vcpu->r.r[0], vcpu->r.r[1], vcpu->r.ip, vcpu.get_lr());
 }
 
 static void dispatch_smc(Vcpu_ptr vcpu)
@@ -640,8 +640,8 @@ static void dispatch_smc(Vcpu_ptr vcpu)
 static void
 guest_unknown_fault(Vcpu_ptr vcpu)
 {
-  Err().printf("unknown trap: err=%lx ec=0x%x ip=%lx\n",
-               vcpu->r.err, (int)vcpu.hsr().ec(), vcpu->r.ip);
+  Err().printf("unknown trap: err=%lx ec=0x%x ip=%lx lr=%lx\n",
+               vcpu->r.err, (int)vcpu.hsr().ec(), vcpu->r.ip, vcpu.get_lr());
   guest->halt_vm();
 }
 
@@ -653,8 +653,8 @@ guest_memory_fault(Vcpu_ptr vcpu)
     case Retry: break;
     case Jump_instr: vcpu.jump_instruction(); break;
     default:
-      Err().printf("cannot handle VM memory access @ %lx ip=%lx\n",
-                   vcpu->r.pfa, vcpu->r.ip);
+      Err().printf("cannot handle VM memory access @ %lx ip=%lx lr=%lx\n",
+                   vcpu->r.pfa, vcpu->r.ip, vcpu.get_lr());
       guest->halt_vm();
       break;
     }

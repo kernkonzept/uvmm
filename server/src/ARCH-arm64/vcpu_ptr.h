@@ -81,6 +81,11 @@ public:
       _s->r.r[x] = value;
   }
 
+  l4_umword_t get_lr() const
+  {
+    return _s->r.r[30];
+  }
+
   Mem_access decode_mmio() const
   {
     Mem_access m;
