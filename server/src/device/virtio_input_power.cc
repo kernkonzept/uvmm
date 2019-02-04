@@ -232,9 +232,15 @@ Virtio_input_power_mmio::handle_irq()
         case 'p': inject_event(L4RE_KEY_POWER, "inject power"); break;
         case 'q': inject_event(L4RE_KEY_POWER2, "inject power2"); break;
         case 'h':
-          char response[] = "a: apm suspend\ns: suspend\nl: sleep\np: power\n"
-                            "q: power2\n";
-          _con->write(response, sizeof(response) - 1);
+          {
+            char response[] = "a: apm suspend\ns: suspend\nl: sleep\np: power\n"
+                              "q: power2\n";
+            _con->write(response, sizeof(response) - 1);
+          }
+          break;
+        default:
+          Dbg(Dbg::Dev, Dbg::Warn, "pwr-input")
+            .printf("Unknown character '%c'\n", cmd);
           break;
       }
       _con->write("OK\n", 3);
