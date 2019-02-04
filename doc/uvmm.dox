@@ -132,6 +132,7 @@
  * defined in the device tree entry or the initialisation will fail.
  *
  * An appropriate IO entry for the above device would thus be:
+ *
  *     MEM = Io.Hw.Device(function()
  *         Property.hid = "l4-test,dev"
  *         Resource.reg0 = Io.Res.mmio(0x41000000, 0x4104ffff)
