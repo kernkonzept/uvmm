@@ -140,12 +140,20 @@ private:
 
   void *host_addr(Vmm::Guest_addr addr) const
   {
-    Vmm::Vm_mem::const_iterator f = _memmap->find(addr);
+    Vmm::Vm_mem::const_iterator f = _memmap->find(Vmm::Region(addr));
     if (f == _memmap->end())
       {
         Dbg().printf("Fail: 0x%lx memory not found.\n", addr.get());
         L4Re::chksys(-L4_EINVAL,
                      "Guest passes a valid RAM address.");
+      }
+
+    if (f->first.type != Vmm::Region_type::Ram)
+      {
+        Dbg().printf("Fail: 0x%lx region has invalid type %d.\n", addr.get(),
+                     static_cast<int>(f->first.type));
+        L4Re::chksys(-L4_EINVAL,
+                     "Guest passes an address, that is backed by RAM.");
       }
 
     Ds_handler const *ds = dynamic_cast<Ds_handler *>(f->second.get());

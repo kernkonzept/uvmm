@@ -135,7 +135,7 @@ private:
     node.set_reg_val(phys, sz, false);
 
     auto handler = Vdev::make_device<Ds_handler>(cap, 0, sz, offset);
-    devs->vmm()->register_mmio_device(handler, node, 0);
+    devs->vmm()->register_mmio_device(handler, Vmm::Region_type::Ram, node, 0);
   }
 
   void register_mmio_regions(L4::Cap<L4Re::Dataspace> cap, Device_lookup const *devs,
@@ -188,7 +188,7 @@ private:
         if (sz)
           {
             auto handler = Vdev::make_device<Ds_handler>(cap, 0, sz, offs);
-            devs->vmm()->register_mmio_device(handler, node, index);
+            devs->vmm()->register_mmio_device(handler, Vmm::Region_type::Virtual, node, index);
 
             if (dma.is_valid())
               {
@@ -227,7 +227,7 @@ private:
         if (size)
           {
             auto handler = Vdev::make_device<Mmio_space_handler>(cap, 0, size, offs);
-            devs->vmm()->register_mmio_device(handler, node, index);
+            devs->vmm()->register_mmio_device(handler, Vmm::Region_type::Virtual, node, index);
           }
       }
   }

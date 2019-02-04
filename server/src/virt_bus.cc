@@ -55,8 +55,9 @@ Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
           auto handler = Vdev::make_device<Ds_handler>(io_ds(), 0, size,
                                                        res.start);
 
-          devs->vmm()->add_mmio_device(Region::ss(Vmm::Guest_addr(res.start), size),
-                                       handler);
+          auto region = Region::ss(Vmm::Guest_addr(res.start), size,
+                                   Vmm::Region_type::Vbus);
+          devs->vmm()->add_mmio_device(region, handler);
         }
       else if (res.type == L4VBUS_RESOURCE_IRQ)
         {

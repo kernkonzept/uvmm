@@ -125,6 +125,37 @@ Io_proxy::prepare_factory(Device_lookup const *devs)
 
 namespace {
 
+static bool
+mmio_region_valid(Vmm::Vm_mem const *memmap, l4_uint64_t addr, l4_uint64_t size,
+                  Dt_node const &node, int index)
+{
+  Vmm::Vm_mem::const_iterator f = memmap->find(Vmm::Region(Vmm::Guest_addr(addr)));
+
+  if (f == memmap->end())
+    {
+      warn.printf("No corresponding IO resource for '%s'.reg[%d].\n",
+                  node.get_name(), index);
+      return false;
+    }
+
+  if (f->first.type != Vmm::Region_type::Vbus)
+    {
+      warn.printf("Conflicting resource types for '%s'.reg[%d].\n",
+                  node.get_name(), index);
+      return false;
+    }
+
+  if (Vmm::Guest_addr(addr + size) > f->first.end + 1)
+    {
+      warn.printf("Reg entry '%s'.reg[%d] exceeds corresponding IO resource.\n",
+          node.get_name(), index);
+      return false;
+    }
+
+  return true;
+}
+
+
 struct F : Factory
 {
   static bool check_regs(Device_lookup const *devs,
@@ -133,7 +164,7 @@ struct F : Factory
     if (!node.has_prop("reg"))
       return true;
 
-    auto vmm = devs->vmm();
+    Vmm::Vm_mem const *memmap = devs->vmm()->memmap();
     l4_uint64_t addr, size;
     for (int index = 0; /* no condition */ ; ++index)
       {
@@ -141,19 +172,7 @@ struct F : Factory
         switch (res)
           {
           case 0:
-            switch (vmm->mmio_region_valid(Vmm::Guest_addr(addr), size))
-            {
-            case -L4_ENODEV:
-              warn.printf("No corresponding IO resource for '%s'.reg[%d].\n",
-                          node.get_name(), index);
-              return false;
-            case -L4_ERANGE:
-              warn.printf(
-                  "Reg entry '%s'.reg[%d] exceeds corresponding IO resource.\n",
-                  node.get_name(), index);
-              return false;
-            }
-            break;
+            return mmio_region_valid(memmap, addr, size, node, index);
           case -Dt_node::ERR_BAD_INDEX:
             // reached end of reg entries
             return true;
@@ -265,9 +284,9 @@ struct F : Factory
 
             auto handler = Vdev::make_device<Ds_handler>(vbus->io_ds(),
                                                          0, dtsize, res.start);
-
-            devs->vmm()->add_mmio_device(Vmm::Region::ss(Vmm::Guest_addr(dtaddr), dtsize),
-                                         handler);
+            auto region = Vmm::Region::ss(Vmm::Guest_addr(dtaddr), dtsize,
+                                          Vmm::Region_type::Virtual);
+            devs->vmm()->add_mmio_device(region, handler);
             --todo_regs;
           }
         else if (res.type == L4VBUS_RESOURCE_IRQ)

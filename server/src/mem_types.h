@@ -64,27 +64,47 @@ private:
   l4_addr_t _addr;
 };
 
+/**
+ * Type of region in a VM area map
+ *
+ * This type is used to keep track of regions in an vm area map. It is used to
+ * check whether regions are compatible with each other when regions overlap and
+ * when someone searches for a region of a specific type..
+ */
+enum class Region_type
+{
+  None,         ///< No type specified
+  Ram,          ///< Physical RAM
+  Vbus,         ///< Mmio resource specified on Vbus
+  Kernel,       ///< Mmio resources provided by the kernel
+  Virtual       ///< Mmio resource provided by a virtual device
+};
+
 template <typename T>
 struct Generic_region
 {
   T start;
   T end; // inclusive
+  Region_type type;
 
-  Generic_region() {}
-  Generic_region(T a) : start(a), end(a) {}
-  Generic_region(T s, T e) : start(s), end(e) {}
+  Generic_region() = delete;
+  explicit Generic_region(T a) : start(a), end(a), type(Region_type::None) {}
+  Generic_region(T a, Region_type type) : start(a), end(a), type(type) {}
+  Generic_region(T s, T e, Region_type type) : start(s), end(e),
+    type(type) {}
 
-  static Generic_region ss(T start, l4_size_t size)
-  { return Generic_region(start, start + size - 1); }
+  static Generic_region ss(T start, l4_size_t size, Region_type type)
+  { return Generic_region(start, start + size - 1, type); }
 
   bool operator < (Generic_region const &r) const { return end < r.start; }
 
   bool contains(Generic_region const &r) const
-  { return (start <= r.start) && (r.end <= end); } // [ [ ... ] ]
+  {
+    // [ start [ r.start ... r.end ] end ]
+    return (start <= r.start) && (r.end <= end) && (type == r.type);
+  }
 };
 
 using Region = Generic_region<Guest_addr>;
 using Io_region = Generic_region<l4_addr_t>;
-
-
 } // namespace

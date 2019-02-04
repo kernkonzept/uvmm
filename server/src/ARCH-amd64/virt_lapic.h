@@ -239,7 +239,10 @@ public:
   }
 
   Vmm::Region mmio_region() const
-  { return Vmm::Region::ss(Vmm::Guest_addr(Lapic_mem_addr), Lapic_mem_size); }
+  {
+    return Vmm::Region::ss(Vmm::Guest_addr(Lapic_mem_addr), Lapic_mem_size,
+                           Vmm::Region_type::Virtual);
+  }
 
   cxx::Ref_ptr<Virt_lapic> get(unsigned core_no)
   {

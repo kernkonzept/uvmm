@@ -86,12 +86,19 @@ public:
 private:
   Vm_mem::value_type const *addr_to_mem(Vmm::Guest_addr addr) const
   {
-    Vm_mem::const_iterator f = _mmap->find(addr);
+    Vm_mem::const_iterator f = _mmap->find(Region(addr));
     if (f == _mmap->end())
       {
         Dbg().printf("Fail: 0x%lx memory not found.\n", addr.get());
         L4Re::chksys(-L4_EINVAL,
                      "Memory used in page table walk is registered.");
+      }
+    if (f->first.type != Vmm::Region_type::Ram)
+      {
+        Dbg().printf("Fail: 0x%lx region has invalid type %d.\n", addr.get(),
+                     static_cast<int>(f->first.type));
+        L4Re::chksys(-L4_EINVAL,
+                     "Address used in page table walk references RAM.");
       }
 
     return &*f;

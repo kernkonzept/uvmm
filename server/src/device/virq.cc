@@ -121,7 +121,7 @@ struct F_snd : Factory
       return nullptr;
 
     auto c = make_device<Irq_snd>(cap);
-    devs->vmm()->register_mmio_device(c, node);
+    devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
     return c;
   }
 };

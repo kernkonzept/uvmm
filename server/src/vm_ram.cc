@@ -49,18 +49,19 @@ Vmm::Ram_free_list::reserve_fixed(Vmm::Guest_addr start, l4_size_t size)
 {
   for (auto it = _freelist.begin(); it != _freelist.end(); ++it)
     {
-      if (!it->contains(Region::ss(start, size)))
+      if (!it->contains(Region::ss(start, size, Region_type::Ram)))
         continue;
 
       if (start == it->start)
-        *it = Region(start + size, it->end);
+        *it = Region(start + size, it->end, Region_type::Ram);
       else
         {
           auto oldend = it->end;
-          *it = Region(it->start, start - 1);
+          *it = Region(it->start, start - 1, Region_type::Ram);
 
           if (oldend >= start + size)
-            _freelist.insert(it + 1, Region(start + size, oldend));
+            _freelist.insert(it + 1, Region(start + size, oldend,
+                                            Region_type::Ram));
         }
 
       return true;
@@ -145,7 +146,7 @@ Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, Vmm::Guest_addr base
 
   auto dsdev = Vdev::make_device<Ds_handler>(ds, r.local_start(), r.size(),
                                              ds_offset);
-  memmap->add_mmio_device(Region::ss(r.vm_start(), r.size()), std::move(dsdev));
+  memmap->add_mmio_device(Region::ss(r.vm_start(), r.size(), Region_type::Ram), std::move(dsdev));
 
   _regions.push_back(std::move(r));
 

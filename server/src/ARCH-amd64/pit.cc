@@ -198,8 +198,10 @@ struct F : Vdev::Factory
     auto dev = Vdev::make_device<Vdev::Pit_timer>(it.ic().get(), it.irq());
 
     auto *vmm = devs->vmm();
-    vmm->register_io_device(Vmm::Io_region(0x40, 0x43), dev);
-    vmm->register_io_device(Vmm::Io_region(0x61, 0x61), dev->port61());
+    auto region = Vmm::Io_region(0x40, 0x43, Vmm::Region_type::Virtual);
+    vmm->register_io_device(region, dev);
+    region = Vmm::Io_region(0x61, 0x61, Vmm::Region_type::Virtual);
+    vmm->register_io_device(region, dev->port61());
     vmm->register_timer_device(dev);
 
     return dev;

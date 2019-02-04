@@ -50,7 +50,7 @@ struct F : Factory
   {
     auto gic = devs->vmm()->gic();
     // attach GICD to VM
-    devs->vmm()->register_mmio_device(gic, node);
+    devs->vmm()->register_mmio_device(gic, Region_type::Virtual, node);
     // attach GICC to VM
     devs->vmm()->map_gicc(devs, node);
     return gic;
@@ -203,7 +203,8 @@ Guest::map_gicc(Device_lookup *devs, Vdev::Dt_node const &node) const
     }
 
   auto gerr = Vdev::make_device<Gicc_region_mapper>(base);
-  devs->vmm()->register_mmio_device(cxx::move(gerr), node, 1);
+  devs->vmm()->register_mmio_device(cxx::move(gerr), Region_type::Kernel,
+                                    node, 1);
 }
 
 void

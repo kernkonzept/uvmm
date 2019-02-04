@@ -57,7 +57,8 @@ public:
     // Registered region must have the address from the DT as this is the value
     // presented by the PCI device to the guest.
     devs->vmm()->add_mmio_device(Vmm::Region::ss(Vmm::Guest_addr(dt_msi_base),
-                                            Vdev::Msix_mem_need),
+                                                 Vdev::Msix_mem_need,
+                                                 Vmm::Region_type::Virtual),
                                  _msix_mem);
     return 0;
   }

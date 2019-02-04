@@ -54,7 +54,7 @@ public:
 
 private:
   void add_free_region(Vmm::Guest_addr start, l4_size_t size)
-  { _freelist.push_back(Region::ss(start, size)); }
+  { _freelist.push_back(Region::ss(start, size, Region_type::Ram)); }
 
   std::vector<Region> _freelist;
 };

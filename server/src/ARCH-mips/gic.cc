@@ -321,7 +321,7 @@ struct F : Vdev::Factory
       }
 
     auto g = Vdev::make_device<Dist>(devs->vmm()->core_ic().get());
-    devs->vmm()->register_mmio_device(g, node);
+    devs->vmm()->register_mmio_device(g, Vmm::Region_type::Virtual, node);
     return g;
   }
 

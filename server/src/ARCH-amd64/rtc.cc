@@ -31,8 +31,8 @@ struct F : Vdev::Factory
                                     Vdev::Dt_node const &) override
   {
     auto dev = Vdev::make_device<Vdev::Rtc>();
-
-    devs->vmm()->register_io_device(Vmm::Io_region(0x70, 0x71), dev);
+    auto region = Vmm::Io_region(0x70, 0x71, Vmm::Region_type::Virtual);
+    devs->vmm()->register_io_device(region, dev);
 
     return dev;
   }

@@ -166,7 +166,7 @@ public:
 
   template<typename T>
   T *devaddr_to_virt(l4_addr_t devaddr, l4_size_t len = 0) const
-  { return _ram->guest2host<T *>(Vmm::Region::ss(Vmm::Guest_addr(devaddr), len)); }
+  { return _ram->guest2host<T *>(Vmm::Region::ss(Vmm::Guest_addr(devaddr), len, Vmm::Region_type::Ram)); }
 
 private:
   Vmm::Vm_ram *_ram;

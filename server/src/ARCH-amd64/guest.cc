@@ -149,7 +149,7 @@ Guest::handle_io_access(unsigned port, bool is_in, Mem_access::Width op_width,
 {
   l4_umword_t op_mask = (1ULL << ((1 << op_width) * 8)) - 1;
 
-  auto f = _iomap.find(port);
+  auto f = _iomap.find(Io_region(port));
   if (f == _iomap.end())
     {
       if (is_in)

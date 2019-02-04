@@ -71,7 +71,10 @@ public:
   {}
 
   static Vmm::Region mem_region()
-  { return Vmm::Region::ss(Vmm::Guest_addr(Base_address), Cm_size); }
+  {
+    return Vmm::Region::ss(Vmm::Guest_addr(Base_address), Cm_size,
+                           Vmm::Region_type::Virtual);
+  }
 
   void register_cpc(cxx::Ref_ptr<Vdev::Mips_cpc> const &cpc) { _cpc = cpc; }
 
@@ -170,7 +173,8 @@ public:
                         (l4_addr_t)_cpc_base.base_addr());
 
               (*_memmap)[Vmm::Region::ss(Vmm::Guest_addr(_cpc_base.base_addr()),
-                                         Mips_cpc::Cpc_size)] = _cpc;
+                                         Mips_cpc::Cpc_size,
+                                         Vmm::Region_type::Virtual)] = _cpc;
             }
           break;
         }

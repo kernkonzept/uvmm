@@ -66,13 +66,15 @@ Pci_bus_bridge::init_io_resources(Device_lookup *devs)
               L4Re::chksys(vbus->bus()->request_resource(&res));
               trace().printf("request resource: [0x%lx, 0x%lx]\n", res.start,
                              res.end);
-              vmm->register_io_device(Io_region(res.start, res.end),
+              vmm->register_io_device(Io_region(res.start, res.end,
+                                                Vmm::Region_type::Vbus),
                                       make_device<Io_port_handler>(res.start));
             }
           else if (res.type == L4VBUS_RESOURCE_MEM)
             {
               vmm->add_mmio_device(
-                Region(Guest_addr(res.start), Guest_addr(res.end)),
+                Region(Guest_addr(res.start), Guest_addr(res.end),
+                       Vmm::Region_type::Vbus),
                 make_device<Ds_handler>(vbus->bus(), 0,
                                         res.end - res.start + 1,
                                         res.start));
@@ -114,7 +116,8 @@ struct F : Factory
       dev->register_device(dev);
 
     auto io_cfg_connector = make_device<Pci_bus_cfg_io>(dev);
-    devs->vmm()->register_io_device(Vmm::Io_region(0xcf8, 0xcff), io_cfg_connector);
+    auto region = Vmm::Io_region(0xcf8, 0xcff, Vmm::Region_type::Virtual);
+    devs->vmm()->register_io_device(region, io_cfg_connector);
 
     info().printf("Created & Registered the PCI host bridge\n");
     return dev;

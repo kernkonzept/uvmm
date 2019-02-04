@@ -89,7 +89,7 @@ struct F : Factory
                               Dt_node const &node) override
   {
     auto syscon = make_device<System_controller_mmio>();
-    devs->vmm()->register_mmio_device(syscon, node);
+    devs->vmm()->register_mmio_device(syscon, Vmm::Region_type::Virtual, node);
     return syscon;
   }
 };

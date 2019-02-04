@@ -26,7 +26,7 @@ struct F : Factory
       return nullptr;
 
     c->register_obj(devs->vmm()->registry());
-    devs->vmm()->register_mmio_device(c, node);
+    devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
     return c;
   }
 };

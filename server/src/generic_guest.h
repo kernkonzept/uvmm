@@ -38,9 +38,8 @@ public:
   { _mmio_fallback = ds; }
 
   void register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
+                            Region_type type,
                             Vdev::Dt_node const &node, size_t index = 0);
-
-  int mmio_region_valid(Vmm::Guest_addr addr, l4_uint64_t size);
 
   Vm_mem *memmap()
   { return &_memmap; }
@@ -70,7 +69,7 @@ public:
 
   int handle_mmio(l4_addr_t pfa, Vcpu_ptr vcpu)
   {
-    Vm_mem::const_iterator f = _memmap.find(Guest_addr(pfa));
+    Vm_mem::const_iterator f = _memmap.find(Region(Guest_addr(pfa)));
 
     if (f != _memmap.end())
       return f->second->access(pfa, pfa - f->first.start.get(),
