@@ -15,12 +15,9 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   virtio_console.cc \
                   virtio_proxy.cc \
                   virtio_device_proxy.cc \
-                  dev_sysctl.cc \
                   virt_bus.cc io_proxy.cc \
                   mmio_device.cc \
-                  mmio_proxy.cc \
-                  pm.cc vbus_event.cc vm_memmap.cc vm_ram.cc vm.cc \
-                  virq.cc
+                  pm.cc vbus_event.cc vm_memmap.cc vm_ram.cc vm.cc
 
 SRC_CC-arm   = arm/gic.cc arm/guest_arm.cc arm/cpu_dev_arm.cc
 SRC_CC-arm64 = arm/gic.cc arm/guest_arm.cc arm/cpu_dev_arm.cc
@@ -37,6 +34,9 @@ SRC_CC-$(CONFIG_VDEV_PL011) += device/pl011.cc
 SRC_CC-arm-$(CONFIG_VDEV_OPTEE) += device/optee.cc
 SRC_CC-arm64-$(CONFIG_VDEV_OPTEE) += device/optee.cc
 SRC_CC-$(CONFIG_VDEV_VIRTIO_POWER) += device/virtio_input_power.cc
+SRC_CC-$(CONFIG_VDEV_VIRQ) += device/virq.cc
+SRC_CC-$(CONFIG_VDEV_MMIO_PROXY) += device/mmio_proxy.cc
+SRC_CC-$(CONFIG_VDEV_SYSCTL) += device/sysctl.cc
 
 ifeq ($(CONFIG_VDEV_VIRTIO_POWER),y)
 CXXFLAGS += -DVIRTIO_POWER

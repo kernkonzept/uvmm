@@ -21,6 +21,45 @@ using namespace Vdev;
  * A simple system controller with the following functions:
  *
  *   0x00 - On write exit with the given value as exit code.
+ *
+ * This device can be used with the generic syscon device from
+ * Linux as follows:
+ *
+ *     vmm-syscon {
+ *        #address-cells = <1>;
+ *        #size-cells = <1>;
+ *        compatible = "simple-bus";
+ *        ranges = <0x0 0x30030000 0x4>;
+ *
+ *        l4syscon: syscon {
+ *                compatible = "syscon", "syscon-l4vmm";
+ *                reg = <0x0 0x4>;
+ *                little-endian;
+ *        };
+ *
+ *        reboot {
+ *                compatible = "syscon-reboot";
+ *                regmap = <&l4syscon>;
+ *                offset = <0x0>;
+ *                mask = <0x66>;
+ *        };
+ *
+ *        poweroff {
+ *                compatible = "syscon-poweroff";
+ *                regmap = <&l4syscon>;
+ *                offset = <0x0>;
+ *                mask = <0x0>;
+ *        };
+ *    };
+ *
+ * The `l4syscon` entry defines this system controller device itself
+ * and the additional entries the exact return code with which to exit
+ * the uvmm.
+ *
+ * Note that reboot does not really reinitialise uvmm. This
+ * still needs to be done by the application that started the uvmm (usually
+ * ned). The exit code is simply used as a means to notify the starter that
+ * a reboot was requested.
  */
 struct System_controller : public Device
 {

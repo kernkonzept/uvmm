@@ -8,6 +8,27 @@ namespace {
 
 using namespace Vdev;
 
+/**
+ * Device for relaying L4 interupts into the guest.
+ *
+ * A device tree entry needs to look like this:
+ *
+ *     virq {
+ *       compatible = "l4vmm,virq-rcv";
+ *       l4vmm,virqcap = "irqcap";
+ *       interrupts = <0 140 4>;
+ *     };
+ *
+ * `l4vmm,virqcap` is mandatory and needs to point to a capability
+ * implementing an L4::Irq interface. If there is no capability with
+ * the given name, then the device will be disabled.
+ *
+ * The device tree also must define exactly one interrupt in the
+ * usual way.
+ *
+ * Interrupt relayed in this way do not need to be acknowledged by the
+ * guest.
+ */
 class Irq_rcv
 : public L4::Irqep_t<Irq_rcv>,
   public Device
@@ -50,6 +71,25 @@ struct F_rcv : Factory
 
 static F_rcv f_rcv;
 static Device_type t_rcv = { "l4vmm,virq-rcv", nullptr, &f_rcv };
+
+/**
+ * Device for triggering L4 interupts from the guest.
+ *
+ * A device tree entry needs to look like this:
+ *
+ *     virq@0x10000000 {
+ *       compatible = "l4vmm,virq-snd";
+ *       reg = <0x10000000 0x4>;
+ *       l4vmm,virqcap = "irqcap";
+ *     };
+ *
+ * `l4vmm,virqcap` is mandatory and needs to point to a capability
+ * implementing an L4::Irq interface. If there is no capability with
+ * the given name, then the device will be disabled.
+ *
+ * The interrupt is triggered by writing to any address in the region
+ * specified by the first `reg` entry.
+ */
 
 class Irq_snd : public Device, public Vmm::Mmio_device_t<Irq_snd>
 {
