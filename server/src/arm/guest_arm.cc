@@ -118,10 +118,69 @@ public:
   void map_eager(L4::Cap<L4::Vm> vm, Vmm::Guest_addr, Vmm::Guest_addr) override
   { remap_page(vm); }
 
-  static bool verify_region(l4_uint64_t base, l4_uint64_t size)
+  static void
+  update_reg_entry(l4_uint64_t base, l4_uint64_t size, bool strip,
+                   Vdev::Dt_node const &node)
   {
-    l4_addr_t base_offs = base & (L4_PAGESIZE - 1);
-    return (base_offs + size) <= L4_PAGESIZE;
+    l4_uint64_t gicd_base, gicd_size;
+    int res;
+
+    Dbg(Dbg::Irq, Dbg::Info, "GIC")
+      .printf("GICC virtualization only supports sizes up to 0x1000,"
+              " adjusting device tree node\n");
+    if (size > L4_PAGESIZE)
+      {
+        Dbg(Dbg::Irq, Dbg::Info, "GIC")
+          .printf("GIC %s.reg update: Adjusting GICC size from %llx to %lx\n",
+                  node.get_name(), size, L4_PAGESIZE);
+      }
+    if (strip)
+      Dbg(Dbg::Irq, Dbg::Info, "GIC")
+        .printf("GIC %s.reg update: Stripping superfluous entries\n",
+                node.get_name());
+
+    // Get GICD entry
+    if ((res = node.get_reg_val(0, &gicd_base, &gicd_size)) < 0)
+      {
+        Err().printf("Failed to read 'reg[0]' from node %s: %s\n",
+                     node.get_name(), node.strerror(res));
+        throw L4::Runtime_error(-L4_EINVAL,
+                                "Reading device tree entry for GIC");
+      }
+
+    // rewrite reg_entry
+    size = size < L4_PAGESIZE ? size : L4_PAGESIZE;
+    node.set_reg_val(gicd_base, gicd_size);
+    node.append_reg_val(base, size);
+  }
+
+  static l4_uint64_t
+  verify_node(Vdev::Dt_node const &node)
+  {
+    l4_uint64_t base, size, dummy;
+    int res = node.get_reg_val(1, &base, &size);
+    if (res < 0)
+      {
+        Err().printf("Failed to read 'reg[1]' from node %s: %s\n",
+                     node.get_name(), node.strerror(res));
+        throw L4::Runtime_error(-L4_EINVAL,
+                                "Reading device tree entry for GIC");
+      }
+
+    // Check the alignment of the GICC page
+    if (base & (L4_PAGESIZE - 1))
+      {
+        Err().printf("%s:The GICC page is not page aligned: <%llx, %llx>.\n",
+                     node.get_name(), base, size);
+        L4Re::chksys(-L4_EINVAL, "Setting up GICC page");
+      }
+
+    // Do we have to adapt the device tree?
+    bool strip = node.get_reg_val(2, &dummy, &dummy) >= 0;
+    if ((size > L4_PAGESIZE) || strip)
+      update_reg_entry(base, size, strip, node);
+
+    return base;
   }
 
 private:
@@ -184,24 +243,7 @@ Guest::setup_device_tree(Vdev::Device_tree dt)
 void
 Guest::map_gicc(Device_lookup *devs, Vdev::Dt_node const &node) const
 {
-  l4_uint64_t base, size;
-  int res = node.get_reg_val(1, &base, &size);
-  if (res < 0)
-    {
-      Err().printf("Failed to read 'reg[1]' from node %s: %s\n",
-                   node.get_name(), node.strerror(res));
-      throw L4::Runtime_error(-L4_EINVAL,
-                              "Reading device tree entry for GIC");
-    }
-
-  // Check whether area to be mapped matches the GICC region
-  if (!Gicc_region_mapper::verify_region(base, size))
-    {
-      Err().printf("%s:The GICC page does not match the GICC reg entry: <%llx, %llx>.\n",
-                   node.get_name(), base, size);
-      L4Re::chksys(-L4_EINVAL, "Setting up GICC page");
-    }
-
+  l4_uint64_t base = Gicc_region_mapper::verify_node(node);
   auto gerr = Vdev::make_device<Gicc_region_mapper>(base);
   devs->vmm()->register_mmio_device(cxx::move(gerr), Region_type::Kernel,
                                     node, 1);
