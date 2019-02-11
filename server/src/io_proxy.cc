@@ -140,9 +140,17 @@ mmio_region_valid(Vmm::Vm_mem const *memmap, l4_uint64_t addr, l4_uint64_t size,
 
   if (f->first.type != Vmm::Region_type::Vbus)
     {
-      warn.printf("Conflicting resource types for '%s'.reg[%d].\n",
+      if (f->first.type != Vmm::Region_type::Ram)
+        {
+          warn.printf("Conflicting resource types for '%s'.reg[%d], expected {%d, %d}, got %d\n",
+                      node.get_name(), index,
+                      static_cast<int>(Vmm::Region_type::Vbus),
+                      static_cast<int>(Vmm::Region_type::Ram),
+                      static_cast<int>(f->first.type));
+          return false;
+        }
+      info.printf("'%s'.reg[%d] references physical RAM.\n",
                   node.get_name(), index);
-      return false;
     }
 
   if (Vmm::Guest_addr(addr + size) > f->first.end + 1)
