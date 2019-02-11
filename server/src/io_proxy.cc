@@ -180,7 +180,9 @@ struct F : Factory
         switch (res)
           {
           case 0:
-            return mmio_region_valid(memmap, addr, size, node, index);
+            if (!mmio_region_valid(memmap, addr, size, node, index))
+              return false;
+            break;
           case -Dt_node::ERR_BAD_INDEX:
             // reached end of reg entries
             return true;
