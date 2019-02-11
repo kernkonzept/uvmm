@@ -20,11 +20,7 @@ namespace Boot {
 
 class Binary_ds
 {
-public:
-  Binary_ds(char const *name)
-  : _ds(L4Re::chkcap(L4Re::Util::Env_ns().query<L4Re::Dataspace>(name),
-                     "Kernel binary not found", -L4_EIO)),
-    _elf(this, _ds.get())
+  void init()
   {
     _loaded_range_start = 0;
     _loaded_range_end = 0;
@@ -42,6 +38,21 @@ public:
                                  L4::Ipc::make_cap_rw(_ds.get())));
   }
 
+public:
+  Binary_ds(char const *name)
+  : _ds(L4Re::chkcap(L4Re::Util::Env_ns().query<L4Re::Dataspace>(name),
+                     "Kernel binary not found", -L4_EIO)),
+    _elf(this, _ds.get())
+  {
+    init();
+  }
+
+  Binary_ds(L4::Cap<L4Re::Dataspace> d)
+  : _ds(d),
+    _elf(this, _ds.get())
+  {
+    init();
+  }
 
   bool is_elf_binary()
   {
@@ -120,6 +131,12 @@ public:
 
   void const *get_header() const
   { return _header.get(); }
+
+  size_t size() const
+  { return _ds->size(); }
+
+  L4::Cap<L4Re::Dataspace> ds() const
+  { return _ds.get(); }
 
   ~Binary_ds()
   {

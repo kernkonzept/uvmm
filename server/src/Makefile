@@ -82,6 +82,11 @@ else
 SRC_CC-arm-common += arm/guest_arm_noexc.cc
 endif
 
+DEFINES-arm-$(CONFIG_UVMM_GZIP_IMAGES) += -DSUPPORT_GZIP_IMAGES
+REQUIRES_LIBS-arm-$(CONFIG_UVMM_GZIP_IMAGES) += zlib
+DEFINES-arm64-$(CONFIG_UVMM_GZIP_IMAGES) += -DSUPPORT_GZIP_IMAGES
+REQUIRES_LIBS-arm64-$(CONFIG_UVMM_GZIP_IMAGES) += zlib
+
 include $(wildcard $(PKGDIR)/server/src/Makefile.devs.*)
 
 ifeq ($(ARCH),mips)
@@ -93,6 +98,9 @@ endif
 
 SRC_CC        += $(SRC_CC-$(ARCH))
 SRC_CC        += $(SRC_CC-$(ARCH)-y)
+DEFINES       += $(DEFINES-$(ARCH))
+DEFINES       += $(DEFINES-$(ARCH)-y)
+REQUIRES_LIBS += $(REQUIRES_LIBS-$(ARCH)-y)
 
 PRIVATE_INCDIR  = $(SRC_DIR)/../include $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
 PRIVATE_INCDIR-arm   += $(SRC_DIR)/arm $(SRC_DIR)/device/arm

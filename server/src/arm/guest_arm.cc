@@ -10,6 +10,13 @@
 #include <l4/re/error_helper>
 #include <l4/vbus/vbus>
 
+#ifdef SUPPORT_GZIP_IMAGES
+#include <l4/sys/factory>
+#include <zlib.h>
+#endif
+
+#include <memory>
+
 #include "binary_loader.h"
 #include "device_factory.h"
 #include "guest.h"
@@ -370,26 +377,86 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_li
   Guest_addr ram_base = free_list->first_free_address();
 
   l4_addr_t entry = ~0ul;
-  Boot::Binary_ds image(kernel);
-  if (image.is_elf_binary())
+  std::unique_ptr<Boot::Binary_ds> image(new Boot::Binary_ds(kernel));
+
+  if (image->is_elf_binary())
     {
-      entry = image.load_as_elf(ram, free_list);
-      guest_64bit = image.is_elf64();
+      entry = image->load_as_elf(ram, free_list);
+      guest_64bit = image->is_elf64();
       if (!Guest_64bit_supported && guest_64bit)
         L4Re::chksys(-L4_EINVAL, "Running a 64bit guest on a 32bit host is "
                                  "not possible.");
     }
   else
     {
-      char const *h = reinterpret_cast<char const *>(image.get_header());
+      char const *h = static_cast<char const *>(image->get_header());
+#ifdef SUPPORT_GZIP_IMAGES
+      if (h[0] == 0x1f && h[1] == 0x8b && h[2] == 0x08)
+        {
+          const L4Re::Env *e = L4Re::Env::env();
+          L4Re::Rm::Unique_region<Bytef *> imager_src;
+          L4Re::Rm::Unique_region<Byte *> imager_dst;
+          size_t compr_sz = image->size();
 
+          L4Re::chksys(e->rm()->attach(&imager_src, compr_sz,
+                                       L4Re::Rm::F::Search_addr | L4Re::Rm::F::R,
+                                       L4::Ipc::make_cap_rw(image->ds())),
+                       "Attach compressed file.");
+
+          uint32_t uncompr_sz = *(uint32_t *)&imager_src.get()[compr_sz - 4];
+
+          info().printf("Detected gzip compressed image: uncompressing (%zd -> %u)\n",
+                        compr_sz, uncompr_sz);
+
+          L4::Cap<L4Re::Dataspace> f =
+            L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>(),
+                         "Allocate DS cap for uncompressed memory.");
+
+          L4Re::chksys(e->mem_alloc()->alloc(uncompr_sz, f),
+                       "Allocate memory in dataspace.");
+
+          L4Re::chksys(e->rm()->attach(&imager_dst, uncompr_sz,
+                                       L4Re::Rm::F::Search_addr | L4Re::Rm::F::RW,
+                                       L4::Ipc::make_cap_rw(f)),
+                       "Attach DS for uncompressed data.");
+
+            z_stream strm = {};
+            strm.next_in  = imager_src.get();
+            strm.avail_in = compr_sz;
+
+            int err = inflateInit2(&strm, 47);
+            if (err == Z_OK)
+              {
+                strm.next_out = imager_dst.get();
+                strm.avail_out = uncompr_sz;
+                err = inflate(&strm, Z_NO_FLUSH);
+
+                // Should finish in one round
+                if (err != Z_STREAM_END)
+                  {
+                    Err().printf("zlib decompression error: %s\n", strm.msg);
+                    L4Re::throw_error(-L4_EINVAL);
+                  }
+                else
+                  image.reset(new Boot::Binary_ds(f));
+              }
+            else
+              {
+                Err().printf("zlib init error: %d\n", err);
+                L4Re::throw_error(-L4_EINVAL);
+              }
+        }
+#endif // SUPPORT_GZIP_IMAGES
+
+      // Reload the header in case the image changed
+      h = static_cast<char const *>(image->get_header());
       if (Guest_64bit_supported
           && h[0x38] == 'A' && h[0x39] == 'R'
           && h[0x3A] == 'M' && h[0x3B] == '\x64') // Linux header ARM\x64
         {
           l4_uint64_t l = *reinterpret_cast<l4_uint64_t const *>(&h[8]);
           // Bytes 0xc-0xf have the size
-          entry = image.load_as_raw(ram, ram_base + l, free_list);
+          entry = image->load_as_raw(ram, ram_base + l, free_list);
           this->guest_64bit = true;
         }
       else if (   h[0x24] == 0x18 && h[0x25] == 0x28
@@ -397,17 +464,17 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_li
         {
           l4_uint32_t l = *reinterpret_cast<l4_uint32_t const *>(&h[0x28]);
           // Bytes 0x2c-0x2f have the zImage size
-          entry = image.load_as_raw(ram, ram_base + l, free_list);
+          entry = image->load_as_raw(ram, ram_base + l, free_list);
         }
       else if (h[0] == 0x1f && h[1] == 0x8b && h[2] == 0x08)
         // Gzip compressed kernel images are not self-decompressing on ARM
         L4Re::throw_error(-L4_EINVAL,
-                          "Cannot boot compressed images! Unzip first.");
+           "Cannot boot compressed images! Unzip first or enable uvmm gzip support.");
 
       if (entry == ~0ul)
         {
           enum { Default_entry =  0x208000 };
-          entry = image.load_as_raw(ram, ram_base + Default_entry, free_list);
+          entry = image->load_as_raw(ram, ram_base + Default_entry, free_list);
         }
     }
 
