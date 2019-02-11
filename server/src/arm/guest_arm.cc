@@ -112,7 +112,7 @@ public:
 
     remap_page(vm);
 
-    return Jump_instr;
+    return Retry;
   }
 
   void map_eager(L4::Cap<L4::Vm> vm, Vmm::Guest_addr, Vmm::Guest_addr) override
