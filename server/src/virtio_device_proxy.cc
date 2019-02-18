@@ -126,21 +126,7 @@ public:
         return; // do not actually write the value
       }
 
-    switch (width)
-      {
-      case Vmm::Mem_access::Wd8:
-        *reinterpret_cast<l4_uint8_t *>(l) = value;
-        break;
-      case Vmm::Mem_access::Wd16:
-        *reinterpret_cast<l4_uint16_t *>(l) = value;
-        break;
-      case Vmm::Mem_access::Wd32:
-        *reinterpret_cast<l4_uint32_t *>(l) = value;
-        break;
-      case Vmm::Mem_access::Wd64:
-        *reinterpret_cast<l4_uint64_t *>(l) = value;
-        break;
-      }
+    Vmm::Mem_access::write_width(l, value, width);
 
     switch (reg)
       {
