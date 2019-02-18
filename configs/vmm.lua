@@ -48,7 +48,7 @@ function start_virtio_switch(ports, prio, cpus)
   svr = l:start(opts, "rom/l4vio_net_p2p");
 
   for k, v in pairs(ports) do
-    ports[k] = L4.cast(L4.Proto.Factory, switch):create(0, 4);
+    ports[k] = L4.cast(L4.Proto.Factory, switch):create(0, "ds-max=4");
   end
 
   return svr;
