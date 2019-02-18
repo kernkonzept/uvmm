@@ -32,18 +32,19 @@ public:
   void control_ext(L4::Cap<L4::Thread> thread)
   {
     if (l4_error(thread->vcpu_control_ext((l4_addr_t)_s)))
-    {
-      Err().printf("FATAL: Could not create vCPU. "
-                   "Running virtualization-enabled kernel?\n");
-      L4Re::chksys(-L4_ENODEV);
-    }
+      {
+        Err().printf("FATAL: Could not create vCPU. "
+                     "Running virtualization-enabled kernel?\n");
+        L4Re::chksys(-L4_ENODEV);
+      }
+
     if (!l4_vcpu_check_version(_s))
-    {
-      Err().printf("FATAL: Could not create vCPU. "
-                   "vCPU interface mismatch - Kernel %lx != User %x.\n",
-                   _s->version, L4_VCPU_STATE_VERSION);
-      L4Re::chksys(-L4_ENODEV);
-    }
+      {
+        Err().printf("FATAL: Could not create vCPU. "
+                     "vCPU interface mismatch - Kernel %lx != User %x.\n",
+                     _s->version, L4_VCPU_STATE_VERSION);
+        L4Re::chksys(-L4_ENODEV);
+      }
 
     trace().printf("VCPU mapped @ %p and enabled\n", _s);
   }
