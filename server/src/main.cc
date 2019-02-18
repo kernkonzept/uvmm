@@ -143,7 +143,6 @@ static int run(int argc, char *argv[])
       { "ramdisk",                 required_argument, NULL, 'r' },
       { "cmdline",                 required_argument, NULL, 'c' },
       { "rambase",                 required_argument, NULL, 'b' },
-      { "mmio-fallback",           no_argument,       NULL, 'M' },
       { "debug",                   required_argument, NULL, 'D' },
       { "verbose",                 no_argument,       NULL, 'v' },
       { "quiet",                   no_argument,       NULL, 'q' },
@@ -186,9 +185,6 @@ static int run(int argc, char *argv[])
           break;
         case 'D':
           set_verbosity(optarg);
-          break;
-        case 'M':
-          vmm->set_fallback_mmio_ds(vm_instance.vbus()->io_ds());
           break;
         case 'W':
           vmm->use_wakeup_inhibitor(true);
