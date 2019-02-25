@@ -105,6 +105,20 @@ struct F : Factory
     if (dt_msi_size < Msix_mem_need)
       L4Re::chksys(-L4_EINVAL, "Insufficient MSI-X memory specified.");
 
+    if (dt_size < Num_pci_connector_ports)
+      {
+        Err().printf("At least 0x%x IO ports must be configured.\n",
+                     Num_pci_connector_ports);
+        L4Re::chksys(-L4_EINVAL, "Not enough IO ports specified.");
+      }
+
+    if (dt_size > 0x100)
+      L4Re::chksys(-L4_EINVAL, "Device IO port configuration sizes up to 0x100 "
+                               "supported.");
+
+    l4_size_t cfgsz = dt_size - Num_pci_connector_ports;
+    warn().printf("cfgsize is 0x%lx\n", cfgsz);
+
     Device_register_entry regs[] =
       {{dt_msi_base, dt_msi_size, Pci_device::dt_get_reg_flags(node, 0)},
        {dt_base, dt_size, Pci_device::dt_get_reg_flags(node, 1)}};
@@ -114,14 +128,6 @@ struct F : Factory
 
     if (!(regs[1].flags & Dt_pci_flags_io))
       L4Re::chksys(-L4_EINVAL, "Second DT register entry is an IO entry.");
-
-    l4_uint64_t dummy, cfgsz;
-    int res = node.get_reg_val(2, &dummy, &cfgsz);
-    if (res < 0)
-      {
-        warn().printf("cfgsize not found, default to L4_PAGESIZE\n");
-        cfgsz = L4_PAGESIZE;
-      }
 
     auto *pci = dynamic_cast<Pci_bus_bridge *>(
       devs->device_from_node(node.parent_node()).get());
@@ -143,9 +149,14 @@ struct F : Factory
 
     auto vmm = devs->vmm();
     int const num_msix = 10;
+
+    // cfgsz + 0x100 => DT tells dev config size; add virtio config hdr
     auto proxy =
-      make_device<Virtio_proxy_pci>(cap, cfgsz, nnq_id, devs->ram().get(),
+      make_device<Virtio_proxy_pci>(cap, cfgsz + 0x100, nnq_id, devs->ram().get(),
                                     msi_distr, num_msix);
+
+    if (proxy->init_irqs(devs, node) < 0)
+      return nullptr;
 
     if (regs[1].flags & Dt_pci_flags_io)
       {
@@ -154,8 +165,8 @@ struct F : Factory
         vmm->register_io_device(region, proxy);
       }
 
-    proxy->register_irq(devs->vmm()->registry());
-    proxy->configure(regs, num_msix);
+    proxy->register_irq(vmm->registry());
+    proxy->configure(regs, num_msix, cfgsz);
     pci->register_device(proxy);
 
     return proxy;

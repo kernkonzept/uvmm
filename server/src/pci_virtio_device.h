@@ -41,11 +41,12 @@ public:
    * \param regs              Array of BAR entries.
    * \param regs_size         Array size.
    * \param num_msix_entries  Maximum number of MSI-X entries to handle.
+   * \param dev_cfg_size      Size of the device-specific configuration space.
    */
   void configure(cxx::static_vector<Device_register_entry> const &regs,
-                 unsigned num_msix_entries)
+                 unsigned num_msix_entries, unsigned dev_cfg_size = 0)
   {
-    config_device(regs, num_msix_entries);
+    config_device(regs, num_msix_entries, dev_cfg_size);
     dbg().printf("Virtio_device_pci: device configured\n");
   }
 
@@ -57,7 +58,8 @@ private:
   }
 
   void config_device(cxx::static_vector<Device_register_entry> const &regs,
-                     unsigned num_msix_entries)
+                     unsigned num_msix_entries,
+                     unsigned dev_cfg_size)
   {
     auto dev_cfg = dev()->virtio_cfg();
     assert(dev_cfg);
@@ -106,9 +108,10 @@ private:
     Virtio_pci_cap_base *cap = create_vio_pci_cap_common_entry(nullptr, io_bar);
     cap = create_vio_pci_cap_notify_entry(cap, io_bar);
     cap = create_vio_pci_cap_isr_entry(cap, io_bar);
-    // TODO implement create_vio_pci_cap_device_entry
-    // cap = create_vio_pci_cap_device_entry(cap, io_bar);
     cap = create_vio_pci_cap_pci_entry(cap, io_bar);
+
+    if (dev_cfg_size)
+      cap = create_vio_pci_cap_device_entry(cap, io_bar, dev_cfg_size);
   }
 
   Virtio_pci_cap_base *
@@ -158,12 +161,21 @@ private:
     return &entry->vio;
   }
 
-  Virtio_pci_cap_base *
-  create_vio_pci_cap_device_entry(Virtio_pci_cap_base *prev, unsigned io_bar)
+  Virtio_pci_cap_base *create_vio_pci_cap_device_entry(Virtio_pci_cap_base *prev,
+                                                       unsigned io_bar,
+                                                       unsigned cfgsz)
   {
+    auto *entry = allocate_pci_cap<Virtio_pci_cap>();
+    entry->id.cap_type  = Virtio_pci_cap_vndr;
+    entry->vio.cap_len  = sizeof(Virtio_pci_cap_base);
+    entry->vio.cfg_type = Virtio_pci_cap_device_cfg;
+    entry->vio.bar      = io_bar;
     // 4 byte align offset to find device specific config
-    // Should probably be set up by the device separately?
-    return prev;
+    entry->vio.offset   =
+      prev ? l4_round_size(prev->offset + prev->length, 2) : 0;
+    entry->vio.length   = cfgsz;
+
+    return &entry->vio;
   }
 
   Virtio_pci_cap_base *create_vio_pci_cap_pci_entry(Virtio_pci_cap_base *prev,

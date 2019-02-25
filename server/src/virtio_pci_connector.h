@@ -30,6 +30,14 @@ public:
     auto vcfg = dev()->virtio_cfg();
     l4_uint32_t result = 0;
 
+    if (port >= Vdev::Num_pci_connector_ports)
+      {
+        read_device_memory(port - Vdev::Num_pci_connector_ports, wd, value);
+        trace().printf("DevMem: In port(width) %i(%i) : 0x%x\n", port, wd,
+                       *value);
+        return;
+      }
+
     switch(port)
       {
       case 0: // device feature select
@@ -166,7 +174,16 @@ public:
   {
     auto vcfg = dev()->virtio_cfg();
 
-    trace().printf("OUT port(width) %i(%i) = 0x%x\n", port, wd, value);
+    if (port >= Vdev::Num_pci_connector_ports)
+      {
+        trace().printf("DevMem OUT port(width) %i(%i) = 0x%x\n", port, wd,
+                       value);
+        write_device_memory(port - Vdev::Num_pci_connector_ports, wd, value);
+        return;
+      }
+
+    if (port != 56)
+      trace().printf("OUT port(width) %i(%i) = 0x%x\n", port, wd, value);
 
     switch(port)
       {
@@ -308,6 +325,26 @@ private:
 
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI con"); }
   static Dbg dbg() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI con"); }
+
+  void read_device_memory(unsigned port, Vmm::Mem_access::Width wd,
+                          l4_uint32_t *val)
+  {
+    l4_addr_t dev_cfg =
+      reinterpret_cast<l4_addr_t>(l4virtio_device_config(dev()->virtio_cfg()))
+      + port;
+
+    *val = Vmm::Mem_access::read_width(dev_cfg, wd);
+  }
+
+  void write_device_memory(unsigned port, Vmm::Mem_access::Width wd,
+                           l4_uint32_t val)
+  {
+    l4_addr_t dev_cfg =
+      reinterpret_cast<l4_addr_t>(l4virtio_device_config(dev()->virtio_cfg()))
+      + port;
+
+    Vmm::Mem_access::write_width(dev_cfg, val, wd);
+  }
 
   unsigned _msi_table_idx_config = ::Vdev::Virtio_msix_no_vector;
   l4_uint16_t _virtqueue_msix_index[sizeof(Virtio::Event_set) * 8];

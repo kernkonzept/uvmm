@@ -11,6 +11,11 @@
 
 namespace Vdev {
 
+  enum Consts
+  {
+    Num_pci_connector_ports = 0x40,
+  };
+
   enum Virtio_defaults
   {
    // see Virtio 1.0 cs4 (2016) - Section 4.1
