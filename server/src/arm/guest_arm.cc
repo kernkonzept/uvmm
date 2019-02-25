@@ -581,6 +581,7 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
           vcpu->r.r[0] = Invalid_parameters;
       }
       break;
+
     case Affinity_info:
       {
         // parameters:
@@ -589,17 +590,26 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
         l4_mword_t hwid = vcpu->r.r[1];
         l4_umword_t lvl = vcpu->r.r[2];
 
+        // Default to invalid in case we do not find a matching CPU
         vcpu->r.r[0] = Invalid_parameters;
 
-        // PCSI >= 1.0 does not support affinity levels > 0
-        if (lvl == 0)
-          {
-            Cpu_dev *target = lookup_cpu(hwid);
-            if (target)
-              vcpu->r.r[0] = target->online() ? Aff_info_on : Aff_info_off;
-          }
+        // There are at most 3 affinity levels
+        if (lvl > 3)
+          break;
+
+        for (auto const &cpu : *_cpus.get())
+          if (cpu && cpu->matches(hwid, lvl))
+            {
+              if (cpu->online())
+                {
+                  vcpu->r.r[0] = Aff_info_on;
+                  break;
+                }
+              vcpu->r.r[0] = Aff_info_off;
+            }
       }
       break;
+
     case Migrate_info_type:
       vcpu->r.r[0] = Tos_not_present_mp;
       break;

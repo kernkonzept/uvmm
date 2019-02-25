@@ -101,6 +101,12 @@ public:
   bool matches(l4_umword_t hwid)
   { return hwid == _dt_affinity; }
 
+  bool matches(l4_umword_t hwid, char lvl)
+  {
+    l4_umword_t mask = ~0UL << (lvl * 8);
+    return ((hwid ^ _dt_affinity) & mask) == 0;
+  }
+
 private:
   enum
   {
