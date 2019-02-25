@@ -44,6 +44,7 @@ Virt_lapic::Virt_lapic(unsigned id, l4_addr_t baseaddr)
   _regs.cmci = _regs.therm = _regs.perf = 0x00010000;
   _regs.lint[0] = _regs.lint[1] = _regs.err = 0x00010000;
   _regs.svr = 0x000000ff;
+  memset(_irq_queued, 0, sizeof(_irq_queued));
 }
 
 void
