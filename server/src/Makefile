@@ -28,6 +28,9 @@ SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                pci_bus_bridge.cc ARCH-amd64/kvm_clock.cc \
                ARCH-amd64/legacy_pic.cc
 
+SRC_CC-arm-$(CONFIG_VDEV_PSCI) +=  device/arm/psci.cc
+SRC_CC-arm64-$(CONFIG_VDEV_PSCI) +=  device/arm/psci.cc
+
 SRC_CC-$(CONFIG_VDEV_8250) += device/uart_8250.cc
 SRC_CC-$(CONFIG_VDEV_PL011) += device/pl011.cc
 SRC_CC-arm-$(CONFIG_VDEV_OPTEE) += device/optee.cc
@@ -56,8 +59,8 @@ SRC_CC        += $(SRC_CC-y)
 REQUIRES_LIBS   = libstdc++ libio-vbus libfdt libpthread libvcpu
 
 PRIVATE_INCDIR  = $(SRC_DIR)/../include $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
-PRIVATE_INCDIR-arm += $(SRC_DIR)/arm
-PRIVATE_INCDIR-arm64 += $(SRC_DIR)/arm
+PRIVATE_INCDIR-arm += $(SRC_DIR)/arm  $(SRC_DIR)/device/arm
+PRIVATE_INCDIR-arm64 += $(SRC_DIR)/arm $(SRC_DIR)/device/arm
 PRIVATE_INCDIR += $(PRIVATE_INCDIR-$(ARCH))
 
 include $(L4DIR)/mk/prog.mk

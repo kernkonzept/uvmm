@@ -14,7 +14,7 @@
 #include "guest.h"
 #include "io_proxy.h"
 #include "irq_dt.h"
-#include "smc_device.h"
+#include "smccc_device.h"
 
 namespace {
 
@@ -51,7 +51,7 @@ Dbg trace(Dbg::Dev, Dbg::Warn, "optee");
  * capability provided by Fiasco and point `l4vmm,dscap` to an appropriately
  * configured IO. When using a proxy, set `l4vmm,cap` only.
  */
-class Optee : public Vdev::Device, public Vmm::Smc_device
+class Optee : public Vdev::Device, public Vmm::Smccc_device
 {
   enum
   {
@@ -72,12 +72,17 @@ class Optee : public Vdev::Device, public Vmm::Smc_device
 public:
   Optee(L4::Cap<L4::Arm_smccc> optee) : _optee(optee) {}
 
-  void smc(Vmm::Vcpu_ptr vcpu) override
+  bool vm_call(Vmm::Vcpu_ptr vcpu) override
   {
-    if (_optee.is_valid())
-      _optee->call(vcpu->r.r[0], vcpu->r.r[1], vcpu->r.r[2], vcpu->r.r[3],
-                   vcpu->r.r[4], vcpu->r.r[5], vcpu->r.r[6],
-                   &vcpu->r.r[0], &vcpu->r.r[1], &vcpu->r.r[2], &vcpu->r.r[3], 0);
+    if (   _optee.is_valid()
+        && is_valid_func_id(vcpu->r.r[0]))
+      {
+        _optee->call(vcpu->r.r[0], vcpu->r.r[1], vcpu->r.r[2], vcpu->r.r[3],
+                     vcpu->r.r[4], vcpu->r.r[5], vcpu->r.r[6],
+                     &vcpu->r.r[0], &vcpu->r.r[1], &vcpu->r.r[2], &vcpu->r.r[3], 0);
+        return true;
+      }
+    return false;
   }
 
   int map_optee_memory(Vmm::Guest *vmm, L4::Cap<L4Re::Dataspace> iods)
@@ -139,6 +144,18 @@ private:
                                  out, out + 1, out + 2, out + 3, 0));
   }
 
+  bool is_valid_func_id(l4_umword_t reg) const
+  {
+    // Check for the correct SMC calling convention:
+    // - 32/64bit (0 | 0x40000000)
+    // - fast or std call (0 | 0x80000000)
+    // - owner mask (0x3f << 24)
+    // - function range (0xffff)
+    // - rest zero
+    l4_umword_t mask = ~(0x40000000 | 0x80000000 | 0x3f << 24 | 0xffff);
+    return (reg & mask) == 0x0;
+  }
+
   L4::Cap<L4::Arm_smccc> _optee;
 };
 
@@ -192,7 +209,7 @@ struct F : Vdev::Factory
           warn.printf("SMC device does not support notification interrupts.\n");
       }
 
-    devs->vmm()->register_smc_handler(c);
+    devs->vmm()->register_vm_handler(Vmm::Guest::Smc, c);
 
     return c;
   }
