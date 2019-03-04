@@ -110,8 +110,20 @@ private:
     cap = create_vio_pci_cap_isr_entry(cap, io_bar);
     cap = create_vio_pci_cap_pci_entry(cap, io_bar);
 
+    // Must be the last cap created!
     if (dev_cfg_size)
       cap = create_vio_pci_cap_device_entry(cap, io_bar, dev_cfg_size);
+
+    // Check actual I/O BAR usage vs configured I/O BAR size
+    l4_uint32_t bar_length = cap->offset + cap->length;
+
+    if (bar_length > regs[io_bar].size)
+      {
+        Err().printf("Actual size greater configured size due to alignment: "
+                     "0x%x > 0x%llx\n",
+                     bar_length, regs[io_bar].size);
+        L4Re::chksys(-L4_EINVAL, "Configure greater I/O bar size.");
+      }
   }
 
   Virtio_pci_cap_base *
@@ -161,6 +173,7 @@ private:
     return &entry->vio;
   }
 
+  /// The device cap uses the rest of the IO bar. Must be the last cap created.
   Virtio_pci_cap_base *create_vio_pci_cap_device_entry(Virtio_pci_cap_base *prev,
                                                        unsigned io_bar,
                                                        unsigned cfgsz)
@@ -173,7 +186,21 @@ private:
     // 4 byte align offset to find device specific config
     entry->vio.offset   =
       prev ? l4_round_size(prev->offset + prev->length, 2) : 0;
-    entry->vio.length   = cfgsz;
+
+    unsigned entry_end = entry->vio.offset + cfgsz;
+    // 0x100 is the maximum length of the IO BAR.
+    if (entry_end > 0x100)
+      {
+        // reduce cfg size due to alignment constraints
+        unsigned overflow = entry_end - 0x100U;
+        cfgsz -= overflow;
+
+        dbg().printf("WARNING: device config space truncated by %i bytes: "
+                     "offset 0x%x, length 0x%x\n",
+                     overflow, entry->vio.offset, cfgsz);
+      }
+
+    entry->vio.length = cfgsz;
 
     return &entry->vio;
   }
@@ -198,10 +225,21 @@ private:
   DEV const *dev() const { return static_cast<DEV const *>(this); }
 }; // class Virtio_device_pci
 
+
+inline void
+check_power_of_2(l4_uint64_t size, char const *err)
+{
+  if (size & (size - 1))
+    L4Re::chksys(-L4_EINVAL, err);
+}
+
 inline void
 check_dt_io_mmio_constraints(l4_uint64_t msi_base, l4_uint64_t msi_size,
                              l4_uint64_t port_base, l4_uint64_t port_size)
 {
+  check_power_of_2(msi_size, "MSI-X memory size must be a power of 2.");
+  check_power_of_2(port_size, "I/O space size must be a power of 2.");
+
   // PCI BARs handle 32bit addresses only.
   if (((port_base >> 32) != 0) && ((port_size >> 32) != 0)
       && ((msi_base >> 32) != 0))
@@ -216,7 +254,7 @@ check_dt_io_mmio_constraints(l4_uint64_t msi_base, l4_uint64_t msi_size,
 
   if (port_size < Num_pci_connector_ports)
     {
-      Err().printf("At least 0x%x IO ports are configured.\n",
+      Err().printf("Configured IO ports are a power of 2 >= 0x%x.\n",
                    Num_pci_connector_ports);
       L4Re::chksys(-L4_EINVAL, "More IO ports necessary.");
     }

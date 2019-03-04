@@ -13,7 +13,7 @@ namespace Vdev {
 
   enum Consts
   {
-    Num_pci_connector_ports = 0x40,
+    Num_pci_connector_ports = 0x50,
   };
 
   enum Virtio_defaults
