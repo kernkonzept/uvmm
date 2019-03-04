@@ -198,4 +198,42 @@ private:
   DEV const *dev() const { return static_cast<DEV const *>(this); }
 }; // class Virtio_device_pci
 
+inline void
+check_dt_io_mmio_constraints(l4_uint64_t msi_base, l4_uint64_t msi_size,
+                             l4_uint64_t port_base, l4_uint64_t port_size)
+{
+  // PCI BARs handle 32bit addresses only.
+  if (((port_base >> 32) != 0) && ((port_size >> 32) != 0)
+      && ((msi_base >> 32) != 0))
+    L4Re::chksys(-L4_EINVAL, "Device memory is below 4GB.");
+
+  if (msi_size < Msix_mem_need)
+    {
+      Err().printf("At least 0x%x Bytes of MSI-X memory are configured.\n",
+                   Msix_mem_need);
+      L4Re::chksys(-L4_EINVAL, "More MSI-X memory necessary.");
+    }
+
+  if (port_size < Num_pci_connector_ports)
+    {
+      Err().printf("At least 0x%x IO ports are configured.\n",
+                   Num_pci_connector_ports);
+      L4Re::chksys(-L4_EINVAL, "More IO ports necessary.");
+    }
+
+  if (port_size > 0x100)
+    L4Re::chksys(-L4_EINVAL, "Device IO port configuration sizes up to 0x100 "
+                             "supported.");
+}
+
+inline void
+check_dt_regs_flag(cxx::static_vector<Device_register_entry> const &regs)
+{
+  if (!(regs[0].flags & Dt_pci_flags_mmio32))
+    L4Re::chksys(-L4_EINVAL, "First DT register entry is a MMIO(32) entry.");
+
+  if (!(regs[1].flags & Dt_pci_flags_io))
+    L4Re::chksys(-L4_EINVAL, "Second DT register entry is an IO entry.");
+}
+
 } // namespace Vdev

@@ -63,23 +63,13 @@ struct F : Factory
                   "size: 0x%llx, 0x%llx\n",
                   dt_base, dt_size, dt_msi_base, dt_msi_size);
 
-    // PCI BARs handle 32bit addresses only.
-    if (   ((dt_base >> 32) != 0) && ((dt_size >> 32) != 0)
-        && ((dt_msi_base >> 32) != 0))
-      L4Re::chksys(-L4_EINVAL, "Device memory above 4GB not supported.");
-
-    if (dt_msi_size < Msix_mem_need)
-      L4Re::chksys(-L4_EINVAL, "Insufficient MSI-X memory specified.");
+    check_dt_io_mmio_constraints(dt_msi_base, dt_msi_size, dt_base, dt_size);
 
     Device_register_entry regs[] =
       {{dt_msi_base, dt_msi_size, Pci_device::dt_get_reg_flags(node, 0)},
        {dt_base, dt_size, Pci_device::dt_get_reg_flags(node, 1)}};
 
-    if (!(regs[0].flags & Dt_pci_flags_mmio32))
-      L4Re::chksys(-L4_EINVAL, "First DT register entry is a MMIO(32) entry.");
-
-    if (!(regs[1].flags & Dt_pci_flags_io))
-      L4Re::chksys(-L4_EINVAL, "Second DT register entry is an IO entry.");
+    check_dt_regs_flag(regs);
 
     auto *pci = dynamic_cast<Pci_bus_bridge *>(
       devs->device_from_node(node.parent_node()).get());
