@@ -205,4 +205,18 @@
  * This is considered a development feature. The KVM clock is not required when
  * running on physical hardware as TSC calibration via the PIT works as
  * expected.
+ *
+ *
+ * Development notices for amd64
+ * -----------------------------
+ *
+ * When you are developing on Linux using QEMU please note that nested
+ * virtualization support is necessary on your host system to run uvmm guests.
+ * Your host Linux version should be 4.12 or greater, **excluding 4.20**.
+ *
+ * To have KVM support nested virtualization you need to enable it via:
+ *
+ *     modprobe kvm_intel nested=1
+ *
+ * uvmm does currently not support AMD-V.
  */
