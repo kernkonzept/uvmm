@@ -240,9 +240,13 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     // 0x6 ECX
     Performance_energy_bias_preference = (1UL << 3),
 
-    // 0x7
+    // 0x7 EBX
     Tsc_adjust = (1UL << 1),
     Invpcid_bit = (1UL << 10),
+    // 0x7 EDX
+    Ibrs_ibpb_bit = (1UL << 26),
+    Stibp_bit = (1UL << 27),
+    Ssbd_bit = (1UL << 31),
 
     // 0xd
     Xsave_opt = 1,
@@ -277,7 +281,10 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
 
     case 0x7:
       if (!rcx)
-        b &= ~(Invpcid_bit | Tsc_adjust); // filter, as it leads to unhandled VMM-entries.
+        {
+          b &= ~(Invpcid_bit | Tsc_adjust);
+          d &= ~(Ibrs_ibpb_bit | Stibp_bit | Ssbd_bit);
+        }
       break;
 
     case 0xa:
