@@ -410,7 +410,7 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
 
       _gic->set_cpu(vcpu.get_vcpu_id(), *vcpu, cpu->thread_cap());
     }
-
+  cpus->cpu(0)->mark_on_pending();
   cpus->cpu(0)->startup();
 }
 
@@ -563,7 +563,7 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
           {
             // XXX There is currently no way to detect error conditions like
             // INVALID_ADDRESS
-            if (!target->online())
+            if (!target->online() && target->mark_on_pending())
               {
                 l4_mword_t ip = vcpu->r.r[2];
                 l4_mword_t context =  vcpu->r.r[3];
@@ -575,7 +575,8 @@ Guest::handle_psci_call(Vcpu_ptr vcpu)
                   vcpu->r.r[0] = Internal_failure;
               }
             else
-              vcpu->r.r[0] = Already_on;
+              vcpu->r.r[0] = target->online_state() == Cpu_dev::Cpu_state::On
+                             ? Already_on : On_pending;
           }
         else
           vcpu->r.r[0] = Invalid_parameters;

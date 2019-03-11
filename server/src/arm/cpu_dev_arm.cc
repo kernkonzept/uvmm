@@ -114,6 +114,7 @@ Cpu_dev::reset()
                static_cast<l4_uint64_t>(l4_vcpu_e_read(*_vcpu, L4_VCPU_E_VMPIDR)),
                vmpidr);
 
+  mark_on();
   L4::Cap<L4::Thread> myself;
   myself->vcpu_resume_commit(myself->vcpu_resume_start());
   // XXX Error handling?
@@ -153,7 +154,7 @@ Cpu_dev::restart()
 void
 Cpu_dev::stop()
 {
-  _online = false;
+  mark_off();
   for (;;)
     l4_ipc_sleep(L4_IPC_NEVER);
 }

@@ -11,6 +11,7 @@
 #include "generic_cpu_dev.h"
 
 #include <cstdio>
+#include <atomic>
 
 extern __thread unsigned vmm_current_cpu_id;
 
@@ -29,6 +30,16 @@ public:
     Flags_mode_32 = (1 << 4)
   };
 
+  /**
+   * CPU states according to the PSCI spec
+   */
+  enum class Cpu_state
+  {
+    Off,
+    On_pending,
+    On
+  };
+
   Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *);
 
   void show_state_registers(FILE *f);
@@ -36,19 +47,19 @@ public:
   bool
   start_vcpu()
   {
-    if (_online)
+    if (online_state() != Cpu_state::On_pending)
       {
-        Err().printf("%s: CPU%d already online", __func__, _phys_cpu_id);
-        return true;
+        // Should we convert this to an assert()?
+        Err().printf("%s: CPU%d not in On_pending state", __func__, _phys_cpu_id);
+        return false;
       }
 
-    _online = true;
     Dbg(Dbg::Cpu, Dbg::Info)
       .printf("Initiating cpu startup @ 0x%lx\n", _vcpu->r.ip);
 
     if (_vcpu->entry_sp && !restart())
       {
-        _online = false;
+        mark_off();
         return false;
       }
     else
@@ -86,8 +97,64 @@ public:
   /**
    * Get the online state of a CPU.
    */
+  Cpu_state online_state() const
+  { return std::atomic_load(&_online); }
+
+  /**
+   * Is the CPU online?
+   */
   bool online() const
-  { return _online; }
+  { return online_state() != Cpu_state::Off; }
+
+  /**
+   * Cpu_state changes
+   * * Off -> On_pending: concurrent execution
+   * * On_pending -> On:  CPU local, no concurrency
+   * * On -> Off:         CPU local, no concurrency
+   *
+   * The only state change that requires protection against concurrent access
+   * is the change from Off to On_pending. Therefore mark_pending() uses
+   * compare/exchange, the other operation use a simple store.
+   */
+
+  /**
+   * Mark CPU as On_pending.
+   *
+   * \retval True  Successfully changed state from Off to On_pending
+   * \retval False  Failed to change the state from Off to On_pending,
+   *                the state was already changed by someone else.
+   */
+  bool mark_on_pending()
+  {
+    // Atomically change state from Off to On_pending, see above
+    Cpu_state expected{Cpu_state::Off};
+    return std::atomic_compare_exchange_strong(&_online, &expected,
+                                               Cpu_state::On_pending);
+  }
+
+  /**
+   * Mark CPU as Off.
+   *
+   * Marks the CPU as Off. The current state has to be either On (CPU is
+   * switched off) or On_pending (we failed to get the CPU up and fall
+   * back to Off)
+   */
+  void mark_off()
+  {
+    assert(online_state() != Cpu_state::Off);
+    std::atomic_store(&_online, Cpu_state::Off);
+  }
+
+  /**
+   * Mark CPU as On.
+   *
+   * Marks the CPU as On. The current state has to be On_pending.
+   */
+  void mark_on()
+  {
+    assert(online_state() == Cpu_state::On_pending);
+    std::atomic_store(&_online, Cpu_state::On);
+  }
 
   /**
    * Translate a device tree "reg" value to an internally usable CPU id.
@@ -119,7 +186,7 @@ private:
   };
   l4_umword_t _dt_affinity;
   l4_umword_t _dt_vpidr = 0;
-  bool _online = false;
+  std::atomic<Cpu_state> _online{Cpu_state::Off};
 };
 
 }
