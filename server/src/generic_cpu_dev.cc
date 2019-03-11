@@ -47,12 +47,11 @@ Generic_cpu_dev::powerup_cpu()
           return (void *)nullptr;
         }, this);
 
+      if (L4_UNLIKELY(pthread_attr_destroy(&pattr)))
+        L4Re::chksys(-L4_ENOMEM, "Destroying pthread attributes.");
+
       if (err != 0)
         L4Re::chksys(-L4_EAGAIN, "Cannot start vcpu thread");
-
-      err = pthread_attr_destroy(&pattr);
-      if (L4_UNLIKELY(err))
-        L4Re::chksys(-L4_ENOMEM, "Destroying pthread attributes.");
     }
 
   char n[8];
