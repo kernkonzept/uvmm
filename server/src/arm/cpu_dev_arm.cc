@@ -40,7 +40,7 @@ Cpu_dev::Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *node)
           _dt_affinity = node->get_prop_val(prop, prop_size, true);
         }
 
-      prop = node->get_prop<fdt32_t>("vpidr", &prop_size);
+      prop = node->get_prop<fdt32_t>("l4vmm,vpidr", &prop_size);
       if (prop && prop_size > 0)
         _dt_vpidr = node->get_prop_val(prop, prop_size, true);
     }
