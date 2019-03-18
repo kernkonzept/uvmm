@@ -58,7 +58,7 @@ Ram_ds::setup(Vmm::Guest_addr vm_base)
     {
       if (_vm_start == Vmm::Guest_addr(Ram_base_identity_mapped))
         {
-          warn.printf("Identity mapping requested but dataspace not continuous.\n");
+          warn.printf("Identity mapping requested but dataspace not contiguous.\n");
           return err < 0 ? err : -L4_ENOMEM;
         }
       warn.printf("RAM dataspace not contiguous, should not use DMA w/o IOMMU\n");

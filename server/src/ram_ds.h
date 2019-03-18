@@ -24,7 +24,7 @@
 namespace Vmm {
 
 /**
- * A continuous piece of RAM backed by a part of an L4 dataspace.
+ * A contiguous piece of RAM backed by a part of an L4 dataspace.
  */
 class Ram_ds
 {
@@ -107,7 +107,7 @@ private:
   L4Re::Util::Unique_cap<L4Re::Dma_space> _dma;
   /// Host-physical address of the beginning of the mapped area (if applicable).
   L4Re::Dma_space::Dma_addr _phys_ram;
-  /// Size of the continiously mapped area from the beginning of the area.
+  /// Size of the contiguously mapped area from the beginning of the area.
   l4_size_t _phys_size;
 };
 

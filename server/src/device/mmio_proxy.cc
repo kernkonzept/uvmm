@@ -247,15 +247,15 @@ private:
     if (err < 0)
       {
         Err().printf("%s: Cannot resolve physical address of dataspace. "
-                     "Dataspace needs to be continuous.\n",
+                     "Dataspace needs to be contiguous.\n",
                      node_name);
         L4Re::chksys(err, "Resolve physical address of dataspace.");
       }
     else if (phys_size < size)
       {
         Err().printf("%s: Cannot resolve physical address of complete area. "
-                     "Dataspace not continuous.\n"
-                     "(dataspace size = 0x%zx, continous size = 0x%zx).\n",
+                     "Dataspace not contiguous.\n"
+                     "(dataspace size = 0x%zx, contiguous size = 0x%zx).\n",
                      node_name, size, phys_size);
         L4Re::chksys(-L4_ENOMEM, "Resolve dma-range of dataspace.");
       }
