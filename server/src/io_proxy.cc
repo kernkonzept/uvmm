@@ -218,7 +218,11 @@ struct F : Factory
         // Check that the IRQ is available on the vbus when a
         // virtual interrupt handler needs to be connected.
         if (it.ic_is_virt() && ! vbus->irq_present(it.irq()))
-          return false;
+          {
+            warn.printf("No corresponding IO resource for '%s' IRQ %d.\n",
+                        node.get_name(), it.irq());
+            return false;
+          }
       }
     while (it.has_next());
 
