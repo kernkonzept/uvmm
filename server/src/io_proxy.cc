@@ -34,8 +34,22 @@ namespace {
 
         // We have a 1:1 association, so if the irq is not bound yet we
         // should be able to bind the icu irq
-        L4Re::chksys(vbus->icu()->bind(io_irq, irq_svr->obj_cap()),
-                     "Cannot bind to IRQ");
+        int ret = L4Re::chksys(vbus->icu()->bind(io_irq, irq_svr->obj_cap()),
+                               "Cannot bind to IRQ");
+        switch (ret)
+          {
+          case 0:
+            info.printf("Irq 0x%x will be unmasked directly\n", io_irq);
+            irq_svr->set_eoi(irq_svr->obj_cap());
+            break;
+          case 1:
+            info.printf("Irq 0x%x will be unmasked at ICU\n", io_irq);
+            irq_svr->set_eoi(vbus->icu());
+            break;
+          default:
+            L4Re::chksys(-L4_EINVAL, "Invalid return code from bind to IRQ");
+            break;
+          }
 
         // Point irq_svr to ic:dt_irq for upstream events (like
         // interrupt delivery)

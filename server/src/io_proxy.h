@@ -31,13 +31,16 @@ public:
   void set_sink(Gic::Ic *ic, unsigned irq)
   { _irq.rebind(ic, irq); }
 
+  void set_eoi(L4::Cap<L4::Irq_eoi> eoi)
+  { _eoi = eoi; }
+
   void handle_irq()
   { _irq.inject(); }
 
   void eoi() override
   {
     _irq.ack();
-    obj_cap()->unmask();
+    _eoi->unmask(_io_irq);
   }
 
   unsigned get_io_irq() const
@@ -46,6 +49,7 @@ public:
 private:
   Vmm::Irq_sink _irq;
   unsigned _io_irq;
+  L4::Cap<L4::Irq_eoi> _eoi;
 };
 
 class Io_proxy : public Device
