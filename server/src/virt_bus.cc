@@ -7,6 +7,7 @@
  */
 
 #include "device_tree.h"
+#include "mmio_space_handler.h"
 #include "virt_bus.h"
 #include "guest.h"
 #include <l4/vbus/vbus_interfaces.h>
@@ -58,17 +59,35 @@ Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
 
       if (res.type == L4VBUS_RESOURCE_MEM)
         {
-          Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
-            .printf("Adding MMIO resource %s.%.4s : [0x%lx - 0x%lx]\n",
-                    dev.dev_info().name, resname, res.start, res.end);
-
           l4_size_t size = res.end - res.start + 1;
-          auto handler = Vdev::make_device<Ds_handler>(io_ds(), 0, size,
-                                                       res.start);
-
           auto region = Region::ss(Vmm::Guest_addr(res.start), size,
                                    Vmm::Region_type::Vbus);
-          devs->vmm()->add_mmio_device(region, handler);
+          unsigned mmio_space_rw = L4VBUS_RESOURCE_F_MEM_MMIO_READ
+                                 | L4VBUS_RESOURCE_F_MEM_MMIO_WRITE;
+          bool is_mmio_space = res.flags & mmio_space_rw;
+          Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
+            .printf("Adding MMIO %s %s.%.4s : [0x%lx - 0x%lx]\n",
+                    is_mmio_space ? "space handler" : "resource",
+                    dev.dev_info().name, resname, res.start, res.end);
+          if (is_mmio_space)
+            {
+              if ((res.flags & mmio_space_rw) != mmio_space_rw)
+                L4Re::chksys(-EINVAL,
+                             "Only Mmio_space handlers for both reading and writing supported");
+
+              auto mmiocap = L4::cap_reinterpret_cast<L4Re::Mmio_space>(_bus);
+              auto handler =
+                Vdev::make_device<Vdev::Mmio_space_handler>(mmiocap, 0, size,
+                                                            res.start);
+              devs->vmm()->add_mmio_device(region, handler);
+            }
+          else
+            {
+              auto handler = Vdev::make_device<Ds_handler>(io_ds(), 0, size,
+                                                           res.start);
+              devs->vmm()->add_mmio_device(region, handler);
+            }
+
         }
       else if (res.type == L4VBUS_RESOURCE_IRQ)
         {
