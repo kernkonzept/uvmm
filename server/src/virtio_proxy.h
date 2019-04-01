@@ -131,6 +131,7 @@ public:
                              L4VIRTIO_FEATURE_CMD_CONFIG))
       return _config->config_queue(num, _host_irq.get(), _guest_irq.get());
 
+    _config->queues()[num].driver_notify_index = 0;
     int ret = _device->config_queue(num);
 
     if (ret >= 0)
