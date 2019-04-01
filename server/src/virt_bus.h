@@ -9,6 +9,7 @@
 #pragma once
 
 #include <vector>
+#include <mutex>
 
 #include <l4/cxx/ref_ptr>
 #include <l4/cxx/bitmap>
@@ -20,10 +21,11 @@
 #include "debug.h"
 #include "device.h"
 #include "vbus_event.h"
+#include "msi_allocator.h"
 
 namespace Vmm {
 
-class Virt_bus : public virtual Vdev::Dev_ref
+class Virt_bus : public virtual Vdev::Dev_ref, public Vdev::Msi::Msi_allocator
 {
 public:
   class Devinfo
@@ -73,6 +75,60 @@ private:
   void collect_dev_resources(Virt_bus::Devinfo const &dev,
                              Vdev::Device_lookup const *devs);
 
+  /**
+   * Local MSI vector allocator with the vBUS ICU.
+   */
+  class Msi_bitmap
+  {
+    enum { Num_msis = 2048 };
+
+  public:
+    Msi_bitmap() : _max_available(0) { _m.clear_all(); }
+
+    /**
+     * Set the maximum number of available MSIs.
+     *
+     * \param max_avail  Number of MSIs supperted by the vBus ICU.
+     */
+    void set_msi_limit(unsigned max_avail)
+    {
+      // Only allow to set the limit once. It is only necessary once.
+      assert(_max_available == 0);
+
+      _max_available = max_avail;
+
+      if (_max_available > Num_msis)
+        Dbg().printf("Msi_bitmap: ICU supported number of MSIs is greater than "
+                     "the number the allocator supports.");
+    }
+
+    long alloc()
+    {
+      std::lock_guard<std::mutex> lock(_mut);
+
+      long num = _m.scan_zero();
+
+      if (num <= -1 || num >= _max_available)
+        return -L4_ENOMEM;
+
+      _m[num] = 1;
+      return num;
+    }
+
+    void free(unsigned num)
+    {
+      std::lock_guard<std::mutex> lock(_mut);
+      _m[num] = 0;
+    }
+
+    unsigned limit() const { return _max_available; }
+
+  private:
+    cxx::Bitmap<Num_msis> _m;
+    unsigned _max_available;
+    std::mutex _mut;
+  };
+
   class Irq_bitmap
   {
     enum { Num_irqs = 2048 };
@@ -116,6 +172,15 @@ public:
                         "allocate ICU cap");
     L4Re::chksys(dev.vicu(_icu), "requesting ICU cap");
 
+    l4_icu_info_t info;
+    L4Re::chksys(_icu->info(&info), "Request ICU info.");
+
+    unsigned max_msi = 0;
+    if (info.features == L4::Icu::F_msi)
+      max_msi = info.nr_msis;
+
+    _msis.set_msi_limit(max_msi);
+
     scan_bus();
   }
 
@@ -145,6 +210,13 @@ public:
       }
     return nullptr;
   }
+
+  /// Allocate a MSI vector with the app global MSI allocator.
+  long alloc_msix() override { return _msis.alloc(); }
+  /// Free a previously allocated MSI vector.
+  void free_msix(unsigned num) override { _msis.free(num); }
+  /// Maximum number of MSIs at the ICU.
+  unsigned max_msis() const override { return _msis.limit(); }
 
   /*
    * Lookup unassigned device by hid
@@ -182,7 +254,7 @@ public:
   L4::Cap<L4vbus::Vbus> bus() const
   { return _bus; }
 
-  L4::Cap<L4::Icu> icu() const
+  L4::Cap<L4::Icu> icu() const override
   { return _icu; }
 
 private:
@@ -193,6 +265,7 @@ private:
   L4::Cap<L4::Icu> _icu;
   std::vector<Devinfo> _devices;
   Irq_bitmap _irqs;
+  Msi_bitmap _msis;
 };
 
 }
