@@ -9,6 +9,7 @@
 #include "device_tree.h"
 #include "virt_bus.h"
 #include "guest.h"
+#include <l4/vbus/vbus_interfaces.h>
 
 namespace Vmm {
 void
@@ -29,7 +30,17 @@ Virt_bus::scan_bus()
   L4vbus::Device root = _bus->root();
 
   while (root.next_device(&io_dev, L4VBUS_MAX_DEPTH, &dev_info) == 0)
-    _devices.emplace_back(io_dev, dev_info);
+    {
+      if (dev_info.type
+          & (1 << L4VBUS_INTERFACE_PCI | 1 << L4VBUS_INTERFACE_PCIDEV))
+        {
+          Dbg(Dbg::Dev, Dbg::Trace, "VirtBus")
+            .printf("scan_bus: skipping PCI device %s\n", dev_info.name);
+          continue;
+        }
+
+      _devices.emplace_back(io_dev, dev_info);
+    }
 }
 
 void
