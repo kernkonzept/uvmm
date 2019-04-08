@@ -49,7 +49,7 @@ namespace Vdev {
 
   struct Virtio_pci_cap
   {
-    Pci_cap_ident id; /// Same field for all caps to enable iterating.
+    Pci::Cap_ident id; /// Same field for all caps to enable iterating.
     Virtio_pci_cap_base vio;
   } __attribute__((__packed__));
 
@@ -76,14 +76,14 @@ namespace Vdev {
 
   struct Virtio_pci_notify_cap
   {
-    Pci_cap_ident id; /// Same field for all caps to enable iterating.
+    Pci::Cap_ident id; /// Same field for all caps to enable iterating.
     Virtio_pci_cap_base vio;
     l4_uint32_t     notify_off_multiplier;
   } __attribute__((__packed__));
 
   struct Virtio_pci_cfg_cap
   {
-    Pci_cap_ident id; /// Same field for all caps to enable iterating.
+    Pci::Cap_ident id; /// Same field for all caps to enable iterating.
     Virtio_pci_cap_base vio;
     l4_uint8_t      pci_cfg_data[4];
   } __attribute__((__packed__));

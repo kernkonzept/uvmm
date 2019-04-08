@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Kernkonzept GmbH.
+ * Copyright (C) 2018-2019 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public
@@ -14,10 +14,11 @@
 
 #include "mem_access.h"
 #include "device.h"
+#include "msi.h"
 
 #include <type_traits>
 
-namespace Vdev {
+namespace Vdev { namespace Pci {
 
 enum Pci_status_register
 {
@@ -51,6 +52,15 @@ enum Pci_config_consts
   Bar_num_max_type1 = 2,
 };
 
+enum Pci_cap_id
+{
+  // see PCI Local Bus Specification V.3 (2004) Appendix H.
+  Power_management = 0x1,
+  Msi = 0x5,
+  Pcie = 0x10,
+  Msi_x = 0x11,
+};
+
 enum
 {
   Pci_hdr_vendor_id_offset = 0,
@@ -65,15 +75,12 @@ enum
   // see PCI Local Bus Specification V.3 (2004) Section 6.1
 };
 
-enum Pci_msix_consts
+enum Virtual_pci_device_msix_consts
 {
-  // see PCI Local Bus Specification V.3 (2004) Appendix H.
-  Pci_cfg_msix_cap_id = 0x11,
-  Msix_table_entry_size = 16,      // entry size in bytes: 4 DWORDs.
   Msix_mem_need = 2 * L4_PAGESIZE, // ideally Table and PBA on different pages
 };
 
-struct Pci_cap_ident
+struct Cap_ident
 {
   l4_uint8_t cap_type;
   l4_uint8_t cap_next;
@@ -82,21 +89,24 @@ struct Pci_cap_ident
 struct Pci_msix_cap
 {
   // see PCI Local Bus Specification V.3 (2010) 6.8.2.
-  Pci_cap_ident id;
+  Cap_ident id;
+  struct
+  {
+    l4_uint16_t raw;
+    CXX_BITFIELD_MEMBER(15, 15, enabled, raw);
+    CXX_BITFIELD_MEMBER(14, 14, masked, raw);
+    CXX_BITFIELD_MEMBER(0, 10, max_msis, raw);
+  } ctrl;
 
-  l4_uint16_t msg_ctrl = 0;
-  CXX_BITFIELD_MEMBER(15, 15, msix_enable, msg_ctrl);
-  CXX_BITFIELD_MEMBER(14, 14, fn_mask, msg_ctrl);
-  CXX_BITFIELD_MEMBER(0, 10, tbl_size, msg_ctrl);
-
-  l4_uint32_t table = 0;
-  CXX_BITFIELD_MEMBER(3, 31, tbl_offset, table);
-  CXX_BITFIELD_MEMBER(0, 2, tbl_bir, table);
-
-  l4_uint32_t pba = 0;
-  CXX_BITFIELD_MEMBER(3, 31, pba_offset, pba);
-  CXX_BITFIELD_MEMBER(0, 2, pba_bir, pba);
-};
+  struct Offset_bir
+  {
+    l4_uint32_t raw;
+    CXX_BITFIELD_MEMBER(3, 31, offset, raw);
+    CXX_BITFIELD_MEMBER(0, 2, bir, raw);
+  };
+  Offset_bir tbl;
+  Offset_bir pba;
+} __attribute__((packed));
 
 union alignas(l4_addr_t) Pci_header
 {
@@ -497,98 +507,26 @@ public:
     assert(bar_index < 6);
 
     Pci_msix_cap *cap = allocate_pci_cap<Pci_msix_cap>();
-    cap->id.cap_type = Pci_cfg_msix_cap_id;
-    cap->msix_enable() = 1;
-    cap->tbl_size() = max_msix_entries - 1;
-    cap->tbl_bir() = bar_index;
-    cap->pba_offset() = L4_PAGESIZE;
-    cap->pba_bir() = bar_index;
+    cap->id.cap_type = Pci_cap_id::Msi_x;
+    cap->ctrl.enabled() = 1;
+    cap->ctrl.masked() = 0;
+    cap->ctrl.max_msis() = max_msix_entries - 1;
+    cap->tbl.bir() = bar_index;
+    cap->pba.offset() = L4_PAGESIZE >> 3;
+    cap->pba.bir() = bar_index;
 
-    trace().printf("msi.msg_ctrl 0x%x\n", cap->msg_ctrl);
-    trace().printf("msi.table 0x%x\n", cap->table);
-    trace().printf("msi.pba 0x%x\n", cap->pba);
+    trace().printf("msi.msg_ctrl 0x%x\n", cap->ctrl.raw);
+    trace().printf("msi.table 0x%x\n", cap->tbl.raw);
+    trace().printf("msi.pba 0x%x\n", cap->pba.raw);
 
     _cap = cap;
   }
 
-  bool msix_enabled() const { return _cap->msix_enable(); }
-  bool msix_func_enabled() const { return !_cap->fn_mask(); }
+  bool msix_enabled() const { return _cap->ctrl.enabled(); }
+  bool msix_func_enabled() const { return !_cap->ctrl.masked(); }
 
 private:
   Pci_msix_cap *_cap;
-};
-
-struct Msi_msg
-{
-  l4_uint64_t addr;
-  l4_uint32_t data;
-
-  // Attribute packed is necessary to fit into a 128bit MSI-X table entry
-  // together with 'vector_ctrl' in 'struct Msix_table_entry' below.
-} __attribute__((__packed__));
-
-
-struct Msix_table_entry
-{
-  /* The structure defined in the PCI spec V.3.0 is as follows:
-   * Each table entry consists of four DWORDs (32 bits), overall 128 bits.
-   * [    127:96     |     95:64    |        63:32      |       31:0      ]
-   * [Vector control | Message Data | Message Addr high | Message Addr low]
-   */
-  Msi_msg msg;
-  l4_uint32_t vector_ctrl;
-
-  enum Msix_table_entry_const
-  {
-    Vector_ctrl_mask_bit = 0x1,
-    Msix_vector_mask = 0xff,
-  };
-
-  Msix_table_entry() : vector_ctrl(Vector_ctrl_mask_bit) {}
-
-  /// True if the entry is masked.
-  bool masked() const { return vector_ctrl & Vector_ctrl_mask_bit; }
-  void mask() { vector_ctrl |= Vector_ctrl_mask_bit; }
-  void unmask() { vector_ctrl &= ~Vector_ctrl_mask_bit; }
-
-  /// Print entry
-  void dump() const
-  {
-    Dbg().printf("Addr 0x%llx, Data 0x%x, ctrl 0x%x\n", msg.addr, msg.data,
-                 vector_ctrl);
-  }
-} __attribute__((__packed__));
-
-/**
- * Device local MSI-X table structure.
- */
-class Msix_table
-{
-public:
-  /**
-   * \param memory           Backing memory allocated by device.
-   * \param max_num_entires  As encoded in MSI-X message control plus one.
-   */
-  Msix_table(l4_addr_t memory, unsigned const max_num_entries)
-  : _table(reinterpret_cast<Msix_table_entry *>(memory), max_num_entries)
-  {}
-
-  /// Read the table entry at `idx`
-  Msix_table_entry const &entry(unsigned idx) const
-  {
-    assert(idx < _table.size());
-    return _table[idx];
-  }
-
-  /// Print all table entries.
-  void dump() const
-  {
-    for (Msix_table_entry const &e : _table)
-      e.dump();
-  }
-
-private:
-  cxx::static_vector<Msix_table_entry> _table;
 };
 
 enum
@@ -611,5 +549,5 @@ struct Device_register_entry
   }
 };
 
-} // namespace Vdev
+} } // namespace Vdev::Pci
 

@@ -16,7 +16,7 @@
 
 class Virtio_proxy_pci
 : public Vdev::Virtio_proxy<Virtio_proxy_pci>,
-  public Vdev::Virtio_device_pci<Virtio_proxy_pci>,
+  public Vdev::Pci::Virtio_device_pci<Virtio_proxy_pci>,
   public Virtio::Pci_connector<Virtio_proxy_pci>
 {
 public:
@@ -47,6 +47,7 @@ private:
 namespace {
 
 using namespace Vdev;
+using namespace Vdev::Pci;
 
 struct F : Factory
 {

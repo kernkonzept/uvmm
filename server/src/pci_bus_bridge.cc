@@ -15,7 +15,7 @@
 #include "ds_mmio_mapper.h"
 #include "io_port_handler.h"
 
-namespace Vdev {
+namespace Vdev { namespace Pci {
 
 void
 Pci_bus_bridge::init_bus_range(Dt_node const &node)
@@ -85,11 +85,12 @@ Pci_bus_bridge::init_io_resources(Device_lookup *devs)
     }
 }
 
-}; // namespace Vdev
+} } // namespace Vdev::Pci
 
 namespace {
 
 using namespace Vdev;
+using namespace Vdev::Pci;
 
 struct F : Factory
 {
@@ -127,4 +128,4 @@ struct F : Factory
 static F f;
 static Device_type t = {"virt-pci-bridge", nullptr, &f};
 
-}; // namespace
+} // namespace

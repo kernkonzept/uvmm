@@ -23,7 +23,7 @@
 #include "pci_device.h"
 #include "pci_virtio_config.h"
 
-namespace Vdev {
+namespace Vdev { namespace Pci {
 
 struct Devfn_address
 {
@@ -108,7 +108,7 @@ public:
    *
    * In case the PCI bus is full, an exception is thrown.
    */
-  void register_device(cxx::Ref_ptr<Vdev::Pci_device> const &dev)
+  void register_device(cxx::Ref_ptr<Pci_device> const &dev)
   {
     info().printf("register PCI device\n");
     _devfns.add_device(dev);
@@ -494,4 +494,4 @@ public:
   }
 }; // Pci_bus_cfg_io
 
-} // namespace Vdev
+} } // namespace Vdev::Pci

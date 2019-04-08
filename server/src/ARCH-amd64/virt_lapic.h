@@ -25,6 +25,7 @@
 #include "msr_device.h"
 #include "mem_types.h"
 #include "mmio_device.h"
+#include "msi.h"
 
 using L4Re::Rm;
 
@@ -336,48 +337,16 @@ private:
  */
 class Msi_control : public Msi_controller, public Vdev::Device
 {
-  enum
-  {
-    Msi_address_interrupt_prefix = 0xfee,
-  };
-
-  struct Interrupt_request_compat
-  {
-    // Interrupt request compatibility format
-    l4_uint64_t raw;
-    CXX_BITFIELD_MEMBER_RO(32, 63, reserved0_2, raw);
-    CXX_BITFIELD_MEMBER_RO(20, 31, fixed, raw);
-    CXX_BITFIELD_MEMBER_RO(12, 19, dest_id, raw);
-    CXX_BITFIELD_MEMBER_RO(4, 11, reserved0_1, raw);
-    CXX_BITFIELD_MEMBER_RO(3, 3, redirect_hint, raw);
-    CXX_BITFIELD_MEMBER_RO(2, 2, dest_mode, raw);
-    CXX_BITFIELD_MEMBER_RO(0, 1, reserved_0, raw);
-
-    explicit Interrupt_request_compat(l4_uint64_t addr) : raw(addr) {};
-  };
-
-  struct Msi_data_register_format
-  {
-    // Intel SDM Vol. 3A 10-35, October 2017
-    l4_uint32_t raw;
-    CXX_BITFIELD_MEMBER_RO(15, 15, trigger_mode, raw);
-    CXX_BITFIELD_MEMBER_RO(14, 14, trigger_level, raw);
-    CXX_BITFIELD_MEMBER_RO( 8, 10, delivery_mode, raw);
-    CXX_BITFIELD_MEMBER_RO( 0,  7, vector, raw);
-
-    explicit Msi_data_register_format(l4_uint32_t data) : raw(data) {};
-  };
-
 public:
   Msi_control(cxx::Ref_ptr<Lapic_array> apics) : _apics(apics) {}
 
   // Msi_controller interface
-  void send(Vdev::Msi_msg message) const override
+  void send(l4_uint64_t msi_addr, l4_uint32_t msi_data) const override
   {
-    Interrupt_request_compat addr(message.addr);
-    Msi_data_register_format data(message.data);
+    Vdev::Msix::Interrupt_request_compat addr(msi_addr);
+    Vdev::Msix::Data_register_format data(msi_data);
 
-    if (addr.fixed() != Msi_address_interrupt_prefix)
+    if (addr.fixed() != Vdev::Msix::Address_interrupt_prefix)
       {
         trace().printf("Interrupt request prefix invalid; MSI dropped.\n");
         return;
@@ -420,7 +389,7 @@ public:
 
     info().printf(
       "No valid LAPIC found; MSI dropped. MSI address 0x%llx, data 0x%x\n",
-      message.addr, message.data);
+      msi_addr, msi_data);
   }
 
 private:

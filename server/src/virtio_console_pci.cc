@@ -20,7 +20,7 @@
 
 class Virtio_console_pci
 : public Vdev::Virtio_console<Virtio_console_pci>,
-  public Vdev::Virtio_device_pci<Virtio_console_pci>,
+  public Vdev::Pci::Virtio_device_pci<Virtio_console_pci>,
   public Virtio::Pci_connector<Virtio_console_pci>
 {
 public:
@@ -43,6 +43,7 @@ private:
 namespace {
 
 using namespace Vdev;
+using namespace Vdev::Pci;
 
 struct F : Factory
 {

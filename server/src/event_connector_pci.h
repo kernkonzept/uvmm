@@ -9,6 +9,7 @@
 
 #include "pci_device.h"
 #include "msi_controller.h"
+#include "msi.h"
 #include "virtio_event_connector.h"
 #include "ds_mmio_mapper.h"
 #include "guest.h"
@@ -26,8 +27,8 @@ public:
   Event_connector_msix(cxx::Ref_ptr<Gic::Msi_controller> const &distr,
                        unsigned max_msix_entries)
   : _distr(distr),
-    _msix_mem(
-      make_ram_ds_handler(Vdev::Msix_mem_need, L4Re::Mem_alloc::Continuous)),
+    _msix_mem(make_ram_ds_handler(Vdev::Pci::Msix_mem_need,
+                                  L4Re::Mem_alloc::Continuous)),
     _msix_tbl(_msix_mem->local_start(), max_msix_entries)
   {}
 
@@ -42,7 +43,7 @@ public:
   {
     auto entry = _msix_tbl.entry(idx);
     if (!entry.masked())
-      _distr->send(entry.msg);
+      _distr->send(entry.addr, entry.data);
   }
 
   void clear_events(unsigned) {}
@@ -57,7 +58,7 @@ public:
     // Registered region must have the address from the DT as this is the value
     // presented by the PCI device to the guest.
     devs->vmm()->add_mmio_device(Vmm::Region::ss(Vmm::Guest_addr(dt_msi_base),
-                                                 Vdev::Msix_mem_need,
+                                                 Vdev::Pci::Msix_mem_need,
                                                  Vmm::Region_type::Virtual),
                                  _msix_mem);
     return 0;
@@ -66,8 +67,10 @@ public:
 private:
   cxx::Ref_ptr<Gic::Msi_controller> _distr;
   cxx::Ref_ptr<Ds_handler> _msix_mem;
-  Vdev::Msix_table _msix_tbl;
+  Vdev::Msix::Table _msix_tbl;
 
+  // I can use RW MMIO memory, as I am the endpoint for the guest configuration
+  // of the MSIs and evaluate the entries every time, an event should be send.
   cxx::Ref_ptr<Ds_handler> make_ram_ds_handler(l4_size_t size,
                                                unsigned long flags)
   {

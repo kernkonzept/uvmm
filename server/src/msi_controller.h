@@ -17,7 +17,7 @@ struct Msi_controller : virtual Vdev::Dev_ref
   virtual ~Msi_controller() = default;
 
   /// Analyse the MSI message and send it to the specified local APIC.
-  virtual void send(Vdev::Msi_msg message) const = 0;
+  virtual void send(l4_uint64_t msi_addr, l4_uint32_t msi_data) const = 0;
 };
 
 } // namespace Gic

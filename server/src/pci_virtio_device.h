@@ -24,7 +24,7 @@
 #include "pci_virtio_config.h"
 #include "virtio_qword.h"
 
-namespace Vdev {
+namespace Vdev { namespace Pci {
 
 /**
  * Virtio device using the Virtio PCI transport employing MSI-X.
@@ -274,4 +274,4 @@ check_dt_regs_flag(cxx::static_vector<Device_register_entry> const &regs)
     L4Re::chksys(-L4_EINVAL, "Second DT register entry is an IO entry.");
 }
 
-} // namespace Vdev
+} } // namespace Vdev::Pci
