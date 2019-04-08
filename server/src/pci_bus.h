@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Kernkonzept GmbH.
+ * Copyright (C) 2018-2019 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public
@@ -14,8 +14,8 @@
 #include <l4/cxx/bitmap>
 #include <l4/vbus/vbus>
 #include <l4/vbus/vbus_pci>
-#include <l4/vbus/vbus_interfaces.h>
 
+#include "msi.h"
 #include "virt_bus.h"
 #include "mem_access.h"
 #include "debug.h"
@@ -52,6 +52,38 @@ struct Devfn_address
  */
 class Pci_bus_bridge : public Pci_dev, public Device
 {
+  struct Pci_cfg_bar
+  {
+    enum Type
+    {
+      Unused,
+      MMIO32,
+      MMIO64,
+      IO
+    };
+
+    l4_uint64_t addr;
+    l4_size_t size;
+    Type type;
+
+    // for user: get address type dependent
+    // auto addr =
+    //  (type == MMIO64) ? addr : (l4_uint32_t)(addr && 0xffffffff);
+  };
+
+  struct Hw_pci_device
+  {
+    Hw_pci_device(Devfn_address df) : devfn(df)
+    {
+      memset(bars, 0, sizeof(bars));
+      memset(&msix_cap, 0, sizeof(msix_cap));
+    }
+
+    Devfn_address devfn;
+    Pci_cfg_bar bars[5];
+    Pci_msix_cap msix_cap;
+  };
+
   enum : l4_uint8_t
   {
     Pci_class_code_bridge_device = 0x06,
@@ -100,6 +132,9 @@ public:
 
   void init_bus_range(Dt_node const &node);
   void init_io_resources(Device_lookup *devs);
+  void register_msix_bar_as_ds_handler(Pci_cfg_bar *bar, l4_addr_t tbl_offset,
+                                       cxx::Ref_ptr<Vmm::Virt_bus> vbus,
+                                       Vmm::Guest *vmm);
 
   bool is_io_pci_host_bridge_present() const { return _io_pci_bridge_present; }
 
@@ -172,31 +207,191 @@ private:
 
   void iterate_pci_root_bus()
   {
-    L4vbus::Pci_dev pci_dev;
-    l4vbus_device_t dev_info;
-    while (!_io_hb.next_device(&pci_dev, L4VBUS_MAX_DEPTH, &dev_info))
-      {
-        info().printf(
-          "found pci dev: name %s, num res 0x%x, flags 0x%x, type 0x%x\n",
-          dev_info.name, dev_info.num_resources, dev_info.flags, dev_info.type);
+    dbg().printf("Iterating io PCI root bus\n");
 
-        if (l4vbus_subinterface_supported(dev_info.type,
-                                          L4VBUS_INTERFACE_PCIDEV))
-          _pci_proxy_devs.emplace_back(pci_dev, dev_info);
-      }
-
+    // TODO why am I not iterating over function numbers?
+    // Can ignore all function numbers after first zero function or if the
+    // device is not a multi-function device.
     for (unsigned devnr = 0; devnr < Max_bus_devs; ++devnr)
       {
         l4_uint32_t val;
-        l4_uint32_t devfn = devnr << 16;
+        Devfn_address devfn(devnr, 0);
 
-        int err = _io_hb.cfg_read(0, devfn, Pci_hdr_vendor_id_offset, &val, 16);
+        int err =
+          _io_hb.cfg_read(0, devfn.value, Pci_hdr_vendor_id_offset, &val, 16);
         if (err)
           continue;
 
-        if (val != Pci_invalid_vendor_id)
-          _devfns.alloc_used_dev_num(devnr);
+        if (val == Pci_invalid_vendor_id)
+          continue;
+
+        _devfns.alloc_used_dev_num(devnr);
+
+        // record BUS-DEV-FN
+        // record BAR resources
+        // parse MSI-X capability
+
+        _hwpci_devs.emplace_back(devfn);
+        Hw_pci_device *hwdev = &_hwpci_devs.back();
+        parse_all_pci_bars(devfn, hwdev);
+
+        unsigned msix_cap_addr = get_capability(devfn.value, Pci_cap_id::Msi_x);
+
+        if (msix_cap_addr != 0)
+          {
+            parse_msix_cap(devfn.value, msix_cap_addr, &hwdev->msix_cap);
+
+            dbg().printf("DevFn 0x%x has an MSIX cap at 0x%x\n", devfn.value,
+                         msix_cap_addr);
+          }
+        else
+          dbg().printf("Did not find an MSI-X capability for %x\n", devfn.value);
       }
+
+  }
+
+  void parse_msix_cap(unsigned devfn, unsigned msix_cap_addr, Pci_msix_cap *cap)
+  {
+    l4_uint32_t ctrl = 0;
+    L4Re::chksys(_io_hb.cfg_read(0, devfn, msix_cap_addr + 2,
+                                 &ctrl, 16),
+                 "Read HW PCI device MSI-X cap ctrl.");
+    cap->ctrl.raw = (l4_uint16_t)ctrl;
+    L4Re::chksys(_io_hb.cfg_read(0, devfn, msix_cap_addr + 4,
+                                 &cap->tbl.raw, 32),
+                 "Read HW PCI device MSI-X cap table.");
+    L4Re::chksys(_io_hb.cfg_read(0, devfn, msix_cap_addr + 8,
+                                 &cap->pba.raw, 32),
+                 "Read HW PCI device MSI-X cap pba.");
+  }
+
+  void parse_all_pci_bars(Devfn_address devfn, Hw_pci_device *hwdev)
+  {
+    for (int i = 0; i < 5; i++)
+      parse_pci_bar(devfn.value, i, &hwdev->bars[i]);
+  }
+
+  // TODO Handle 64-bit BARs
+  void parse_pci_bar(l4_uint32_t devfn, unsigned idx, Pci_cfg_bar *bar_cfg)
+  {
+    // disable decode in command register
+    // write ~0UL to BAR; then read back;
+    // clear bits 0 (IO bar) 0-3 (MEM BAR)
+    // logical negate and increment by one.
+    // NOTE: ignore upper 16bits in IO BARs
+
+    unsigned bar_offset = 0x10 + idx * 4;
+
+    l4_uint32_t bar = 0;
+    L4Re::chksys(_io_hb.cfg_read(0, devfn, bar_offset, &bar, 32),
+                 "Read BAR register of PCI device header.");
+
+    bool io_bar = bar & 0x1;
+
+    if (!io_bar && (bar & 0x6) == 0x4)
+      L4Re::chksys(-L4_ENOSYS, "No 64bit PCI BAR support!");
+
+    l4_uint32_t cmd_reg = 0;
+    L4Re::chksys(_io_hb.cfg_read(0, devfn, Pci_hdr_command_offset, &cmd_reg, 16),
+                 "Read Command register of PCI device header.");
+
+    cmd_reg = cmd_reg & 0x3; // disable MMIO and IO accesses
+
+    L4Re::chksys(_io_hb.cfg_write(0, devfn, Pci_hdr_command_offset, cmd_reg, 16),
+                 "Write Command register of PCI device header (disable "
+                 "decode).");
+
+
+    l4_uint32_t const bar_all_1 = 0xffffffffUL;
+    L4Re::chksys(_io_hb.cfg_write(0, devfn, bar_offset, bar_all_1, 32),
+                 "Write BAR register of PCI device header (sizing).");
+
+    l4_uint32_t bar_size = 0;
+    L4Re::chksys(_io_hb.cfg_read(0, devfn, bar_offset, &bar_size, 32),
+                 "Read BAR register of PCI device header (size).");
+
+    L4Re::chksys(_io_hb.cfg_write(0, devfn, bar_offset, bar, 32),
+                 "Write BAR register of PCI device header (write back).");
+
+    L4Re::chksys(_io_hb.cfg_write(0, devfn, Pci_hdr_command_offset, cmd_reg, 16),
+                 "Write Command register of PCI device header (enable "
+                 "decode).");
+
+    warn().printf("bar size 0x%x\n", bar_size);
+
+    if (bar_size == 0)
+      return;
+
+    if (io_bar)
+        bar_size = ((~bar_size) & 0xffff) | 0x2;
+    else
+        bar_size = ~bar_size;// & ~0xf;
+
+    bar_cfg->size = ++bar_size;
+
+    warn().printf("bar size 0x%x\n", bar_size);
+    if (io_bar)
+      {
+        bar_cfg->addr = bar & ~0x3;
+        bar_cfg->type = Pci_cfg_bar::IO;
+      }
+    else if ((bar & 0x6) == 0) // 32bit
+      {
+        bar_cfg->addr = bar & ~0x7;
+        bar_cfg->type = Pci_cfg_bar::MMIO32;
+      }
+    else if ((bar & 0x6) == 0x4) // 64bit
+      L4Re::chksys(-L4_ENOSYS, "No 64bit PCI BAR support!");
+  }
+
+  //
+  // *** PCI cap ************************************************************
+  //
+
+  unsigned get_capability(unsigned devfn, l4_uint8_t cap_type) const
+  {
+    unsigned val = 0;
+    if (_io_hb.cfg_read(0, devfn, Pci_hdr_status_offset, &val, 16))
+      {
+        dbg().printf("Failed to read Pci_hdr_status_offset.");
+        return 0;
+      }
+
+    if (!(val & Pci_header_status_capability_bit))
+      {
+        dbg().printf("Pci_hdr_status_capability_bit is not set.");
+        return 0;
+      }
+
+    if (_io_hb.cfg_read(0, devfn, Pci_hdr_capability_offset, &val, 8))
+      {
+        dbg().printf("Failed to read Pci_hdr_status_offset.");
+        return 0;
+      }
+
+    if (val == 0)
+      {
+        dbg().printf("Capability pointer is zero.");
+        return 0;
+      }
+
+    l4_uint8_t next_cap = val & 0xff;
+
+    while (!_io_hb.cfg_read(0, devfn, next_cap, &val, 16))
+      {
+        l4_uint8_t cap_id = val & 0xff;
+        dbg().printf("get_capability: found cap id 0x%x (cap addr 0x%x)\n",
+                     cap_id, next_cap);
+
+        if(cap_id == cap_type)
+          return next_cap;
+
+        next_cap = (val >> 8) & 0xff;
+      }
+
+    dbg().printf("Failed to read next cap @ 0x%x\n", next_cap);
+
+    return false;
   }
 
   /**
@@ -323,21 +518,11 @@ private:
     }
   };
 
-  struct Pci_proxy_dev
-  {
-    Pci_proxy_dev(L4vbus::Pci_dev dev, l4vbus_device_t dev_info)
-    : dev(dev), info(dev_info)
-    {};
-
-    L4vbus::Pci_dev dev;
-    l4vbus_device_t info;
-  };
-
   bool _io_pci_bridge_present;
   /// pointer to IO's PCI host bridge
   L4vbus::Pci_host_bridge _io_hb;
-  /// storage of HW PCI devices to map their memory to the guest via MMIO/IO spaces
-  std::vector<Pci_proxy_dev> _pci_proxy_devs;
+  /// storage of HW PCI devices
+  std::vector<Hw_pci_device> _hwpci_devs;
   /// Manages virtual devices and devfn numbers.
   Devfn_list _devfns;
 }; // class Pci_bus_bridge

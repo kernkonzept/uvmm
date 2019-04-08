@@ -72,7 +72,13 @@ enum
   Pci_hdr_classcode_offset = 9,
   Pci_hdr_cacheline_size_offset = 12,
   Pci_hdr_type_offset = 14,
+  Pci_hdr_capability_offset = 0x34,
   // see PCI Local Bus Specification V.3 (2004) Section 6.1
+};
+
+enum
+{
+  Pci_header_status_capability_bit = (1UL << 4),
 };
 
 enum Virtual_pci_device_msix_consts

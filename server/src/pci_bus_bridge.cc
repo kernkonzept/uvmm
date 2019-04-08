@@ -13,6 +13,7 @@
 #include "device_factory.h"
 #include "guest.h"
 #include "ds_mmio_mapper.h"
+#include "msi_memory.h"
 #include "io_port_handler.h"
 
 namespace Vdev { namespace Pci {
@@ -36,51 +37,131 @@ Pci_bus_bridge::init_bus_range(Dt_node const &node)
   hdr->subordinate_bus_num = (l4_uint8_t)fdt32_to_cpu(bus_range[1]);
 }
 
-void
-Pci_bus_bridge::init_io_resources(Device_lookup *devs)
+/**
+ * Register non MSI-X table pages as pass-through MMIO regions.
+ */
+void Pci_bus_bridge::register_msix_bar_as_ds_handler(
+  Pci_cfg_bar *bar, l4_addr_t tbl_offset, cxx::Ref_ptr<Vmm::Virt_bus> vbus,
+  Vmm::Guest *vmm)
+{
+  l4_size_t before_msix_tbl_page = tbl_offset;
+  l4_size_t after_msix_tbl_page = bar->size - (tbl_offset + 0x1000);
+
+  warn().printf("sizes before 0x%lx, after 0x%lx\n", before_msix_tbl_page,
+                after_msix_tbl_page);
+
+  if (before_msix_tbl_page > 0)
+    {
+      auto region = Region::ss(Guest_addr(bar->addr), before_msix_tbl_page,
+                               Vmm::Region_type::Vbus);
+      warn().printf("Register MMIO region in MSI-X bar: [0x%lx, 0x%lx]\n",
+                    region.start.get(), region.end.get());
+      vmm->add_mmio_device(region, make_device<Ds_handler>(vbus->io_ds(), 0,
+                                                           before_msix_tbl_page,
+                                                           region.start.get()));
+    }
+
+  if (after_msix_tbl_page > 0)
+    {
+      auto region = Region::ss(Guest_addr(bar->addr + tbl_offset + 0x1000),
+                               after_msix_tbl_page, Vmm::Region_type::Vbus);
+      warn().printf("Register MMIO region in MSI-X bar: [0x%lx, 0x%lx]\n",
+                    region.start.get(), region.end.get());
+      vmm->add_mmio_device(region, make_device<Ds_handler>(vbus->io_ds(), 0,
+                                                           after_msix_tbl_page,
+                                                           region.start.get()));
+    }
+}
+
+void Pci_bus_bridge::init_io_resources(Device_lookup *devs)
 {
   auto vbus = devs->vbus();
   auto *vmm = devs->vmm();
 
-  // create a MMIO/IO map device and entry for each PCI HW dev
-  for (auto &hwdev : _pci_proxy_devs)
+  // System software enables, unmasks MSI-X. A device driver is not permitted
+  // to do that.
+
+  for (auto &hwdev : _hwpci_devs)
     {
-      for (unsigned i = 0; i < hwdev.info.num_resources; ++i)
+      bool bars_used[5] = {false, false, false, false, false};
+
+      for (int i = 0; i < 5; ++i)
+        if (hwdev.bars[i].type != Pci_cfg_bar::Type::Unused)
+          bars_used[i] = true;
+
+      auto bir = hwdev.msix_cap.tbl.bir();
+      assert(bir < 5);
+
+      l4_addr_t msix_table =
+        hwdev.bars[bir].addr + hwdev.msix_cap.tbl.offset();
+      unsigned max_msis = hwdev.msix_cap.ctrl.max_msis() + 1;
+
+      unsigned const src_id = 0x40000 | hwdev.devfn.value;
+
+      auto hdlr = make_device<
+        Msix::Table_memory>(vbus->io_ds(), msix_table,
+                            cxx::static_pointer_cast<Msi::Allocator>(vbus),
+                            vmm->registry(), max_msis,
+                            src_id, vmm->apic_array());
+
+      auto region = Region::ss(Guest_addr(msix_table),
+                               l4_round_page(Msix::Entry_size * max_msis),
+                               Vmm::Region_type::Vbus);
+
+      warn().printf("Register MSI-X MMIO region: [0x%lx, 0x%lx]\n",
+                    region.start.get(), region.end.get());
+      vmm->add_mmio_device(region, hdlr);
+
+      register_msix_bar_as_ds_handler(&hwdev.bars[bir],
+                                      hwdev.msix_cap.tbl.offset(), vbus, vmm);
+
+      bars_used[bir] = false;
+
+      for (int i = 0; i < 5; ++i)
         {
-          l4vbus_resource_t res;
-          if (hwdev.dev.get_resource(i, &res))
+          if (!bars_used[i])
+            continue;
+
+          Guest_addr addr(hwdev.bars[i].addr);
+          l4_size_t size = hwdev.bars[i].size;
+
+          switch (hwdev.bars[i].type)
             {
-              info().printf(
-                "Query resources for %s: Index %i from %i returned error\n",
-                hwdev.info.name, i, hwdev.info.num_resources);
-              continue;
+            case Pci_cfg_bar::Type::IO:
+              {
+                auto region =
+                  Io_region::ss(addr.get(), size, Vmm::Region_type::Vbus);
+                l4vbus_resource_t res;
+                res.type = L4VBUS_RESOURCE_PORT;
+                res.start = region.start;
+                res.end = region.end;
+                res.provider = 0;
+                res.id = 0;
+                L4Re::chksys(vbus->bus()->request_resource(&res),
+                             "Request IO port resource from vBus.");
+                warn().printf("Register IO region: [0x%lx, 0x%lx]\n",
+                              region.start, region.end);
+                vmm->register_io_device(region, make_device<Io_port_handler>(
+                                                  addr.get()));
+                break;
+              }
+
+            case Pci_cfg_bar::Type::MMIO32:
+              {
+                auto region = Region::ss(addr, size, Vmm::Region_type::Vbus);
+                warn().printf("Register MMIO region: [0x%lx, 0x%lx]\n",
+                              region.start.get(), region.end.get());
+                vmm->add_mmio_device(region,
+                                     make_device<Ds_handler>(vbus->io_ds(), 0,
+                                                             size, addr.get()));
+                break;
+              }
+
+            case Pci_cfg_bar::Type::MMIO64: break;
+            default: break;
             }
 
-          trace().printf("found resource of %s: [0x%lx, 0x%lx], flags 0x%x, id "
-                         "0x%x, type 0x%x \n",
-                         hwdev.info.name, res.start, res.end, res.flags, res.id,
-                         res.type);
-
-          if (res.type == L4VBUS_RESOURCE_PORT)
-            {
-              L4Re::chksys(vbus->bus()->request_resource(&res));
-              trace().printf("request resource: [0x%lx, 0x%lx]\n", res.start,
-                             res.end);
-              vmm->register_io_device(Io_region(res.start, res.end,
-                                                Vmm::Region_type::Vbus),
-                                      make_device<Io_port_handler>(res.start));
-            }
-          else if (res.type == L4VBUS_RESOURCE_MEM)
-            {
-              vmm->add_mmio_device(
-                Region(Guest_addr(res.start), Guest_addr(res.end),
-                       Vmm::Region_type::Vbus),
-                make_device<Ds_handler>(vbus->bus(), 0,
-                                        res.end - res.start + 1,
-                                        res.start));
-            }
-          else
-            trace().printf("Found unsupported resource type 0x%x\n", res.type);
+          bars_used[i] = false;
         }
     }
 }

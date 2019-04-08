@@ -79,7 +79,7 @@ struct Table_entry
   {
     Dbg().printf("Addr 0x%llx, Data 0x%x, ctrl 0x%x\n", addr, data, vector_ctrl);
   }
-} __attribute__((__packed__));
+};
 
 /**
  * Device local MSI-X table structure.
@@ -91,8 +91,16 @@ public:
    * \param memory           Backing memory allocated by device.
    * \param max_num_entires  As encoded in MSI-X message control plus one.
    */
-  Table(l4_addr_t memory, unsigned const max_num_entries)
+  explicit Table(l4_addr_t memory, unsigned const max_num_entries)
   : _table(reinterpret_cast<Table_entry *>(memory), max_num_entries)
+  {}
+
+  /**
+   * \param first_entry      Backing memory allocated by device.
+   * \param max_num_entires  As encoded in MSI-X message control plus one.
+   */
+  explicit Table(Table_entry *first_entry, unsigned max_num_entries)
+  : _table(first_entry, max_num_entries)
   {}
 
   /// Read the table entry at `idx`
@@ -100,6 +108,12 @@ public:
   {
     assert(idx < _table.size());
     return _table[idx];
+  }
+
+  /// Get the start address of the table.
+  l4_addr_t start() const
+  {
+    return reinterpret_cast<l4_addr_t>(_table.begin());
   }
 
   /// Print all table entries.
