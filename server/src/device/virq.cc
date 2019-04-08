@@ -64,8 +64,17 @@ struct F_rcv : Factory
       L4Re::chksys(-L4_EINVAL, "Irq_rcv requires a virtual interrupt controller");
 
     auto c = make_device<Irq_rcv>(it.ic().get(), it.irq());
-    L4Re::chkcap(devs->vmm()->registry()->register_obj(c.get(), cap));
-    return c;
+    auto res = devs->vmm()->registry()->register_obj(c.get(), cap);
+    if (res.is_valid())
+      return c;
+
+    Dbg(Dbg::Dev, Dbg::Warn, "Virq")
+      .printf("Failed to register Virq on %s.l4vmm,virqcap: %s\n",
+              node.get_name(), l4sys_errtostr(res.cap()));
+    L4Re::chkcap(res, "Register object", -L4_EINVAL);
+
+    // chkcap() throughs an exception; we will not continue here
+    return nullptr;
   }
 };
 
