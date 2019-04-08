@@ -58,4 +58,9 @@
     l4vmm {
         ranges = <0x0  0x0  0xf1100000  0x41000>;
     };
+
+    psci {
+        compatible = "arm,psci-1.0";
+        method = "hvc";
+    };
 };
