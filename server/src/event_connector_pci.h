@@ -41,7 +41,7 @@ public:
   void send_event(l4_uint16_t const idx)
   {
     auto entry = _msix_tbl.entry(idx);
-    if (!entry.disabled())
+    if (!entry.masked())
       _distr->send(entry.msg);
   }
 

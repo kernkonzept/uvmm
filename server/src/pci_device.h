@@ -546,8 +546,10 @@ struct Msix_table_entry
 
   Msix_table_entry() : vector_ctrl(Vector_ctrl_mask_bit) {}
 
-  /// True if the entry is disabled.
-  bool disabled() const { return vector_ctrl & Vector_ctrl_mask_bit; }
+  /// True if the entry is masked.
+  bool masked() const { return vector_ctrl & Vector_ctrl_mask_bit; }
+  void mask() { vector_ctrl |= Vector_ctrl_mask_bit; }
+  void unmask() { vector_ctrl &= ~Vector_ctrl_mask_bit; }
 
   /// Print entry
   void dump() const
@@ -586,7 +588,7 @@ public:
   }
 
 private:
-  cxx::static_vector<Msix_table_entry> const _table;
+  cxx::static_vector<Msix_table_entry> _table;
 };
 
 enum
