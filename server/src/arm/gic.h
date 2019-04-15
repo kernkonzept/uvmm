@@ -610,11 +610,11 @@ public:
   Vmm::Arm::Gic_h::Lr _get_lr(unsigned idx) const
   {
     using Vmm::Arm::Gic_h::Lr;
-    return Lr(l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_LR0 + idx * 4));
+    return Lr(l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_V2_LR0 + idx * 4));
   }
 
   void _set_lr(unsigned idx, Vmm::Arm::Gic_h::Lr lr) const
-  { l4_vcpu_e_write_32(_vcpu, L4_VCPU_E_GIC_LR0 + idx * 4, lr.raw); }
+  { l4_vcpu_e_write_32(_vcpu, L4_VCPU_E_GIC_V2_LR0 + idx * 4, lr.raw); }
 };
 
 
