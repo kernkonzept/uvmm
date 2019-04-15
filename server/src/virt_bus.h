@@ -23,7 +23,7 @@
 
 namespace Vmm {
 
-class Virt_bus : public cxx::Ref_obj
+class Virt_bus : public virtual Vdev::Dev_ref
 {
 public:
   class Devinfo
@@ -118,6 +118,8 @@ public:
 
     scan_bus();
   }
+
+  virtual ~Virt_bus() = default;
 
   bool available() const
   { return _bus.is_valid(); }

@@ -20,7 +20,7 @@
 
 class Monitor_console
 : public L4::Irqep_t<Monitor_console>,
-  public cxx::Ref_obj
+  public virtual Vdev::Dev_ref
 {
   FILE *_f;
 
@@ -49,7 +49,7 @@ public:
     if (!mon_con_cap)
       return nullptr;
 
-    auto moncon = cxx::make_ref_obj<Monitor_console>(capname, mon_con_cap, devs);
+    auto moncon = Vdev::make_device<Monitor_console>(capname, mon_con_cap, devs);
     moncon->register_obj(devs->vmm()->registry());
 
     return moncon;
