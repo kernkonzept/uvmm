@@ -89,7 +89,7 @@ public:
                L4Re::Util::Object_registry *registry, unsigned max_num,
                unsigned src_id, cxx::Ref_ptr<Gic::Lapic_array> apics)
   : _dev_msix_tbl(attach_memory(vbus_ds, tbl, Entry_size * max_num,
-                                L4Re::Rm::Cache_uncached)),
+                                L4Re::Rm::F::Cache_uncached)),
     _guest_msix_tbl(cxx::make_unique<Table_entry[]>(max_num)),
     _registry(registry),
     _msi_alloc(msi_alloc),
@@ -297,9 +297,11 @@ private:
   /// Attach the device memory to the local address space.
   static L4Re::Rm::Unique_region<l4_umword_t>
   attach_memory(L4::Cap<L4Re::Dataspace> ds, l4_addr_t offset,
-                l4_size_t size, unsigned add_flags = 0)
+                l4_size_t size, L4Re::Rm::Flags add_flags = L4Re::Rm::Flags(0))
   {
-    unsigned rm_flags = L4Re::Rm::Search_addr | L4Re::Rm::Eager_map | add_flags;
+    L4Re::Rm::Flags rm_flags = L4Re::Rm::F::Search_addr |
+                               L4Re::Rm::F::Eager_map | L4Re::Rm::F::RW |
+                               add_flags;
     auto rm = L4Re::Env::env()->rm();
     size = l4_round_page(size);
 

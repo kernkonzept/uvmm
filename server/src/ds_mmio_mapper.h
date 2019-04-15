@@ -46,9 +46,11 @@ class Ds_handler : public Vmm::Mmio_device
   {
     long res;
 #ifdef MAP_OTHER
-    res = _ds->map(offset + _offset,
-                   vcpu.pf_write() ? L4Re::Dataspace::Map_rw : 0,
-                   pfa, min, max, vm_task);
+    L4Re::Dataspace::Flags f = L4Re::Dataspace::F::RX;
+    if (vcpu.pf_write())
+      f |= L4Re::Dataspace::F::W;
+
+    res = _ds->map(offset + _offset, f, pfa, min, max, vm_task);
 #else
     // Make sure that the page is currently mapped.
     res = page_in(_local_start + offset, true);
@@ -105,7 +107,7 @@ public:
       {
         auto rm = L4Re::Env::env()->rm();
         L4Re::chksys(rm->attach(&_local_start, size,
-                                L4Re::Rm::Search_addr | L4Re::Rm::Eager_map,
+                                L4Re::Rm::F::Search_addr | L4Re::Rm::F::Eager_map | L4Re::Rm::F::RWX,
                                 L4::Ipc::make_cap_rw(ds), offset,
                                 L4_SUPERPAGESHIFT));
       }

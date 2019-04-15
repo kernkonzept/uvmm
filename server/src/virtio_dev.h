@@ -116,7 +116,8 @@ public:
 
     L4Re::Rm::Unique_region<l4virtio_config_hdr_t *> cfg;
     L4Re::chksys(e->rm()->attach(&cfg, Config_ds_size,
-                                 L4Re::Rm::Search_addr | L4Re::Rm::Eager_map
+                                 L4Re::Rm::F::Search_addr | L4Re::Rm::F::Eager_map
+                                 | L4Re::Rm::F::RW
                                  , //| L4Re::Rm::Cache_uncached,
                                  L4::Ipc::make_cap_rw(ds.get())));
 

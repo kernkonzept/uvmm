@@ -321,7 +321,7 @@ struct Ro_ds_mapper_t : Mmio_device
                 l4_addr_t min, l4_addr_t max)
   {
 #ifdef MAP_OTHER
-    auto res = dev()->mmio_ds()->map(offset, 0, pfa, min, max, vm_task);
+    auto res = dev()->mmio_ds()->map(offset, L4Re::Dataspace::F::RWX, pfa, min, max, vm_task);
 #else
     auto local_start = local_addr();
 
@@ -392,14 +392,14 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
    *       the area then needs to be emulated as in the standard MMIO device.
    */
   explicit Read_mapped_mmio_device_t(l4_size_t size,
-                                     unsigned rm_flags = L4Re::Rm::Cache_uncached)
+                                     L4Re::Rm::Flags rm_flags = L4Re::Rm::F::Cache_uncached)
   : _mapped_size(size)
   {
     auto *e = L4Re::Env::env();
     auto ds = L4Re::chkcap(L4Re::Util::make_unique_del_cap<L4Re::Dataspace>());
     L4Re::chksys(e->mem_alloc()->alloc(size, ds.get()));
 
-    rm_flags |= L4Re::Rm::Search_addr | L4Re::Rm::Eager_map;
+    rm_flags |= L4Re::Rm::F::Search_addr | L4Re::Rm::F::Eager_map | L4Re::Rm::F::RW;
     L4Re::Rm::Unique_region<T *> mem;
     L4Re::chksys(e->rm()->attach(&mem, size, rm_flags,
                                  L4::Ipc::make_cap_rw(ds.get())));

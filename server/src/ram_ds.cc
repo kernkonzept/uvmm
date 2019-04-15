@@ -80,8 +80,8 @@ Ram_ds::setup(Vmm::Guest_addr vm_base)
 
   _local_start = 0;
   L4Re::chksys(env->rm()->attach(&_local_start, _size,
-                                 L4Re::Rm::Search_addr | L4Re::Rm::Eager_map
-                                   | L4Re::Rm::Executable,
+                                 L4Re::Rm::F::Search_addr | L4Re::Rm::F::Eager_map
+                                 | L4Re::Rm::F::RWX,
                                  L4::Ipc::make_cap_rw(_ds), _ds_offset,
                                  L4_SUPERPAGESHIFT));
   info.printf("RAM: VMM mapping @ 0x%lx size=0x%lx\n", _local_start, (l4_addr_t)_size);
