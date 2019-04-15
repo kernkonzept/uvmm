@@ -352,7 +352,7 @@ private:
   l4_uint8_t _last_cap_ptr_idx;
   l4_uint32_t _bar_size[Bar_num_max_type0];
 
-  template <typename TYPE> constexpr
+  template <typename TYPE>
   static void assert_header_type()
   {
     static_assert(    (std::is_same<Pci_header::Type0, TYPE>::value)
