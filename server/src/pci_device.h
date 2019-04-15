@@ -52,11 +52,12 @@ enum Pci_config_consts
   Bar_num_max_type1 = 2,
 };
 
-enum Pci_cap_id
+enum Cap_ident : l4_uint8_t
 {
   // see PCI Local Bus Specification V.3 (2004) Appendix H.
   Power_management = 0x1,
   Msi = 0x5,
+  Vendor_specific = 0x9,
   Pcie = 0x10,
   Msi_x = 0x11,
 };
@@ -86,16 +87,53 @@ enum Virtual_pci_device_msix_consts
   Msix_mem_need = 2 * L4_PAGESIZE, // ideally Table and PBA on different pages
 };
 
-struct Cap_ident
+/// Base class of a PCI capability.
+struct Pci_cap
 {
-  l4_uint8_t cap_type;
-  l4_uint8_t cap_next;
-} __attribute__((__packed__));
+  explicit Pci_cap(l4_uint8_t type) : cap_type(type) {}
 
-struct Pci_msix_cap
-{
+  /**
+   * Perform a cast if the input cap `c` is of the expected type `T`.
+   *
+   * \tparam T  The expected PCI capability type.
+   * \param  c  The capability to cast.
+   *
+   * \returns A valid capability pointer if the type is correct; nullptr
+   *          otherwise.
+   */
+  template <typename T>
+  static T *
+  cast_type(Pci_cap *c)
+  {
+    return c->cap_type == T::Cap_id ? static_cast<T *>(c) : nullptr;
+  }
+
   // see PCI Local Bus Specification V.3 (2010) 6.8.2.
-  Cap_ident id;
+  l4_uint8_t const cap_type;
+  l4_uint8_t cap_next;
+};
+
+/// Class for all vendor specific PCI capabilities.
+struct Vendor_specific_cap : Pci_cap
+{
+  enum : l4_uint8_t { Cap_id = Cap_ident::Vendor_specific };
+
+  explicit Vendor_specific_cap(l4_uint8_t len)
+  : Pci_cap(Cap_id), cap_len(len)
+  {}
+
+  l4_uint8_t cap_len;
+};
+static_assert(sizeof(Vendor_specific_cap) == 3,
+              "Vendor_specific_cap size conforms to specification.");
+
+/// MSI-X capability for the PCI config space.
+struct Pci_msix_cap : Pci_cap
+{
+  enum : l4_uint8_t { Cap_id = Cap_ident::Msi_x };
+
+  Pci_msix_cap() : Pci_cap(Cap_id) {}
+
   struct
   {
     l4_uint16_t raw;
@@ -112,7 +150,9 @@ struct Pci_msix_cap
   };
   Offset_bir tbl;
   Offset_bir pba;
-} __attribute__((packed));
+};
+static_assert(sizeof(Pci_msix_cap) == 12,
+              "Pci_msix_cap size conforms to specification.");
 
 union alignas(l4_addr_t) Pci_header
 {
@@ -360,6 +400,51 @@ public:
     trace().printf("write config 0x%x(%d) = 0x%x\n", reg, width, value);
   }
 
+  /**
+   * Search for the PCI capability of type `CAP`.
+   *
+   * \tparam CAP  Capability type structure.
+   *
+   * \return Pointer to the capability in this PCI devices config space.
+   */
+  template <typename CAP>
+  CAP *get_cap()
+  {
+    // cap_ptr is the same for both header types.
+    l4_uint8_t nxt = get_header<Pci_header::Type0>()->cap_ptr;
+    while (nxt != 0)
+      {
+        l4_uint64_t *cap_addr = &_hdr.qword[nxt / 8];
+        assert(reinterpret_cast<l4_uint64_t>(cap_addr) % 8 == 0);
+
+        auto *pci_cap = reinterpret_cast<CAP *>(cap_addr);
+
+        auto *c = CAP::template cast_type<CAP>(pci_cap);
+        if (c)
+          return c;
+
+        nxt = pci_cap->cap_next;
+      }
+
+    return nullptr;
+  }
+
+  /**
+   * Create a PCI capability of type `T` in the device's capability table.
+   *
+   * \tparam T  Type of the capability to create. The type must have a Cap_id
+   *            member defining the PCI capability ID.
+   *
+   * \return  Pointer to the new typed capability.
+   */
+  template <typename T>
+  T *create_pci_cap()
+  {
+    T* ret = allocate_pci_cap<T>();
+    assert(ret->cap_type == T::Cap_id);
+    return ret;
+  }
+
 private:
   Pci_header _hdr;
   /// Index into _hdr.byte array
@@ -408,8 +493,40 @@ private:
     return ret;
   }
 
+  /**
+   * Allocate a new PCI capability in the PCI header config space and enqueue
+   * it in the cap list.
+   *
+   * \tparam CAP  Capability type to allocate.
+   */
+  template <typename CAP>
+  CAP *allocate_pci_cap()
+  {
+    // _next_free_idx: next 4-byte-aligned location for a capability
+    // _last_cap_ptr_idx: also called 'last cap's next_ptr'
+    assert(_next_free_idx < sizeof(_hdr));
+    assert(_last_cap_ptr_idx < sizeof(_hdr));
+
+    CAP *ret = new (&(_hdr.qword[_next_free_idx / 8])) CAP();
+
+    l4_uint8_t cap_offset = _next_free_idx;
+    info().printf("cap offset 0x%x, cap size 0x%zx\n", cap_offset, sizeof(*ret));
+
+    _hdr.byte[_last_cap_ptr_idx] = _next_free_idx;
+    _last_cap_ptr_idx =  cap_offset + 1; // next ptr is at 2nd byte into cap
+
+    _next_free_idx = l4_round_size(cap_offset + sizeof(*ret), 3);
+
+    info().printf("indexes: last 0x%x, next 0x%x\n", _last_cap_ptr_idx,
+                 _next_free_idx);
+
+    ret->cap_next = 0;
+    return ret;
+  }
+
 protected:
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI dev"); }
+  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI dev"); }
   static Dbg dbg() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI dev"); }
 
   /**
@@ -423,33 +540,6 @@ protected:
     assert_header_type<TYPE>();
 
     return reinterpret_cast<TYPE *>(&_hdr);
-  }
-
-  /**
-   * Allocate a new PCI capability in the PCI header config space and enqueue
-   * it in the cap list.
-   *
-   * \tparam CAP  Capability type to allocate.
-   */
-  template <typename CAP>
-  CAP *allocate_pci_cap()
-  {
-    assert(_next_free_idx < sizeof(_hdr));
-    assert(_last_cap_ptr_idx < sizeof(_hdr));
-
-    CAP *ret = reinterpret_cast<CAP *>(&(_hdr.qword[_next_free_idx / 8]));
-    l4_uint8_t cap_offset = _next_free_idx;
-    dbg().printf("cap offset 0x%x, cap size 0x%zx\n", cap_offset, sizeof(*ret));
-
-    _hdr.byte[_last_cap_ptr_idx] = _next_free_idx;
-    _last_cap_ptr_idx =  cap_offset + 1; // next ptr is at 2nd byte into cap
-    _next_free_idx = l4_round_size(cap_offset + sizeof(*ret), 3);
-
-    dbg().printf("indexes: last 0x%x, next 0x%x\n", _last_cap_ptr_idx,
-                 _next_free_idx);
-
-    ret->id.cap_next = 0;
-    return ret;
   }
 
   void dump_header() const
@@ -496,45 +586,6 @@ protected:
   }
 };
 
-class Pci_device_msix : public Pci_dev
-{
-public:
-  Pci_device_msix() : Pci_dev(), _cap(nullptr) {}
-
-  /**
-   * Allocate an entrie in the PCI capability list of the PCI configuration
-   * header and fill it with the MSI-X capability.
-   *
-   * \param max_msix_entries  Maximum number of MSI-X entries of this device.
-   * \param BAR index         BAR index[0,5] of the MSI-X memory BAR.
-   */
-  void create_msix_cap(unsigned max_msix_entries, unsigned bar_index)
-  {
-    assert(bar_index < 6);
-
-    Pci_msix_cap *cap = allocate_pci_cap<Pci_msix_cap>();
-    cap->id.cap_type = Pci_cap_id::Msi_x;
-    cap->ctrl.enabled() = 1;
-    cap->ctrl.masked() = 0;
-    cap->ctrl.max_msis() = max_msix_entries - 1;
-    cap->tbl.bir() = bar_index;
-    cap->pba.offset() = L4_PAGESIZE >> 3;
-    cap->pba.bir() = bar_index;
-
-    trace().printf("msi.msg_ctrl 0x%x\n", cap->ctrl.raw);
-    trace().printf("msi.table 0x%x\n", cap->tbl.raw);
-    trace().printf("msi.pba 0x%x\n", cap->pba.raw);
-
-    _cap = cap;
-  }
-
-  bool msix_enabled() const { return _cap->ctrl.enabled(); }
-  bool msix_func_enabled() const { return !_cap->ctrl.masked(); }
-
-private:
-  Pci_msix_cap *_cap;
-};
-
 enum
 {
   Dt_pci_flags_io = 1 << 24,
@@ -556,4 +607,3 @@ struct Device_register_entry
 };
 
 } } // namespace Vdev::Pci
-

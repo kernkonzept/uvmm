@@ -76,7 +76,6 @@ class Pci_bus_bridge : public Pci_dev, public Device
     Hw_pci_device(Devfn_address df) : devfn(df)
     {
       memset(bars, 0, sizeof(bars));
-      memset(&msix_cap, 0, sizeof(msix_cap));
     }
 
     Devfn_address devfn;
@@ -235,7 +234,7 @@ private:
         Hw_pci_device *hwdev = &_hwpci_devs.back();
         parse_all_pci_bars(devfn, hwdev);
 
-        unsigned msix_cap_addr = get_capability(devfn.value, Pci_cap_id::Msi_x);
+        unsigned msix_cap_addr = get_capability(devfn.value, Cap_ident::Msi_x);
 
         if (msix_cap_addr != 0)
           {

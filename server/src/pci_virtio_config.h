@@ -24,7 +24,6 @@ namespace Vdev {
     Virtio_pci_legacy_device_id_base        = 0x1000,
     Transitional_device_pci_revision_id     = 0x0,
     Non_transitional_device_pci_revision_id = 0x1,
-    Virtio_pci_cap_vndr                     = 0x9,
     Virtio_msix_no_vector                   = 0xffff,
   };
 
@@ -37,21 +36,115 @@ namespace Vdev {
     Virtio_pci_cap_pci_cfg     = 5,
   };
 
-  struct Virtio_pci_cap_base
+  /// Base class of a VirtIO capability.
+  struct Virtio_pci_cap : Pci::Vendor_specific_cap
   {
-    l4_uint8_t  cap_len;
+    explicit Virtio_pci_cap(l4_uint8_t vio_cfg_t, l4_uint8_t len)
+    : Vendor_specific_cap(len), cfg_type(vio_cfg_t)
+    {}
+
+    /**
+     * Perform a cast if the input cap type `c` is of the expected
+     * Virtio_pci_cap type.
+     *
+     * \tparam T  The expected Virtio_pci_cap type.
+     * \param  c  The capability to cast.
+     *
+     * \returns A valid capability pointer if the type is correct; nullptr
+     *          otherwise.
+     */
+    template <typename T>
+    static T *
+    cast_type(Virtio_pci_cap *c)
+    {
+      if (auto *x = Pci_cap::cast_type<Virtio_pci_cap>(c))
+        return x->cfg_type == T::Virtio_cfg_type ? static_cast<T *>(c) : nullptr;
+
+      return nullptr;
+    }
+
     l4_uint8_t  cfg_type;
     l4_uint8_t  bar;
     l4_uint8_t  padding[3];
     l4_uint32_t offset;
     l4_uint32_t length;
-  } __attribute__((__packed__));
+  };
+  static_assert(sizeof(Virtio_pci_cap) == 16,
+                "Virtio_pci_cap size conforms to specification.");
 
-  struct Virtio_pci_cap
+  struct Virtio_pci_common_cap : Virtio_pci_cap
   {
-    Pci::Cap_ident id; /// Same field for all caps to enable iterating.
-    Virtio_pci_cap_base vio;
-  } __attribute__((__packed__));
+    enum : l4_uint8_t
+    {
+      Virtio_cfg_type = Virtio_pci_cap_common_cfg
+    };
+
+    Virtio_pci_common_cap()
+    : Virtio_pci_cap(Virtio_cfg_type, sizeof(*this))
+    {}
+  };
+  static_assert(sizeof(Virtio_pci_common_cap) == 16,
+                "Virtio_pci_common_cap size conforms to specification.");
+
+  struct Virtio_pci_isr_cap : Virtio_pci_cap
+  {
+    enum : l4_uint8_t
+    {
+      Virtio_cfg_type = Virtio_pci_cap_isr_cfg
+    };
+
+    Virtio_pci_isr_cap()
+    : Virtio_pci_cap(Virtio_cfg_type, sizeof(*this))
+    {}
+  };
+  static_assert(sizeof(Virtio_pci_isr_cap) == 16,
+                "Virtio_pci_isr_cap size conforms to specification.");
+
+  struct Virtio_pci_notify_cap : Virtio_pci_cap
+  {
+    enum : l4_uint8_t
+    {
+      Virtio_cfg_type = Virtio_pci_cap_notify_cfg
+    };
+
+    Virtio_pci_notify_cap()
+    : Virtio_pci_cap(Virtio_cfg_type, sizeof(*this))
+    {}
+
+    l4_uint32_t     notify_off_multiplier;
+  };
+  static_assert(sizeof(Virtio_pci_notify_cap) == 20,
+                "Virtio_pci_notify_cap size conforms to specification.");
+
+  struct Virtio_pci_device_cap : Virtio_pci_cap
+  {
+    enum : l4_uint8_t
+    {
+      Virtio_cfg_type = Virtio_pci_cap_device_cfg
+    };
+
+    Virtio_pci_device_cap()
+    : Virtio_pci_cap(Virtio_cfg_type, sizeof(*this))
+    {}
+  };
+  static_assert(sizeof(Virtio_pci_device_cap) == 16,
+                "Virtio_pci_device_cap size conforms to specification.");
+
+  struct Virtio_pci_cfg_cap : Virtio_pci_cap
+  {
+    enum : l4_uint8_t
+    {
+      Virtio_cfg_type = Virtio_pci_cap_pci_cfg
+    };
+
+    Virtio_pci_cfg_cap()
+    : Virtio_pci_cap(Virtio_cfg_type, sizeof(*this))
+    {}
+
+    l4_uint8_t      pci_cfg_data[4];
+  };
+  static_assert(sizeof(Virtio_pci_cfg_cap) == 20,
+                "Virtio_pci_cfg_cap size conforms to specification.");
 
   struct Virtio_pci_common_cfg
   {
@@ -72,20 +165,8 @@ namespace Vdev {
     l4_uint64_t queue_desc;
     l4_uint64_t queue_avail;
     l4_uint64_t queue_used;
-  } __attribute__((__packed__));
+  };
+  static_assert(sizeof(Virtio_pci_common_cfg) == 56,
+                "Virtio_pci_common_cfg size conforms to specification.");
 
-  struct Virtio_pci_notify_cap
-  {
-    Pci::Cap_ident id; /// Same field for all caps to enable iterating.
-    Virtio_pci_cap_base vio;
-    l4_uint32_t     notify_off_multiplier;
-  } __attribute__((__packed__));
-
-  struct Virtio_pci_cfg_cap
-  {
-    Pci::Cap_ident id; /// Same field for all caps to enable iterating.
-    Virtio_pci_cap_base vio;
-    l4_uint8_t      pci_cfg_data[4];
-  } __attribute__((__packed__));
-
-}; // namespace Dev
+}; // namespace Vdev
