@@ -236,21 +236,23 @@ public:
 
       case System_suspend:
           {
-            // Request has to be executed on CPU0 (requirement imposed by us) and
-            // all other CPUs have to be off (specification requirement)
+            l4_addr_t entry_gpa = vcpu->r.r[1];
+            l4_umword_t context_id = vcpu->r.r[2];
+
+            // Check preconditions:
+            //   * Request has to be executed on CPU0 (requirement imposed
+            //     by us)
+            //   * all other CPUs have to be off (specification requirement)
+            //   * powermanagement allows suspend operation
             if (    current_cpu()->vcpu().get_vcpu_id() != 0
-                || !cpus_off())
+                || !cpus_off() || !_vmm->pm().suspend())
               {
                 vcpu->r.r[0] = Denied;
                 break;
               }
 
-            l4_addr_t entry_gpa = vcpu->r.r[1];
-            l4_umword_t context_id = vcpu->r.r[2];
-
             /* Go to sleep */
-            if (_vmm->pm().suspend())
-              _vmm->wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+            _vmm->wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
             /* Back alive */
             _vmm->pm().resume();
 
