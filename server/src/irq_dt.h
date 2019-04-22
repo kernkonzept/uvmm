@@ -38,7 +38,7 @@ public:
    * then the first call to next() will fail.
    */
   Irq_dt_iterator(Device_lookup *devs, Dt_node const &node)
-  : _node(node)
+  : _node(node), _prop(nullptr)
   {
     if (node.has_prop("interrupts-extended"))
       {
