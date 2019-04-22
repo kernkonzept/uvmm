@@ -192,12 +192,6 @@ public:
       return;
 
     set_status(0); // reset
-    for (l4_uint32_t i = 0; i < _config->num_queues; ++i)
-      {
-        _config->queues()[i].num = 0;
-        _config->queues()[i].ready = 0;
-        config_queue(i);
-      }
   }
 
   l4_uint32_t irq_status() const { return _config->irq_status; }
