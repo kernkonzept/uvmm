@@ -99,7 +99,7 @@ namespace {
           L4Re::chksys(-L4_EINVAL, "Check reg descriptor in device tree.");
       }
 
-    return 0;
+    // not reached
   }
 
   unsigned num_interrupts(Vdev::Device_lookup *devs, Vdev::Dt_node const &node)
@@ -120,7 +120,7 @@ namespace {
           L4Re::chksys(ret, "Check interrupt descriptions in device tree");
       }
 
-    return 0;
+    // not reached
   }
 }
 
