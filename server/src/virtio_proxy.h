@@ -125,24 +125,27 @@ public:
     return _device->register_ds(L4::Ipc::make_cap_rw(ds), devaddr, offset, size);
   }
 
-  int config_queue(int num)
+  int config_queue(unsigned num)
   {
     if (l4virtio_get_feature(_config->dev_features_map,
                              L4VIRTIO_FEATURE_CMD_CONFIG))
       return _config->config_queue(num, _host_irq.get(), _guest_irq.get());
 
     _config->queues()[num].driver_notify_index = 0;
+
+    if (_queue_irqs.size() <= num)
+      _queue_irqs.resize(num + 1);
+    else
+      _queue_irqs[num].reset();
+
     int ret = _device->config_queue(num);
 
-    if (ret >= 0)
+    if (ret >= 0 && _config->queues()[num].ready)
       {
-        _queue_irqs.resize(num + 1);
         l4_uint16_t irq = _config->queues()[num].device_notify_index;
         auto cap = L4Re::Util::make_unique_cap<L4::Irq>();
         if (_device->device_notification_irq(irq, cap.get()) >= 0)
           _queue_irqs[num] = std::move(cap);
-        else
-          _queue_irqs[num].reset();
       }
 
     return ret;
