@@ -182,7 +182,8 @@ private:
     Mpidr_mp_ext    = 1ULL << 31,
     Mpidr_up_sys    = 1ULL << 30,
     Mpidr_mt_sys    = 1ULL << 24,
-    Mpidr_aff_mask  = (0xffULL << 32) | 0xfffULL,
+    // Affinity Aff{0,1,2} in [23-0], Aff3 in [39-32]
+    Mpidr_aff_mask  = (0xffULL << 32) | 0xffffffULL,
   };
   l4_umword_t _dt_affinity;
   l4_umword_t _dt_vpidr = 0;
