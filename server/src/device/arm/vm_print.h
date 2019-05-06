@@ -33,7 +33,9 @@ public:
     if (!is_valid_func_id(vcpu->r.r[0]))
       return false;
 
-    _guest_print.print_char(vcpu->r.r[1]);
+    assert(vmm_current_cpu_id < Vmm::Cpu_dev::Max_cpus);
+
+    _guest_print[vmm_current_cpu_id].print_char(vcpu->r.r[1]);
     vcpu->r.r[0] = Success;
 
     return true;
@@ -49,7 +51,7 @@ private:
     return (reg & 0xbfffffff) == 0x86000000;
   }
 
-  Vmm::Guest_print_buffer _guest_print;
+  Vmm::Guest_print_buffer _guest_print[Vmm::Cpu_dev::Max_cpus];
 };
 
 }
