@@ -37,7 +37,8 @@ Cpu_dev::Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *node)
       auto *prop = node->get_prop<fdt32_t>("reg", &prop_size);
       if (prop && prop_size > 0)
         {
-          _dt_affinity = node->get_prop_val(prop, prop_size, true);
+          _dt_affinity = node->get_prop_val(prop, prop_size, true)
+            & Mpidr_aff_mask;
         }
 
       prop = node->get_prop<fdt32_t>("l4vmm,vpidr", &prop_size);
@@ -77,7 +78,7 @@ Cpu_dev::reset()
   // remove mt/up bit and replace affinity with value from device tree
   l4_vcpu_e_write(*_vcpu, L4_VCPU_E_VMPIDR,
                   (vmpidr & ~(Mpidr_up_sys | Mpidr_mt_sys | Mpidr_aff_mask))
-                  | (_dt_affinity & Mpidr_aff_mask));
+                  | _dt_affinity);
 
   if (_dt_vpidr)
     {
