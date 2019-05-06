@@ -327,13 +327,12 @@ struct F : Factory
     auto c = make_device<Psci_device>(devs->vmm(), devs->cpus());
     Vmm::Guest::Smccc_method smccc_method = Vmm::Guest::Hvc;
 
-    if (node.stringlist_count("method") != -1)
+    char const *method = node.get_prop<char>("method", nullptr);
+    if (method)
       {
-        int len;
-        char const *method = node.stringlist_get("method", 0, &len);
-        if (strncmp(method, "smc", len) == 0)
+        if (strcmp(method, "smc") == 0)
           smccc_method = Vmm::Guest::Smc;
-        else if (strncmp(method, "hvc", len) != 0)
+        else if (strcmp(method, "hvc") != 0)
           warn.printf("Method '%s' is not supported. Must be hvc or smc!\n",
                       method);
       }
