@@ -550,12 +550,6 @@ public:
   bool inject(Irq_array::Irq const &irq, unsigned irq_id, unsigned src_cpu = 0);
   void handle_maintenance_irq(unsigned current_cpu);
 
-  void set_work_pending()
-  { cxx::write_now(&_pending_work, true); }
-
-  bool is_work_pending() const
-  { return cxx::access_once(&_pending_work); }
-
   void handle_ipis();
   bool set_sgi(unsigned irq);
   void clear_sgi(unsigned irq, unsigned src);
@@ -591,7 +585,6 @@ public:
   Irq_array *_spis;
   void *_vcpu = nullptr;
   L4Re::Util::Unique_cap<L4::Irq> _cpu_irq;
-  bool _pending_work;
 
   void _set_elsr(unsigned idx, l4_uint32_t bits) const
   {
