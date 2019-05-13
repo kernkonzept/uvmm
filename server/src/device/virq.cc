@@ -1,3 +1,14 @@
+/*
+ * Copyright (C) 2018-2019 Kernkonzept GmbH.
+ * Author(s): Jean Wolter <jean.wolter@kernkonzept.com>,
+ *            Alexander Warg <alexander.warg@kernkonzept.com>,
+ *            Frank Mehnert <frank.mehnert@kernkonzept.com>
+ *
+ * This file is distributed under the terms of the GNU General Public
+ * License, version 2.  Please see the COPYING-GPL-2 file for details.
+ */
+
+
 #include "device_factory.h"
 #include "guest.h"
 #include "irq.h"
