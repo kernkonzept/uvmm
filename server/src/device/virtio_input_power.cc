@@ -9,7 +9,7 @@
 #include <cstring>
 
 #include "virtio_input.h"
-#include "virtio_input_power.h"
+#include "virtio_input_power_cmd_handler.h"
 #include "mmio_device.h"
 #include "irq.h"
 #include "device_factory.h"
@@ -32,8 +32,13 @@ class Virtio_input_power_mmio
 : public Virtio_input<Virtio_input_power_mmio>,
   public Vmm::Ro_ds_mapper_t<Virtio_input_power_mmio>,
   public Virtio::Mmio_connector<Virtio_input_power_mmio>,
-  public L4::Irqep_t<Virtio_input_power_mmio>
+  public L4::Irqep_t<Virtio_input_power_mmio>,
+  public Monitor::Virtio_input_power_cmd_handler<Monitor::Enabled,
+                                                 Virtio_input_power_mmio>
 {
+  friend Virtio_input_power_cmd_handler<Monitor::Enabled,
+                                        Virtio_input_power_mmio>;
+
 public:
   Virtio_input_power_mmio(Vmm::Vm_ram *iommu, L4::Cap<L4::Vcon> con)
   : Virtio_input(iommu), _con(con)
@@ -65,7 +70,7 @@ public:
   int inject_events(Virtio_input_event *events, size_t num)
   { return Virtio_input<Virtio_input_power_mmio>::inject_events(events, num); }
 
-  void inject_sysreq_event(unsigned char);
+  bool inject_command(unsigned char c);
 
   void virtio_device_config_written(unsigned reg);
 
@@ -261,8 +266,8 @@ Virtio_input_power_mmio::inject_event(l4_uint16_t event, char const * msg)
   inject_events(events, ARRAY_SIZE(events), msg);
 }
 
-void
-Virtio_input_power_mmio::inject_sysreq_event(unsigned char c)
+bool
+Virtio_input_power_mmio::inject_command(unsigned char c)
 {
   auto event = Vdev::translate_char(c);
   Vdev::Virtio_input_event events[] = {
@@ -275,28 +280,14 @@ Virtio_input_power_mmio::inject_sysreq_event(unsigned char c)
       {L4RE_EV_KEY, L4RE_KEY_LEFTALT, 0},
       {L4RE_EV_SYN, L4RE_SYN_REPORT, 1}
   };
-  inject_events(events, ARRAY_SIZE(events), "inject sysreq");
+
+  auto num = (int)ARRAY_SIZE(events);
+  return inject_events(events, num) == num;
 }
 
 //
 // Helper functions for monitor interface
 //
-static cxx::Ref_ptr<Vdev::Virtio_input_power_mmio> vip_dev;
-
-int do_inject_events(Virtio_input_event *events, size_t num)
-{
-  if (!vip_dev)
-    return -1;
-
-  return vip_dev->inject_events(events, num);
-}
-
-void do_inject_sysreq_event(unsigned char event)
-{
-  if (vip_dev)
-    vip_dev->inject_sysreq_event(event);
-}
-
 static L4Re_events_key transtab[] = {
     L4RE_KEY_0,
     L4RE_KEY_1,
@@ -364,26 +355,21 @@ struct F : Factory
   cxx::Ref_ptr<Device> create(Device_lookup *devs, Dt_node const &node) override
   {
     Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual input device\n");
+    bool monitor = node.has_prop("l4vmm,monitor");
 
     auto cap = Vdev::get_cap<L4::Vcon>(node, "l4vmm,virtiocap");
-    if (!cap)
+    if (!cap && !monitor)
       return nullptr;
 
     auto c = make_device<Virtio_input_power_mmio>(devs->ram().get(), cap);
     if (c->init_irqs(devs, node) < 0)
       return nullptr;
 
-    c->register_obj(devs->vmm()->registry());
+    if (cap)
+      c->register_obj(devs->vmm()->registry());
+
     devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
-    if (node.has_prop("l4vmm,monitor"))
-      {
-        if (!vip_dev)
-          vip_dev = c;
-        else
-          Dbg(Dbg::Dev, Dbg::Warn, "virtio")
-            .printf("%s: Ignoring 'l4vmm,monitor' property, "
-                    "monitor event link already set\n", node.get_name());
-      }
+
     return c;
   }
 };

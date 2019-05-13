@@ -18,6 +18,7 @@
 #include <cstdio>
 
 #include "debug.h"
+#include "arm_gic_cmd_handler.h"
 #include "mmio_device.h"
 #include "irq.h"
 
@@ -30,6 +31,9 @@ class Irq_array
 private:
   struct Pending
   {
+    template<bool T, typename V>
+    friend class Monitor::Arm_gic_cmd_handler;
+
   private:
     // collects bits used to implement various distributor registers
     l4_uint32_t _state;
@@ -102,9 +106,6 @@ private:
     bool group(bool grp1);
     bool config(unsigned cfg);
     bool target(unsigned char tgt);
-
-    static void show_header(FILE *f);
-    void show(FILE *f, int irq) const;
   };
 
   struct Context
@@ -124,6 +125,9 @@ private:
 public:
   class Const_irq
   {
+    template<bool T, typename V>
+    friend class Monitor::Arm_gic_cmd_handler;
+
   public:
     l4_uint32_t state() const { return _p->state(); }
     bool enabled() const { return _p->enabled(); }
@@ -145,10 +149,6 @@ public:
     bool operator == (Const_irq const &r) const { return _p == r._p; }
     bool operator != (Const_irq const &r) const { return _p != r._p; }
 
-    static void show_header(FILE *f)
-    { Pending::show_header(f); }
-    void show(FILE *f, int irq)
-    { _p->show(f, irq); }
   protected:
     friend class Irq_array;
     Const_irq(Pending *p, Context *c) : _p(p), _c(c) {}
@@ -492,6 +492,9 @@ Irq_array::Pending::target(unsigned char tgt)
 // GIC CPU interface
 class Cpu
 {
+  template<bool T, typename V>
+  friend class Monitor::Arm_gic_cmd_handler;
+
 public:
   enum { Num_local = 32 };
   enum { Num_lrs = 4 };
@@ -506,6 +509,8 @@ public:
     L4Re::chksys(L4Re::Env::env()->factory()->create(_cpu_irq.get()),
                  "create vcpu notification interrupt");
   }
+
+  static unsigned num_local() { return Num_local; }
 
   void setup(unsigned cpuid, Irq_array *spis);
 
@@ -554,8 +559,6 @@ public:
   bool set_sgi(unsigned irq);
   void clear_sgi(unsigned irq, unsigned src);
   void dump_sgis() const;
-
-  void show(FILE *f, unsigned cpu);
 
   Vmm::Arm::Gic_h::Vmcr vmcr() const
   {
@@ -823,8 +826,13 @@ Cpu::handle_maintenance_irq(unsigned /*current_cpu*/)
 
 
 
-class Dist : public Vmm::Mmio_device_t<Dist>, public Ic
+class Dist
+: public Vmm::Mmio_device_t<Dist>,
+  public Ic,
+  public Monitor::Arm_gic_cmd_handler<Monitor::Enabled, Dist>
 {
+  friend Arm_gic_cmd_handler<Monitor::Enabled, Dist>;
+
 private:
   Dbg gicd_trace;
 
@@ -1174,7 +1182,6 @@ public:
     c->handle_maintenance_irq(current_cpu);
   }
 
-  void show(FILE *f) const;
 private:
   void sgir_write(l4_uint32_t value);
   unsigned char _active_grp0_cpus;

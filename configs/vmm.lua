@@ -108,7 +108,18 @@ function start_vm(options)
                                       mem_flags, align):m("rws");
   };
 
-  if options.mon ~= false then
+  if type(options.mon) == 'string' then
+    -- assume 'mon' is the name of a server binary which implements the uvmm
+    -- CLI interface
+    mon = l:new_channel()
+
+    l:start({
+      log = l.log_fab:create(L4.Proto.Log, "mon"),
+      caps = { mon = mon:svr() }
+    }, "rom/" .. options.mon)
+
+    caps["mon"] = mon
+  elseif options.mon ~= false then
     caps["mon"] = l.log_fab:create(L4.Proto.Log, "mon" .. nr, "g");
   end
 

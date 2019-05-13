@@ -18,6 +18,11 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   mmio_device.cc \
                   pm.cc vbus_event.cc vm_memmap.cc vm_ram.cc vm.cc
 
+ifeq ($(CONFIG_MONITOR),y)
+SRC_CC   += monitor/monitor.cc
+CXXFLAGS += -DCONFIG_MONITOR
+endif
+
 SRC_CC-arm   = arm/gic.cc arm/guest_arm.cc arm/cpu_dev_arm.cc
 SRC_CC-arm64 = arm/gic.cc arm/guest_arm.cc arm/cpu_dev_arm.cc
 SRC_CC-mips  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc
@@ -62,6 +67,7 @@ PRIVATE_INCDIR  = $(SRC_DIR)/../include $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
 PRIVATE_INCDIR-arm += $(SRC_DIR)/arm  $(SRC_DIR)/device/arm
 PRIVATE_INCDIR-arm64 += $(SRC_DIR)/arm $(SRC_DIR)/device/arm
 PRIVATE_INCDIR += $(PRIVATE_INCDIR-$(ARCH))
+PRIVATE_INCDIR += $(SRC_DIR)/../../tools/uvmm_cli $(SRC_DIR)/monitor
 
 include $(L4DIR)/mk/prog.mk
 

@@ -11,6 +11,7 @@
 #include "device.h"
 #include "device_repo.h"
 #include "guest.h"
+#include "vm_cmd_handler.h"
 #include "vm_ram.h"
 #include "virt_bus.h"
 
@@ -19,8 +20,12 @@ namespace Vmm {
 /**
  * The main instance of a hardware-virtualized guest.
  */
-class Vm : public Vdev::Device_lookup
+class Vm
+: public Vdev::Device_lookup,
+  public Monitor::Vm_cmd_handler<Monitor::Enabled, Vm>
 {
+  friend Vm_cmd_handler<Monitor::Enabled, Vm>;
+
 public:
   cxx::Ref_ptr<Vdev::Device>
   device_from_node(Vdev::Dt_node const &node) const override

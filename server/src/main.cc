@@ -29,7 +29,7 @@
 #include "debug.h"
 #include "guest.h"
 #include "host_dt.h"
-#include "monitor_console.h"
+#include "monitor.h"
 #include "vm_ram.h"
 #include "vm.h"
 
@@ -129,7 +129,6 @@ static int run(int argc, char *argv[])
   Dbg::set_verbosity(verbosity);
 
   vm_instance.create_default_devices();
-  auto mon = Monitor_console::create(&vm_instance);
   Vdev::Host_dt dt;
 
   auto *vmm = vm_instance.vmm();
@@ -196,6 +195,8 @@ static int run(int argc, char *argv[])
     }
 
   warn.printf("Hello out there.\n");
+
+  Monitor::enable_cmd_control(vmm->registry());
 
   Vmm::Ram_free_list ram_free_list
     = ram->setup_from_device_tree(dt, vmm->memmap(), Vmm::Guest_addr(rambase));

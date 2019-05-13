@@ -26,6 +26,7 @@
 #include "mem_types.h"
 #include "ram_ds.h"
 #include "vm_memmap.h"
+#include "vm_ram_cmd_handler.h"
 
 class Vm_mem;
 
@@ -62,11 +63,14 @@ private:
 /**
  * The memory device which manages the RAM available to the guest.
  */
-class Vm_ram : public Vdev::Device
+class Vm_ram
+: public Vdev::Device,
+  public Monitor::Vm_ram_cmd_handler<Monitor::Enabled, Vm_ram>
 {
+  friend Vm_ram_cmd_handler<Monitor::Enabled, Vm_ram>;
+
 public:
-  Vm_ram(l4_addr_t boot_offset)
-  : _boot_offset(boot_offset)
+  Vm_ram(l4_addr_t boot_offset) : _boot_offset(boot_offset)
   {}
 
   /**

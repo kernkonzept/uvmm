@@ -47,20 +47,4 @@ Cpu_dev_array::create_vcpu(Vdev::Dt_node const *node)
   return _cpus[id];
 }
 
-void
-Cpu_dev_array::show_state_registers(FILE *f)
-{
-  for (int i = 0; i < Cpu_dev::Max_cpus; ++i)
-    {
-      if (!_cpus[i])
-        continue;
-
-      // if (i != current_cpu)
-      //  interrupt_vcpu(i);
-
-      fprintf(f, "CPU %d\n", i);
-      _cpus[i]->show_state_registers(f);
-    }
-}
-
 }

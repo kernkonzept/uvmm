@@ -17,6 +17,7 @@ namespace Vdev {
 
 class Device_repository
 {
+public:
   struct Dt_device
   {
     std::string path;
@@ -24,7 +25,6 @@ class Device_repository
     cxx::Ref_ptr<Device> dev;
   };
 
-public:
   cxx::Ref_ptr<Device> device_from_node(Dt_node const &node) const
   {
     l4_uint32_t phandle = node.get_phandle();
@@ -58,6 +58,12 @@ public:
 
     _devices.push_back({buf, phandle, dev});
   }
+
+  std::vector<Dt_device>::const_iterator begin() const
+  { return _devices.begin(); }
+
+  std::vector<Dt_device>::const_iterator end() const
+  { return _devices.end(); }
 
 private:
   std::vector<Dt_device> _devices;
