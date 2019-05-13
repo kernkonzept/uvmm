@@ -74,6 +74,18 @@ class Psci_device : public Vdev::Device, public Vmm::Smccc_device
     Aff_info_on_pending = 2,
   };
 
+  inline l4_mword_t affinity(l4_mword_t reg, bool smccc_64)
+  {
+    if ((sizeof(reg) == 4) || smccc_64)
+      return reg;
+
+    l4_uint32_t aff3_mask_32 = 0xffU << 24;
+
+    // Delete [63-32] by applying a 32bit mask
+    // Move aff3 from [31-24] to [39-32]
+    return ((reg & aff3_mask_32) << 8) | (reg & ~aff3_mask_32);
+  }
+
 public:
   Psci_device(Vmm::Guest *vmm, cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus)
   : _vmm(vmm),
@@ -132,7 +144,7 @@ public:
 
       case Cpu_on:
         {
-          unsigned long hwid = vcpu->r.r[1];
+          l4_mword_t hwid = affinity(vcpu->r.r[1], is_64bit_call(vcpu->r.r[0]));
           Vmm::Cpu_dev *target = lookup_cpu(hwid);
 
           if (target)
@@ -164,7 +176,7 @@ public:
           // parameters:
           // * target_affinity
           // * lowest affinity level
-          l4_mword_t hwid = vcpu->r.r[1];
+          l4_mword_t hwid = affinity(vcpu->r.r[1], is_64bit_call(vcpu->r.r[0]));
           l4_umword_t lvl = vcpu->r.r[2];
 
           // Default to invalid in case we do not find a matching CPU
@@ -277,7 +289,7 @@ private:
   Vmm::Cpu_dev *current_cpu() const
   { return _cpus->cpu(vmm_current_cpu_id).get(); }
 
-  Vmm::Cpu_dev *lookup_cpu(l4_uint32_t hwid) const
+  Vmm::Cpu_dev *lookup_cpu(l4_umword_t hwid) const
   {
     for (auto const &cpu : *_cpus.get())
       if (cpu && cpu->matches(hwid))
