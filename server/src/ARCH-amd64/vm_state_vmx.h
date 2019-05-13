@@ -105,8 +105,8 @@ public:
   {
     vmx_write(L4VCPU_VMCS_LINK_POINTER, 0xffffffffffffffffULL);
     vmx_write(L4VCPU_VMCS_GUEST_ACTIVITY_STATE, 0);
-    // don't exit on PF and UD2
-    vmx_write(L4VCPU_VMCS_EXCEPTION_BITMAP, 0xffffffff & ~(1 << 14 | 1 << 6));
+    // reflect all guest exceptions back to the guest.
+    vmx_write(L4VCPU_VMCS_EXCEPTION_BITMAP, 0xffff0000);
 
     vmx_write(L4VCPU_VMCS_VM_ENTRY_CTLS,
               vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS) | Vm_entry_load_ia32_efer);
