@@ -58,7 +58,7 @@ public:
   void startup();
 
   L4::Cap<L4::Thread> thread_cap() const
-  { return L4::Cap<L4::Thread>(pthread_l4_cap(_thread)); }
+  { return Pthread::L4::cap(_thread); }
 
 protected:
   Vcpu_ptr _vcpu;
