@@ -135,14 +135,13 @@ Cpu_dev::restart()
   assert(_vcpu->entry_sp);
 
   auto sp = _vcpu->entry_sp - sizeof(this);
-  auto target = Pthread::L4::cap(_thread);
 
   Dbg().printf("Triggering reset using exregs on %lx\n",
                pthread_l4_cap(_thread));
 
   *(l4_umword_t *)sp = (l4_umword_t)this;
-  l4_msgtag_t res = target->ex_regs((l4_addr_t)reset_helper_trampoline,
-                                    sp, L4_THREAD_EX_REGS_CANCEL);
+  l4_msgtag_t res = thread_cap()->ex_regs((l4_addr_t)reset_helper_trampoline,
+                                          sp, L4_THREAD_EX_REGS_CANCEL);
 
   // XXX What to do here?
   if (!l4_error(res))
