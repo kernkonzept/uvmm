@@ -176,7 +176,7 @@ public:
     L4Re::chksys(_icu->info(&info), "Request ICU info.");
 
     unsigned max_msi = 0;
-    if (info.features == L4::Icu::F_msi)
+    if (info.features & L4::Icu::F_msi)
       max_msi = info.nr_msis;
 
     _msis.set_msi_limit(max_msi);
