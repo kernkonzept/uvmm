@@ -25,7 +25,7 @@
 
 namespace Vmm {
 
-class Virt_bus : public virtual Vdev::Dev_ref, public Vdev::Msi::Msi_allocator
+class Virt_bus : public virtual Vdev::Dev_ref, public Vdev::Msi::Allocator
 {
 public:
   class Devinfo
@@ -212,9 +212,9 @@ public:
   }
 
   /// Allocate a MSI vector with the app global MSI allocator.
-  long alloc_msix() override { return _msis.alloc(); }
+  long alloc_msi() override { return _msis.alloc(); }
   /// Free a previously allocated MSI vector.
-  void free_msix(unsigned num) override { _msis.free(num); }
+  void free_msi(unsigned num) override { _msis.free(num); }
   /// Maximum number of MSIs at the ICU.
   unsigned max_msis() const override { return _msis.limit(); }
 

@@ -13,11 +13,11 @@
 
 namespace Vdev { namespace Msi {
 
-/// Interface for access to the MSI-X allocator and the ICU providing the MSIs.
-class Msi_allocator : public virtual Vdev::Dev_ref
+/// Interface for access to the MSI allocator and the ICU providing the MSIs.
+class Allocator : public virtual Vdev::Dev_ref
 {
 public:
-  virtual ~Msi_allocator() = 0;
+  virtual ~Allocator() = 0;
 
   /// Access to the ICU providing the MSIs.
   virtual L4::Cap<L4::Icu> icu() const = 0;
@@ -28,15 +28,15 @@ public:
    * \retval >= 0        MSI number at the ICU.
    * \retval -L4_ENOMEM  Currently, no MSI is available.
    */
-  virtual long alloc_msix() = 0;
+  virtual long alloc_msi() = 0;
 
   /// Free a previously allocated MSI vector.
-  virtual void free_msix(unsigned num) = 0;
+  virtual void free_msi(unsigned num) = 0;
 
   /// Maximum number of MSIs at the ICU.
   virtual unsigned max_msis() const = 0;
 };
 
-inline Msi_allocator::~Msi_allocator() = default;
+inline Allocator::~Allocator() = default;
 
 } } // namespace Vdev::Msi
