@@ -359,7 +359,7 @@ namespace {
                                       Vdev::Dt_node const &) override
     {
       auto apics = devs->vmm()->apic_array();
-      return Vdev::make_device<Gic::Msi_control>(apics);
+      return Vdev::make_device<Gic::Msix_control>(apics);
     }
   };
 

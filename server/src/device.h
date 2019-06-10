@@ -15,7 +15,7 @@
 
 namespace Gic {
   struct Ic;
-  struct Msi_controller;
+  struct Msix_controller;
 }
 namespace Vmm {
   class Guest;
@@ -211,7 +211,7 @@ struct Device_lookup
    *
    * \returns  A virtual MSI controller device or an exception is thrown.
    */
-  virtual cxx::Ref_ptr<Gic::Msi_controller>
+  virtual cxx::Ref_ptr<Gic::Msix_controller>
   get_or_create_mc_dev(Vdev::Dt_node const &node) = 0;
 };
 } // namespace

@@ -326,7 +326,7 @@ private:
 
 
 /**
- * MSI control for MSI routing. WIP!
+ * MSI-X control for MSI routing.
  *
  * This class checks if the Redirection Hint is set, then it selects the LAPIC
  * with the lowest interrupt priority as recipient and rewrites the DID field
@@ -335,16 +335,16 @@ private:
  *
  * Design wise, this class is located between IO-MMU and all LAPICs.
  */
-class Msi_control : public Msi_controller, public Vdev::Device
+class Msix_control : public Msix_controller, public Vdev::Device
 {
 public:
-  Msi_control(cxx::Ref_ptr<Lapic_array> apics) : _apics(apics) {}
+  Msix_control(cxx::Ref_ptr<Lapic_array> apics) : _apics(apics) {}
 
-  // Msi_controller interface
-  void send(l4_uint64_t msi_addr, l4_uint32_t msi_data) const override
+  // Msix_controller interface
+  void send(l4_uint64_t msix_addr, l4_uint32_t msix_data) const override
   {
-    Vdev::Msix::Interrupt_request_compat addr(msi_addr);
-    Vdev::Msix::Data_register_format data(msi_data);
+    Vdev::Msix::Interrupt_request_compat addr(msix_addr);
+    Vdev::Msix::Data_register_format data(msix_data);
 
     if (addr.fixed() != Vdev::Msix::Address_interrupt_prefix)
       {
@@ -389,7 +389,7 @@ public:
 
     info().printf(
       "No valid LAPIC found; MSI dropped. MSI address 0x%llx, data 0x%x\n",
-      msi_addr, msi_data);
+      msix_addr, msix_data);
   }
 
 private:
@@ -398,7 +398,7 @@ private:
   static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "MSI-CTLR"); }
 
   cxx::Ref_ptr<Lapic_array> _apics;
-}; // class Msi_control
+}; // class Msix_control
 
 /**
  * IO-APIC stub. WIP!

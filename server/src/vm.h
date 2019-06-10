@@ -54,7 +54,7 @@ public:
   /**
    * \see Device_lookup::get_or_create_mc_dev()
    */
-  cxx::Ref_ptr<Gic::Msi_controller>
+  cxx::Ref_ptr<Gic::Msix_controller>
   get_or_create_mc_dev(Vdev::Dt_node const &node) override;
 
   void create_default_devices()

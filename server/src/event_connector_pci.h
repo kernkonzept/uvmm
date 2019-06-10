@@ -24,7 +24,7 @@ namespace Virtio {
 class Event_connector_msix
 {
 public:
-  Event_connector_msix(cxx::Ref_ptr<Gic::Msi_controller> const &distr,
+  Event_connector_msix(cxx::Ref_ptr<Gic::Msix_controller> const &distr,
                        unsigned max_msix_entries)
   : _distr(distr),
     _msix_mem(make_ram_ds_handler(Vdev::Pci::Msix_mem_need,
@@ -65,7 +65,7 @@ public:
   }
 
 private:
-  cxx::Ref_ptr<Gic::Msi_controller> _distr;
+  cxx::Ref_ptr<Gic::Msix_controller> _distr;
   cxx::Ref_ptr<Ds_handler> _msix_mem;
   Vdev::Msix::Table _msix_tbl;
 

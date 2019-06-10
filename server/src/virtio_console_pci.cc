@@ -25,7 +25,7 @@ class Virtio_console_pci
 {
 public:
   Virtio_console_pci(Vmm::Vm_ram *iommu, L4::Cap<L4::Vcon> con,
-                     cxx::Ref_ptr<Gic::Msi_controller> distr,
+                     cxx::Ref_ptr<Gic::Msix_controller> distr,
                      unsigned num_msix_entries)
   : Virtio_console(iommu, con),
     Virtio_device_pci<Virtio_console_pci>(),
@@ -82,7 +82,7 @@ struct F : Factory
       }
 
     auto msi_distr = devs->get_or_create_mc_dev(node);
-    Dbg().printf("Msi controller %p\n", msi_distr.get());
+    Dbg().printf("Msix controller %p\n", msi_distr.get());
 
     auto vmm = devs->vmm();
     int const num_msix = 5;

@@ -22,7 +22,7 @@ class Virtio_proxy_pci
 public:
   Virtio_proxy_pci(L4::Cap<L4virtio::Device> device, l4_uint64_t config_sz,
                    unsigned nnq_id, Vmm::Vm_ram *ram,
-                   cxx::Ref_ptr<Gic::Msi_controller> distr,
+                   cxx::Ref_ptr<Gic::Msix_controller> distr,
                    unsigned num_msix_entries)
   : Virtio_proxy<Virtio_proxy_pci>(device, config_sz, nnq_id, ram),
     Virtio_device_pci<Virtio_proxy_pci>(),

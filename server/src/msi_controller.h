@@ -12,12 +12,12 @@
 
 namespace Gic {
 
-struct Msi_controller : virtual Vdev::Dev_ref
+struct Msix_controller : virtual Vdev::Dev_ref
 {
-  virtual ~Msi_controller() = default;
+  virtual ~Msix_controller() = default;
 
-  /// Analyse the MSI message and send it to the specified local APIC.
-  virtual void send(l4_uint64_t msi_addr, l4_uint32_t msi_data) const = 0;
+  /// Analyse the MSI-X message and send it to the specified local APIC.
+  virtual void send(l4_uint64_t msix_addr, l4_uint32_t msix_data) const = 0;
 };
 
 } // namespace Gic
