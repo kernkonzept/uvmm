@@ -143,8 +143,11 @@ public:
   bool has_children() const
   { return fdt_first_subnode(_tree, _node) >= 0; }
 
-  char const *get_name(int *length = nullptr) const
-  { return fdt_get_name(_tree, _node, length); }
+  char const *get_name() const
+  {
+    char const *name = fdt_get_name(_tree, _node, nullptr);
+    return name ? name : "<unknown name>";
+  }
 
   int get_cells_attrib(char const *name) const
   {
