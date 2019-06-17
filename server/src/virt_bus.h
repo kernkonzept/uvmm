@@ -99,7 +99,7 @@ private:
 
       if (_max_available > Num_msis)
         Dbg().printf("Msi_bitmap: ICU supported number of MSIs is greater than "
-                     "the number the allocator supports.");
+                     "the number the allocator supports.\n");
     }
 
     long alloc()
