@@ -22,13 +22,13 @@ Factory::find_factory(Dt_node const &node)
     {
       int cid_len;
       char const *cid = node.stringlist_get(comp, i, &cid_len);
-      if (cid)
-        {
-          auto const *factory = Device_type::find(cid, cid_len,
-                                                  l4type, l4type_len);
-          if (factory)
-            return factory->f;
-        }
+      if (!cid)
+        continue;
+
+      auto const *factory = Device_type::find(cid, cid_len,
+                                              l4type, l4type_len);
+      if (factory)
+        return factory->f;
     }
   return nullptr;
 }
