@@ -76,7 +76,8 @@ public:
     _host_irq(this), _ack_pending(false)
   {
     info.printf("New Virtio_proxy_mapper size 0x%zx\n", cfg_size);
-    assert(strlen(service) < sizeof(_service_name));
+    if (strlen(service) >= sizeof(_service_name))
+      L4Re::chksys(-L4_EINVAL, "Virtio device proxy service name is valid");
     strcpy(_service_name, service);
   }
 
