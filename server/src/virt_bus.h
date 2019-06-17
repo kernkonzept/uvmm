@@ -108,7 +108,7 @@ private:
 
       long num = _m.scan_zero();
 
-      if (num <= -1 || num >= _max_available)
+      if (num < 0 || (unsigned)num >= _max_available)
         return -L4_ENOMEM;
 
       _m[num] = 1;
