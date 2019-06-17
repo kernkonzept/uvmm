@@ -121,6 +121,14 @@ struct Device : public virtual Dev_ref
 inline Device::~Device() = default;
 
 /**
+ * Base class for devices that require an extended initialisation.
+ */
+struct Device_bootable : public Device
+{
+  virtual void boot_device(Device_lookup *devs, Device_tree dt, char const *path) = 0;
+};
+
+/**
  * Interface with functions for finding device objects.
  */
 struct Device_lookup

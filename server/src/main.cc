@@ -192,6 +192,9 @@ static int run(int argc, char *argv[])
 
   setup_ramdisk(ram_disk, dt, &ram_free_list, ram);
 
+  if (dt.valid())
+    vm_instance.boot_devices(dt.get());
+
   // finally copy in the device tree
   l4_addr_t dt_boot_addr = 0;
   if (dt.valid())
