@@ -33,7 +33,7 @@ Dbg trace(Dbg::Dev, Dbg::Warn, "optee");
  *     firmware {
  *       optee {
  *         compatible = "linaro,optee-tz";
- *         method = "smccc";
+ *         method = "smc";
  *         l4vmm,cap = "smccc";
  *         l4vmm,dscap = "vbus";
  *         interrupts = <0 140 4>;
