@@ -100,7 +100,7 @@ public:
       }
 
     // check for correct API version
-    ret = fast_call(0xbf00ff03, p);
+    ret = fast_call(Smc_call_trusted_os_revision, p);
 
     if (ret < 0 || p[0] != Optee_api_major || p[1] != Optee_api_minor)
       {
@@ -110,7 +110,7 @@ public:
       }
 
     // check if OP-TEE exports memory
-    ret = fast_call(0xb2000009, p);
+    ret = fast_call(Optee_call_exchange_caps, p);
 
     if (ret < 0 || p[0] != 0 || !(p[1] & 1))
       {
@@ -119,7 +119,7 @@ public:
       }
 
     // get the memory area
-    ret = fast_call(0xb2000007, p);
+    ret = fast_call(Optee_call_get_shm_config, p);
 
     if (ret < 0 || p[0] != 0)
       {
