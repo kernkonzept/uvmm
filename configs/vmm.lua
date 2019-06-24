@@ -122,6 +122,12 @@ function start_vm(options)
     end
   end
 
+  if options.ext_caps then
+    for k, v in pairs(options.ext_caps) do
+      caps[k] = v
+    end
+  end
+
   local opts = {
     log  = options.log or l.log_fab:create(L4.Proto.Log, "vm" .. nr, "w",
                                            keyb_shortcut);
