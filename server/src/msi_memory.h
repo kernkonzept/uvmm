@@ -99,6 +99,9 @@ public:
     _local_apics(apics),
     _msi_irqs(max_num)
   {
+    // This class assumes the table is at the beginning of the page;
+    assert(tbl % L4_PAGESIZE == 0);
+
     unsigned icu_nr_msis = msi_alloc->max_msis();
     if (max_num >= icu_nr_msis)
       {
