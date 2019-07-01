@@ -196,8 +196,20 @@ struct F : Vdev::Factory
             L4Re::chkcap(devs->vmm()->registry()->register_irq_obj(irq_svr.get()),
                 "Register IRQ handling server.");
 
-            L4Re::chksys(icu->bind(0, irq_svr->obj_cap()),
-                "Bind to IRQ to OP-TEE service.");
+            int ret = L4Re::chksys(icu->bind(0, irq_svr->obj_cap()),
+                                   "Bind to IRQ to OP-TEE service.");
+
+            switch (ret)
+              {
+              case 0:
+                irq_svr->set_eoi(irq_svr->obj_cap());
+                break;
+              case 1:
+                irq_svr->set_eoi(icu);
+                break;
+              default:
+                L4Re::chksys(-L4_EINVAL, "Invalid return from bind IRQ.");
+              }
 
             int dt_irq = it.irq();
             irq_svr->set_sink(it.ic().get(), dt_irq);
