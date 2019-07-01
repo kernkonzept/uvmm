@@ -39,7 +39,7 @@ asm
  "  msr    TPIDR_EL0, x8            \n"
  "  lsr    x9, x9, #23              \n"
  "  bic    x9, x9, #7               \n"
- "  adr    x10, vcpu_entries        \n"
+ "  ldr    x10, =vcpu_entries       \n"
  "  add    x10, x10, x9             \n"
  "  ldr    x11, [x10]               \n"
  "  blr    x11                      \n"
