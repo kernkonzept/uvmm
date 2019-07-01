@@ -330,7 +330,7 @@ public:
       b = 1; // Default to an IO-space BAR.
 
     memset(&_hdr, 0, sizeof(_hdr));
-    _last_cap_ptr_idx = 0x34; // cap_ptr offset in byte;
+    _last_caps_next_ptr = &get_header<Pci_header::Type0>()->cap_ptr;
     _next_free_idx = 0x40; // first byte after the PCI header;
   }
 
@@ -414,12 +414,9 @@ public:
     l4_uint8_t nxt = get_header<Pci_header::Type0>()->cap_ptr;
     while (nxt != 0)
       {
-        l4_uint64_t *cap_addr = &_hdr.qword[nxt / 8];
-        assert(reinterpret_cast<l4_uint64_t>(cap_addr) % 8 == 0);
-
-        auto *pci_cap = reinterpret_cast<CAP *>(cap_addr);
-
+        auto *pci_cap = reinterpret_cast<CAP *>(&_hdr.byte[nxt]);
         auto *c = CAP::template cast_type<CAP>(pci_cap);
+
         if (c)
           return c;
 
@@ -435,12 +432,36 @@ public:
    * \tparam T  Type of the capability to create. The type must have a Cap_id
    *            member defining the PCI capability ID.
    *
+   * Allocate a new PCI capability in the PCI header config space and enqueue
+   * it in the cap list.
+   *
    * \return  Pointer to the new typed capability.
    */
   template <typename T>
   T *create_pci_cap()
   {
-    T* ret = allocate_pci_cap<T>();
+    // _next_free_idx: next location for a capability
+    assert(_next_free_idx < sizeof(_hdr));
+    assert(_last_caps_next_ptr < (l4_uint8_t *)(&_hdr + 1));
+
+    l4_uint8_t cap_offset = align_min_dword<T>(_next_free_idx);
+
+    // guard against wrap around of uint8
+    assert(cap_offset >= 0x40);
+    assert((unsigned)cap_offset + sizeof(T) < 0x100);
+
+    T *ret = new (&_hdr.byte[cap_offset]) T();
+    info().printf("cap offset 0x%x, cap size 0x%zx\n", cap_offset, sizeof(*ret));
+
+    *_last_caps_next_ptr = cap_offset;
+    _last_caps_next_ptr = &ret->cap_next;
+
+    _next_free_idx = cap_offset + sizeof(*ret);
+
+    info().printf("indexes: cap's next ptr %p, next free byte 0x%x\n",
+                  &_last_caps_next_ptr, _next_free_idx);
+
+    ret->cap_next = 0;
     assert(ret->cap_type == T::Cap_id);
     return ret;
   }
@@ -450,7 +471,7 @@ private:
   /// Index into _hdr.byte array
   l4_uint8_t _next_free_idx;
   /// Index into _hdr.byte array
-  l4_uint8_t _last_cap_ptr_idx;
+  l4_uint8_t *_last_caps_next_ptr;
   l4_uint32_t _bar_size[Bar_num_max_type0];
 
   template <typename TYPE>
@@ -493,37 +514,6 @@ private:
     return ret;
   }
 
-  /**
-   * Allocate a new PCI capability in the PCI header config space and enqueue
-   * it in the cap list.
-   *
-   * \tparam CAP  Capability type to allocate.
-   */
-  template <typename CAP>
-  CAP *allocate_pci_cap()
-  {
-    // _next_free_idx: next 4-byte-aligned location for a capability
-    // _last_cap_ptr_idx: also called 'last cap's next_ptr'
-    assert(_next_free_idx < sizeof(_hdr));
-    assert(_last_cap_ptr_idx < sizeof(_hdr));
-
-    CAP *ret = new (&(_hdr.qword[_next_free_idx / 8])) CAP();
-
-    l4_uint8_t cap_offset = _next_free_idx;
-    info().printf("cap offset 0x%x, cap size 0x%zx\n", cap_offset, sizeof(*ret));
-
-    _hdr.byte[_last_cap_ptr_idx] = _next_free_idx;
-    _last_cap_ptr_idx =  cap_offset + 1; // next ptr is at 2nd byte into cap
-
-    _next_free_idx = l4_round_size(cap_offset + sizeof(*ret), 3);
-
-    info().printf("indexes: last 0x%x, next 0x%x\n", _last_cap_ptr_idx,
-                 _next_free_idx);
-
-    ret->cap_next = 0;
-    return ret;
-  }
-
 protected:
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI dev"); }
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI dev"); }
@@ -547,6 +537,14 @@ protected:
     for (unsigned i = 0; i < Pci_header_size; i += 4)
       trace().printf("0x%x:: 0x%x 0x%x \t 0x%x 0x%x\n", i, _hdr.byte[i],
                      _hdr.byte[i + 1], _hdr.byte[i + 2], _hdr.byte[i + 3]);
+  }
+
+  /// Align cap address at least to DWORD or to `CAP` requirement.
+  template <typename CAP>
+  l4_uint8_t align_min_dword(l4_uint8_t addr)
+  {
+    l4_uint8_t align = alignof(CAP) < 4 ? 4 : alignof(CAP);
+    return (addr + align - 1) & ~(align - 1);
   }
 
   /**
