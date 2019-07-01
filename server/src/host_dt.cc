@@ -30,14 +30,14 @@ namespace {
       int fd = open(name, O_RDWR);
       if (fd < 0)
         {
-          warn.printf("Unable to open file '%s': %s", name, strerror(errno));
+          warn.printf("Unable to open file '%s': %s\n", name, strerror(errno));
           return;
         }
 
       struct stat buf;
       if (fstat(fd, &buf) < 0)
         {
-          warn.printf("Unable to get size of file '%s': %s", name,
+          warn.printf("Unable to get size of file '%s': %s\n", name,
                        strerror(errno));
           close(fd);
           return;
@@ -46,7 +46,7 @@ namespace {
 
       _addr = mmap(&_addr, _size, PROT_WRITE | PROT_READ, MAP_PRIVATE, fd, 0);
       if (_addr == MAP_FAILED)
-        warn.printf("Unable to mmap file '%s': %s", name, strerror(errno));
+        warn.printf("Unable to mmap file '%s': %s\n", name, strerror(errno));
 
       close(fd);
     }
@@ -58,7 +58,7 @@ namespace {
       if (_addr != MAP_FAILED)
         {
           if (munmap(_addr, _size) < 0)
-            warn.printf("Unable to unmap file at addr %p: %s",
+            warn.printf("Unable to unmap file at addr %p: %s\n",
                         _addr, strerror(errno));
         }
     }

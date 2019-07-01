@@ -258,7 +258,7 @@ private:
     // VMM Failure is not an option, as this is called during guest runtime.
     // What would be the graceful case?
     if (label > 0)
-      warn().printf("ICU bind returned %li. Unexpected unmaks via vBus ICU "
+      warn().printf("ICU bind returned %li. Unexpected unmask via vBus ICU "
                     "necessary.\n", label);
 
     // get MSI info

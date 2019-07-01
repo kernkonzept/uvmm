@@ -353,25 +353,25 @@ private:
     unsigned val = 0;
     if (_io_hb.cfg_read(0, devfn, Pci_hdr_status_offset, &val, 16))
       {
-        dbg().printf("Failed to read Pci_hdr_status_offset.");
+        dbg().printf("Failed to read Pci_hdr_status_offset.\n");
         return 0;
       }
 
     if (!(val & Pci_header_status_capability_bit))
       {
-        dbg().printf("Pci_hdr_status_capability_bit is not set.");
+        dbg().printf("Pci_hdr_status_capability_bit is not set.\n");
         return 0;
       }
 
     if (_io_hb.cfg_read(0, devfn, Pci_hdr_capability_offset, &val, 8))
       {
-        dbg().printf("Failed to read Pci_hdr_status_offset.");
+        dbg().printf("Failed to read Pci_hdr_status_offset.\n");
         return 0;
       }
 
     if (val == 0)
       {
-        dbg().printf("Capability pointer is zero.");
+        dbg().printf("Capability pointer is zero.\n");
         return 0;
       }
 
