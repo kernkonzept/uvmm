@@ -75,8 +75,8 @@ public:
   void virtio_device_config_written(unsigned reg);
 
 private:
-  void virtio_input_cfg_written(Virtio_input_config *dev_cfg);
-  void set_bit(Virtio_input_config *dev_cfg, unsigned bit)
+  void virtio_input_cfg_written(l4virtio_input_config_t *dev_cfg);
+  void set_bit(l4virtio_input_config_t *dev_cfg, unsigned bit)
   {
     size_t elem_size = sizeof(dev_cfg->u.bitmap[0]) * 8;
     dev_cfg->u.bitmap[bit / elem_size] |= (1 << bit % elem_size);
@@ -98,29 +98,29 @@ private:
 };
 
 void
-Virtio_input_power_mmio::virtio_input_cfg_written(Virtio_input_config *dev_cfg)
+Virtio_input_power_mmio::virtio_input_cfg_written(l4virtio_input_config_t *dev_cfg)
 {
   switch(dev_cfg->select)
   {
-    case VIRTIO_INPUT_CFG_ID_NAME:
+    case L4VIRTIO_INPUT_CFG_ID_NAME:
       {
         char const *name = "Uvmm-power-notification";
         strncpy(dev_cfg->u.string, name, sizeof(dev_cfg->u.string));
         dev_cfg->size = std::min(strlen(name) + 1, sizeof(dev_cfg->u.string));
       }
       break;
-    case VIRTIO_INPUT_CFG_ID_SERIAL:
+    case L4VIRTIO_INPUT_CFG_ID_SERIAL:
       {
         char const *id = "0815";
         strncpy(dev_cfg->u.string, id, sizeof(dev_cfg->u.string));
         dev_cfg->size = std::min(strlen(id) + 1, sizeof(dev_cfg->u.string));
       }
       break;
-    case VIRTIO_INPUT_CFG_ID_DEVIDS:
+    case L4VIRTIO_INPUT_CFG_ID_DEVIDS:
       dev_cfg->u.ids = { 1, 1, 1, 1 };
-      dev_cfg->size = sizeof(Virtio_input_devids);
+      dev_cfg->size = sizeof(l4virtio_input_devids_t);
       break;
-    case VIRTIO_INPUT_CFG_EV_BITS:
+    case L4VIRTIO_INPUT_CFG_EV_BITS:
       memset(dev_cfg->u.bitmap, 0, sizeof(dev_cfg->u.bitmap));
       dev_cfg->size = 0;
       if (dev_cfg->subsel == L4RE_EV_KEY)
@@ -174,7 +174,7 @@ Virtio_input_power_mmio::virtio_input_cfg_written(Virtio_input_config *dev_cfg)
 void
 Virtio_input_power_mmio::virtio_device_config_written(unsigned reg)
 {
-  Virtio_input_config *dev_cfg = virtio_device_config<Virtio_input_config>();
+  auto *dev_cfg = virtio_device_config<l4virtio_input_config_t>();
 
   switch(reg)
   {

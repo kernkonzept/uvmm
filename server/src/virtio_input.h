@@ -16,12 +16,13 @@
  */
 #pragma once
 
+#include <l4/re/error_helper>
+#include <l4/re/event_enums.h>
+#include <l4/l4virtio/virtio_input.h>
+
 #include "debug.h"
 #include "virtio_dev.h"
 #include "virtio_event_connector.h"
-
-#include <l4/re/error_helper>
-#include <l4/re/event_enums.h>
 
 namespace Vdev {
 
@@ -59,45 +60,6 @@ protected:
   Virtio::Virtqueue _vqs[Input_queue_num];
 
 public:
-  // Based on BSD licenced include/uapi/linux/virtio_input.h
-  enum Virtio_input_config_select {
-    VIRTIO_INPUT_CFG_UNSET      = 0x00,
-    VIRTIO_INPUT_CFG_ID_NAME    = 0x01,
-    VIRTIO_INPUT_CFG_ID_SERIAL  = 0x02,
-    VIRTIO_INPUT_CFG_ID_DEVIDS  = 0x03,
-    VIRTIO_INPUT_CFG_PROP_BITS  = 0x10,
-    VIRTIO_INPUT_CFG_EV_BITS    = 0x11,
-    VIRTIO_INPUT_CFG_ABS_INFO   = 0x12,
-  };
-
-  struct Virtio_input_devids {
-    l4_uint16_t bustype;
-    l4_uint16_t vendor;
-    l4_uint16_t product;
-    l4_uint16_t version;
-  };
-
-  struct Virtio_input_absinfo {
-    l4_uint32_t min;
-    l4_uint32_t max;
-    l4_uint32_t fuzz;
-    l4_uint32_t flat;
-    l4_uint32_t res;
-  };
-
-  struct Virtio_input_config {
-    l4_uint8_t    select;
-    l4_uint8_t    subsel;
-    l4_uint8_t    size;
-    l4_uint8_t    reserved[5];
-    union {
-      char string[128];
-      l4_uint8_t bitmap[128];
-      struct Virtio_input_devids ids;
-      struct Virtio_input_absinfo;
-    } u;
-  };
-
   Virtio_input(Vmm::Vm_ram *iommu)
   : Virtio::Dev(iommu, 0x44, L4VIRTIO_ID_INPUT)
   {
