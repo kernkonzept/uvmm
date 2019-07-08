@@ -24,8 +24,10 @@
 
 #include "debug.h"
 #include "uvmm_cli.h"
+#include "vm.h"
 #include "monitor/monitor.h"
 #include "monitor/monitor_args.h"
+#include "monitor/dbg_enable_cmd_handler.h"
 
 namespace {
 
@@ -501,15 +503,23 @@ void
 Cmd::register_toplevel(char const *name)
 { Cmd_control::get()->add_cmd_handler(this, name); }
 
-Cmd::~Cmd()
+void
+Cmd::unregister_toplevel()
 { Cmd_control::get()->remove_cmd_handler(this); }
 
+Cmd::~Cmd()
+{ unregister_toplevel(); }
+
 void
-enable_cmd_control(L4::Registry_iface *registry)
+enable_cmd_control(Vmm::Vm *vm)
 {
   static Cmd_control::Help help;
   static Cmd_control::Verbose verbose;
-  Cmd_control::get()->bind(registry);
+
+  static Dbg_enable_cmd_handler<Guest_debugger_support>
+  dbg_enable_cmd_handler(vm);
+
+  Cmd_control::get()->bind(vm->vmm()->registry());
 }
 
 bool

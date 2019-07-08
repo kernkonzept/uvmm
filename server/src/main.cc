@@ -176,7 +176,7 @@ static int run(int argc, char *argv[])
 
   warn.printf("Hello out there.\n");
 
-  Monitor::enable_cmd_control(vmm->registry());
+  Monitor::enable_cmd_control(&vm_instance);
 
   Vmm::Ram_free_list ram_free_list
     = ram->setup_from_device_tree(dt, vmm->memmap(), Vmm::Guest_addr(rambase));

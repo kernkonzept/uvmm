@@ -12,15 +12,26 @@
 
 #include "monitor/monitor_args.h"
 
+namespace Vmm {
+  class Vm;
+}
+
 namespace Monitor {
 
 /// Monitor console state indicator
 enum : bool {
   /// `True` if monitor console support has been enabled during compilation
 #ifdef CONFIG_MONITOR
-  Enabled = true
+  Enabled = true,
 #else
-  Enabled = false
+  Enabled = false,
+#endif
+
+  /// `True` if guest debugger support has been enabled during compilation
+#ifdef GUEST_DEBUGGER_SUPPORT
+  Guest_debugger_support = true
+#else
+  Guest_debugger_support = false
 #endif
 };
 
@@ -97,25 +108,29 @@ public:
   void register_toplevel(char const *name);
 
   /**
+   * Unregister command.
+   *
+   * Note that this is automatically called during destruction.
+   */
+  void unregister_toplevel();
+
+  /**
    * Destructor.
    *
    * Upon destruction of this object, the handler will be automatically
    * unregistered from the monitor console interface.
    */
   virtual ~Cmd();
-
-protected:
-  Cmd() = default;
 };
 
 #ifdef CONFIG_MONITOR
 /**
  * Enable the monitor console.
  *
- * \param registry  Object registry with which to register the monitor console
- *                  capability through which the monitor console interface can
- *                  be accessed. This capability is always registered under the
- *                  name `"mon"`.
+ * \param vm  Pointer to virtual machine object.
+ *
+ * This will make the monitor console interface available to other servers via
+ * a capability registered under the name `"mon"`.
  *
  * Note that this function will have no effect if monitor console support has
  * not been enabled during compilation, i.e. if `Enabled` is `false`. This
@@ -123,7 +138,7 @@ protected:
  * the availability of the monitor console only depends on the presence of the
  * `"mon"` capability.
  */
-void enable_cmd_control(L4::Registry_iface *registry);
+void enable_cmd_control(Vmm::Vm *vm);
 
 /**
  * Check if the monitor console has been enabled.
