@@ -9,14 +9,16 @@
 #pragma once
 
 #include <l4/re/util/debug>
+#include <l4/sys/err.h>
 
 struct Err : L4Re::Util::Err
 {
   Err(Level l = Fatal) : L4Re::Util::Err(l, "VMM") {}
 };
 
-struct Dbg : L4Re::Util::Dbg
+class Dbg : public L4Re::Util::Dbg
 {
+public:
   /// Verbosity level per component.
   enum Verbosity : unsigned long
   {
@@ -79,9 +81,44 @@ struct Dbg : L4Re::Util::Dbg
   : L4Re::Util::Dbg(v << (Verbosity_shift * c), "VMM", subsys)
   {}
 
+  /**
+   * Set debug level according to a verbosity string.
+   *
+   * The string may either set a global verbosity level:
+   *   quiet, warn, info, trace
+   *
+   * Or it may set the verbosity level for a component:
+   *
+   *   <component>=<level>
+   *
+   * where component is one of: guest, core, cpu, mmio, irq, dev
+   * and level the same as above.
+   *
+   * To change the verbosity of multiple components repeat
+   * the verbosity switch.
+   *
+   * \retval L4_EOK      operation succeeded
+   * \retval -L4_EINVAL  invalid verbosity string
+   *
+   * Example:
+   *
+   *  uvmm -D info -D irq=trace
+   *
+   *    Sets verbosity for all components to info except for
+   *    IRQ handling which is set to trace.
+   *
+   *  uvmm -D trace -D dev=warn -D mmio=warn
+   *
+   *    Enables tracing for all components except devices
+   *    and mmio.
+   *
+   */
+  static int set_verbosity(char const *str);
+
 #else
   static void set_verbosity(unsigned, unsigned) {}
   static void set_verbosity(unsigned) {}
+  static int set_verbosity(char const *) { return -L4_EINVAL; }
 
   Dbg(Component c = Core, Verbosity v = Warn, char const *subsys = "")
   {

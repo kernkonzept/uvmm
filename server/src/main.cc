@@ -38,90 +38,6 @@ static Vmm::Vm vm_instance;
 static Dbg info(Dbg::Core, Dbg::Info, "main");
 static Dbg warn(Dbg::Core, Dbg::Warn, "main");
 
-static int
-verbosity_mask_from_string(char const *str, unsigned *mask)
-{
-  if (strcmp("quiet", str) == 0)
-    {
-      *mask = Dbg::Quiet;
-      return 0;
-    }
-  if (strcmp("warn", str) == 0)
-    {
-      *mask = Dbg::Warn;
-      return 0;
-    }
-  if (strcmp("info", str) == 0)
-    {
-      *mask = Dbg::Warn | Dbg::Info;
-      return 0;
-    }
-  if (strcmp("trace", str) == 0)
-    {
-      *mask = Dbg::Warn | Dbg::Info | Dbg::Trace;
-      return 0;
-    }
-
-  return -L4_ENOENT;
-}
-
-/**
- * Set debug level according to a verbosity string.
- *
- * The string may either set a global verbosity level:
- *   quiet, warn, info, trace
- *
- * Or it may set the verbosity level for a component:
- *
- *   <component>=<level>
- *
- * where component is one of: guest, core, cpu, mmio, irq, dev
- * and level the same as above.
- *
- * To change the verbosity of multiple components repeat
- * the verbosity switch.
- *
- * Example:
- *
- *  uvmm -D info -D irq=trace
- *
- *    Sets verbosity for all components to info except for
- *    IRQ handling which is set to trace.
- *
- *  uvmm -D trace -D dev=warn -D mmio=warn
- *
- *    Enables tracing for all components except devices
- *    and mmio.
- *
- */
-static void
-set_verbosity(char const *str)
-{
-  unsigned mask;
-  if (verbosity_mask_from_string(str, &mask) == 0)
-    {
-      Dbg::set_verbosity(mask);
-      return;
-    }
-
-  static char const *const components[] =
-    { "guest", "core", "cpu", "mmio", "irq", "dev", "pm", "vbus_event" };
-
-  static_assert(std::extent<decltype(components)>::value == Dbg::Max_component,
-                "Component names must match 'enum Component'.");
-
-  for (unsigned i = 0; i < Dbg::Max_component; ++i)
-    {
-      auto len = strlen(components[i]);
-      if (strncmp(components[i], str, len) == 0 && str[len] == '='
-          && verbosity_mask_from_string(str + len + 1, &mask) == 0)
-        {
-          Dbg::set_verbosity(i, mask);
-          return;
-        }
-    }
-}
-
 /**
  * Verify the CPU setup from the device tree.
  *
@@ -242,7 +158,8 @@ static int run(int argc, char *argv[])
           Dbg::set_verbosity(verbosity);
           break;
         case 'D':
-          set_verbosity(optarg);
+          if (Dbg::set_verbosity(optarg) != L4_EOK)
+            warn.printf("Failed to set verbosity\n");
           break;
         case 'W':
           vmm->use_wakeup_inhibitor(true);

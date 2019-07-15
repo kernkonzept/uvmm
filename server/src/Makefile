@@ -22,6 +22,10 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
 SRC_CC-$(CONFIG_MONITOR)   += monitor/monitor.cc
 CXXFLAGS-$(CONFIG_MONITOR) += -DCONFIG_MONITOR
 
+ifneq ($(CONFIG_RELEASE_MODE),y)
+SRC_CC += debug.cc
+endif
+
 SRC_CC-arm   = arm/gic.cc arm/guest_arm.cc arm/cpu_dev_arm.cc
 SRC_CC-arm64 = arm/gic.cc arm/guest_arm.cc arm/cpu_dev_arm.cc
 SRC_CC-mips  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc

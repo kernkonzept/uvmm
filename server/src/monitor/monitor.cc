@@ -57,6 +57,28 @@ public:
     }
   };
 
+  class Verbose : public Monitor::Cmd
+  {
+  public:
+    Verbose()
+    { register_toplevel("verbose"); }
+
+    char const *help() const override
+    { return "Increase/Decrease verbosity"; }
+
+    void exec(FILE *f, char const *args) override
+    {
+      if (strlen(args) == 0 || Dbg::set_verbosity(args) != L4_EOK)
+        {
+          fprintf(f, "Use either:\n"
+                     "* 'verbose <level>\n"
+                     "* 'verbose <component>=<level>\n"
+                     "where: <level> = (quiet|warn|info|trace)\n"
+                     "and:   <component> = (guest|core|cpu|mmio|irq|dev)\n");
+        }
+    }
+  };
+
   static Cmd_control *get()
   {
     static Cmd_control mon("mon", "monitor> ");
@@ -295,6 +317,7 @@ void
 enable_cmd_control(L4::Registry_iface *registry)
 {
   static Cmd_control::Help help;
+  static Cmd_control::Verbose verbose;
   Cmd_control::get()->bind(registry);
 }
 
