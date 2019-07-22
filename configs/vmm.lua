@@ -114,7 +114,7 @@ function start_vm(options)
     mon = l:new_channel()
 
     l:start({
-      log = l.log_fab:create(L4.Proto.Log, "mon"),
+      log = l.log_fab:create(L4.Proto.Log, "mon" .. nr),
       caps = { mon = mon:svr() }
     }, "rom/" .. options.mon)
 
