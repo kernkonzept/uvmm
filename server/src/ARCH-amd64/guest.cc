@@ -544,7 +544,6 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
     {
       auto cpu = cpus->cpu(id);
       cpu->powerup_cpu();
-      cpu->startup();
 
       Vcpu_ptr vcpu = cpu->vcpu();
       vcpu->user_task = _task.cap();
@@ -559,6 +558,9 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
   register_msr_device(Vdev::make_device<Vcpu_msr_handler>(cpus.get()));
   register_msr_device(
     Vdev::make_device<Vdev::Microcode_revision>(cpus->vcpu(0)));
+
+  // Additional vCPUs are initialized to run startup on the first reschedule.
+  cpus->cpu(0)->startup();
 
   Dbg(Dbg::Guest, Dbg::Info).printf("Starting VMM @ 0x%lx\n", cpus->vcpu(0)->r.ip);
 
