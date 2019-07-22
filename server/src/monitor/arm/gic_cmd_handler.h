@@ -16,13 +16,13 @@
 namespace Monitor {
 
 template<bool, typename T>
-class Arm_gic_cmd_handler {};
+class Gic_cmd_handler {};
 
 template<typename T>
-class Arm_gic_cmd_handler<true, T> : public Cmd
+class Gic_cmd_handler<true, T> : public Cmd
 {
 public:
-  Arm_gic_cmd_handler()
+  Gic_cmd_handler()
   { register_toplevel("gic"); }
 
   char const *help() const override { return "GIC distributor"; }

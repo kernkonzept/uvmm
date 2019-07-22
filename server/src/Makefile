@@ -66,6 +66,10 @@ PRIVATE_INCDIR-arm64 += $(SRC_DIR)/arm $(SRC_DIR)/device/arm
 PRIVATE_INCDIR += $(PRIVATE_INCDIR-$(ARCH))
 PRIVATE_INCDIR += $(SRC_DIR)/../../tools/uvmm_cli $(SRC_DIR)/monitor
 
+PRIVATE_INCDIR       += $(SRC_DIR)/monitor/ARCH-$(ARCH)
+PRIVATE_INCDIR-arm   += $(SRC_DIR)/monitor/arm
+PRIVATE_INCDIR-arm64 += $(SRC_DIR)/monitor/arm
+
 include $(L4DIR)/mk/prog.mk
 
 ifeq ($(ARCH),arm)

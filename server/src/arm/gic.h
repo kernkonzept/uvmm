@@ -18,7 +18,7 @@
 #include <cstdio>
 
 #include "debug.h"
-#include "arm_gic_cmd_handler.h"
+#include "gic_cmd_handler.h"
 #include "mmio_device.h"
 #include "irq.h"
 
@@ -32,7 +32,7 @@ private:
   struct Pending
   {
     template<bool T, typename V>
-    friend class Monitor::Arm_gic_cmd_handler;
+    friend class Monitor::Gic_cmd_handler;
 
   private:
     // collects bits used to implement various distributor registers
@@ -126,7 +126,7 @@ public:
   class Const_irq
   {
     template<bool T, typename V>
-    friend class Monitor::Arm_gic_cmd_handler;
+    friend class Monitor::Gic_cmd_handler;
 
   public:
     l4_uint32_t state() const { return _p->state(); }
@@ -493,7 +493,7 @@ Irq_array::Pending::target(unsigned char tgt)
 class Cpu
 {
   template<bool T, typename V>
-  friend class Monitor::Arm_gic_cmd_handler;
+  friend class Monitor::Gic_cmd_handler;
 
 public:
   enum { Num_local = 32 };
@@ -829,9 +829,9 @@ Cpu::handle_maintenance_irq(unsigned /*current_cpu*/)
 class Dist
 : public Vmm::Mmio_device_t<Dist>,
   public Ic,
-  public Monitor::Arm_gic_cmd_handler<Monitor::Enabled, Dist>
+  public Monitor::Gic_cmd_handler<Monitor::Enabled, Dist>
 {
-  friend Arm_gic_cmd_handler<Monitor::Enabled, Dist>;
+  friend Gic_cmd_handler<Monitor::Enabled, Dist>;
 
 private:
   Dbg gicd_trace;

@@ -83,7 +83,6 @@ public:
   static unsigned dtid_to_cpuid(l4_int32_t prop_val)
   { return prop_val; }
 
-  void show_state_registers(FILE *f);
   unsigned core_other() const
   { return _core_other; }
 

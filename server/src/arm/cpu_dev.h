@@ -42,8 +42,6 @@ public:
 
   Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *);
 
-  void show_state_registers(FILE *f);
-
   bool
   start_vcpu()
   {

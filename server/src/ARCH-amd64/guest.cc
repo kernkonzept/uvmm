@@ -603,8 +603,6 @@ Guest::run_vmx(cxx::Ref_ptr<Cpu_dev> const &cpu_dev)
             {
               trace().printf("Failure in VMM %i\n", ret);
               vm->dump_state();
-              // TODO how can I pass the trace() file?
-              cpu_dev->show_state_registers(stderr);
               halt_vm();
             }
           else if (ret == Jump_instr)
