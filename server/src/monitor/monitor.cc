@@ -7,6 +7,7 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 #include <cassert>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -65,6 +66,71 @@ public:
 
     char const *help() const override
     { return "Display/Adjust verbosity"; }
+
+    void complete(FILE *f, char const *args) const override
+    {
+      char const *eq = strchr(args, '=');
+      char const *args_verbosity;
+
+      if (eq)
+        {
+          bool component_valid = false;
+
+          size_t component_len = eq - args;
+
+          // ignore whitespace in front of equals sign
+          while (component_len > 0 && args[component_len - 1] == ' ')
+            --component_len;
+
+          char const *const *component = Dbg::valid_components();
+          while (*component)
+            {
+              if (strlen(*component) == component_len
+                  && strncmp(args, *component, component_len) == 0)
+                {
+                  component_valid = true;
+                  break;
+                }
+
+              ++component;
+            }
+
+          if (!component_valid)
+            return;
+
+          args_verbosity = eq + 1;
+
+          // ignore whitespace after equals sign
+          while (*args_verbosity == ' ')
+            ++args_verbosity;
+        }
+      else
+        {
+          auto args_len = strlen(args);
+
+          char const *const *component = Dbg::valid_components();
+          while (*component)
+            {
+              if (strncmp(args, *component, args_len) == 0)
+                fprintf(f, "%s\n", *component);
+
+              ++component;
+            }
+
+          args_verbosity = args;
+        }
+
+      auto args_verbosity_len = strlen(args_verbosity);
+
+      char const *const *verbosity_level = Dbg::valid_verbosity_levels();
+      while (*verbosity_level)
+        {
+          if (strncmp(args_verbosity, *verbosity_level, args_verbosity_len) == 0)
+            fprintf(f, "%s\n", *verbosity_level);
+
+          ++verbosity_level;
+        }
+    }
 
     void exec(FILE *f, char const *args) override
     {

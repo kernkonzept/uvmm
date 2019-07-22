@@ -80,6 +80,22 @@ public:
   static int get_verbosity(char const *c, char const **str);
 
   /**
+   * Obtain an array of valid verbosity levels.
+   *
+   * \return  Pointer to array containing verbosity level strings, terminated by
+   *          a null pointer.
+   */
+  static char const *const *valid_verbosity_levels();
+
+  /**
+   * Obtain an array of valid components for which the verbosity can be set.
+   *
+   * \return  Pointer to array containing component identifier strings,
+   *          terminated by a null pointer.
+   */
+  static char const *const *valid_components();
+
+  /**
    * Set the verbosity for all components to the given levels.
    *
    * \param mask  Mask of verbosity levels.

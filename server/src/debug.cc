@@ -7,6 +7,7 @@
  */
 #include <cstdlib>
 #include <cstring>
+#include <iterator>
 #include <type_traits>
 
 #include <l4/sys/err.h>
@@ -15,25 +16,32 @@
 
 namespace {
 
-struct Debug_level {
+struct Verbosity_level {
   char const *name;
   unsigned mask;
 };
 
-Debug_level const debug_levels[] = {
+Verbosity_level const verbosity_levels[] = {
   { "quiet", Dbg::Quiet },
   { "warn", Dbg::Warn },
   { "info", Dbg::Warn | Dbg::Info },
   { "trace", Dbg::Warn | Dbg::Info | Dbg::Trace }
 };
 
+char const *const verbosity_level_names[] =
+  { "quiet", "warn", "info", "trace", nullptr };
+
+static_assert(std::extent<decltype(verbosity_levels)>::value + 1
+              == std::extent<decltype(verbosity_level_names)>::value,
+              "Verbosity level name size mismatch");
+
 bool verbosity_mask_from_string(char const *str, unsigned *mask)
 {
-  for (auto const &debug_level : debug_levels)
+  for (auto const &verbosity_level : verbosity_levels)
     {
-      if (strcmp(debug_level.name, str) == 0)
+      if (strcmp(verbosity_level.name, str) == 0)
         {
-          *mask = debug_level.mask;
+          *mask = verbosity_level.mask;
           return true;
         }
     }
@@ -43,11 +51,11 @@ bool verbosity_mask_from_string(char const *str, unsigned *mask)
 
 bool verbosity_mask_to_string(unsigned mask, char const **str)
 {
-  for (auto const &debug_level : debug_levels)
+  for (auto const &verbosity_level : verbosity_levels)
     {
-      if (debug_level.mask == mask)
+      if (verbosity_level.mask == mask)
         {
-          *str = debug_level.name;
+          *str = verbosity_level.name;
           return true;
         }
     }
@@ -55,17 +63,19 @@ bool verbosity_mask_to_string(unsigned mask, char const **str)
   return false;
 }
 
-char const *const components[] =
-  { "guest", "core", "cpu", "mmio", "irq", "dev", "pm", "vbus_event" };
+char const *const component_names[] =
+  { "guest", "core", "cpu", "mmio", "irq", "dev", "pm", "vbus_event", nullptr };
+
+static_assert(std::extent<decltype(component_names)>::value
+              == Dbg::Max_component + 1,
+              "Component names must match 'enum Component'.");
 
 bool component_from_string(char const *str, size_t len, unsigned *c)
 {
-  static_assert(std::extent<decltype(components)>::value == Dbg::Max_component,
-                "Component names must match 'enum Component'.");
-
   for (unsigned i = 0; i < Dbg::Max_component; ++i)
     {
-      if (len == strlen(components[i]) && memcmp(components[i], str, len) == 0)
+      if (len == strlen(component_names[i])
+          && memcmp(component_names[i], str, len) == 0)
         {
           *c = i;
           return true;
@@ -76,6 +86,14 @@ bool component_from_string(char const *str, size_t len, unsigned *c)
 }
 
 } // namespace
+
+char const *const *
+Dbg::valid_verbosity_levels()
+{ return verbosity_level_names; }
+
+char const *const *
+Dbg::valid_components()
+{ return component_names; }
 
 int
 Dbg::get_verbosity(unsigned c, char const **str)
@@ -113,9 +131,19 @@ Dbg::set_verbosity(char const *str)
   if (!eq)
     return -L4_EINVAL;
 
+  // ignore whitespace before equals sign
+  char const *str_c_end = eq;
+  while (str_c_end > str && *(str_c_end - 1) == ' ')
+    --str_c_end;
+
+  // ignore whitespace after equals sign
+  char const *str_v = eq + 1;
+  while ((size_t)(str_v - str) < strlen(str) && *str_v == ' ')
+    ++str_v;
+
   unsigned c;
-  if (!component_from_string(str, eq - str, &c) ||
-      !verbosity_mask_from_string(eq + 1, &mask))
+  if (!component_from_string(str, str_c_end - str, &c) ||
+      !verbosity_mask_from_string(str_v, &mask))
     {
       return -L4_EINVAL;
     }
