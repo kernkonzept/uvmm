@@ -321,4 +321,8 @@ enable_cmd_control(L4::Registry_iface *registry)
   Cmd_control::get()->bind(registry);
 }
 
+bool
+cmd_control_enabled()
+{ return Cmd_control::get()->enabled(); }
+
 }

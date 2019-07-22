@@ -17,12 +17,14 @@
 #include "debug.h"
 #include "ds_mmio_mapper.h"
 #include "mem_types.h"
+#include "monitor.h"
 #include "ram_ds.h"
 #include "vm_memmap.h"
 #include "pm.h"
 #include "consts.h"
 
 #include <cstdio>
+#include <cstdlib>
 
 namespace Vmm {
 
@@ -47,6 +49,10 @@ public:
     // further signaling might be required.
     Err().printf("VM entered a fatal state. Halting.\n");
     _pm.free_inhibitors();
+
+    if (!Monitor::cmd_control_enabled())
+      exit(EXIT_FAILURE);
+
     for (;;)
       wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
   }

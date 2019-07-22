@@ -107,15 +107,30 @@ protected:
  * \param registry  Object registry with which to register the monitor console
  *                  capability through which the monitor console interface can
  *                  be accessed. This capability is always registered under the
- *                  name `"mons"`.
+ *                  name `"mon"`.
  *
  * Note that this function will have no effect if monitor console support has
- * not been enabled during compilation, i.e. if `Enabled` is `false`.
+ * not been enabled during compilation, i.e. if `Enabled` is `false`. This
+ * function should be called unconditionally during startup of uvmm such that
+ * the availability of the monitor console only depends on the presence of the
+ * `"mon"` capability.
  */
 void enable_cmd_control(L4::Registry_iface *registry);
+
+/**
+ * Check if the monitor console has been enabled.
+ *
+ * \return  `true` if monitor console support has been enabled during
+ *          compilation, a valid `"mon"` capability has been provided and
+ *          `enable_cmd_control` has been invoked previously.
+ */
+bool cmd_control_enabled();
 #else
 inline void enable_cmd_control(L4::Registry_iface *registry)
 { (void)registry; }
+
+inline bool cmd_control_enabled()
+{ return false; }
 #endif
 
 }
