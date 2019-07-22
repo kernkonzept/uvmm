@@ -8,6 +8,7 @@ include $(PKGDIR)/server/src/Makefile.config
 
 SYSTEMS         = arm-l4f mips-l4f arm64-l4f amd64-l4f
 TARGET          = uvmm
+REQUIRES_LIBS   = libstdc++ libio-vbus libfdt libpthread libvcpu
 SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   cpu_dev_array.cc generic_cpu_dev.cc \
                   ARCH-$(ARCH)/cpu_dev.cc \
@@ -18,10 +19,8 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   mmio_device.cc \
                   pm.cc vbus_event.cc vm_memmap.cc vm_ram.cc vm.cc
 
-ifeq ($(CONFIG_MONITOR),y)
-SRC_CC   += monitor/monitor.cc
-CXXFLAGS += -DCONFIG_MONITOR
-endif
+SRC_CC-$(CONFIG_MONITOR)   += monitor/monitor.cc
+CXXFLAGS-$(CONFIG_MONITOR) += -DCONFIG_MONITOR
 
 SRC_CC-arm   = arm/gic.cc arm/guest_arm.cc arm/cpu_dev_arm.cc
 SRC_CC-arm64 = arm/gic.cc arm/guest_arm.cc arm/cpu_dev_arm.cc
@@ -33,14 +32,14 @@ SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                pci_bus_bridge.cc ARCH-amd64/kvm_clock.cc \
                ARCH-amd64/legacy_pic.cc
 
-SRC_CC-arm-$(CONFIG_VDEV_PSCI) +=  device/arm/psci.cc
-SRC_CC-arm64-$(CONFIG_VDEV_PSCI) +=  device/arm/psci.cc
+SRC_CC-arm-$(CONFIG_VDEV_PSCI)   += device/arm/psci.cc
+SRC_CC-arm64-$(CONFIG_VDEV_PSCI) += device/arm/psci.cc
 
 SRC_CC-$(CONFIG_VDEV_8250) += device/uart_8250.cc
 SRC_CC-$(CONFIG_VDEV_PL011) += device/pl011.cc
-SRC_CC-arm-$(CONFIG_VDEV_OPTEE) += device/optee.cc
+SRC_CC-arm-$(CONFIG_VDEV_OPTEE)   += device/optee.cc
 SRC_CC-arm64-$(CONFIG_VDEV_OPTEE) += device/optee.cc
-SRC_CC-$(CONFIG_VDEV_VIRTIO_POWER) += device/virtio_input_power.cc
+SRC_CC-$(CONFIG_VDEV_VIRTIO_POWER)   += device/virtio_input_power.cc
 SRC_CC-$(CONFIG_VDEV_VIRQ) += device/virq.cc
 SRC_CC-$(CONFIG_VDEV_MMIO_PROXY) += device/mmio_proxy.cc
 SRC_CC-$(CONFIG_VDEV_SYSCTL) += device/sysctl.cc
@@ -57,10 +56,8 @@ SRC_CC        += $(SRC_CC-$(ARCH))
 SRC_CC        += $(SRC_CC-$(ARCH)-y)
 SRC_CC        += $(SRC_CC-y)
 
-REQUIRES_LIBS   = libstdc++ libio-vbus libfdt libpthread libvcpu
-
 PRIVATE_INCDIR  = $(SRC_DIR)/../include $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
-PRIVATE_INCDIR-arm += $(SRC_DIR)/arm  $(SRC_DIR)/device/arm
+PRIVATE_INCDIR-arm   += $(SRC_DIR)/arm $(SRC_DIR)/device/arm
 PRIVATE_INCDIR-arm64 += $(SRC_DIR)/arm $(SRC_DIR)/device/arm
 PRIVATE_INCDIR += $(PRIVATE_INCDIR-$(ARCH))
 PRIVATE_INCDIR += $(SRC_DIR)/../../tools/uvmm_cli $(SRC_DIR)/monitor
