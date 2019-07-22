@@ -46,10 +46,6 @@ SRC_CC-$(CONFIG_VDEV_MMIO_PROXY) += device/mmio_proxy.cc
 SRC_CC-$(CONFIG_VDEV_SYSCTL) += device/sysctl.cc
 SRC_CC-$(CONFIG_VDEV_DEVICE_PROXY) += device/virtio_device_proxy.cc
 
-ifeq ($(CONFIG_VDEV_VIRTIO_POWER),y)
-CXXFLAGS += -DVIRTIO_POWER
-endif
-
 ifeq ($(ARCH),mips)
 SRC_CC        += ARCH-$(ARCH)/guest_entry.cc
 CXXFLAGS_guest_entry.cc = -msoft-float
