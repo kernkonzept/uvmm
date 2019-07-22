@@ -100,3 +100,14 @@ Vdev::Host_dt::add_source(char const *fname)
   memcpy(_dtmem, mem.get(), dt.size());
   get().add_to_size(padding);
 }
+
+void
+Vdev::Host_dt::set_command_line(char const *cmd_line) const
+{
+  if (!valid() || !cmd_line)
+    return;
+
+  // assume /choosen is present at this point
+  auto node = get().path_offset("/chosen");
+  node.setprop_string("bootargs", cmd_line);
+}

@@ -49,6 +49,16 @@ public:
   void add_source(char const *fname);
 
   /**
+   * Set the command line paramter in the device tree.
+   *
+   * \param cmd_line  Command line to pass to the device tree.
+   *
+   * If the device tree is not set up or if the cmd_line is a null pointer,
+   * then the function is a no-op.
+   */
+  void set_command_line(char const *cmd_line) const;
+
+  /**
    * Remove unused entries and pack the device tree.
    *
    * \note Only packing is implemented at the moment.

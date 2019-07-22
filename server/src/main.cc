@@ -122,6 +122,65 @@ set_verbosity(char const *str)
     }
 }
 
+/**
+ * Verify the CPU setup from the device tree.
+ *
+ * The device tree may not have set up any CPU explicitly. Then create a
+ * single CPU setup. If CPUs have been setup, then CPU0 must be among them.
+ */
+static void
+verify_cpu0_setup()
+{
+  if (vm_instance.cpus()->vcpu_exists(0))
+    return;
+
+  // If there is no CPU0 there should be no other CPU.
+  for (auto cpu: *vm_instance.cpus().get())
+    if (cpu)
+      L4Re::chksys(-L4_EINVAL, "Invalid CPU configuration in device tree,"
+                               " missing CPU0");
+
+  // XXX The CPU device is not added to the device repository here. Is this
+  // necessary? The cpu_dev_array still holds a reference to it so it
+  // doesn't simply vanish here ...
+  vm_instance.cpus()->create_vcpu(nullptr);
+}
+
+/**
+ * Set up the ram disk in memory and configure it in the device tree.
+ *
+ * \param ram_disk       Name of the dataspace containing the ram disk.
+ *                       May be nullptr if no ram disk is configured.
+ * \param dt             Device tree to add ram disk information to.
+ * \param ram_free_list  Free list for memory in `ram`.
+ * \param ram            Physical guest ram.
+ */
+static void
+setup_ramdisk(char const *ram_disk, Vdev::Host_dt const &dt,
+              Vmm::Ram_free_list *ram_free_list, Vmm::Vm_ram *ram)
+{
+  if (!ram_disk)
+    return;
+
+  info.printf("Loading ram disk...\n");
+  Vmm::Guest_addr rd_start;
+  l4_size_t rd_size;
+  L4Re::chksys(ram_free_list->load_file_to_back(ram, ram_disk, &rd_start,
+                                                &rd_size),
+               "Copy ram disk into RAM.");
+
+  if (dt.valid() && rd_size > 0)
+    {
+      auto node = dt.get().path_offset("/chosen");
+      node.set_prop_address("linux,initrd-start", rd_start.get());
+      node.set_prop_address("linux,initrd-end",
+          rd_start.get() + rd_size);
+    }
+
+  info.printf("Loaded ramdisk image %s to %lx (size: %08zx)\n",
+      ram_disk, rd_start.get(), rd_size);
+}
+
 static int run(int argc, char *argv[])
 {
   unsigned long verbosity = Dbg::Warn;
@@ -204,54 +263,14 @@ static int run(int argc, char *argv[])
   info.printf("Loading kernel...\n");
   l4_addr_t entry = vmm->load_linux_kernel(ram, kernel_image, &ram_free_list);
 
+  dt.set_command_line(cmd_line);
+
   if (dt.valid())
-    {
-      // assume /choosen and /memory is present at this point
+    vm_instance.scan_device_tree(dt.get());
 
-      if (cmd_line)
-        {
-          auto node = dt.get().path_offset("/chosen");
-          node.setprop_string("bootargs", cmd_line);
-        }
+  verify_cpu0_setup();
 
-      vm_instance.scan_device_tree(dt.get());
-    }
-
-  if (!vm_instance.cpus()->vcpu_exists(0))
-    {
-      // Verify cpu setup - if there is no CPU0 there should be no other CPU
-      auto cpus = vm_instance.cpus().get();
-      for (auto cpu: *cpus)
-        if (cpu)
-          L4Re::chksys(-L4_EINVAL, "Invalid CPU configuration in device tree,"
-                       " missing CPU0");
-
-      // XXX The CPU device is not added to the device repository here. Is this
-      // necessary? The cpu_dev_array still holds a reference to it so it
-      // doesn't simply vanish here ...
-      vm_instance.cpus()->create_vcpu(nullptr);
-    }
-
-  if (ram_disk)
-    {
-      info.printf("Loading ram disk...\n");
-      Vmm::Guest_addr rd_start;
-      l4_size_t rd_size;
-      L4Re::chksys(ram_free_list.load_file_to_back(ram, ram_disk, &rd_start,
-                                                   &rd_size),
-                   "Copy ram disk into RAM.");
-
-      if (dt.valid() && rd_size > 0)
-        {
-          auto node = dt.get().path_offset("/chosen");
-          node.set_prop_address("linux,initrd-start", rd_start.get());
-          node.set_prop_address("linux,initrd-end",
-                                rd_start.get() + rd_size);
-        }
-
-      info.printf("Loaded ramdisk image %s to %lx (size: %08zx)\n",
-                  ram_disk, rd_start.get(), rd_size);
-    }
+  setup_ramdisk(ram_disk, dt, &ram_free_list, ram);
 
   // finally copy in the device tree
   l4_addr_t dt_boot_addr = 0;
