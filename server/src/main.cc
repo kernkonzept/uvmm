@@ -97,6 +97,21 @@ setup_ramdisk(char const *ram_disk, Vdev::Host_dt const &dt,
       ram_disk, rd_start.get(), rd_size);
 }
 
+static char const *const options = "+k:d:r:c:b:vqD:";
+static struct option const loptions[] =
+{
+    { "kernel",                  required_argument, NULL, 'k' },
+    { "dtb",                     required_argument, NULL, 'd' },
+    { "ramdisk",                 required_argument, NULL, 'r' },
+    { "cmdline",                 required_argument, NULL, 'c' },
+    { "rambase",                 required_argument, NULL, 'b' },
+    { "debug",                   required_argument, NULL, 'D' },
+    { "verbose",                 no_argument,       NULL, 'v' },
+    { "quiet",                   no_argument,       NULL, 'q' },
+    { "wakeup-on-system-resume", no_argument,       NULL, 'W' },
+    { 0, 0, 0, 0}
+};
+
 static int run(int argc, char *argv[])
 {
   unsigned long verbosity = Dbg::Warn;
@@ -104,21 +119,6 @@ static int run(int argc, char *argv[])
   Dbg::set_verbosity(verbosity);
 
   Vdev::Host_dt dt;
-
-  char const *const options = "+k:d:r:c:b:vqD:";
-  struct option const loptions[] =
-    {
-      { "kernel",                  required_argument, NULL, 'k' },
-      { "dtb",                     required_argument, NULL, 'd' },
-      { "ramdisk",                 required_argument, NULL, 'r' },
-      { "cmdline",                 required_argument, NULL, 'c' },
-      { "rambase",                 required_argument, NULL, 'b' },
-      { "debug",                   required_argument, NULL, 'D' },
-      { "verbose",                 no_argument,       NULL, 'v' },
-      { "quiet",                   no_argument,       NULL, 'q' },
-      { "wakeup-on-system-resume", no_argument,       NULL, 'W' },
-      { 0, 0, 0, 0}
-    };
 
   char const *cmd_line     = nullptr;
   char const *kernel_image = "rom/zImage";
