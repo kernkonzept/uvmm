@@ -103,11 +103,7 @@ static int run(int argc, char *argv[])
 
   Dbg::set_verbosity(verbosity);
 
-  vm_instance.create_default_devices();
   Vdev::Host_dt dt;
-
-  auto *vmm = vm_instance.vmm();
-  auto *ram = vm_instance.ram().get();
 
   char const *const options = "+k:d:r:c:b:vqD:";
   struct option const loptions[] =
@@ -128,6 +124,7 @@ static int run(int argc, char *argv[])
   char const *kernel_image = "rom/zImage";
   char const *ram_disk     = nullptr;
   l4_addr_t rambase = Vmm::Guest::Default_rambase;
+  bool use_wakeup_inhibitor = false;
 
   int opt;
   while ((opt = getopt_long(argc, argv, options, loptions, NULL)) != -1)
@@ -162,13 +159,21 @@ static int run(int argc, char *argv[])
             warn.printf("Failed to set verbosity\n");
           break;
         case 'W':
-          vmm->use_wakeup_inhibitor(true);
+          use_wakeup_inhibitor = true;
           break;
         default:
           Err().printf("unknown command-line option\n");
           return 1;
         }
     }
+
+  vm_instance.create_default_devices();
+
+  auto *vmm = vm_instance.vmm();
+  auto *ram = vm_instance.ram().get();
+
+  if (use_wakeup_inhibitor)
+    vmm->use_wakeup_inhibitor(true);
 
   warn.printf("Hello out there.\n");
 
