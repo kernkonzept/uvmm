@@ -51,7 +51,7 @@ private:
   L4::Cap<L4Re::Inhibitor> _vbus;
   L4::Cap<L4::Platform_control> _pfc;
 
-  bool _use_wakeup_inhibitor = true;
+  bool _use_wakeup_inhibitor = false;
 
   /**
    * \pre _vbus must be valid
