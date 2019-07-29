@@ -142,7 +142,7 @@ Pm::resume()
       // Failure to acquire an inhibitor is a problem (see description
       // above). However, at this time the guest already has a lot of state
       // that we would loose if we would crash here. Therefore we warn the
-      // operator that aquiring the inhibitor fails but do not bail out.
+      // operator that acquiring the inhibitor fails but do not bail out.
       int r = 0;
       if ((r = _vbus->acquire(L4VBUS_INHIBITOR_SUSPEND, "vm running")))
         warn.printf("Failed to release suspend inhibitor: %d.\n", r);
