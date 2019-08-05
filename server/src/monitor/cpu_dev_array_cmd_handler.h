@@ -8,14 +8,14 @@
  */
 #pragma once
 
-#include <cerrno>
-#include <climits>
 #include <cstdio>
 #include <cstring>
+#include <string>
+#include <vector>
 
 #include "cpu_dev.h"
 #include "monitor.h"
-#include "show_state_registers.h"
+#include "monitor_util.h"
 
 namespace Monitor {
 
@@ -31,55 +31,68 @@ public:
   Cpu_dev_array_cmd_handler()
   { register_toplevel("cpu"); }
 
-  char const *help() const override { return "CPU registers"; }
+  char const *help() const override { return "CPU state"; }
+
+  void complete(FILE *f, char const *args) const override
+  {
+    simple_complete(f, args, {"list"});
+
+    size_t arglen = strlen(args);
+
+    for (int i = 0; i < Max_cpus; ++i)
+      {
+        if (!cpu_valid(i))
+          continue;
+
+        std::string s(std::to_string(i));
+        if (arglen < s.size())
+          {
+            if (strncmp(args, s.c_str(), arglen) == 0)
+              fprintf(f, "%s\n", s.c_str());
+          }
+        else if (arglen > s.size())
+          {
+            if (strncmp(args, s.c_str(), s.size()) == 0)
+              {
+                char const *subargs = args + s.size() + 1;
+                while (*subargs && *subargs == ' ')
+                  ++subargs;
+
+                get_cpu(i)->complete(f, subargs);
+              }
+          }
+      }
+  }
 
   void exec(FILE *f, char const *args) override
   {
-    if (strcmp(args, "list") == 0)
+    auto argv = split_params(args, 2);
+
+    if (argv.empty())
       {
-        list_all_cpus(f);
+        print_help(f);
+        return;
       }
-    else if (strlen(args) == 0)
-      {
-        show_all_cpus(f);
-      }
+
+    if (argv.size() == 1 && argv[0] == "list")
+      list_cpus(f);
     else
-      {
-        int i;
-        if (!stoi(args, &i))
-          print_help(f);
-        else
-          show_one_cpu(i, f);
-      }
+      exec_subcmd(f, argv);
   }
 
 private:
-  static void print_help(FILE *f)
+  void print_help(FILE *f) const
   {
-    fprintf(f, "Dump CPU registers:\n"
-               "* Use 'cpu list' to list available cpus\n"
-               "* Use 'cpu' to dump registers for all cpus at once\n"
-               "* Use 'cpu <i>' to registers for a specific cpu\n");
+    fprintf(f, "%s\n"
+               "* 'cpu list': list available CPUs\n"
+               "* 'cpu <i> <subcmd>': execute <subcmd> for CPU <i>\n",
+               help());
   }
 
-  static bool stoi(char const *str, int *i)
-  {
-    errno = 0;
+  bool cpu_valid(unsigned i) const
+  { return i < Max_cpus && get_cpu(i); }
 
-    char *endptr;
-    long i_l = strtol(str, &endptr, 10);
-
-    bool success = errno == 0
-                   && !*endptr
-                   && i_l >= 0 && i_l <= INT_MAX;
-
-    if (success)
-      *i = i_l;
-
-    return success;
-  }
-
-  void list_all_cpus(FILE *f) const
+  void list_cpus(FILE *f) const
   {
     fprintf(f, "Available CPUs:\n");
     for (int i = 0; i < Max_cpus; ++i)
@@ -89,41 +102,31 @@ private:
       }
   }
 
-  void show_all_cpus(FILE *f) const
+  void exec_subcmd(FILE *f, std::vector<std::string> const &argv)
   {
-    bool put_space = false;
-    for (int i = 0; i < Max_cpus; ++i)
+    unsigned i = 0;
+    if (!stou(argv[0].c_str(), &i))
       {
-        if (!cpu_valid(i))
-          continue;
+        print_help(f);
+        return;
+      }
 
-        if (put_space)
-          fputc('\n', f);
-        else
-          put_space = true;
-
-        fprintf(f, "CPU %d\n", i);
-        show_cpu(i, f);
+    if (!cpu_valid(i))
+      {
+        fprintf(f, "Invalid CPU\n");
+      }
+    else
+      {
+        char const *subargs = argv.size() == 2 ? argv[1].c_str() : "";
+        get_cpu(i)->exec(f, subargs);
       }
   }
 
-  void show_one_cpu(int i, FILE *f) const
-  {
-    if (i >= Max_cpus)
-      fprintf(f, "CPU index must be between 0 and %d\n", Max_cpus - 1);
-    else if (!cpu_valid(i))
-      fprintf(f, "CPU %d not valid\n", i);
-    else
-      show_cpu(i, f);
-  }
+  Vmm::Cpu_dev *get_cpu(unsigned i)
+  { return static_cast<T *>(this)->_cpus[i].get(); }
 
-  bool cpu_valid(int i) const
-  { return !!cpu_dev_array()->_cpus[i]; }
-
-  void show_cpu(int i, FILE *f) const
-  { show_state_registers(cpu_dev_array()->_cpus[i].get(), f); }
-
-  T const *cpu_dev_array() const { return static_cast<T const *>(this); }
+  Vmm::Cpu_dev const *get_cpu(unsigned i) const
+  { return static_cast<T const *>(this)->_cpus[i].get(); }
 };
 
 }

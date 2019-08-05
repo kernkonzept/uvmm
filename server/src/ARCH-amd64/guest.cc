@@ -592,7 +592,6 @@ Guest::run_vmx(cxx::Ref_ptr<Cpu_dev> const &cpu_dev)
       else if (e)
         {
           Err().printf("Resume failed with error %ld\n", e);
-          vm->dump_state();
           enter_kdebug("FAILURE IN VMM RESUME");
           exit(1);
         }
@@ -602,7 +601,6 @@ Guest::run_vmx(cxx::Ref_ptr<Cpu_dev> const &cpu_dev)
           if (ret < 0)
             {
               trace().printf("Failure in VMM %i\n", ret);
-              vm->dump_state();
               halt_vm();
             }
           else if (ret == Jump_instr)

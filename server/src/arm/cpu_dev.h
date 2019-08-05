@@ -8,16 +8,19 @@
  */
 #pragma once
 
-#include "generic_cpu_dev.h"
-
 #include <cstdio>
 #include <atomic>
+
+#include "cpu_dev_cmd_handler.h"
+#include "generic_cpu_dev.h"
 
 extern __thread unsigned vmm_current_cpu_id;
 
 namespace Vmm {
 
-class Cpu_dev : public Generic_cpu_dev
+class Cpu_dev
+: public Generic_cpu_dev,
+  public Monitor::Cpu_dev_cmd_handler<Monitor::Enabled, Cpu_dev>
 {
 public:
   // The ARM GIC has a hard architectural limit of 8 CPUs.

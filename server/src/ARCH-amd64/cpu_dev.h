@@ -7,13 +7,16 @@
  */
 #pragma once
 
-#include "generic_cpu_dev.h"
+#include "cpu_dev_cmd_handler.h"
 #include "debug.h"
+#include "generic_cpu_dev.h"
 #include "vcpu_ptr.h"
 
 namespace Vmm {
 
-class Cpu_dev : public Generic_cpu_dev
+class Cpu_dev
+: public Generic_cpu_dev,
+  public Monitor::Cpu_dev_cmd_handler<Monitor::Enabled, Cpu_dev>
 {
 public:
   // SMP is currently not supported on amd64.

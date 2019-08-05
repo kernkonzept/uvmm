@@ -12,6 +12,7 @@
 #include <cstring>
 
 #include "monitor.h"
+#include "monitor_util.h"
 
 namespace Monitor {
 
@@ -29,8 +30,7 @@ public:
 
   void complete(FILE *f, char const *args) const override
   {
-    if (strncmp(args, "list", strlen(args)) == 0)
-      fprintf(f, "list\n");
+    simple_complete(f, args, {"list"});
 
     for (auto const &d : vm()->_devices)
       {

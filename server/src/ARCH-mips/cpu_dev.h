@@ -8,13 +8,16 @@
  */
 #pragma once
 
-#include "generic_cpu_dev.h"
-
 #include <cstdio>
+
+#include "cpu_dev_cmd_handler.h"
+#include "generic_cpu_dev.h"
 
 namespace Vmm {
 
-class Cpu_dev : public Generic_cpu_dev
+class Cpu_dev
+: public Generic_cpu_dev,
+  public Monitor::Cpu_dev_cmd_handler<Monitor::Enabled, Cpu_dev>
 {
 public:
   // Maximum number of CPUs that are addressable.
