@@ -26,6 +26,7 @@
 #include "mem_types.h"
 #include "mmio_device.h"
 #include "msi.h"
+#include "lapic_cmd_handler.h"
 
 using L4Re::Rm;
 
@@ -207,7 +208,8 @@ private:
 class Lapic_array
 : public Vmm::Mmio_device_t<Lapic_array>,
   public Vdev::Device,
-  public Vmm::Msr_device
+  public Vmm::Msr_device,
+  public Monitor::Lapic_cmd_handler<Monitor::Enabled, Lapic_array>
 {
   enum
   {
