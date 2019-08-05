@@ -21,6 +21,8 @@ namespace Dtb {
 template<typename ERR>
 class Node
 {
+  friend class Property;
+
 public:
   enum
   {
@@ -143,8 +145,14 @@ public:
   bool has_children() const
   { return fdt_first_subnode(_tree, _node) >= 0; }
 
+  int get_depth() const
+  { return fdt_node_depth(_tree, _node); }
+
   char const *get_name() const
   {
+    if (is_root_node())
+      return "/";
+
     char const *name = fdt_get_name(_tree, _node, nullptr);
     return name ? name : "<unknown name>";
   }

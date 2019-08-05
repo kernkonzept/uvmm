@@ -7,9 +7,13 @@
  */
 #pragma once
 
+#include <cstdlib>
+#include <cstring>
+
 #include <l4/l4virtio/virtqueue>
 
 #include "device.h"
+#include "dt_cmd_handler.h"
 #include "mem_types.h"
 
 namespace Vdev {
@@ -18,6 +22,7 @@ namespace Vdev {
  * uvmm-internal device tree.
  */
 class Host_dt
+: public Monitor::Dt_cmd_handler<Monitor::Enabled, Host_dt>
 {
 public:
   Host_dt() : _dtmem(nullptr) {}
@@ -76,13 +81,30 @@ public:
    */
   void move(void *target)
   {
-    fdt_move(_dtmem, target, get().size());
+    if (Monitor::cmd_control_enabled())
+      {
+        void *tmp = malloc(get().size());
+        if (tmp)
+          memcpy(tmp, _dtmem, get().size());
 
-    free(_dtmem);
-    _dtmem = nullptr;
+        do_move(target);
+
+        free(_dtmem);
+        _dtmem = tmp;
+      }
+    else
+      {
+        do_move(target);
+
+        free(_dtmem);
+        _dtmem = nullptr;
+      }
   }
 
 private:
+  void do_move(void *target)
+  { fdt_move(_dtmem, target, get().size()); }
+
   void *_dtmem;
 };
 
