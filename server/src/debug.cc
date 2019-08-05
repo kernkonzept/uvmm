@@ -51,7 +51,7 @@ int Dbg::set_verbosity(char const *str)
     {
       auto len = strlen(components[i]);
       if (strncmp(components[i], str, len) == 0 && str[len] == '='
-          && verbosity_mask_from_string(str + len + 1, &mask) == 0)
+          && verbosity_mask_from_string(str + len + 1, &mask))
         {
           set_verbosity(i, mask);
           return L4_EOK;
