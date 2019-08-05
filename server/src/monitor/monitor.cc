@@ -64,18 +64,37 @@ public:
     { register_toplevel("verbose"); }
 
     char const *help() const override
-    { return "Increase/Decrease verbosity"; }
+    { return "Display/Adjust verbosity"; }
 
     void exec(FILE *f, char const *args) override
     {
-      if (strlen(args) == 0 || Dbg::set_verbosity(args) != L4_EOK)
+      if (strlen(args) == 0)
         {
-          fprintf(f, "Use either:\n"
-                     "* 'verbose <level>\n"
-                     "* 'verbose <component>=<level>\n"
-                     "where: <level> = (quiet|warn|info|trace)\n"
-                     "and:   <component> = (guest|core|cpu|mmio|irq|dev)\n");
+          print_help(f);
+          return;
         }
+
+      char const *v;
+      if (Dbg::get_verbosity(args, &v) == L4_EOK)
+        {
+          fprintf(f, "%s\n", v);
+          return;
+        }
+
+      if (Dbg::set_verbosity(args) != L4_EOK)
+        print_help(f);
+    }
+
+  private:
+    void print_help(FILE *f) const
+    {
+      fprintf(f, "%s\n"
+                 "* 'verbose <component>': display level for some component\n"
+                 "* 'verbose <level>': set level for all components\n"
+                 "* 'verbose <component>=<level>': set level for some component\n"
+                 "where: <level> = (quiet|warn|info|trace)\n"
+                 "and:   <component> = (guest|core|cpu|mmio|irq|dev)\n",
+                 help());
     }
   };
 

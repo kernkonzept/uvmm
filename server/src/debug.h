@@ -54,6 +54,31 @@ public:
   static_assert(Max_component * Verbosity_shift <= sizeof(level) * 8,
                 "Too many components for level mask");
 
+
+  /**
+   * Get the the current verbosity level for a single component.
+   *
+   * \param c         Component for which to query verbosity.
+   * \param[out] str  Pointer to the name of the current verbosity level for the
+   *                  given component (if the operation succeeded).
+   *
+   * \retval L4_EOK      Operation succeeded.
+   * \retval -L4_EINVAL  Invalid component.
+   */
+  static int get_verbosity(unsigned c, char const **str);
+
+  /**
+   * Get the the current verbosity level for a single component.
+   *
+   * \param c         Name of the component for which to query verbosity.
+   * \param[out] str  Pointer to the name of the current verbosity level for the
+   *                  given component (if the operation succeeded).
+   *
+   * \retval L4_EOK      Operation succeeded.
+   * \retval -L4_EINVAL  Invalid component name.
+   */
+  static int get_verbosity(char const *c, char const **str);
+
   /**
    * Set the verbosity for all components to the given levels.
    *
