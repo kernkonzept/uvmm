@@ -18,6 +18,7 @@
 #include "cpu_dev_array.h"
 #include "generic_guest.h"
 #include "io_device.h"
+#include "io_memmap.h"
 #include "msr_device.h"
 #include "mem_access.h"
 #include "timer.h"
@@ -32,6 +33,7 @@ namespace Vmm {
 
 class Guest : public Generic_guest
 {
+
 public:
   enum { Default_rambase = 0, Boot_offset = 0 };
 
@@ -114,7 +116,6 @@ private:
 
   bool msr_devices_rwmsr(l4_vcpu_regs_t *regs, bool write, unsigned vcpu_no);
 
-  typedef std::map<Io_region, cxx::Ref_ptr<Io_device>> Io_mem;
   Io_mem _iomap;
 
   std::vector<cxx::Ref_ptr<Msr_device>> _msr_devices;

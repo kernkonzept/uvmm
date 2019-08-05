@@ -14,10 +14,13 @@
 
 #include "mmio_device.h"
 #include "mem_types.h"
+#include "vm_io_mem_cmd_handler.h"
 
 namespace Vmm {
 
-class Vm_mem : public std::map<Region, cxx::Ref_ptr<Vmm::Mmio_device>>
+class Vm_mem
+: public std::map<Region, cxx::Ref_ptr<Vmm::Mmio_device>>,
+  public Monitor::Vm_mem_cmd_handler<Monitor::Enabled, Vm_mem>
 {
 public:
   void add_mmio_device(Region const &region,
