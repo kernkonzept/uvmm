@@ -18,7 +18,6 @@
 #include "cpu_dev_array.h"
 #include "generic_guest.h"
 #include "io_device.h"
-#include "io_memmap.h"
 #include "msr_device.h"
 #include "mem_access.h"
 #include "timer.h"
@@ -36,6 +35,8 @@ class Guest : public Generic_guest
 
 public:
   enum { Default_rambase = 0, Boot_offset = 0 };
+
+  using Io_mem = std::map<Io_region, cxx::Ref_ptr<Io_device>>;
 
   Guest()
   : _ptw(&_memmap, get_max_physical_address_bit()),
@@ -55,6 +56,9 @@ public:
 
   void register_io_device(Io_region const &region,
                           cxx::Ref_ptr<Io_device> const &dev);
+
+  Io_mem *iomap()
+  { return &_iomap; }
 
   void register_msr_device(cxx::Ref_ptr<Msr_device> const &dev);
 
