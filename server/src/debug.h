@@ -157,6 +157,8 @@ public:
   static int set_verbosity(char const *str);
 
 #else
+  static int get_verbosity(unsigned c, char const **str) {}
+  static int get_verbosity(char const *c, char const **str) {}
   static void set_verbosity(unsigned, unsigned) {}
   static void set_verbosity(unsigned) {}
   static int set_verbosity(char const *) { return -L4_EINVAL; }

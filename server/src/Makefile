@@ -22,10 +22,9 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   mmio_device.cc \
                   pm.cc vbus_event.cc vm_memmap.cc vm_ram.cc vm.cc
 
+ifneq ($(CONFIG_RELEASE_MODE),y)
 SRC_CC-$(CONFIG_MONITOR)   += monitor/monitor.cc
 CXXFLAGS-$(CONFIG_MONITOR) += -DCONFIG_MONITOR
-
-ifneq ($(CONFIG_RELEASE_MODE),y)
 SRC_CC += debug.cc
 endif
 
