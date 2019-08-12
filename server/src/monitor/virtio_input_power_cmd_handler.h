@@ -9,6 +9,7 @@
 #pragma once
 
 #include <cstdio>
+#include <cstring>
 
 #include "monitor.h"
 #include "monitor_args.h"
@@ -30,9 +31,12 @@ public:
 
   void exec(FILE *, Arglist *args) override
   {
-    char key = args->pop<char>("Key expected (try 'h' for help)");
+    auto key = args->pop<std::string>("Missing key");
 
-    if (!virtio_input_power()->inject_command(key))
+    if (key.size() != 1)
+      argument_error("Key expected (try 'h' for help)");
+
+    if (!virtio_input_power()->inject_command(key[0]))
       argument_error("Failed to inject event");
   }
 

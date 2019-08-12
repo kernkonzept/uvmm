@@ -14,7 +14,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
+#include <limits>
 #include <string>
+#include <type_traits>
 
 #include <l4/cxx/exceptions>
 #include <l4/re/error_helper>
@@ -45,17 +47,6 @@ class Arg
   private Detail::Equality_comparable<Arg, std::string>
 {
   friend class Arglist;
-
-  union Type_cache {
-    unsigned u;
-    l4_addr_t addr;
-  };
-
-  enum Cached_type {
-    Cached_none,
-    Cached_unsigned,
-    Cached_addr
-  };
 
 public:
   /**
@@ -164,7 +155,7 @@ public:
 private:
   Arg(char const *arg, size_t arglen)
   : _arg(arg, arglen),
-    _cached_type(Cached_none)
+    _unsigned_cached(false)
   {}
 
   static bool stoull(char const *str, unsigned long long *ull, int base)
@@ -181,98 +172,57 @@ private:
   { L4Re::chksys(-L4_EINVAL, msg ? msg : "Parameter conversion"); }
 
   template<typename T>
-  bool do_check()
-  { return T::Unimplemented; }
+  typename std::enable_if<std::is_same<T, char const *>::value, bool>::type
+  do_check()
+  { return true; }
 
   template<typename T>
-  T do_get()
-  { return T::Unimplemented; }
+  typename std::enable_if<std::is_same<T, std::string>::value, bool>::type
+  do_check()
+  { return true; }
+
+  template<typename T>
+  typename std::enable_if<std::is_unsigned<T>::value, bool>::type
+  do_check()
+  {
+    auto max_val = static_cast<unsigned long long>(std::numeric_limits<T>::max());
+
+    if (_unsigned_cached)
+      return _unsigned_cache <= max_val;
+
+    unsigned long long ull;
+    if (!stoull(_arg.c_str(), &ull, 10) && !stoull(_arg.c_str(), &ull, 16))
+      return false;
+
+    if (ull > max_val)
+      return false;
+
+    _unsigned_cache = ull;
+    _unsigned_cached = true;
+
+    return true;
+  }
+
+  template<typename T>
+  typename std::enable_if<std::is_same<T, char const *>::value, T>::type
+  do_get()
+  { return _arg.c_str(); }
+
+  template<typename T>
+  typename std::enable_if<std::is_same<T, std::string>::value, T>::type
+  do_get()
+  { return _arg; }
+
+  template<typename T>
+  typename std::enable_if<std::is_unsigned<T>::value, T>::type
+  do_get()
+  { return static_cast<T>(_unsigned_cache); }
 
   std::string _arg;
 
-  Type_cache _cache;
-  Cached_type _cached_type;
+  unsigned long long _unsigned_cache;
+  bool _unsigned_cached;
 };
-
-template<>
-inline bool
-Arg::do_check<char const *>()
-{ return true; }
-
-template<>
-inline bool
-Arg::do_check<std::string>()
-{ return true; }
-
-template<>
-inline bool
-Arg::do_check<char>()
-{ return _arg.size() == 1; }
-
-template<>
-inline bool
-Arg::do_check<unsigned>()
-{
-  if (_cached_type == Cached_unsigned)
-    return true;
-
-  unsigned long long ull;
-  if (!stoull(_arg.c_str(), &ull, 10) || ull > UINT_MAX)
-    return false;
-
-  _cache.u = static_cast<unsigned>(ull);
-  _cached_type = Cached_unsigned;
-
-  return true;
-}
-
-template<>
-inline bool
-Arg::do_check<l4_addr_t>()
-{
-  if (_cached_type == Cached_addr)
-    return true;
-
-  unsigned long long ull;
-  if (!stoull(_arg.c_str(), &ull, 16))
-    return false;
-
-  l4_addr_t addr = static_cast<l4_addr_t>(ull);
-
-  if (addr != ull)
-    // the value returned by stoull is too large to be represented by l4_addr_t
-    return false;
-
-  _cache.addr = addr;
-  _cached_type = Cached_addr;
-
-  return true;
-}
-
-template<>
-inline char const *
-Arg::do_get<char const *>()
-{ return _arg.c_str(); }
-
-template<>
-inline std::string
-Arg::do_get<std::string>()
-{ return _arg; }
-
-template<>
-inline char
-Arg::do_get<char>()
-{ return _arg[0]; }
-
-template<>
-inline unsigned
-Arg::do_get<unsigned>()
-{ return _cache.u; }
-
-template<>
-inline l4_addr_t
-Arg::do_get<l4_addr_t>()
-{ return _cache.addr; }
 
 /**
  * Encapsulates a monitor commands argument list.
@@ -448,6 +398,25 @@ public:
   T pop(char const *msg = nullptr)
   { return pop().get<T>(msg); }
 
+  /**
+   * Retrieve and convert the next argument.
+   *
+   * \tparam T  Type to which to convert this argument.
+   *
+   * \param def  Default value.
+   * \param msg  Optional conversion failure error message.
+   *
+   * \return  The next argument converted to `T` or `def` if there is no next
+   *          argument.
+   *
+   * \throws L4::Runtime_error  If the conversion fails.
+   *
+   * This is a convencience method whose result is equal to `pop().get<T>(def)`.
+   */
+  template<typename T>
+  T pop(T def, char const *msg = nullptr)
+  { return pop().get<T>(def, msg); }
+
 protected:
   char const *_args;
   unsigned _argc;
@@ -460,6 +429,10 @@ protected:
 template<>
 inline char const *
 Arglist::pop<char const *>(char const *) = delete;
+
+template<>
+inline char const *
+Arglist::pop(char const *, char const *) = delete;
 
 /**
  * Encapsulates a monitor command completion request.

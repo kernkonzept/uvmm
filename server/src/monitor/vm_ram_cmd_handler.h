@@ -12,6 +12,8 @@
 
 #include <l4/sys/l4int.h>
 
+#include "mem_dump.h"
+#include "mem_types.h"
 #include "monitor.h"
 #include "monitor_args.h"
 
@@ -30,7 +32,33 @@ public:
   char const *help() const override
   { return "RAM dataspaces"; }
 
-  void exec(FILE *f, Arglist *) override
+  void usage(FILE *f) const
+  {
+    fprintf(f, "%s\n"
+               "* 'ram ds': list RAM dataspaces\n"
+               "* 'ram dump <addr> [<n> [(b|w|d|q)]]': dump RAM region\n"
+               "where: * b = byte, w = word (16 bits), d = double word, q = quad word\n"
+               "       * <n> = number of entries to be dumped\n",
+            help());
+  }
+
+  void complete(FILE *f, Completion_request *compl_req) const override
+  { compl_req->complete(f, {"ds", "dump"}); }
+
+  void exec(FILE *f, Arglist *args) override
+  {
+    auto subcmd = args->pop();
+
+    if (subcmd == "ds")
+      show_dataspaces(f);
+    else if (subcmd == "dump")
+      dump_memory(f, args);
+    else
+      argument_error("Invalid subcommand");
+  }
+
+private:
+  void show_dataspaces(FILE *f) const
   {
     fprintf(f, "Dataspace  Guest area             Size        Local address  Phys?\n");
     for (auto const &r : vm_ram()->_regions)
@@ -43,9 +71,26 @@ public:
               r.has_phys_addr() ? "Y" : "N");
   }
 
-private:
-  T *vm_ram()
-  { return static_cast<T *>(this); }
+  bool dump_memory(FILE *f, Arglist *args) const
+  {
+    Mem_dumper mem_dumper(args);
+
+    Vmm::Guest_addr ga(mem_dumper.addr_start());
+
+    auto const *r = vm_ram()->find_region(ga, 0);
+    if (!r)
+      argument_error( "Invalid RAM region");
+
+    l4_addr_t addr_hvirt = reinterpret_cast<l4_addr_t>(r->guest2host(ga));
+    l4_size_t max_size = r->vm_start().get() - ga.get() + r->size();
+
+    mem_dumper.dump(f, addr_hvirt, max_size);
+
+    return true;
+  }
+
+  T const *vm_ram() const
+  { return static_cast<T const *>(this); }
 };
 
 }
