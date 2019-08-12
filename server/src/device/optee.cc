@@ -18,6 +18,7 @@
 
 namespace {
 
+Dbg info(Dbg::Dev, Dbg::Info, "optee");
 Dbg warn(Dbg::Dev, Dbg::Warn, "optee");
 Dbg trace(Dbg::Dev, Dbg::Warn, "optee");
 
@@ -164,7 +165,7 @@ struct F : Vdev::Factory
   cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
-    Dbg(Dbg::Dev, Dbg::Info).printf("Create OP-TEE device\n");
+    info.printf("Create OP-TEE device\n");
 
     auto cap = Vdev::get_cap<L4::Arm_smccc>(node, "l4vmm,cap");
     if (!cap)
@@ -221,7 +222,21 @@ struct F : Vdev::Factory
           warn.printf("SMC device does not support notification interrupts.\n");
       }
 
-    devs->vmm()->register_vm_handler(Vmm::Guest::Smc, c);
+    Vmm::Guest::Smccc_method smccc_method = Vmm::Guest::Smc;
+    char const *method = node.get_prop<char>("method", nullptr);
+    if (method)
+      {
+        if (strcmp(method, "hvc") == 0)
+          smccc_method = Vmm::Guest::Hvc;
+        else if (strcmp(method, "smc") != 0)
+          warn.printf("Method '%s' is not supported. Must be hvc or smc!\n",
+                      method);
+      }
+
+    info.printf("Register OP-TEE device: %s mode\n",
+                smccc_method == Vmm::Guest::Hvc ? "hvc" : "smc");
+
+    devs->vmm()->register_vm_handler(smccc_method, c);
 
     return c;
   }
