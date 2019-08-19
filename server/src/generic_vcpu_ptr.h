@@ -20,6 +20,8 @@
 
 namespace Vmm {
 
+class Pt_walker;
+
 class Generic_vcpu_ptr
 {
 public:
@@ -55,10 +57,17 @@ public:
   void set_vcpu_id(unsigned id)
   { _s->user_data[Reg_vcpu_id] = id; }
 
+  Pt_walker *get_pt_walker() const
+  { return reinterpret_cast<Pt_walker *>(_s->user_data[Reg_ptw_ptr]); }
+
+  void set_pt_walker(Pt_walker *ptw)
+  { _s->user_data[Reg_ptw_ptr] = reinterpret_cast<l4_umword_t>(ptw); }
+
 protected:
   enum User_data_regs
   {
     Reg_vcpu_id = 0,
+    Reg_ptw_ptr,
     Reg_arch_base
   };
 

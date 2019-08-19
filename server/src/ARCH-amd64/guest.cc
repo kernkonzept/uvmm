@@ -554,7 +554,7 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
 
       Vcpu_ptr vcpu = cpu->vcpu();
       vcpu->user_task = _task.cap();
-      vcpu.register_pt_walker(&_ptw);
+      vcpu.set_pt_walker(&_ptw);
 
       unsigned vcpu_id = vcpu.get_vcpu_id();
       _apics->register_core(vcpu_id);

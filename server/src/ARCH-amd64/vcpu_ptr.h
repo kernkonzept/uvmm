@@ -22,7 +22,6 @@ public:
   enum User_data_regs_arch
   {
     Reg_vmm_type = Reg_arch_base,
-    Reg_ptw_ptr,
     Reg_mmio_read,
     // <insert further register usage here>
     Reg_must_be_last_before_ucode,
@@ -61,11 +60,6 @@ public:
   }
 
   void reset();
-
-  void register_pt_walker(Pt_walker const *ptw)
-  {
-    _s->user_data[Reg_ptw_ptr] = reinterpret_cast<l4_umword_t>(ptw);
-  }
 
   l4_umword_t ucode_revision() const
   { return _s->user_data[Reg_ucode_rev]; }
