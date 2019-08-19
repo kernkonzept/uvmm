@@ -137,7 +137,7 @@ class Vcpu_msr_handler : public Msr_device
 public:
   Vcpu_msr_handler(Cpu_dev_array *cpus) : _cpus(cpus) {};
 
-  bool read_msr(unsigned msr, l4_uint64_t *value, unsigned vcpu_no) override
+  bool read_msr(unsigned msr, l4_uint64_t *value, unsigned vcpu_no) const override
   {
     return _cpus->vcpu(vcpu_no).vm_state()->read_msr(msr, value);
   }

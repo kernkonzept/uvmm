@@ -33,7 +33,7 @@ public:
     // MSR.
   }
 
-  bool read_msr(unsigned msr, l4_uint64_t *value, unsigned) override
+  bool read_msr(unsigned msr, l4_uint64_t *value, unsigned) const override
   {
     if (msr != Ia32_bios_sign_id)
       return false;

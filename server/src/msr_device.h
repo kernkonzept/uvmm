@@ -30,7 +30,7 @@ struct Msr_device : virtual Vdev::Dev_ref
    * The vCPU number passed is of an existing vCPU.
    */
   virtual bool read_msr(unsigned msr, l4_uint64_t *value,
-                        unsigned vcpu_no) = 0;
+                        unsigned vcpu_no) const = 0;
   /**
    * Write to a MSR of the specificed vCPU.
    *

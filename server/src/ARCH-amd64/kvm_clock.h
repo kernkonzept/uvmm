@@ -49,7 +49,7 @@ public:
     l4_calibrate_tsc(l4re_kip());
   }
 
-  bool read_msr(unsigned, l4_uint64_t *, unsigned) override
+  bool read_msr(unsigned, l4_uint64_t *, unsigned) const override
   {
     // Nothing to read, above structures are memory mapped in the guest.
     return false;

@@ -302,7 +302,7 @@ public:
   }
 
   // Msr_device interface
-  bool read_msr(unsigned msr, l4_uint64_t *value, unsigned vcpu_no) override
+  bool read_msr(unsigned msr, l4_uint64_t *value, unsigned vcpu_no) const override
   {
     assert(vcpu_no < Max_cores && _lapics[vcpu_no]);
 
