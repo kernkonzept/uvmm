@@ -71,6 +71,7 @@ public:
     Virt_apic_access_bit = 1UL,
     Ept_enable_bit = (1UL << 1),
     X2apic_virt_bit = (1UL << 4),
+    Unrestricted_guest_bit = (1UL << 7),
     Apic_reg_virt_bit = (1UL << 8),
     Apic_virt_int_bit = (1UL << 9),
   };
@@ -89,12 +90,14 @@ public:
   enum Vmx_vm_entry_ctls : unsigned long
   {
     Vm_entry_load_ia32_efer = (1UL << 15),
+    Ia32e_mode_guest = (1UL << 9),
   };
 
   enum Vmx_vm_exit_ctls : unsigned long
   {
     Vm_exit_save_ia32_efer = (1UL << 20),
     Vm_exit_load_ia32_efer = (1UL << 21),
+    Host_address_space_size = (1UL << 9),
   };
 
   Vmx_state(void *vmcs) : _vmcs(vmcs) {}
@@ -108,13 +111,45 @@ public:
     vmx_write(L4VCPU_VMCS_EXCEPTION_BITMAP, 0xffff0000);
 
     vmx_write(L4VCPU_VMCS_VM_ENTRY_CTLS,
-              vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS) | Vm_entry_load_ia32_efer);
+              (vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS)
+                | Vm_entry_load_ia32_efer)
+                & ~Ia32e_mode_guest); // disable long mode
 
     vmx_write(L4VCPU_VMCS_VM_EXIT_CTLS,
               vmx_read(L4VCPU_VMCS_VM_EXIT_CTLS)
               | Vm_exit_save_ia32_efer
-              | Vm_exit_load_ia32_efer);
+              | Vm_exit_load_ia32_efer
+              | Host_address_space_size);
 
+    vmx_write(L4VCPU_VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
+              vmx_read(L4VCPU_VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
+                | Int_window_exit_bit
+                | Hlt_exit_bit
+                | Enable_secondary_ctls_bit
+              );
+
+    vmx_write(L4VCPU_VMCS_SEC_PROC_BASED_VM_EXEC_CTLS,
+              vmx_read(L4VCPU_VMCS_SEC_PROC_BASED_VM_EXEC_CTLS)
+                | Ept_enable_bit
+                | Unrestricted_guest_bit
+              );
+
+    vmx_write(L4VCPU_VMCS_GUEST_LDTR_SELECTOR, 0x0);
+    vmx_write(L4VCPU_VMCS_GUEST_LDTR_ACCESS_RIGHTS, 0x10000);
+    vmx_write(L4VCPU_VMCS_GUEST_LDTR_LIMIT, 0);
+    vmx_write(L4VCPU_VMCS_GUEST_LDTR_BASE, 0);
+
+    l4_umword_t eflags;
+    asm volatile("pushf     \n"
+                 "pop %0   \n"
+                 : "=r" (eflags));
+    eflags &= ~Interrupt_enabled_bit;
+    eflags &= ~Virtual_8086_mode_bit;
+    vmx_write(L4VCPU_VMCS_GUEST_RFLAGS, eflags);
+
+    vmx_write(L4VCPU_VMCS_GUEST_CR3, 0);
+    vmx_write(L4VCPU_VMCS_GUEST_DR7, 0x300);
+    vmx_write(L4VCPU_VMCS_GUEST_IA32_EFER, 0x0);
   }
 
   bool pf_write() const override
@@ -165,54 +200,78 @@ public:
     vmx_write(L4VCPU_VMCS_GUEST_GS_LIMIT, 0xffffffff);
     vmx_write(L4VCPU_VMCS_GUEST_GS_BASE, 0);
 
-    vmx_write(L4VCPU_VMCS_GUEST_LDTR_SELECTOR, 0x0);
-    vmx_write(L4VCPU_VMCS_GUEST_LDTR_ACCESS_RIGHTS, 0x10000);
-    vmx_write(L4VCPU_VMCS_GUEST_LDTR_LIMIT, 0);
-    vmx_write(L4VCPU_VMCS_GUEST_LDTR_BASE, 0);
-
     vmx_write(L4VCPU_VMCS_GUEST_TR_SELECTOR, 0x28);
     vmx_write(L4VCPU_VMCS_GUEST_TR_ACCESS_RIGHTS, 0x108b);
     vmx_write(L4VCPU_VMCS_GUEST_TR_LIMIT, 67);
     vmx_write(L4VCPU_VMCS_GUEST_TR_BASE, 0);
 
-    vmx_write(L4VCPU_VMCS_VM_ENTRY_CTLS,
-              vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS) &~ (1 << 9)); // disable long mode
-
-    l4_umword_t eflags;
-    asm volatile("pushf     \n"
-                 "pop %0   \n"
-                 : "=r" (eflags));
-
-    eflags &= ~Interrupt_enabled_bit;
-    eflags &= ~Virtual_8086_mode_bit;
-
     vmx_write(L4VCPU_VMCS_GUEST_RIP, entry);
-    vmx_write(L4VCPU_VMCS_GUEST_RFLAGS, eflags);
     vmx_write(L4VCPU_VMCS_GUEST_RSP, 0);
     vmx_write(L4VCPU_VMCS_GUEST_CR0, 0x10031);
     vmx_write(L4VCPU_VMCS_CR0_READ_SHADOW, 0x10031);
     vmx_write(L4VCPU_VMCS_CR0_GUEST_HOST_MASK, ~0ULL);
 
-    vmx_write(L4VCPU_VMCS_GUEST_CR3, 0);
     vmx_write(L4VCPU_VMCS_GUEST_CR4, 0x2690);
     vmx_write(L4VCPU_VMCS_CR4_READ_SHADOW, 0x0690);
     vmx_write(L4VCPU_VMCS_CR4_GUEST_HOST_MASK, ~0ULL);
-    vmx_write(L4VCPU_VMCS_GUEST_DR7, 0x300);
-    vmx_write(L4VCPU_VMCS_GUEST_IA32_EFER, 0x0);
+  }
 
-    vmx_write(L4VCPU_VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
-              vmx_read(L4VCPU_VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
-                | Int_window_exit_bit
-                | Hlt_exit_bit
-                | Enable_secondary_ctls_bit
-              );
+  /**
+   * Setup Application Processors in Real Mode.
+   *
+   * The entry page is set up using the Code Segment because Linux uses an
+   * entry page address larger than 16 bits, hence the 20 bit Segment Base is
+   * set up according to Vol. 3B, 20.1.1 Figure 20-1 and the instruction
+   * pointer is set to zero.
+   */
+  void setup_real_mode(l4_addr_t entry) override
+  {
+    // 9.9.2 Switching Back to Real-Address Mode
+    vmx_write(L4VCPU_VMCS_GUEST_CS_SELECTOR, (entry >> 4));
+    // 3.4.5 Segment Descriptors
+    vmx_write(L4VCPU_VMCS_GUEST_CS_ACCESS_RIGHTS, 0x9b);
+    vmx_write(L4VCPU_VMCS_GUEST_CS_LIMIT, 0xffff);
+    vmx_write(L4VCPU_VMCS_GUEST_CS_BASE, entry);
 
+    vmx_write(L4VCPU_VMCS_GUEST_SS_SELECTOR, 0x18);
+    vmx_write(L4VCPU_VMCS_GUEST_SS_ACCESS_RIGHTS, 0x93);
+    vmx_write(L4VCPU_VMCS_GUEST_SS_LIMIT, 0xffff);
+    vmx_write(L4VCPU_VMCS_GUEST_SS_BASE, 0);
 
-    vmx_write(L4VCPU_VMCS_SEC_PROC_BASED_VM_EXEC_CTLS,
-              vmx_read(L4VCPU_VMCS_SEC_PROC_BASED_VM_EXEC_CTLS)
-                | Ept_enable_bit
-              );
+    vmx_write(L4VCPU_VMCS_GUEST_DS_SELECTOR, 0x18);
+    vmx_write(L4VCPU_VMCS_GUEST_DS_ACCESS_RIGHTS, 0x93);
+    vmx_write(L4VCPU_VMCS_GUEST_DS_LIMIT, 0xffff);
+    vmx_write(L4VCPU_VMCS_GUEST_DS_BASE, 0);
 
+    vmx_write(L4VCPU_VMCS_GUEST_ES_SELECTOR, 0x18);
+    vmx_write(L4VCPU_VMCS_GUEST_ES_ACCESS_RIGHTS, 0x93);
+    vmx_write(L4VCPU_VMCS_GUEST_ES_LIMIT, 0xffff);
+    vmx_write(L4VCPU_VMCS_GUEST_ES_BASE, 0);
+
+    vmx_write(L4VCPU_VMCS_GUEST_FS_SELECTOR, 0x0);
+    vmx_write(L4VCPU_VMCS_GUEST_FS_ACCESS_RIGHTS, 0x93);
+    vmx_write(L4VCPU_VMCS_GUEST_FS_LIMIT, 0xffff);
+    vmx_write(L4VCPU_VMCS_GUEST_FS_BASE, 0);
+
+    vmx_write(L4VCPU_VMCS_GUEST_GS_SELECTOR, 0x0);
+    vmx_write(L4VCPU_VMCS_GUEST_GS_ACCESS_RIGHTS, 0x93);
+    vmx_write(L4VCPU_VMCS_GUEST_GS_LIMIT, 0xffff);
+    vmx_write(L4VCPU_VMCS_GUEST_GS_BASE, 0);
+
+    vmx_write(L4VCPU_VMCS_GUEST_TR_SELECTOR, 0x0);
+    vmx_write(L4VCPU_VMCS_GUEST_TR_ACCESS_RIGHTS, 0x8b);
+    vmx_write(L4VCPU_VMCS_GUEST_TR_LIMIT, 0xffff);
+    vmx_write(L4VCPU_VMCS_GUEST_TR_BASE, 0);
+
+    vmx_write(L4VCPU_VMCS_GUEST_RIP, 0);
+    vmx_write(L4VCPU_VMCS_GUEST_RSP, 0);
+    vmx_write(L4VCPU_VMCS_GUEST_CR0, 0x10030);
+    vmx_write(L4VCPU_VMCS_CR0_READ_SHADOW, 0x10030);
+    vmx_write(L4VCPU_VMCS_CR0_GUEST_HOST_MASK, ~0ULL);
+
+    vmx_write(L4VCPU_VMCS_GUEST_CR4, 0x2680);
+    vmx_write(L4VCPU_VMCS_CR4_READ_SHADOW, 0x0680);
+    vmx_write(L4VCPU_VMCS_CR4_GUEST_HOST_MASK, ~0ULL);
   }
 
   Exit exit_reason() const

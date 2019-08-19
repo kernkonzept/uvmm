@@ -124,12 +124,18 @@ Vcpu_ptr::decode_reg_ptr(int value) const
 void
 Vcpu_ptr::reset()
 {
-  // VMX/SVM specific stuff done in setup_protected_mode
   vm_state()->init_state();
-  vm_state()->setup_protected_mode(_s->r.ip);
+
+  // The guests's loader starts Linux in Protected Mode.
+  // However, following a Startup IPI, Application Processors are expected to
+  // come up in Real Mode.
+  if (get_vcpu_id() == 0)
+    vm_state()->setup_protected_mode(_s->r.ip);
+  else
+    vm_state()->setup_real_mode(_s->r.ip);
 
   // TODO If SVM is implemented, we need to branch here for the Vm_state_t
   // to use the correct handle_exit_* function.
   Guest::get_instance()->run_vmx(*this);
 }
-} // namspace Vmm
+} // namespace Vmm

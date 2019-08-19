@@ -18,6 +18,7 @@ public:
 
   virtual void init_state() = 0;
   virtual void setup_protected_mode(l4_addr_t entry) = 0;
+  virtual void setup_real_mode(l4_addr_t entry) = 0;
 
   virtual l4_umword_t ip() const = 0;
   virtual bool pf_write() const = 0;
