@@ -25,6 +25,7 @@
 #include "irq.h"
 #include "guest.h"
 #include "mmio_device.h"
+#include "virtio_cmd_handler.h"
 #include "virtio_event_connector.h"
 #include "vm_ram.h"
 
@@ -216,7 +217,8 @@ namespace Vdev {
 template <typename DEV>
 class Virtio_proxy
 : public L4::Irqep_t<Virtio_proxy<DEV>>,
-  public Device
+  public Device,
+  public Monitor::Virtio_proxy_cmd_handler<Monitor::Enabled, Virtio_proxy<DEV>>
 {
 private:
   /**

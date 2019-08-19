@@ -28,6 +28,7 @@
 #include "device.h"
 #include "mem_access.h"
 #include "vm_ram.h"
+#include "virtio_cmd_handler.h"
 #include "virtio_qword.h"
 
 namespace Virtio {
@@ -81,7 +82,9 @@ public:
   virtual void clear_events(unsigned mask) = 0;
 };
 
-class Dev : public Vdev::Device
+class Dev
+: public Vdev::Device,
+  public Monitor::Virtio_dev_cmd_handler<Monitor::Enabled, Dev>
 {
 public:
   typedef L4virtio::Svr::Dev_status Status;
