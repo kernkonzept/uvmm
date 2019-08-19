@@ -108,21 +108,6 @@ function start_vm(options)
                                       mem_flags, align):m("rws");
   };
 
-  if type(options.mon) == 'string' then
-    -- assume 'mon' is the name of a server binary which implements the uvmm
-    -- CLI interface
-    mon = l:new_channel()
-
-    l:start({
-      log = l.log_fab:create(L4.Proto.Log, "mon" .. nr),
-      caps = { mon = mon:svr() }
-    }, "rom/" .. options.mon)
-
-    caps["mon"] = mon
-  elseif options.mon ~= false then
-    caps["mon"] = l.log_fab:create(L4.Proto.Log, "mon" .. nr, "g");
-  end
-
   if options.jdb then
     caps["jdb"] = L4.Env.jdb
   end
@@ -146,6 +131,23 @@ function start_vm(options)
   };
 
   set_sched(opts, prio, cpus);
+
+  if type(options.mon) == 'string' then
+    -- assume 'mon' is the name of a server binary which implements the uvmm
+    -- CLI interface
+    mon = l:new_channel()
+
+    l:start({
+      scheduler = opts.scheduler;
+      log = l.log_fab:create(L4.Proto.Log, "mon" .. nr),
+      caps = { mon = mon:svr() }
+    }, "rom/" .. options.mon)
+
+    caps["mon"] = mon
+  elseif options.mon ~= false then
+    caps["mon"] = l.log_fab:create(L4.Proto.Log, "mon" .. nr, "g");
+  end
+
   return l:startv(opts, "rom/uvmm", table.unpack(cmdline));
 end
 
