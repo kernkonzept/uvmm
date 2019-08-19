@@ -19,6 +19,7 @@
 #include "consts.h"
 #include "vmx_exit_to_str.h"
 #include "msr_devices.h"
+#include "acpi.h"
 
 static cxx::Static_container<Vmm::Guest> guest;
 
@@ -131,6 +132,8 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
   register_msr_device(
     Vdev::make_device<Vdev::Microcode_revision>(cpus->vcpu(0)));
 
+  Acpi::Tables acpi_tables(devs->ram());
+  acpi_tables.write_to_guest(cpus->max_cpuid() + 1);
 }
 
 void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
