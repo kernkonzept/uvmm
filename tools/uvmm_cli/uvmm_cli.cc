@@ -268,6 +268,7 @@ public:
 private:
   Readline_loop() {
     rl_attempted_completion_function = (CPPFunction *)attempt_completion;
+    rl_completer_word_break_characters = const_cast<char *>(" \t\n");
   }
 
   static char *generate_completion(char *, int state)
