@@ -434,7 +434,7 @@ private:
         // if there is only one word, complete it using all registered commands
         for (auto const &handler : _cmd_handlers)
           {
-             if (end_last < (int)(strlen(handler.name))
+             if (end_last <= (int)(strlen(handler.name))
                  && strncmp(cmd_line + beg_last, handler.name, end_last) == 0)
                {
                  fprintf(_f,
