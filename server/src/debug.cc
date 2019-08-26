@@ -131,19 +131,9 @@ Dbg::set_verbosity(char const *str)
   if (!eq)
     return -L4_EINVAL;
 
-  // ignore whitespace before equals sign
-  char const *str_c_end = eq;
-  while (str_c_end > str && *(str_c_end - 1) == ' ')
-    --str_c_end;
-
-  // ignore whitespace after equals sign
-  char const *str_v = eq + 1;
-  while ((size_t)(str_v - str) < strlen(str) && *str_v == ' ')
-    ++str_v;
-
   unsigned c;
-  if (!component_from_string(str, str_c_end - str, &c) ||
-      !verbosity_mask_from_string(str_v, &mask))
+  if (!component_from_string(str, eq - str, &c)
+      || !verbosity_mask_from_string(eq + 1, &mask))
     {
       return -L4_EINVAL;
     }

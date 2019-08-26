@@ -12,6 +12,7 @@
 #include <cstdio>
 
 #include "monitor.h"
+#include "monitor_args.h"
 
 namespace Monitor {
 
@@ -28,7 +29,7 @@ public:
   char const *help() const override
   { return "GIC distributor"; }
 
-  void exec(FILE *f, char const *) override
+  void exec(FILE *f, Arglist *) override
   {
     fprintf(f, "#\n# Spis\n#\n");
     fprintf(f, "Irq     raw pen act ena src tar pri con grp\n");

@@ -15,7 +15,7 @@
 
 #include "cpu_dev.h"
 #include "monitor.h"
-#include "monitor_util.h"
+#include "monitor_args.h"
 
 namespace Monitor {
 
@@ -34,62 +34,57 @@ public:
   char const *help() const override
   { return "CPU state"; }
 
-  void complete(FILE *f, char const *args) const override
-  {
-    simple_complete(f, args, {"list"});
-
-    size_t arglen = strlen(args);
-
-    for (int i = 0; i < Max_cpus; ++i)
-      {
-        if (!cpu_valid(i))
-          continue;
-
-        std::string s(std::to_string(i));
-        if (arglen < s.size())
-          {
-            if (strncmp(args, s.c_str(), arglen) == 0)
-              fprintf(f, "%s\n", s.c_str());
-          }
-        else if (arglen > s.size())
-          {
-            if (strncmp(args, s.c_str(), s.size()) == 0)
-              {
-                char const *subargs = args + s.size() + 1;
-                while (*subargs && *subargs == ' ')
-                  ++subargs;
-
-                get_cpu(i)->complete(f, subargs);
-              }
-          }
-      }
-  }
-
-  void exec(FILE *f, char const *args) override
-  {
-    auto argv = split_params(args, 2);
-
-    if (argv.empty())
-      {
-        print_help(f);
-        return;
-      }
-
-    if (argv.size() == 1 && argv[0] == "list")
-      list_cpus(f);
-    else
-      exec_subcmd(f, argv);
-  }
-
-private:
-  void print_help(FILE *f) const
+  void usage(FILE *f) const
   {
     fprintf(f, "%s\n"
                "* 'cpu list': list available CPUs\n"
                "* 'cpu <i> <subcmd>': execute <subcmd> for CPU <i>\n",
-               help());
+            help());
   }
 
+  void complete(FILE *f, Completion_request *compl_req) const override
+  {
+    switch (compl_req->count() + compl_req->trailing_space())
+      {
+      case 0:
+      case 1:
+        {
+          compl_req->complete(f, "list");
+
+          for (int cpu = 0; cpu < Max_cpus; ++cpu)
+            {
+              if (!cpu_valid(cpu))
+                continue;
+
+              std::string cpu_s(std::to_string(cpu));
+              compl_req->complete(f, cpu_s.c_str());
+            }
+        }
+        break;
+      default:
+        {
+          auto cpu_arg = compl_req->pop();
+          if (!cpu_arg.check<unsigned>())
+            return;
+
+          unsigned cpu = cpu_arg.get<unsigned>();
+          if (!cpu_valid(cpu))
+            return;
+
+          get_cpu(cpu)->complete(f, compl_req);
+        }
+      }
+  }
+
+  void exec(FILE *f, Arglist *args) override
+  {
+    if (*args == "list")
+      list_cpus(f);
+    else
+      exec_subcmd(f, args);
+  }
+
+private:
   bool cpu_valid(unsigned i) const
   { return i < Max_cpus && get_cpu(i); }
 
@@ -103,24 +98,14 @@ private:
       }
   }
 
-  void exec_subcmd(FILE *f, std::vector<std::string> const &argv)
+  void exec_subcmd(FILE *f, Arglist *args)
   {
-    unsigned i = 0;
-    if (!stou(argv[0].c_str(), &i))
-      {
-        print_help(f);
-        return;
-      }
+    unsigned cpu = args->pop<unsigned>("Failed to parse VCPU index");
 
-    if (!cpu_valid(i))
-      {
-        fprintf(f, "Invalid CPU\n");
-      }
-    else
-      {
-        char const *subargs = argv.size() == 2 ? argv[1].c_str() : "";
-        get_cpu(i)->exec(f, subargs);
-      }
+    if (!cpu_valid(cpu))
+      argument_error("Invalid CPU");
+
+    get_cpu(cpu)->exec(f, args);
   }
 
   Vmm::Cpu_dev *get_cpu(unsigned i)

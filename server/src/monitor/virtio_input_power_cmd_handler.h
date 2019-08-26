@@ -11,6 +11,7 @@
 #include <cstdio>
 
 #include "monitor.h"
+#include "monitor_args.h"
 
 namespace Monitor {
 
@@ -27,16 +28,12 @@ public:
   char const *help() const override
   { return "Send system request"; }
 
-  void exec(FILE *f, char const *args) override
+  void exec(FILE *, Arglist *args) override
   {
-    if (strlen(args) != 1)
-      {
-        fprintf(f, "Key expected (try 'h' for help).\n");
-        return;
-      }
+    char key = args->pop<char>("Key expected (try 'h' for help)");
 
-    if (!virtio_input_power()->inject_command(args[0]))
-      fprintf(f, "failed to inject event\n");
+    if (!virtio_input_power()->inject_command(key))
+      argument_error("Failed to inject event");
   }
 
 private:

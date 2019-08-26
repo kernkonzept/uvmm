@@ -13,6 +13,7 @@
 #include <l4/sys/l4int.h>
 
 #include "monitor.h"
+#include "monitor_args.h"
 
 namespace Monitor {
 
@@ -29,7 +30,7 @@ public:
   char const *help() const override
   { return "RAM dataspaces"; }
 
-  void exec(FILE *f, char const *) override
+  void exec(FILE *f, Arglist *) override
   {
     fprintf(f, "Dataspace  Guest area             Size        Local address  Phys?\n");
     for (auto const &r : vm_ram()->_regions)

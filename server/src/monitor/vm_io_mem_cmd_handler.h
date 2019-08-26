@@ -13,6 +13,7 @@
 
 #include "mem_types.h"
 #include "monitor.h"
+#include "monitor_args.h"
 
 namespace Monitor {
 
@@ -31,7 +32,7 @@ public:
   char const *help() const override
   { return IO ? "IO device mappings" : "MMIO device mappings"; }
 
-  void exec(FILE *f, char const *) override
+  void exec(FILE *f, Arglist *) override
   {
     fprintf(f, "Devices mapped at:\n");
 

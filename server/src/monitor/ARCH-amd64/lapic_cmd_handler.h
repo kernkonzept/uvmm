@@ -13,7 +13,7 @@
 #include <l4/sys/l4int.h>
 
 #include "monitor.h"
-#include "monitor_util.h"
+#include "monitor_args.h"
 
 namespace Monitor {
 
@@ -43,20 +43,20 @@ public:
   char const *help() const override
   { return "Local APIC registers"; }
 
-  void exec(FILE *f, char const *args) override
+  void usage(FILE *f) const
   {
-    unsigned lapic_no = 0;
-    if (strlen(args) == 0 || !stou(args, &lapic_no))
-      {
-        print_help(f);
-        return;
-      }
+    fprintf(f, "%s\n"
+               "* 'lapic <i>': dump local APIC registers for a specific cpu\n",
+            help());
+  }
+
+  void exec(FILE *f, Arglist *args) override
+  {
+    unsigned lapic_no =
+      args->pop<unsigned>("Failed to parse local APIC number.");
 
     if (!lapic_check(lapic_no))
-      {
-        fprintf(f, "No such CPU or no local APIC registers found\n");
-        return;
-      }
+      argument_error("No such CPU or no local APIC registers found");
 
     show_lapic(f, lapic_no);
   }
@@ -104,13 +104,6 @@ public:
   }
 
 private:
-  void print_help(FILE *f) const
-  {
-    fprintf(f, "%s\n"
-               "'lapic <i>': dump local APIC registers for a specific cpu\n",
-               help());
-  }
-
   void print_row(FILE *f, unsigned lapic_no, Apic_register const &r) const
   {
     print_location(f, r.msr, r.bytes);

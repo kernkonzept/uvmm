@@ -14,7 +14,7 @@
 #include <l4/vcpu/vmx/vmcs.h>
 
 #include "monitor.h"
-#include "monitor_util.h"
+#include "monitor_args.h"
 #include "vcpu_ptr.h"
 #include "vm_state_vmx.h"
 
@@ -30,17 +30,25 @@ public:
   char const *help() const override
   { return "CPU state"; }
 
-  void complete(FILE *f, char const *args) const override
-  { simple_complete(f, args, {"regs", "vmx"}); }
-
-  void exec(FILE *f, char const *args) override
+  void usage(FILE *f) const
   {
-    if (strcmp(args, "regs") == 0)
+    fprintf(f, "%s\n"
+               "* 'cpu <i> regs': dump CPU registers\n"
+               "* 'cpu <i> vmx': dump VMX state\n",
+            help());
+  }
+
+  void complete(FILE *f, Completion_request *compl_req) const override
+  { compl_req->complete(f, {"regs", "vmx"}); }
+
+  void exec(FILE *f, Arglist *args) override
+  {
+    if (*args == "regs")
       show_regs(f);
-    else if (strcmp(args, "vmx") == 0)
+    else if (*args == "vmx")
       show_vmx(f);
     else
-      print_help(f);
+      argument_error("Invalid subcommand");
   }
 
   void show_regs(FILE *f) const
@@ -207,14 +215,6 @@ public:
   }
 
 private:
-  void print_help(FILE *f) const
-  {
-    fprintf(f, "%s\n"
-               "* 'cpu <i> regs': dump CPU registers\n"
-               "* 'cpu <i> vmx': dump VMX state\n",
-            help());
-  }
-
   Vmm::Vcpu_ptr get_vcpu() const
   { return static_cast<T const *>(this)->vcpu(); }
 };

@@ -10,6 +10,8 @@
 
 #include <l4/sys/cxx/ipc_epiface>
 
+#include "monitor_args.h"
+
 namespace Monitor {
 
 /// Monitor console state indicator
@@ -43,11 +45,20 @@ public:
   virtual char const *help() const = 0;
 
   /**
+   * Display command usage message.
+   *
+   * \return  Stream to which to print usage message.
+   *
+   * \note  The `help <cmd>` command uses this function.
+   */
+  virtual void usage(FILE *f) const
+  { fprintf(f, "%s\n", help()); }
+
+  /**
    * Complete partial arguments.
    *
-   * \param f     Stream to which completions are to be written.
-   *
-   * \param args  Command line arguments to be completed.
+   * \param f          Stream to which completions are to be written.
+   * \param compl_req  Command line to be completed.
    *
    * This method should examine whether there exist one or several suitable
    * completions for the partial arguments to the command implemented by this
@@ -56,8 +67,8 @@ public:
    * newline).  Otherwise this method should do nothing. When `args` is an
    * empty string, all possible subcommands should be output this way.
    */
-  virtual void complete(FILE *f, char const *args) const
-  { (void)f; (void)args; }
+  virtual void complete(FILE *f, Completion_request *compl_req) const
+  { (void)f; (void)compl_req; }
 
   /**
    * Invoke command.
@@ -67,16 +78,12 @@ public:
    *              end with a final newline, unless no output is produced to
    *              begin with.
    *
-   * \param args  Arguments passed to the command, if no arguments where passed,
-   *              this is an empty C-string, otherwise this is a list of
-   *              arguments guaranteed to be separated by single spaces (with no
-   *              leading or trailing whitespace). In case of invalid arguments,
-   *              an error message should be written to `f`.
+   * \param args  Arguments passed to the command.
    *
    * This method is called when the implemented command is sent to uvmm
    * via the monitor console interface, possibly with additional arguments.
    */
-  virtual void exec(FILE *f, char const *args) = 0;
+  virtual void exec(FILE *f, Arglist *args) = 0;
 
   /**
    * Register command.

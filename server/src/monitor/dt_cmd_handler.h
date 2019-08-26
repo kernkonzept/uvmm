@@ -20,6 +20,7 @@ extern "C" {
 
 #include "device_tree.h"
 #include "monitor.h"
+#include "monitor_args.h"
 
 namespace Dtb {
 
@@ -154,7 +155,7 @@ public:
   char const *help() const override
   { return "Device tree source"; }
 
-  void exec(FILE *f, char const *) override
+  void exec(FILE *f, Arglist *) override
   { decompile(f); }
 
 private:

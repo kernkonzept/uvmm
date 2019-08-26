@@ -12,7 +12,7 @@
 #include <cstring>
 
 #include "monitor.h"
-#include "monitor_util.h"
+#include "monitor_args.h"
 
 namespace Monitor {
 
@@ -29,50 +29,39 @@ public:
   char const *help() const override
   { return "Device list"; }
 
-  void complete(FILE *f, char const *args) const override
+  void usage(FILE *f) const
   {
-    simple_complete(f, args, {"list"});
-
-    for (auto const &d : vm()->_devices)
-      {
-        if (strncmp(args, d.path.c_str(), strlen(args)) == 0)
-          fprintf(f, "%s\n", d.path.c_str());
-      }
+    fprintf(f, "%s\n"
+               "* 'dev list': list available devices\n"
+               "* 'dev <dev> <args>': execute device specific command\n",
+            help());
   }
 
-  void exec(FILE *f, char const *cmd) override
+  void complete(FILE *f, Completion_request *compl_req) const override
   {
-    if (strlen(cmd) == 0)
-      {
-        fprintf(f, "Use 'dev list' to show available devices\n");
-      }
-    else if (strcmp(cmd, "list") == 0)
+    compl_req->complete(f, "list");
+
+    for (auto const &d : vm()->_devices)
+      compl_req->complete(f, d.path.c_str());
+  }
+
+  void exec(FILE *f, Arglist *args) override
+  {
+    if (*args == "list")
       {
         for (auto const &d : vm()->_devices)
           fprintf(f, " %s\n", d.path.c_str());
       }
     else
       {
-        std::string devname;
-        char const *params = strchrnul(cmd, ' ');
-
-        if (params)
-          {
-            devname = std::string(cmd, params);
-            ++params;
-          }
-        else
-          {
-            devname = cmd;
-            params = "";
-          }
+        auto subcmd = args->pop();
 
         bool found_device = false;
         Cmd *monitor = nullptr;
 
         for (auto const &d : vm()->_devices)
           {
-            if (d.path == devname)
+            if (d.path == subcmd)
               {
                 found_device = true;
                 monitor = dynamic_cast<Cmd *>(d.dev.get());
@@ -83,14 +72,12 @@ public:
         if (found_device)
           {
             if (monitor)
-              monitor->exec(f, params);
+              monitor->exec(f, args);
             else
-              fprintf(f, "Not implemented\n");
+              argument_error("Not implemented");
           }
         else
-          {
-            fprintf(f, "Unknown device\n");
-          }
+          argument_error("Unknown device");
       }
   }
 
