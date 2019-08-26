@@ -157,11 +157,14 @@ public:
   static int set_verbosity(char const *str);
 
 #else
-  static int get_verbosity(unsigned c, char const **str) {}
-  static int get_verbosity(char const *c, char const **str) {}
+  static int get_verbosity(unsigned c, char const **str)
+  { return -L4_EINVAL; }
+  static int get_verbosity(char const *c, char const **str)
+  { return -L4_EINVAL; }
   static void set_verbosity(unsigned, unsigned) {}
   static void set_verbosity(unsigned) {}
-  static int set_verbosity(char const *) { return -L4_EINVAL; }
+  static int set_verbosity(char const *)
+  { return -L4_EINVAL; }
 
   Dbg(Component c = Core, Verbosity v = Warn, char const *subsys = "")
   {
