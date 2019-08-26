@@ -119,27 +119,23 @@ struct Mmio_device : public virtual Vdev::Dev_ref
   /**
    * Page in memory for specified address.
    *
-   * \param addr        An address to page in memory for
-   * \retval 0          Success
-   * \retval L4_EINVAL  Either address is not valid or the address is not
-   *                    writable
+   * \param addr         An address to page in memory for
+   * \retval 0           Success
+   * \retval L4_ENOMEM   Address is not valid
+   * \retval L4_EACCESS  Address is not writable or executable
    *
-   * \retval <0         IPC errors
+   * \retval <0          IPC errors
    */
   long page_in(l4_addr_t addr, bool writable)
   {
     auto *e = L4Re::Env::env();
-    l4_mword_t result = 0;
     L4::Ipc::Snd_fpage rfp;
 
     l4_msgtag_t msgtag = e->rm()
-      ->page_fault(((addr & L4_PAGEMASK) | (writable ? 2 : 0)), -3UL, result,
+      ->page_fault(((addr & L4_PAGEMASK) | (writable ? 2 : 0)), -3UL,
                    L4::Ipc::Rcv_fpage::mem(0, L4_WHOLE_ADDRESS_SPACE, 0),
                    rfp);
-    if (!l4_error(msgtag))
-      return result != -1 ? L4_EOK : -L4_EINVAL;
-    else
-      return l4_error(msgtag);
+    return l4_error(msgtag);
   }
 
   /**
