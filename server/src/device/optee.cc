@@ -147,14 +147,9 @@ private:
 
   bool is_valid_func_id(l4_umword_t reg) const
   {
-    // Check for the correct SMC calling convention:
-    // - 32/64bit (0 | 0x40000000)
-    // - fast or std call (0 | 0x80000000)
-    // - owner mask (0x3f << 24)
-    // - function range (0xffff)
-    // - rest zero
-    l4_umword_t mask = ~(0x40000000 | 0x80000000 | 0x3f << 24 | 0xffff);
-    return (reg & mask) == 0x0;
+    // Check this is in the trusted application/OS range
+    reg &= 0x3f00ffff;
+    return (reg >= 0x30000000 && reg <= 0x3f00ffff);
   }
 
   L4::Cap<L4::Arm_smccc> _optee;
