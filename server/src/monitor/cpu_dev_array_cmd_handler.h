@@ -31,7 +31,8 @@ public:
   Cpu_dev_array_cmd_handler()
   { register_toplevel("cpu"); }
 
-  char const *help() const override { return "CPU state"; }
+  char const *help() const override
+  { return "CPU state"; }
 
   void complete(FILE *f, char const *args) const override
   {

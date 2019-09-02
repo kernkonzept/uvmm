@@ -26,7 +26,8 @@ public:
   Vm_ram_cmd_handler()
   { register_toplevel("ram"); }
 
-  char const *help() const override { return "RAM dataspaces"; }
+  char const *help() const override
+  { return "RAM dataspaces"; }
 
   void exec(FILE *f, char const *) override
   {
@@ -42,7 +43,8 @@ public:
   }
 
 private:
-  T *vm_ram() { return static_cast<T *>(this); }
+  T *vm_ram()
+  { return static_cast<T *>(this); }
 };
 
 }

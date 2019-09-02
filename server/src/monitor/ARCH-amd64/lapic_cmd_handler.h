@@ -40,7 +40,8 @@ public:
   Lapic_cmd_handler()
   { register_toplevel("lapic"); }
 
-  char const *help() const override { return "Local APIC registers"; }
+  char const *help() const override
+  { return "Local APIC registers"; }
 
   void exec(FILE *f, char const *args) override
   {

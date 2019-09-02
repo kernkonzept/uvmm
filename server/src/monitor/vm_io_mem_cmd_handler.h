@@ -28,9 +28,8 @@ public:
   Vm_io_mem_cmd_handler()
   { register_toplevel(IO ? "iomap" : "memmap"); }
 
-  char const *help() const override {
-    return IO ? "IO device mappings" : "MMIO device mappings";
-  }
+  char const *help() const override
+  { return IO ? "IO device mappings" : "MMIO device mappings"; }
 
   void exec(FILE *f, char const *) override
   {
@@ -76,7 +75,8 @@ private:
     fprintf(f, region_addr_fmt, region.start, region.end);
   }
 
-  T const *mem() const { return static_cast<T const *>(this); }
+  T const *mem() const
+  { return static_cast<T const *>(this); }
 };
 
 template<bool ENABLED, typename T>

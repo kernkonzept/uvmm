@@ -25,7 +25,8 @@ public:
   Gic_cmd_handler()
   { register_toplevel("gic"); }
 
-  char const *help() const override { return "GIC distributor"; }
+  char const *help() const override
+  { return "GIC distributor"; }
 
   void exec(FILE *f, char const *) override
   {
@@ -56,7 +57,8 @@ private:
             (int)p->group());
   }
 
-  T *dist() { return static_cast<T *>(this); }
+  T *dist()
+  { return static_cast<T *>(this); }
 };
 
 }

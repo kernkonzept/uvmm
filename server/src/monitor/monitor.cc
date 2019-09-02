@@ -49,7 +49,8 @@ public:
     Help()
     { register_toplevel("help"); }
 
-    char const *help() const override { return "Print this help"; }
+    char const *help() const override
+    { return "Print this help"; }
 
     void exec(FILE *f, char const *) override
     {

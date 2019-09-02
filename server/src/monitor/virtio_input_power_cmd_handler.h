@@ -24,7 +24,8 @@ public:
   Virtio_input_power_cmd_handler()
   { register_toplevel("sysrq"); }
 
-  char const *help() const override { return "Send system request"; }
+  char const *help() const override
+  { return "Send system request"; }
 
   void exec(FILE *f, char const *args) override
   {
@@ -39,7 +40,8 @@ public:
   }
 
 private:
-  T * virtio_input_power() { return static_cast<T *>(this); }
+  T * virtio_input_power()
+  { return static_cast<T *>(this); }
 };
 
 }

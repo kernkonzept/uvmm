@@ -56,7 +56,8 @@ public:
    * newline).  Otherwise this method should do nothing. When `args` is an
    * empty string, all possible subcommands should be output this way.
    */
-  virtual void complete(FILE *f, char const *args) const { (void)f; (void)args; }
+  virtual void complete(FILE *f, char const *args) const
+  { (void)f; (void)args; }
 
   /**
    * Invoke command.

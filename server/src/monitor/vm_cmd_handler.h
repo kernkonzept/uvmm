@@ -26,7 +26,8 @@ public:
   Vm_cmd_handler()
   { register_toplevel("dev"); }
 
-  char const *help() const override { return "Device list"; }
+  char const *help() const override
+  { return "Device list"; }
 
   void complete(FILE *f, char const *args) const override
   {
@@ -94,8 +95,8 @@ public:
   }
 
 private:
-  T *vm() { return static_cast<T *>(this); }
-  T const *vm() const { return static_cast<T const *>(this); }
+  T const *vm() const
+  { return static_cast<T const *>(this); }
 };
 
 }

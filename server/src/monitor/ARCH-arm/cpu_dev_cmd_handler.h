@@ -25,7 +25,8 @@ template<typename T>
 class Cpu_dev_cmd_handler<true, T> : public Cmd
 {
 public:
-  char const *help() const override { return "CPU state"; }
+  char const *help() const override
+  { return "CPU state"; }
 
   void complete(FILE *f, char const *args) const override
   { simple_complete(f, args, {"regs"}); }

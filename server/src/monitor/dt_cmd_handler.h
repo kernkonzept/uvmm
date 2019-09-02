@@ -309,7 +309,8 @@ private:
   static int sort_named(U const &a, U const &b)
   { return strcmp(a.get_name(), b.get_name()) < 0; }
 
-  T const *host_dt() const { return static_cast<T const *>(this); }
+  T const *host_dt() const
+  { return static_cast<T const *>(this); }
 };
 
 } // namespace Monitor
