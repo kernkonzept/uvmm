@@ -88,12 +88,21 @@ Factory::create_dev(Device_lookup *devs, Dt_node const &node)
   if (!f)
     return nullptr;
 
-  cxx::Ref_ptr<Device> dev = f->create(devs, node);
-  if (!dev)
-    return nullptr;
+  try
+    {
+      cxx::Ref_ptr<Device> dev = f->create(devs, node);
+      if (!dev)
+        return nullptr;
 
-  devs->add_device(node, dev);
-  return dev;
+      devs->add_device(node, dev);
+      return dev;
+    }
+  catch (...)
+    {
+      Err().printf("Device creation for virtual device %s failed.\n",
+                   node.get_name());
+      throw;
+    }
 }
 
 L4::Cap<void>
