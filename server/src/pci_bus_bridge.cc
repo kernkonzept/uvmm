@@ -137,7 +137,7 @@ void Pci_bus_bridge::init_io_resources(Device_lookup *devs)
                 res.end = region.end;
                 res.provider = 0;
                 res.id = 0;
-                L4Re::chksys(vbus->bus()->request_resource(&res),
+                L4Re::chksys(vbus->bus()->request_ioport(&res),
                              "Request IO port resource from vBus.");
                 warn().printf("Register IO region: [0x%lx, 0x%lx]\n",
                               region.start, region.end);
