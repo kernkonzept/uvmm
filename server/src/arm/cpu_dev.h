@@ -11,8 +11,8 @@
 #include <cstdio>
 #include <atomic>
 
-#include "cpu_dev_cmd_handler.h"
 #include "generic_cpu_dev.h"
+#include "monitor/cpu_dev_cmd_handler.h"
 
 extern __thread unsigned vmm_current_cpu_id;
 

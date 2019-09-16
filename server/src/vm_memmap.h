@@ -14,7 +14,7 @@
 
 #include "mmio_device.h"
 #include "mem_types.h"
-#include "vm_io_mem_cmd_handler.h"
+#include "monitor/vm_io_mem_cmd_handler.h"
 
 namespace Vmm {
 

@@ -25,9 +25,9 @@
 #include "irq.h"
 #include "guest.h"
 #include "mmio_device.h"
-#include "virtio_cmd_handler.h"
 #include "virtio_event_connector.h"
 #include "vm_ram.h"
+#include "monitor/virtio_cmd_handler.h"
 
 namespace L4virtio { namespace Driver {
 

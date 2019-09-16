@@ -19,8 +19,8 @@ extern "C" {
 }
 
 #include "device_tree.h"
-#include "monitor.h"
-#include "monitor_args.h"
+#include "monitor/monitor.h"
+#include "monitor/monitor_args.h"
 
 namespace Dtb {
 

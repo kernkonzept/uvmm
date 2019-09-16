@@ -13,7 +13,7 @@
 #include "debug.h"
 #include "device.h"
 #include "cpu_dev.h"
-#include "cpu_dev_array_cmd_handler.h"
+#include "monitor/cpu_dev_array_cmd_handler.h"
 
 namespace Vmm {
 

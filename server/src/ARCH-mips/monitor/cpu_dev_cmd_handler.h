@@ -12,9 +12,9 @@
 #include <cstdio>
 #include <cstring>
 
-#include "monitor.h"
-#include "monitor_args.h"
 #include "vcpu_ptr.h"
+#include "monitor/monitor.h"
+#include "monitor/monitor_args.h"
 
 namespace Monitor {
 

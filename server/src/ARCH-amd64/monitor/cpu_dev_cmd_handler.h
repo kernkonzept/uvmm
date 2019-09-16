@@ -13,10 +13,10 @@
 
 #include <l4/vcpu/vmx/vmcs.h>
 
-#include "monitor.h"
-#include "monitor_args.h"
 #include "vcpu_ptr.h"
 #include "vm_state_vmx.h"
+#include "monitor/monitor.h"
+#include "monitor/monitor_args.h"
 
 namespace Monitor {
 

@@ -12,8 +12,8 @@
 #include <map>
 
 #include "io_device.h"
-#include "vm_io_mem_cmd_handler.h"
 #include "mem_types.h"
+#include "monitor/vm_io_mem_cmd_handler.h"
 
 namespace Vmm {
 

@@ -13,8 +13,8 @@
 #include <l4/l4virtio/virtqueue>
 
 #include "device.h"
-#include "dt_cmd_handler.h"
 #include "mem_types.h"
+#include "monitor/dt_cmd_handler.h"
 
 namespace Vdev {
 

@@ -26,7 +26,7 @@
 #include "mem_types.h"
 #include "ram_ds.h"
 #include "vm_memmap.h"
-#include "vm_ram_cmd_handler.h"
+#include "monitor/vm_ram_cmd_handler.h"
 
 class Vm_mem;
 

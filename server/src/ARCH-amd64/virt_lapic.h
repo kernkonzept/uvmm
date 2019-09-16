@@ -26,7 +26,7 @@
 #include "mem_types.h"
 #include "mmio_device.h"
 #include "msi.h"
-#include "lapic_cmd_handler.h"
+#include "monitor/lapic_cmd_handler.h"
 
 using L4Re::Rm;
 

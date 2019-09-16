@@ -13,7 +13,6 @@
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
-
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -29,9 +28,9 @@
 #include "debug.h"
 #include "guest.h"
 #include "host_dt.h"
-#include "monitor.h"
 #include "vm_ram.h"
 #include "vm.h"
+#include "monitor/monitor.h"
 
 static Vmm::Vm vm_instance;
 

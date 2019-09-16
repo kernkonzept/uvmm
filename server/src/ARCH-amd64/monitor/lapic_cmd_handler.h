@@ -12,8 +12,8 @@
 
 #include <l4/sys/l4int.h>
 
-#include "monitor.h"
-#include "monitor_args.h"
+#include "monitor/monitor.h"
+#include "monitor/monitor_args.h"
 
 namespace Monitor {
 

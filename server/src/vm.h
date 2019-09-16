@@ -11,9 +11,9 @@
 #include "device.h"
 #include "device_repo.h"
 #include "guest.h"
-#include "vm_cmd_handler.h"
 #include "vm_ram.h"
 #include "virt_bus.h"
+#include "monitor/vm_cmd_handler.h"
 
 namespace Vmm {
 

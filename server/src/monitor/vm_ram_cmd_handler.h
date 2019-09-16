@@ -14,8 +14,8 @@
 
 #include "mem_dump.h"
 #include "mem_types.h"
-#include "monitor.h"
-#include "monitor_args.h"
+#include "monitor/monitor.h"
+#include "monitor/monitor_args.h"
 
 namespace Monitor {
 

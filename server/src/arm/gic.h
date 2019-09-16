@@ -18,9 +18,9 @@
 #include <cstdio>
 
 #include "debug.h"
-#include "gic_cmd_handler.h"
 #include "mmio_device.h"
 #include "irq.h"
+#include "monitor/gic_cmd_handler.h"
 
 extern __thread unsigned vmm_current_cpu_id;
 

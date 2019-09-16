@@ -10,7 +10,7 @@
 
 #include <l4/sys/cxx/ipc_epiface>
 
-#include "monitor_args.h"
+#include "monitor/monitor_args.h"
 
 namespace Monitor {
 

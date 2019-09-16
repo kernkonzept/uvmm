@@ -28,8 +28,8 @@
 #include "device.h"
 #include "mem_access.h"
 #include "vm_ram.h"
-#include "virtio_cmd_handler.h"
 #include "virtio_qword.h"
+#include "monitor/virtio_cmd_handler.h"
 
 namespace Virtio {
 

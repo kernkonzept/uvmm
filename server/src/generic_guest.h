@@ -17,11 +17,11 @@
 #include "debug.h"
 #include "ds_mmio_mapper.h"
 #include "mem_types.h"
-#include "monitor.h"
 #include "ram_ds.h"
 #include "vm_memmap.h"
 #include "pm.h"
 #include "consts.h"
+#include "monitor/monitor.h"
 
 #include <cstdio>
 #include <cstdlib>

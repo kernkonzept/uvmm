@@ -23,9 +23,9 @@
 #include <l4/sys/vcon>
 
 #include "debug.h"
-#include "monitor.h"
-#include "monitor_args.h"
 #include "uvmm_cli.h"
+#include "monitor/monitor.h"
+#include "monitor/monitor_args.h"
 
 namespace {
 

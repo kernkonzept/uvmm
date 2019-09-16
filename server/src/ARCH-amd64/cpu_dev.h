@@ -7,10 +7,10 @@
  */
 #pragma once
 
-#include "cpu_dev_cmd_handler.h"
 #include "debug.h"
 #include "generic_cpu_dev.h"
 #include "vcpu_ptr.h"
+#include "monitor/cpu_dev_cmd_handler.h"
 
 namespace Vmm {
 

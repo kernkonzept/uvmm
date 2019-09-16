@@ -9,11 +9,11 @@
 #include <cstring>
 
 #include "virtio_input.h"
-#include "virtio_input_power_cmd_handler.h"
 #include "mmio_device.h"
 #include "irq.h"
 #include "device_factory.h"
 #include "guest.h"
+#include "monitor/virtio_input_power_cmd_handler.h"
 
 #include <l4/sys/cxx/ipc_epiface>
 #include <l4/cxx/type_traits>
