@@ -2,6 +2,7 @@
  * Copyright (C) 2018 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *            Philipp Eppelt <philipp.eppelt@kernkonzept.com>
+ *            Benjamin Lamowski <benjamin.lamowski@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
@@ -28,6 +29,12 @@ Guest::create_instance()
 {
   trace().printf("creating instance\n");
   guest.construct();
+  return guest;
+}
+
+Guest *
+Guest::get_instance()
+{
   return guest;
 }
 
@@ -536,7 +543,7 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
     }
 }
 
-void L4_NORETURN
+void
 Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
 {
   unsigned const max_cpuid = cpus->max_cpuid();
@@ -559,20 +566,15 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
   register_msr_device(
     Vdev::make_device<Vdev::Microcode_revision>(cpus->vcpu(0)));
 
-  // Additional vCPUs are initialized to run startup on the first reschedule.
-  cpus->cpu(0)->startup();
-
   Dbg(Dbg::Guest, Dbg::Info).printf("Starting VMM @ 0x%lx\n", cpus->vcpu(0)->r.ip);
 
-  // TODO If SVM is implemented, we need to branch here for the Vm_state_t
-  // to use the correct handle_exit_* function.
-  run_vmx(cpus->cpu(0));
+  // Additional vCPUs are initialized to run startup on the first reschedule.
+  cpus->cpu(0)->startup();
 }
 
 void L4_NORETURN
-Guest::run_vmx(cxx::Ref_ptr<Cpu_dev> const &cpu_dev)
+Guest::run_vmx(Vcpu_ptr vcpu)
 {
-  Vcpu_ptr vcpu = cpu_dev->vcpu();
   Vmx_state *vm = dynamic_cast<Vmx_state *>(vcpu.vm_state());
   assert(vm);
 

@@ -1,10 +1,19 @@
+/*
+ * Copyright (C) 2017 Kernkonzept GmbH.
+ * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
+ *            Benjamin Lamowski <benjamin.lamowski@kernkonzept.com>
+ *
+ * This file is distributed under the terms of the GNU General Public
+ * License, version 2.  Please see the COPYING-GPL-2 file for details.
+ */
 
 #include <l4/util/cpu.h>
 
 #include "vcpu_ptr.h"
 #include "vm_state_vmx.h"
-#include "mad.h"
 #include "pt_walker.h"
+#include "mad.h"
+#include "guest.h"
 
 namespace Vmm {
 
@@ -113,4 +122,15 @@ Vcpu_ptr::decode_reg_ptr(int value) const
          + (L4mad::Num_registers - 1 - value);
 }
 
+void
+Vcpu_ptr::reset()
+{
+  // VMX/SVM specific stuff done in setup_protected_mode
+  vm_state()->init_state();
+  vm_state()->setup_protected_mode(_s->r.ip);
+
+  // TODO If SVM is implemented, we need to branch here for the Vm_state_t
+  // to use the correct handle_exit_* function.
+  Guest::get_instance()->run_vmx(*this);
+}
 } // namspace Vmm

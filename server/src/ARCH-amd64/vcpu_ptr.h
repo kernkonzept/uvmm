@@ -60,12 +60,7 @@ public:
     *decode_reg_ptr(_s->user_data[Reg_mmio_read]) = m.value;
   }
 
-  void reset()
-  {
-    // VMX/SVM specific stuff done in setup_protected_mode
-    vm_state()->init_state();
-    vm_state()->setup_protected_mode(_s->r.ip);
-  }
+  void reset();
 
   void register_pt_walker(Pt_walker const *ptw)
   {

@@ -47,6 +47,7 @@ public:
   }
 
   static Guest *create_instance();
+  static Guest *get_instance();
 
   void setup_device_tree(Vdev::Device_tree) {}
 
@@ -69,7 +70,7 @@ public:
                          char const *kernel, char const *cmd_line,
                          l4_addr_t dt_boot_addr);
 
-  void run(cxx::Ref_ptr<Cpu_dev_array> const &cpus) L4_NORETURN;
+  void run(cxx::Ref_ptr<Cpu_dev_array> const &cpus);
 
   void handle_entry(Vcpu_ptr vcpu);
 
@@ -83,6 +84,8 @@ public:
   int handle_io_access(unsigned port, bool is_in, Mem_access::Width op_width,
                        l4_vcpu_regs_t *regs);
 
+  void run_vmx(Vcpu_ptr vcpu) L4_NORETURN;
+
 private:
   // guest physical address
   enum : unsigned
@@ -91,7 +94,6 @@ private:
     Max_phys_addr_bits_mask = 0xff,
   };
 
-  void run_vmx(cxx::Ref_ptr<Cpu_dev> const &cpu_dev) L4_NORETURN;
   int handle_exit_vmx(Vcpu_ptr vcpu);
 
   unsigned get_max_physical_address_bit() const
