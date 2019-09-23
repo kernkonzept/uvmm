@@ -84,7 +84,10 @@ public:
 
           auto *handler = Cmd_control::get()->find_cmd_handler(cmd, cmd_len);
 
-          handler->usage(f);
+          if (!handler)
+            fprintf(f, "Unknown command %.*s\n", cmd_len, cmd);
+          else
+            handler->usage(f);
         }
     }
   };
