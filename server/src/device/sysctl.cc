@@ -63,6 +63,10 @@ using namespace Vdev;
  */
 struct System_controller : public Device
 {
+  System_controller(Vmm::Guest *vmm)
+  : _vmm(vmm)
+  {}
+
   l4_uint32_t read(unsigned, char, unsigned)
   { return 0; }
 
@@ -73,22 +77,29 @@ struct System_controller : public Device
       case 0:
         Dbg(Dbg::Dev, Dbg::Info, "sysctl")
           .printf("Shutdown (%d) requested\n", value);
-        exit(value);
+        _vmm->shutdown(value);
       }
   }
+
+private:
+  Vmm::Guest *_vmm;
 };
 
 struct System_controller_mmio
 : public System_controller,
   public Vmm::Mmio_device_t<System_controller_mmio>
-{};
+{
+  System_controller_mmio(Vmm::Guest *vmm)
+  : System_controller(vmm)
+  {}
+};
 
 struct F : Factory
 {
   cxx::Ref_ptr<Device> create(Device_lookup *devs,
                               Dt_node const &node) override
   {
-    auto syscon = make_device<System_controller_mmio>();
+    auto syscon = make_device<System_controller_mmio>(devs->vmm());
     devs->vmm()->register_mmio_device(syscon, Vmm::Region_type::Virtual, node);
     return syscon;
   }

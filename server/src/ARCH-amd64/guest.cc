@@ -597,7 +597,7 @@ Guest::run_vmx(Vcpu_ptr vcpu)
         {
           Err().printf("Resume failed with error %ld\n", e);
           enter_kdebug("FAILURE IN VMM RESUME");
-          exit(1);
+          shutdown(1);
         }
       else
         {

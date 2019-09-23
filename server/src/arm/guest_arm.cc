@@ -358,6 +358,8 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
   if (!_timer)
     warn().printf("WARNING: No timer found. Your guest will likely not work properly!\n");
 
+  _cpus = cpus;
+
   for (auto cpu: *cpus.get())
     {
       if (!cpu)
@@ -374,6 +376,19 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
     }
   cpus->cpu(0)->mark_on_pending();
   cpus->cpu(0)->startup();
+}
+
+void L4_NORETURN Guest::shutdown(int val)
+{
+  // Stop all vcpu's (skip the current one) executing guest code
+  for (auto cpu: *_cpus.get())
+    {
+      if (   cpu && cpu->online()
+          && cpu->vcpu().get_vcpu_id() != vmm_current_cpu_id)
+        cpu->thread_cap()->ex_regs(~0, ~0, L4_THREAD_EX_REGS_TRIGGER_EXCEPTION);
+    }
+  _pm.shutdown(val == Reboot);
+  exit(val);
 }
 
 l4_msgtag_t
@@ -583,6 +598,17 @@ static void guest_mcr_access(Vcpu_ptr vcpu)
   vcpu->r.ip += 2 << hsr.il();
 }
 
+void Vmm::Guest::handle_ex_regs_exception(Vcpu_ptr vcpu)
+{
+  // stop this vcpu
+  _cpus->cpu(vcpu.get_vcpu_id())->stop();
+}
+
+static void ex_regs_exception(Vcpu_ptr vcpu)
+{
+  guest->handle_ex_regs_exception(vcpu);
+}
+
 extern "C" l4_msgtag_t prepare_guest_entry(Vcpu_ptr vcpu);
 l4_msgtag_t prepare_guest_entry(Vcpu_ptr vcpu)
 { return guest->handle_entry(vcpu); }
@@ -654,6 +680,6 @@ Entry vcpu_entries[64] =
   [0x3b] = guest_unknown_fault,
   [0x3c] = guest_unknown_fault,
   [0x3d] = guest_ppi,
-  [0x3e] = guest_unknown_fault,
+  [0x3e] = ex_regs_exception,
   [0x3f] = guest_irq
 };

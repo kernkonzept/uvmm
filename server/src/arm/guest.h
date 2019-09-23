@@ -34,6 +34,12 @@ public:
     Boot_offset = 0
   };
 
+  enum
+  {
+    Shutdown = 0x0,
+    Reboot = 0x66
+  };
+
   Guest();
 
   void setup_device_tree(Vdev::Device_tree) {}
@@ -47,7 +53,8 @@ public:
                          Vm_ram *ram, char const *kernel,
                          char const *cmd_line, l4_addr_t dt);
   void run(cxx::Ref_ptr<Cpu_dev_array> cpus);
-  void reset_vcpu(Vcpu_ptr vcpu);
+
+  void L4_NORETURN shutdown(int val);
 
   l4_msgtag_t handle_entry(Vcpu_ptr vcpu);
 
@@ -86,6 +93,8 @@ public:
   void handle_wfx(Vcpu_ptr vcpu);
   void handle_ppi(Vcpu_ptr vcpu);
 
+  void handle_ex_regs_exception(Vcpu_ptr vcpu);
+
   Pm &pm()
   { return _pm; }
 
@@ -96,6 +105,7 @@ private:
 
   cxx::Ref_ptr<Gic::Dist> _gic;
   cxx::Ref_ptr<Vdev::Core_timer> _timer;
+  cxx::Ref_ptr<Cpu_dev_array> _cpus;
   bool guest_64bit = false;
 
   std::vector<cxx::Ref_ptr<Vmm::Smccc_device>> _hvc_handlers;

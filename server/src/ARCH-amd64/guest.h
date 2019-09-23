@@ -72,6 +72,9 @@ public:
 
   void run(cxx::Ref_ptr<Cpu_dev_array> const &cpus);
 
+  void L4_NORETURN shutdown(int val)
+  { exit(val); }
+
   void handle_entry(Vcpu_ptr vcpu);
 
   Gic::Virt_lapic *lapic(Vcpu_ptr vcpu)

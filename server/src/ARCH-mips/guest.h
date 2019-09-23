@@ -105,6 +105,9 @@ public:
 
   void run(cxx::Ref_ptr<Cpu_dev_array> const &cpus);
 
+  void L4_NORETURN shutdown(int val)
+  { exit(val); }
+
   int dispatch_hypcall(Hypcall_code hypcall_code, Vcpu_ptr vcpu);
   void handle_entry(Vcpu_ptr vcpu);
 

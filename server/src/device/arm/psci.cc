@@ -204,12 +204,12 @@ public:
         break;
 
       case System_off:
-        _vmm->pm().shutdown();
-        exit(0);
+        _vmm->shutdown(Vmm::Guest::Shutdown);
+        break;
 
       case System_reset:
-        _vmm->pm().shutdown(true);
-        exit(102); // 0x66 is also used by our syscon config
+        _vmm->shutdown(Vmm::Guest::Reboot);
+        break;
 
       case Psci_features:
         {
