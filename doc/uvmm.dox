@@ -303,4 +303,83 @@
  *     modprobe kvm_intel nested=1
  *
  * uvmm does currently not support AMD-V.
+ *
+ * Using the uvmm monitor interface
+ * --------------------------------
+ *
+ * Uvmm implements an interface with which parts of the guests state can be
+ * queried and manipulated at runtime. This monitor interface needs to enabled
+ * during compilation as well as during startup of uvmm. This is described in
+ * detail below.
+ *
+ * ### Compiling uvmm with monitor interface support
+ *
+ * To compile uvmm with monitor interface support pass the `CONFIG_MONITOR=y`,
+ * option during the `make` step (or set in in the Makefile.config). This
+ * option is available on all architectures but note that the set of available
+ * monitor interface features may vary significantly between them. Also note
+ * that the monitor interface will always be disabled in release mode, i.e. if
+ * `CONFIG_RELEASE_MODE=y`.
+ *
+ * ### Enabling the monitor interface at runtime
+ *
+ * When starting a uvmm instance from inside a `ned` script using the
+ * `vmm.start_vm` function, the `mon` argument controls whether the monitor
+ * interface is enabled at runtime. There are three cases to distinguish:
+ *
+ * - `mon=true` (default): The monitor interface is enabled but no server
+ *                         implementing the client side of the monitor interface
+ *                         is started. The monitor interface can still be
+ *                         utilized via `con` but no readline functionality will
+ *                         be available.
+ *
+ * - `mon='some_binary'`: If a string is passed as the value of `mon`, the
+ *                        monitor interface is enabled and the string is
+ *                        interpreted as the name of a server binary which
+ *                        implements the client side of the monitor interface.
+ *                        This server is automatically started and has access to
+ *                        a vcon capability named `mon` at startup through which
+ *                        it can make use of the monitor interface. Unless you
+ *                        have written your own server you should specify
+ *                        `'uvmm_cli'` which is a server implementing a simple
+ *                        readline interface.
+ *
+ * - `mon=false`: The monitor interface is disabled at runtime.
+ *
+ * ### Using the monitor interface
+ *
+ * If the monitor interface was enabled you can connect to it via `con` under
+ * the name `mon<n>` where `<n>` is a unique integer for every uvmm instance
+ * that is started with the monitor interface enabled (numbered starting from
+ * one in order of corresponding `vmm.start_vm` calls). If `mon='uvmm_cli'` was
+ * specified, readline functionality such as command completion and history
+ * will be available. Enter a command followed by enter to run that command.
+ * To obtain a list of all available commands issue the `help` command, to
+ * obtain usage information for a specific command `foo` issue `help foo`.
+ *
+ * \note Some commands will modify the guests state. Since it should be obvious
+ *       to which ones this applies this is usually not specifically
+ *       highlighted. Exercise reasonable caution.
+ *
+ * ### Using the guest debugger
+ *
+ * The guest debugger provides monitoring functionality akin to a very
+ * bare-bones GDB interface, e.g. guest RAM and page table dumping,
+ * breakpointing and single stepping. Additional functionality might be added in
+ * the future.
+ *
+ * \note The guest debugger is currently still under development. The guest
+ *       debugger may also not be available on all architectures. To check
+ *       whether the guest debugger is available check if `help dbg` returns
+ *       usage information.
+ *
+ * If the guest debugger is available, you have to manually load it at runtime
+ * using the monitor interface. This saves resources if the guest debugger is
+ * not used. To enable the guest debugger, issue the `dbg on` monitor command.
+ * Once enabled, the guest debugger can not be disabled again.
+ *
+ * To list available guest debugger subcommands, issue `dbg help` after `dbg on`.
+ *
+ * \note When using SMP, most guest debugger subcommands require you to
+ *       explicitly specify a guest vcpu using an index starting from zero.
  */
