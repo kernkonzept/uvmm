@@ -85,7 +85,7 @@ public:
           auto *handler = Cmd_control::get()->find_cmd_handler(cmd, cmd_len);
 
           if (!handler)
-            fprintf(f, "Unknown command %.*s\n", cmd_len, cmd);
+            fprintf(f, "Unknown command %.*s\n", static_cast<int>(cmd_len), cmd);
           else
             handler->usage(f);
         }
