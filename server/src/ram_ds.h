@@ -67,9 +67,12 @@ public:
    * \param file  Dataspace to load from.
    * \param addr  Guest physical address to load the data space to.
    * \param sz    Number of bytes to copy.
+   *
+   * \note This function might create a local mapping if it does
+   *       not already exist.
    */
   void load_file(L4::Cap<L4Re::Dataspace> const &file,
-                 Vmm::Guest_addr addr, l4_size_t sz) const;
+                 Vmm::Guest_addr addr, l4_size_t sz);
 
   /**
    * Get a VMM-virtual pointer from a guest-physical address

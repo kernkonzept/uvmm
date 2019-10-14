@@ -85,7 +85,7 @@ Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr)
 
 void
 Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
-                  Vmm::Guest_addr addr, l4_size_t sz) const
+                  Vmm::Guest_addr addr, l4_size_t sz)
 {
   Dbg info(Dbg::Mmio, Dbg::Info, "file");
 
@@ -106,7 +106,21 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
 
   info.printf("copy in: to offset 0x%lx-0x%lx\n", offset, offset + sz - 1);
 
-  L4Re::chksys(dataspace()->copy_in(offset + this->offset(), file, 0, sz), "copy in");
+  int r = dataspace()->copy_in(offset + this->offset(), file, 0, sz);
+  if (r != -L4_EINVAL)
+    L4Re::chksys(r, "copy in");
+  else
+    {
+      // Failure was due to different dataspace sources. Therefor the dataspace
+      // manager cannot copy directly and we to do the copy ourselves.
+      const L4Re::Env *e = L4Re::Env::env();
+      char *src = 0;
+      L4Re::chksys(e->rm()->attach(&src, sz,
+                                   L4Re::Rm::F::Search_addr
+                                   | L4Re::Rm::F::R, file));
+      memcpy((char *)local_start() + offset + this->offset(), src, sz);
+      L4Re::chksys(e->rm()->detach(src, 0));
+    }
 }
 
 } // namespace
