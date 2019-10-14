@@ -95,7 +95,7 @@ Vdev::Host_dt::add_source(char const *fname)
 
   _dtmem = malloc(dt.size() + padding);
   if (!_dtmem)
-    L4Re::chksys(-L4_ENOMEM, "Allocating memory for temporary device tree.");
+    L4Re::chksys(-L4_ENOMEM, "Allocating memory for temporary device tree");
 
   memcpy(_dtmem, mem.get(), dt.size());
   get().add_to_size(padding);
