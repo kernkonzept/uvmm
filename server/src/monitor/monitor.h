@@ -149,8 +149,8 @@ void enable_cmd_control(Vmm::Vm *vm);
  */
 bool cmd_control_enabled();
 #else
-inline void enable_cmd_control(L4::Registry_iface *registry)
-{ (void)registry; }
+inline void enable_cmd_control(Vmm::Vm *)
+{}
 
 inline bool cmd_control_enabled()
 { return false; }
