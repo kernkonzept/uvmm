@@ -36,6 +36,71 @@ namespace Gic {
 
 class Virt_lapic : public Vdev::Timer, public Ic
 {
+  class Irq_register
+  {
+    enum : l4_uint8_t
+    {
+      Reg_no = 256 / sizeof(l4_uint64_t),
+      Reg_bits = sizeof(l4_uint64_t) * 8
+    };
+
+  public:
+    void set_irq(l4_uint8_t irq)
+    {
+      l4_uint8_t idx = irq / Reg_bits;
+      _reg.u64[idx] |= 1U << (irq % Reg_bits);
+    }
+
+    void clear_irq(l4_uint8_t irq)
+    {
+      l4_uint8_t idx = irq / Reg_bits;
+      _reg.u64[idx] &= ~(1U << (irq % Reg_bits));
+    }
+
+    int get_highest_irq() const
+    {
+      for (l4_int8_t i = Reg_no - 1; i >= 0; --i)
+        {
+          if (!_reg.u64[i])
+            continue;
+
+          for (l4_int8_t j = Reg_bits - 1; j >= 0; --j)
+            if (_reg.u64[i] & (1U << j))
+              return i * Reg_bits + j;
+        }
+      return -1;
+    }
+
+    void clear_highest_irq()
+    {
+      int highest = get_highest_irq();
+      if (highest != -1)
+        clear_irq(highest);
+    }
+
+    bool has_irq() const
+    {
+      for (auto r: _reg.u64)
+        if (r)
+          return true;
+
+      return false;
+    }
+
+    l4_uint32_t get_reg(l4_uint32_t idx) const
+    {
+      assert(idx < (256 / sizeof(l4_uint32_t)));
+      return _reg.u32[idx];
+    }
+
+  private:
+    union
+    {
+      l4_uint64_t u64[Reg_no];
+      l4_uint32_t u32[Reg_no * 2];
+    } _reg;
+  };
+
   struct LAPIC_registers
   {
     l4_uint32_t tpr;
@@ -43,9 +108,9 @@ class Virt_lapic : public Vdev::Timer, public Ic
     l4_uint32_t ldr; ///< logical destination register
     l4_uint32_t dfr; ///< destination format register not existent in x2APIC
     l4_uint32_t svr; ///< Spurious vector register
-    l4_uint32_t isr[8];
-    l4_uint32_t tmr[8];
-    l4_uint32_t irr[8];
+    Irq_register isr;
+    Irq_register tmr;
+    Irq_register irr;
     l4_uint32_t esr;
     l4_uint32_t cmci;
     l4_uint64_t icr;
@@ -123,7 +188,7 @@ public:
   }
 
   // IC interface
-  void clear(unsigned irq) override;
+  void clear(unsigned) override {}
   void set(unsigned irq) override;
   // Overload for MSIs
   void set(Vdev::Msix::Data_register_format data);
@@ -206,7 +271,6 @@ private:
   l4_uint64_t _tsc_deadline;
   l4_kernel_clock_t _last_ticks_tsc;
   bool _x2apic_enabled;
-  unsigned _irq_queued[256];
   cxx::Ref_ptr<Irq_source> _sources[256];
   std::queue<unsigned> _non_irr_irqs;
 }; // class Virt_lapic

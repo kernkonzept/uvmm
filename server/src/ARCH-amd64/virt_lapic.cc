@@ -44,7 +44,6 @@ Virt_lapic::Virt_lapic(unsigned id, l4_addr_t baseaddr)
   _regs.cmci = _regs.therm = _regs.perf = 0x00010000;
   _regs.lint[0] = _regs.lint[1] = _regs.err = 0x00010000;
   _regs.svr = 0x000000ff;
-  memset(_irq_queued, 0, sizeof(_irq_queued));
 }
 
 void
@@ -61,13 +60,6 @@ Virt_lapic::set(Vdev::Msix::Data_register_format data)
   irq_trigger(data.vector(),
               data.delivery_mode() == Dm_fixed
                 || data.delivery_mode() == Dm_lowest_prio);
-}
-
-void
-Virt_lapic::clear(unsigned irq)
-{
-  if (_irq_queued[irq])
-    --_irq_queued[irq];
 }
 
 void
@@ -145,7 +137,11 @@ Virt_lapic::tick()
     }
 }
 
-/// Update the pending interrupt array and send an interrupt to the vCPU.
+/**
+ * Enqueue an interrupt and trigger an IPC in the vCPU.
+ *
+ * \param irq  Interrupt to inject.
+ */
 void
 Virt_lapic::irq_trigger(l4_uint32_t irq, bool irr)
 {
@@ -153,10 +149,7 @@ Virt_lapic::irq_trigger(l4_uint32_t irq, bool irr)
     std::lock_guard<std::mutex> lock(_int_mutex);
 
     if (irr)
-      {
-        if (_irq_queued[irq] < UINT_MAX)
-          ++_irq_queued[irq];
-      }
+      _regs.irr.set_irq(irq);
     else
       _non_irr_irqs.push(irq);
   }
@@ -176,13 +169,17 @@ Virt_lapic::next_pending_irq()
       return irq;
     }
 
-  for (int i = 0; i < 256; ++i)
-      if (_irq_queued[i] > 0)
+  auto highest_irr = _regs.irr.get_highest_irq();
+  if (highest_irr >= 0)
+    {
+      auto highest_isr = _regs.isr.get_highest_irq();
+      if (highest_irr > highest_isr)
         {
-          --_irq_queued[i];
-          return i;
+          _regs.isr.set_irq(highest_irr);
+          _regs.irr.clear_irq(highest_irr);
+          return highest_irr;
         }
-
+    }
   return -1;
 }
 
@@ -190,14 +187,7 @@ bool
 Virt_lapic::is_irq_pending()
 {
   std::lock_guard<std::mutex> lock(_int_mutex);
-  if (!_non_irr_irqs.empty())
-    return true;
-
-  for (int i = 0; i < 256; ++i)
-    if (_irq_queued[i] > 0)
-      return true;
-
-  return false;
+  return !_non_irr_irqs.empty() || _regs.irr.has_irq();
 }
 
 bool
@@ -237,7 +227,7 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value, bool mmio) const
     case 0x814:
     case 0x815:
     case 0x816:
-    case 0x817: *value = _regs.isr[msr - 0x810]; break;
+    case 0x817: *value = _regs.isr.get_reg(msr - 0x810); break;
     case 0x818:
     case 0x819:
     case 0x81a:
@@ -245,7 +235,7 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value, bool mmio) const
     case 0x81c:
     case 0x81d:
     case 0x81e:
-    case 0x81f: *value = _regs.tmr[msr - 0x818]; break;
+    case 0x81f: *value = _regs.tmr.get_reg(msr - 0x818); break;
     case 0x820:
     case 0x821:
     case 0x822:
@@ -253,7 +243,7 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value, bool mmio) const
     case 0x824:
     case 0x825:
     case 0x826:
-    case 0x827: *value = _regs.irr[msr - 0x820]; break;
+    case 0x827: *value = _regs.irr.get_reg(msr - 0x820); break;
     case 0x828: *value = _regs.esr; break;
     case 0x82f: *value = _regs.cmci; break;
     case 0x830: *value = _regs.icr; break;
@@ -322,6 +312,10 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value, bool mmio)
       break;
     case 0x80f: _regs.svr = value; break; // TODO react on APIC SW en/disable
     case 0x80b: // x2APIC EOI
+      {
+        std::lock_guard<std::mutex> lock(_int_mutex);
+        _regs.isr.clear_highest_irq();
+      }
       if (value != 0)
         {
           Dbg().printf("WARNING: write to EOI not zero, 0x%llx\n", value);
