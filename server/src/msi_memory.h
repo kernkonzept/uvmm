@@ -7,20 +7,16 @@
  */
 #pragma once
 
-#include <l4/re/env>
-#include <l4/re/rm>
-#include <l4/cxx/utils>
 #include <l4/cxx/unique_ptr>
-#include <l4/re/util/unique_cap>
 #include <l4/re/util/object_registry>
 
 #include "debug.h"
-#include "mem_types.h"
 #include "mem_access.h"
 #include "pci_device.h"
 #include "virt_lapic.h"
 #include "msi.h"
 #include "msi_allocator.h"
+#include "ds_mmio_handling.h"
 
 namespace Vdev { namespace Msix {
 
@@ -57,62 +53,50 @@ private:
 };
 
 /**
- * MMIO memory handler for the MSI-X table memory of a PCI device.
+ * MSI-X table emulation.
  *
- * All accesses trap to the VMM. Reads and writes to memory outside the MSI-X
- * table is read/write-through. Inside the MSI-X table reads and writes go to
- * local memory, such that the device's MSI-X table is not touched by the guest
- * directly.
+ * The guest accesses this emulation, when reading from or writing to
+ * the device's MSI-X table. If the guest unmasks an MSI-X entry, this
+ * emulation configures the MSI routing from the device to the VMM and to
+ * the guest.
  */
-class Table_memory
-: public Vmm::Mmio_device_t<Table_memory>
+class Virt_msix_table : public Vmm::Mmio_device_t<Virt_msix_table>
 {
-  enum
-  {
-    Entry_ctrl_offset = 12,
-  };
-
 public:
   /**
    * Create a MMIO memory handler for MSI-X table memory.
    *
-   * \param vbus_ds    Dataspace containing the device memory.
-   * \param tbl        Address of the MSI-X table of the device.
-   * \param msi_alloc  Pointer to a MSI manager, e.g. vBus.
-   * \param registry   Application-global object registry.
-   * \param max_num    Maximum number of device-supported MSI-X vectors.
-   * \param src_id     IO-specific source ID of the PCI device.
-   * \param apics      Local APICs for interrupt routing.
+   * \param con          Access to physical device memory.
+   * \param msi_alloc    Pointer to a MSI manager, e.g. vBus.
+   * \param registry     Application-global object registry.
+   * \param apics        Local APICs for interrupt routing.
+   * \param src_id       IO-specific source ID of the PCI device.
+   * \param num_entries  Maximum number of device-supported MSI-X entries.
    */
-  Table_memory(L4::Cap<L4Re::Dataspace> vbus_ds, l4_addr_t tbl,
-               cxx::Ref_ptr<Vdev::Msi::Allocator> msi_alloc,
-               L4Re::Util::Object_registry *registry, unsigned max_num,
-               unsigned src_id, cxx::Ref_ptr<Gic::Lapic_array> apics)
-  : _dev_msix_tbl(attach_memory(vbus_ds, tbl, Entry_size * max_num,
-                                L4Re::Rm::F::Cache_uncached)),
-    _guest_msix_tbl(cxx::make_unique<Table_entry[]>(max_num)),
+  Virt_msix_table(cxx::Ref_ptr<Vdev::Mmio_ds_converter> &&con,
+                  cxx::Ref_ptr<Vdev::Msi::Allocator> msi_alloc,
+                  L4Re::Util::Object_registry *registry,
+                  cxx::Ref_ptr<Gic::Lapic_array> apics, unsigned src_id,
+                  unsigned num_entries)
+  : _con(std::move(con)),
     _registry(registry),
     _msi_alloc(msi_alloc),
-    _src_id(src_id),
-    _guest_table(&_guest_msix_tbl[0], max_num),
-    _dev_table(_dev_msix_tbl.get(), max_num),
     _local_apics(apics),
-    _msi_irqs(max_num)
+    _msi_irqs(num_entries),
+    _src_id(src_id),
+    _virt_table(cxx::make_unique<Table_entry[]>(num_entries))
   {
-    // This class assumes the table is at the beginning of the page;
-    assert(tbl % L4_PAGESIZE == 0);
-
     unsigned icu_nr_msis = msi_alloc->max_msis();
-    if (max_num >= icu_nr_msis)
+    if (num_entries >= icu_nr_msis)
       {
         Err().printf("ICU does not support enough MSIs. Requested %i; "
                      "Supported %i\n",
-                     max_num, icu_nr_msis);
+                     num_entries, icu_nr_msis);
         L4Re::chksys(-L4_EINVAL, "Configure more MSIs for the vBus ICU.");
       }
   }
 
-  ~Table_memory()
+  ~Virt_msix_table()
   {
     for (auto &msi : _msi_irqs)
       if (msi != nullptr)
@@ -124,80 +108,97 @@ public:
         }
   }
 
-  l4_umword_t read(unsigned reg, char size, unsigned)
+  /// Read from the emulated MSI-X memory.
+  l4_umword_t read(unsigned reg, char size, unsigned) const
   {
-    // if the read is within the MSI-X table, read local, else in device memory.
-    l4_addr_t read_addr =
-      (reg < (Entry_size * _msi_irqs.size()))
-        ? _guest_table.start()
-        : _dev_table.start();
-
-    return Vmm::Mem_access::read_width(read_addr + reg, size);
+    return Vmm::Mem_access::read_width(
+             reinterpret_cast<l4_addr_t>(_virt_table.get()) + reg, size);
   }
-
+  /// Write to the emulated MSI-X memory.
   void write(unsigned reg, char size, l4_umword_t value, unsigned)
   {
-    warn().printf("PASS_THROUGH_MEM: write @ 0x%x (0x%x): 0x%lx\n", reg, size,
-                  value);
+    warn().printf("PASS_THROUGH_MEM: write @ 0x%x (0x%x): 0x%lx\n",
+                  reg, size, value);
 
-    if (reg >= (Entry_size * _msi_irqs.size()))
-      {
-        // If the access is outside of the table, write to the actual device
-        // memory.
-        l4_addr_t dev_mem = _dev_table.start() + reg;
-        Vmm::Mem_access::write_width(dev_mem, value, size);
-
-        return;
-      }
-
-    l4_addr_t guest_mem = _guest_table.start() + reg;
-    Vmm::Mem_access::write_width(guest_mem, value, size);
+    Vmm::Mem_access::write_width(
+      reinterpret_cast<l4_addr_t>(_virt_table.get()) + reg, value, size);
 
     // Handle MSI-X table access
-    if (is_vector_unmask(reg, size, value))
-      conf_msix_vector(reg_to_vector(reg));
-    else if (is_vector_mask(reg, size, value))
-      mask_msi_vector(reg_to_vector(reg));
+    if (is_entry_unmask(reg, size, value))
+      conf_msix_entry(reg_to_entry(reg));
+    else if (is_entry_mask(reg, size, value))
+      msi_entry_mask_ctrl(reg_to_entry(reg), true);
     // else: PCIe brings TPH Requester fields for vector control.
   }
 
 private:
   /// MSI-X table access to the vector control DWORD.
-  bool is_vector_control(unsigned reg, char size) const
+  static bool is_entry_control(unsigned reg, char size)
   {
+    enum { Entry_ctrl_offset = 12 };
+
     return    ((reg % Entry_size) == Entry_ctrl_offset)
            && (size == Vmm::Mem_access::Wd32);
   }
 
   /// Access clears the mask bit in the vector control.
-  bool is_vector_unmask(unsigned reg, char size, l4_umword_t value) const
+  static bool is_entry_unmask(unsigned reg, char size, l4_umword_t value)
   {
-    return    is_vector_control(reg, size)
+    return    is_entry_control(reg, size)
            && (value & Vector_ctrl_mask_bit) == 0;
   }
 
   /// Access sets the mask bit in the vector control.
-  bool is_vector_mask(unsigned reg, char size, l4_umword_t value) const
+  static bool is_entry_mask(unsigned reg, char size, l4_umword_t value)
   {
-    return    is_vector_control(reg, size)
+    return    is_entry_control(reg, size)
            && (value & Vector_ctrl_mask_bit);
   }
 
   /// Convert the register access to the entry number.
-  unsigned reg_to_vector(unsigned reg) const
+  static unsigned reg_to_entry(unsigned reg)
   {
     return reg / Entry_size;
   }
 
-  /// Mask MSI-X vector on device.
-  void mask_msi_vector(unsigned tbl_idx)
+  /// Mask MSI-X entry on device.
+  void msi_entry_mask_ctrl(unsigned idx, bool mask) const
   {
-    warn().printf("masking MSI-X vector %u\n", tbl_idx);
-    _dev_table.entry(tbl_idx).mask();
+    enum { Vector_offset = 12 };
+
+    warn().printf("%s MSI-X entry %u\n", mask ? "masking" : "unmasking", idx);
+
+    unsigned reg = idx * Entry_size + Vector_offset;
+    l4_umword_t val = _con->read(reg, Vmm::Mem_access::Wd32);
+
+    if (mask)
+      val |= Vector_ctrl_mask_bit;
+    else
+      val &= ~Vector_ctrl_mask_bit;
+
+    _con->write(reg, Vmm::Mem_access::Wd32, val);
+  }
+
+  /// Write device's MSI-X entry.
+  void write_dev_msix_entry(unsigned idx, l4_icu_msi_info_t const &info) const
+  {
+    unsigned entry_off = idx * Entry_size;
+    unsigned width = 1U << Vmm::Mem_access::Wd32;
+
+    _con->write(entry_off, Vmm::Mem_access::Wd32, info.msi_addr & 0xffffffffU);
+
+    entry_off += width;
+    _con->write(entry_off, Vmm::Mem_access::Wd32, info.msi_addr >> 32);
+
+    entry_off += width;
+    _con->write(entry_off, Vmm::Mem_access::Wd32, info.msi_data);
+
+    entry_off += width;
+    _con->write(entry_off, Vmm::Mem_access::Wd32, 0U);
   }
 
   /// Convert the MSI's destination ID into an index in the local APIC array.
-  unsigned msi_addr_to_lapic_idx(l4_uint64_t msi_addr) const
+  static unsigned msi_addr_to_lapic_idx(l4_uint64_t msi_addr)
   {
     Interrupt_request_compat addr(msi_addr);
     auto lapic_id = addr.dest_id().get();
@@ -210,40 +211,52 @@ private:
     return i;
   }
 
-  /**
-   * Configure the device's MSI-X entry and the interrupt route to inject into
-   * the guest.
-   */
-  void conf_msix_vector(unsigned tbl_idx)
+  /// True; iff the MSI route was already configured, but masked.
+  bool reconfigure(unsigned idx, unsigned guest_vector,
+                   Gic::Virt_lapic *lapic) const
   {
-    auto entry = _guest_table.entry(tbl_idx);
-    auto guest_vector = entry.data & Data_vector_mask;
+    if (!_msi_irqs[idx])
+      return false;
 
-    warn().printf("Configure MSI-X vector number %u for guest vector 0x%x\n",
-                  tbl_idx, guest_vector);
+    warn().printf("reconfiguring\n");
+    auto msi_svr = _msi_irqs[idx];
+    msi_entry_mask_ctrl(idx, false);
+
+    // If the Msi_svr is already present in the table, I assume the device
+    // is already configured. I just have to inject the new vector at the
+    // new destination.
+    msi_svr->set_sink(lapic, guest_vector);
+
+    return true;
+  }
+
+  /// Parse MSI-X entry and configure the route.
+  void conf_msix_entry(unsigned idx)
+  {
+    Table_entry *entry = &_virt_table[idx];
+    auto guest_vector = entry->data & Data_vector_mask;
+
+    warn().printf("Configure MSI-X entry number %u for guest vector 0x%x\n",
+                  idx, guest_vector);
 
     Gic::Virt_lapic *lapic =
-      _local_apics->get(msi_addr_to_lapic_idx(entry.addr)).get();
+      _local_apics->get(msi_addr_to_lapic_idx(entry->addr)).get();
 
     // Check for reconfiguration or entry unmask
     trace().printf("check for reconfiguration\n");
 
-    if (_msi_irqs[tbl_idx])
-      {
-        warn().printf("reconfiguring\n");
-        auto msi_svr = _msi_irqs[tbl_idx];
+    // If this is a reconfiguration do not configure the device again.
+    if (!reconfigure(idx, guest_vector, lapic))
+      configure_msix_route(idx, guest_vector, lapic);
+  }
 
-        auto dev_entry = _dev_table.entry(tbl_idx);
-        dev_entry.unmask();
-
-        // If the Msi_svr is already present in the table, I assume the device
-        // is already configured. I just have to inject the new vector at the
-        // new destination.
-        msi_svr->set_sink(lapic, guest_vector);
-
-        return;
-      }
-
+  /**
+   * Configure the device's MSI-X entry and the interrupt route to inject into
+   * the guest.
+   */
+  void configure_msix_route(unsigned idx, unsigned guest_vector,
+                            Gic::Virt_lapic *lapic)
+  {
     // Allocate the number with the vBus ICU
     long msi =
       L4Re::chksys(_msi_alloc->alloc_msi(), "MSI-X vector allocation failed.");
@@ -271,59 +284,26 @@ private:
                  "Acquire MSI entry from vBus.");
 
     warn().printf("msi address: 0x%llx, data 0x%x\n", msiinfo.msi_addr,
-                 msiinfo.msi_data);
+                  msiinfo.msi_data);
 
     // write to device memory
-    auto &dev_entry = _dev_table.entry(tbl_idx);
-    dev_entry.addr = msiinfo.msi_addr;
-    dev_entry.data = msiinfo.msi_data;
-    dev_entry.unmask();
+    write_dev_msix_entry(idx, msiinfo);
 
     // unmask the MSI-IRQ
     L4Re::chkipc(msi_svr->obj_cap()->unmask(), "Unmaks MSI-IRQ.");
-    _msi_irqs[tbl_idx] = msi_svr;
-  }
-
-  /// Allocate a Dataspace for the guest's MSI-X table.
-  static L4Re::Util::Unique_del_cap<L4Re::Dataspace>
-  alloc_pagesize_ds()
-  {
-    auto ds = L4Re::chkcap(L4Re::Util::make_unique_del_cap<L4Re::Dataspace>());
-    L4Re::chksys(L4Re::Env::env()->mem_alloc()->alloc(L4_PAGESIZE, ds.get()),
-                 "Allocate a page of memory.");
-    return cxx::move(ds);
-  }
-
-  /// Attach the device memory to the local address space.
-  static L4Re::Rm::Unique_region<l4_umword_t>
-  attach_memory(L4::Cap<L4Re::Dataspace> ds, l4_addr_t offset,
-                l4_size_t size, L4Re::Rm::Flags add_flags = L4Re::Rm::Flags(0))
-  {
-    L4Re::Rm::Flags rm_flags = L4Re::Rm::F::Search_addr |
-                               L4Re::Rm::F::Eager_map | L4Re::Rm::F::RW |
-                               add_flags;
-    auto rm = L4Re::Env::env()->rm();
-    size = l4_round_page(size);
-
-    L4Re::Rm::Unique_region<l4_umword_t> mem;
-    L4Re::chksys(rm->attach(&mem, size, rm_flags, ds, offset),
-                 "Attach memory.");
-
-    return cxx::move(mem);
+    _msi_irqs[idx] = msi_svr;
   }
 
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PassThrough"); }
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PassThrough"); }
 
-  L4Re::Rm::Unique_region<l4_umword_t> _dev_msix_tbl;
-  cxx::unique_ptr<Table_entry[]> _guest_msix_tbl;
+  cxx::Ref_ptr<Vdev::Mmio_ds_converter> _con;
   L4Re::Util::Object_registry *_registry;
   cxx::Ref_ptr<Vdev::Msi::Allocator> _msi_alloc;
-  unsigned const _src_id;
-  Table _guest_table;
-  Table _dev_table;
   cxx::Ref_ptr<Gic::Lapic_array> _local_apics;
   std::vector<cxx::Ref_ptr<Msi_svr>> _msi_irqs;
-}; // class Table_memory
+  unsigned const _src_id;
+  cxx::unique_ptr<Table_entry[]> _virt_table;
+}; // class Virt_msix_table
 
 } } // namespace Vdev::Msix

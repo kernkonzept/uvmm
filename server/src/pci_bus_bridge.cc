@@ -5,6 +5,7 @@
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
+#include <l4/vbus/vbus>
 #include <l4/re/error_helper>
 
 #include "debug.h"
@@ -15,6 +16,7 @@
 #include "ds_mmio_mapper.h"
 #include "msi_memory.h"
 #include "io_port_handler.h"
+#include "ds_mmio_handling.h"
 
 namespace Vdev { namespace Pci {
 
@@ -38,49 +40,124 @@ Pci_bus_bridge::init_bus_range(Dt_node const &node)
 }
 
 /**
- * Register non MSI-X table pages as pass-through MMIO regions.
+ * Register non-MSI-X table pages as pass-through MMIO regions.
+ *
+ * \param bar         BAR containing the MSI-X table.
+ * \param tbl_offset  Offset of the MSI-X table inside `bar`.
+ * \param io_ds       Vbus' dataspace.
+ * \param vmm         Guest pointer.
  */
-void Pci_bus_bridge::register_msix_bar_as_ds_handler(
-  Pci_cfg_bar *bar, l4_addr_t tbl_offset, cxx::Ref_ptr<Vmm::Virt_bus> vbus,
-  Vmm::Guest *vmm)
+void Pci_bus_bridge::register_msix_bar(Pci_cfg_bar *bar, l4_addr_t tbl_offset,
+                                       L4::Cap<L4Re::Dataspace> io_ds,
+                                       Vmm::Guest *vmm)
 {
-  l4_size_t before_msix_tbl_page = tbl_offset;
-  l4_size_t after_msix_tbl_page = bar->size - (tbl_offset + 0x1000);
+  l4_addr_t tbl_page_begin_rel = l4_trunc_page(tbl_offset);
+  l4_addr_t tbl_page_size = L4_PAGESIZE;
 
-  warn().printf("sizes before 0x%lx, after 0x%lx\n", before_msix_tbl_page,
-                after_msix_tbl_page);
+  l4_addr_t before_area_begin = bar->addr;
+  l4_addr_t before_area_size = tbl_page_begin_rel;
 
-  if (before_msix_tbl_page > 0)
+  l4_addr_t after_area_begin_rel = tbl_page_begin_rel + tbl_page_size;
+  l4_addr_t after_area_begin = after_area_begin_rel + bar->addr;
+  l4_addr_t after_area_size = bar->size - after_area_begin_rel;
+
+  warn().printf("sizes before 0x%lx, after 0x%lx\n", before_area_size,
+                after_area_size);
+
+  if (before_area_size > 0)
     {
-      auto region = Region::ss(Guest_addr(bar->addr), before_msix_tbl_page,
+      auto region = Region::ss(Guest_addr(before_area_begin), before_area_size,
                                Vmm::Region_type::Vbus);
+
       warn().printf("Register MMIO region in MSI-X bar: [0x%lx, 0x%lx]\n",
                     region.start.get(), region.end.get());
-      vmm->add_mmio_device(region, make_device<Ds_handler>(vbus->io_ds(), 0,
-                                                           before_msix_tbl_page,
-                                                           region.start.get()));
+
+      vmm->add_mmio_device(region,
+                           make_device<Ds_handler>(io_ds, 0, before_area_size,
+                                                   region.start.get()));
     }
 
-  if (after_msix_tbl_page > 0)
+  if (after_area_size > 0)
     {
-      auto region = Region::ss(Guest_addr(bar->addr + tbl_offset + 0x1000),
-                               after_msix_tbl_page, Vmm::Region_type::Vbus);
+      auto region = Region::ss(Guest_addr(after_area_begin),
+                               after_area_size, Vmm::Region_type::Vbus);
+
       warn().printf("Register MMIO region in MSI-X bar: [0x%lx, 0x%lx]\n",
                     region.start.get(), region.end.get());
-      vmm->add_mmio_device(region, make_device<Ds_handler>(vbus->io_ds(), 0,
-                                                           after_msix_tbl_page,
-                                                           region.start.get()));
+
+      vmm->add_mmio_device(region,
+                           make_device<Ds_handler>(io_ds, 0, after_area_size,
+                                                   region.start.get()));
     }
 }
 
-void Pci_bus_bridge::init_io_resources(Device_lookup *devs)
+/**
+ * Set up management of the MSI-X table page.
+ */
+void Pci_bus_bridge::register_msix_table_page(Hw_pci_device const &hwdev,
+                                              unsigned bir, Vmm::Guest *vmm,
+                                              cxx::Ref_ptr<Vmm::Virt_bus> vbus)
+{
+  unsigned max_msis = hwdev.msix_cap.ctrl.max_msis() + 1;
+
+  l4_addr_t table_addr =
+    hwdev.bars[bir].addr + hwdev.msix_cap.tbl.offset();
+  l4_addr_t table_end = table_addr + max_msis * Msix::Entry_size - 1;
+
+  l4_addr_t table_page = l4_trunc_page(table_addr);
+
+  auto mem_mgr =
+    cxx::make_ref_obj<Ds_access_mgr>(vbus->io_ds(), table_page, L4_PAGESIZE);
+
+  l4_size_t pre_table_size = table_addr - table_page;
+  if (pre_table_size > 0)
+    {
+      auto region = Region::ss(Guest_addr(table_page), pre_table_size,
+                               Vmm::Region_type::Vbus);
+      auto con = make_device<Mmio_ds_converter>(mem_mgr, 0);
+      vmm->add_mmio_device(region, con);
+      warn().printf("Register MMIO region before: [0x%lx, 0x%lx]\n",
+                    region.start.get(), region.end.get());
+    }
+
+  l4_addr_t post_table = table_end + 1;
+  l4_size_t post_table_size = table_page + L4_PAGESIZE - post_table;
+
+  if (post_table_size > 0)
+    {
+      auto region = Region::ss(Guest_addr(post_table), post_table_size,
+                               Vmm::Region_type::Vbus);
+      auto con =
+        make_device<Mmio_ds_converter>(mem_mgr, post_table - table_page);
+      vmm->add_mmio_device(region, con);
+      warn().printf("Register MMIO region after: [0x%lx, 0x%lx]\n",
+                    region.start.get(), region.end.get());
+    }
+
+  unsigned const src_id = 0x40000 | hwdev.devfn.value;
+  auto con =
+    make_device<Mmio_ds_converter>(mem_mgr, table_addr - table_page);
+  auto hdlr =
+    make_device<Msix::Virt_msix_table>(
+      std::move(con), cxx::static_pointer_cast<Msi::Allocator>(vbus),
+      vmm->registry(), vmm->apic_array(), src_id, max_msis);
+
+  auto region = Region(Guest_addr(table_addr), Guest_addr(table_end),
+                       Vmm::Region_type::Vbus);
+
+  warn().printf("Register MSI-X MMIO region: [0x%lx, 0x%lx]\n",
+                region.start.get(), region.end.get());
+
+  vmm->add_mmio_device(region, hdlr);
+}
+
+void Pci_bus_bridge::init_dev_resources(Device_lookup *devs)
 {
   auto vbus = devs->vbus();
   auto *vmm = devs->vmm();
 
-  // System software enables, unmasks MSI-X. A device driver is not permitted
-  // to do that.
-
+  // Go through all resources of all PCI devices and register them with the
+  // memmap or iomap.
   for (auto &hwdev : _hwpci_devs)
     {
       bool bars_used[5] = {false, false, false, false, false};
@@ -92,28 +169,10 @@ void Pci_bus_bridge::init_io_resources(Device_lookup *devs)
       auto bir = hwdev.msix_cap.tbl.bir();
       assert(bir < 5);
 
-      l4_addr_t msix_table =
-        hwdev.bars[bir].addr + hwdev.msix_cap.tbl.offset();
-      unsigned max_msis = hwdev.msix_cap.ctrl.max_msis() + 1;
+      register_msix_table_page(hwdev, bir, vmm, vbus);
 
-      unsigned const src_id = 0x40000 | hwdev.devfn.value;
-
-      auto hdlr = make_device<
-        Msix::Table_memory>(vbus->io_ds(), msix_table,
-                            cxx::static_pointer_cast<Msi::Allocator>(vbus),
-                            vmm->registry(), max_msis,
-                            src_id, vmm->apic_array());
-
-      auto region = Region::ss(Guest_addr(msix_table),
-                               l4_round_page(Msix::Entry_size * max_msis),
-                               Vmm::Region_type::Vbus);
-
-      warn().printf("Register MSI-X MMIO region: [0x%lx, 0x%lx]\n",
-                    region.start.get(), region.end.get());
-      vmm->add_mmio_device(region, hdlr);
-
-      register_msix_bar_as_ds_handler(&hwdev.bars[bir],
-                                      hwdev.msix_cap.tbl.offset(), vbus, vmm);
+      register_msix_bar(&hwdev.bars[bir], hwdev.msix_cap.tbl.offset(),
+                        vbus->io_ds(), vmm);
 
       bars_used[bir] = false;
 
@@ -190,7 +249,7 @@ struct F : Factory
 
     auto dev = make_device<Pci_bus_bridge>(devs->vbus());
     dev->init_bus_range(node);
-    dev->init_io_resources(devs);
+    dev->init_dev_resources(devs);
 
     // If the Vbus provides a PCI bus with a host bridge, we don't need the
     // virtual one.

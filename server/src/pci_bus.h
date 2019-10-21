@@ -130,10 +130,12 @@ public:
   }
 
   void init_bus_range(Dt_node const &node);
-  void init_io_resources(Device_lookup *devs);
-  void register_msix_bar_as_ds_handler(Pci_cfg_bar *bar, l4_addr_t tbl_offset,
-                                       cxx::Ref_ptr<Vmm::Virt_bus> vbus,
-                                       Vmm::Guest *vmm);
+  void init_dev_resources(Device_lookup *devs);
+  void register_msix_table_page(Hw_pci_device const &hwdev, unsigned bir,
+                                Vmm::Guest *vmm,
+                                cxx::Ref_ptr<Vmm::Virt_bus> vbus);
+  void register_msix_bar(Pci_cfg_bar *bar, l4_addr_t tbl_offset,
+                         L4::Cap<L4Re::Dataspace> io_ds, Vmm::Guest *vmm);
 
   bool is_io_pci_host_bridge_present() const { return _io_pci_bridge_present; }
 
