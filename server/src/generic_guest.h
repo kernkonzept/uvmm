@@ -119,13 +119,7 @@ protected:
   void process_pending_ipc(Vcpu_ptr vcpu, l4_utcb_t *utcb)
   {
     while (vcpu->sticky_flags & L4_VCPU_SF_IRQ_PENDING)
-      {
-        l4_umword_t src;
-        _bm.setup_wait(utcb, L4::Ipc_svr::Reply_separate);
-        l4_msgtag_t res = l4_ipc_wait(utcb, &src, L4_IPC_BOTH_TIMEOUT_0);
-        if (!res.has_error())
-          handle_ipc(res, src, utcb);
-      }
+      wait_for_ipc(utcb, L4_IPC_BOTH_TIMEOUT_0);
   }
 
   static Dbg warn()
