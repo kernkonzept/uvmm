@@ -371,7 +371,9 @@ namespace {
                                       Vdev::Dt_node const &) override
     {
       auto apics = devs->vmm()->apic_array();
-      return Vdev::make_device<Gic::Io_apic>(apics);
+      auto io_apic = Vdev::make_device<Gic::Io_apic>(apics);
+      devs->vmm()->add_mmio_device(io_apic->mmio_region(), io_apic);
+      return io_apic;
     }
   };
 

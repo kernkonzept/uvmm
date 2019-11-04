@@ -422,30 +422,54 @@ private:
  *  dt_get_interrupt: parse DT
  *
  */
-class Io_apic : public Ic
+class Io_apic : public Ic, public Vmm::Mmio_device_t<Io_apic>
 {
   enum
   {
-    Irq_cells = 1,// keep in sync with virt-pc.dts
+    Io_apic_mem_size = 0x1000,
+    Irq_cells = 1, // keep in sync with virt-pc.dts
   };
 
 public:
+  enum
+  {
+    Mmio_addr = 0xfec00000,
+  };
+
   Io_apic(cxx::Ref_ptr<Lapic_array> apics) : _apics(apics) {}
 
+  // Mmio device interface
+  l4_umword_t read(unsigned reg, char, unsigned cpu_id)
+  {
+    trace().printf("Unimplemented MMIO read to register %d by CPU %d\n", reg,
+                  cpu_id);
+    return -1;
+  }
+
+  void write(unsigned reg, char, l4_umword_t, unsigned cpu_id)
+  {
+    trace().printf("Unimplemented MMIO write to register %d by CPU %d\n", reg,
+                  cpu_id);
+  }
+
   // IC interface
-  void set(unsigned irq) override
-  { _apics->get(0)->set(irq); }
+  void set(unsigned irq) override { _apics->get(0)->set(irq); }
 
-  void clear(unsigned irq) override
-  { _apics->get(0)->clear(irq); }
+  void clear(unsigned irq) override { _apics->get(0)->clear(irq); }
 
-  void bind_irq_source(unsigned irq, cxx::Ref_ptr<Irq_source> const &src) override
-  { _apics->get(0)->bind_irq_source(irq, src); }
+  void bind_irq_source(unsigned irq,
+                       cxx::Ref_ptr<Irq_source> const &src) override
+  {
+    _apics->get(0)->bind_irq_source(irq, src);
+  }
 
   cxx::Ref_ptr<Irq_source> get_irq_source(unsigned irq) const override
-  { return _apics->get(0)->get_irq_source(irq); }
+  {
+    return _apics->get(0)->get_irq_source(irq);
+  }
 
-  int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override
+  int dt_get_interrupt(fdt32_t const *prop, int propsz,
+                       int *read) const override
   {
     if (propsz < Irq_cells)
       return -L4_ERANGE;
@@ -455,6 +479,13 @@ public:
 
     return fdt32_to_cpu(prop[0]);
   }
+
+  Vmm::Region mmio_region() const
+  {
+    return Vmm::Region::ss(Vmm::Guest_addr(Mmio_addr), Io_apic_mem_size,
+                           Vmm::Region_type::Virtual);
+  }
+
 
 private:
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "IO-APIC"); }
