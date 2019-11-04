@@ -65,6 +65,8 @@ class Virt_lapic : public Vdev::Timer, public Ic
     Timer_div(l4_uint32_t val) : raw(val) {}
     Timer_div(Timer_div const &o) : raw(o.raw) {}
 
+    Timer_div &operator = (l4_uint32_t t) { raw = t; return *this; }
+
     unsigned divisor() const
     {
       unsigned shift = lower() + (upper() << 2);
