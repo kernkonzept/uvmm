@@ -19,8 +19,7 @@ class Cpu_dev
   public Monitor::Cpu_dev_cmd_handler<Monitor::Enabled, Cpu_dev>
 {
 public:
-  // SMP is currently not supported on amd64.
-  enum { Max_cpus = 1 };
+  enum { Max_cpus = 8 };
 
   enum Cpu_state
   {
