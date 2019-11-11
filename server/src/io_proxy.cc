@@ -10,6 +10,7 @@
 #include "device_tree.h"
 #include "guest.h"
 #include "irq_dt.h"
+#include "irq_svr.h"
 #include "io_proxy.h"
 #include "virt_bus.h"
 

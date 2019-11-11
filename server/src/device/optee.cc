@@ -12,8 +12,8 @@
 #include "device_factory.h"
 #include "ds_mmio_mapper.h"
 #include "guest.h"
-#include "io_proxy.h"
 #include "irq_dt.h"
+#include "irq_svr.h"
 #include "smccc_device.h"
 
 namespace {
