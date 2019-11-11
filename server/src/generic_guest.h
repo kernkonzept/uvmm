@@ -115,6 +115,11 @@ public:
     _memmap.add_mmio_device(region, dev);
   }
 
+  void remap_mmio_device(Region const &old_region, Guest_addr const &addr)
+  {
+    _memmap.remap_mmio_device(old_region, addr);
+  }
+
 protected:
   void process_pending_ipc(Vcpu_ptr vcpu, l4_utcb_t *utcb)
   {

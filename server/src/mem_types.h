@@ -71,7 +71,7 @@ private:
  * check whether regions are compatible with each other when regions overlap and
  * when someone searches for a region of a specific type..
  */
-enum class Region_type
+enum class Region_type : l4_uint8_t
 {
   None,         ///< No type specified
   Ram,          ///< Physical RAM
@@ -80,28 +80,47 @@ enum class Region_type
   Virtual       ///< Mmio resource provided by a virtual device
 };
 
+/**
+ * Additional flags for the region
+ */
+enum Region_flags : l4_uint8_t
+{
+  None = 0x0,     ///< No flags specified
+  Moveable = 0x1, ///< The region may be moved in address space
+};
+
 template <typename T>
 struct Generic_region
 {
   T start;
   T end; // inclusive
   Region_type type;
+  Region_flags flags;
 
   Generic_region() = delete;
-  explicit Generic_region(T a) : start(a), end(a), type(Region_type::None) {}
-  Generic_region(T a, Region_type type) : start(a), end(a), type(type) {}
-  Generic_region(T s, T e, Region_type type) : start(s), end(e),
-    type(type) {}
+  explicit Generic_region(T a)
+  : start(a), end(a), type(Region_type::None), flags(Region_flags::None) {}
+  Generic_region(T a, Region_type type, Region_flags flags = Region_flags::None)
+  : start(a), end(a), type(type), flags(flags) {}
+  Generic_region(T s, T e, Region_type type,
+                 Region_flags flags = Region_flags::None)
+  : start(s), end(e), type(type), flags(flags) {}
 
-  static Generic_region ss(T start, l4_size_t size, Region_type type)
-  { return Generic_region(start, start + size - 1, type); }
+  static Generic_region ss(T start, l4_size_t size, Region_type type,
+                           Region_flags flags = Region_flags::None)
+  { return Generic_region(start, start + size - 1, type, flags); }
+
+  Generic_region move(T s) const
+  { return Generic_region(s, s + static_cast<l4_size_t>(end - start),
+                          type, flags); }
 
   bool operator < (Generic_region const &r) const { return end < r.start; }
 
   bool contains(Generic_region const &r) const
   {
     // [ start [ r.start ... r.end ] end ]
-    return (start <= r.start) && (r.end <= end) && (type == r.type);
+    return (start <= r.start) && (r.end <= end) &&
+      (type == r.type) && (flags == r.flags);
   }
 };
 

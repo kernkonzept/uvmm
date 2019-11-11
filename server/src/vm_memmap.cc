@@ -24,7 +24,7 @@ throw_error(char const *msg,
 }
 
 void
-Vmm::Vm_mem::add_mmio_device(Vmm::Region const &region,
+Vmm::Vm_mem::add_region(Vmm::Region const &region,
                         cxx::Ref_ptr<Vmm::Mmio_device> const &dev)
 {
   if (count(region) == 0)
@@ -35,6 +35,12 @@ Vmm::Vm_mem::add_mmio_device(Vmm::Region const &region,
 
   auto lower = lower_bound(region);
   auto const &current_region = lower->first;
+
+  // We can't merge if the region is marked moveable
+  if (region.flags & Region_flags::Moveable)
+    throw_error("Unmergable mmio regions: region is moveable",
+                lower->second, current_region, dev, region);
+
   if (current_region.contains(region))
     {
       // Region is a subset of an already existing one, there can be
@@ -67,3 +73,6 @@ Vmm::Vm_mem::add_mmio_device(Vmm::Region const &region,
   insert(std::make_pair(region, dev));
 }
 
+void
+Vmm::Vm_mem::del_region(Vmm::Region const &region)
+{ erase(region); }

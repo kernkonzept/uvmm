@@ -18,7 +18,9 @@
 class Ds_handler : public Vmm::Mmio_device
 {
   L4::Cap<L4Re::Dataspace> _ds;
+  l4_addr_t _local_start;
   l4_addr_t _offset;
+  l4_size_t _size;
 
   bool _mergable(cxx::Ref_ptr<Mmio_device> other,
                  Vmm::Guest_addr start_other, Vmm::Guest_addr start_this) override
@@ -36,8 +38,9 @@ class Ds_handler : public Vmm::Mmio_device
                  Vmm::Guest_addr end) override
   {
 #ifndef MAP_OTHER
-    map_guest_range(vm_task, start, local_start(), end - start + 1,
-                    L4_FPAGE_RWX);
+    if (_flags & Map_eager)
+      map_guest_range(vm_task, start, local_start(), end - start + 1,
+                      L4_FPAGE_RWX);
 #endif
   }
 
@@ -92,14 +95,19 @@ class Ds_handler : public Vmm::Mmio_device
     return buf;
   }
 
-  l4_addr_t _local_start;
-
 public:
+  enum Flags
+  {
+    None = 0x0,
+    Map_eager = 0x1
+  };
+
   explicit Ds_handler(L4::Cap<L4Re::Dataspace> ds,
                       l4_addr_t local_start,
                       l4_size_t size,
-                      l4_addr_t offset = 0)
-    : _ds(ds), _offset(offset), _local_start(local_start)
+                      l4_addr_t offset = 0, Flags flags = Map_eager)
+    : _ds(ds),  _local_start(local_start), _offset(offset),
+      _size(size), _flags(flags)
   {
     assert(size);
 #ifndef MAP_OTHER
@@ -125,4 +133,18 @@ public:
   }
 
   l4_addr_t local_start() const { return _local_start; }
+
+  void unmap_from_guest() const
+  {
+    L4::Cap<L4::Task> task = L4Re::This_task;
+    l4_size_t src = l4_trunc_page(_local_start);
+    while (src < _local_start + _size - 1)
+      {
+        task->unmap(l4_fpage(src, L4_PAGESHIFT, 0), L4_FP_OTHER_SPACES);
+        src += L4_PAGESIZE;
+      }
+  }
+
+private:
+  Flags _flags;
 };

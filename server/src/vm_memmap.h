@@ -21,7 +21,25 @@ class Vm_mem : public std::map<Region, cxx::Ref_ptr<Vmm::Mmio_device>>
 {
 public:
   void add_mmio_device(Region const &region,
-                       cxx::Ref_ptr<Vmm::Mmio_device> const &dev);
+                       cxx::Ref_ptr<Vmm::Mmio_device> const &dev)
+  { add_region(region, dev); }
+
+  void remap_mmio_device(Region const &old_region, Guest_addr const &addr)
+  {
+    assert(count(old_region) == 1);
+
+    // Save the device
+    cxx::Ref_ptr<Vmm::Mmio_device> const dev = at(old_region);
+
+    // Replace old with new
+    del_region(old_region);
+    add_region(old_region.move(addr), dev);
+  }
+
+private:
+  void add_region(Region const &region,
+                  cxx::Ref_ptr<Vmm::Mmio_device> const &dev);
+  void del_region(Region const &region);
 };
 
 } // namespace
