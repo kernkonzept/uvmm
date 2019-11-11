@@ -31,6 +31,7 @@ enum Pci_status_register
 enum Pci_command_register : l4_uint16_t
 {
   Io_space_bit = 1U,
+  Memory_space_bit = 1U << 1,
   Bus_master_bit = 1U << 2,
   Interrupt_disable_bit = 1U << 10,
 };
@@ -44,10 +45,13 @@ enum Pci_config_consts
 {
   Pci_header_size = 0x100,
   // see PCI Local Bus Specification V.3 (2004) Section 6
-  Bar_mem_io_space_bit = 0x1,
-  Bar_mem_io_attr_mask = 0x3,
-  Bar_mem_attr_mask = 0xf,
+  Bar_type_mask = 0x1,
+  Bar_io_space_bit = 0x1,
+  Bar_io_attr_mask = 0x3,
+  Bar_mem_type_mask = 0x7,
+  Bar_mem_type_32bit = 0x0,      /// type bits[2:1] 00 = 32bit
   Bar_mem_type_64bit = 0x1 << 2, /// type bits[2:1] 10 = 64bit
+  Bar_mem_attr_mask = 0xf,
   Bar_mem_prefetch_bit = 0x8,
   Bar_num_max_type0 = 6,
   Bar_num_max_type1 = 2,
@@ -65,17 +69,45 @@ enum Cap_ident : l4_uint8_t
 
 enum
 {
-  Pci_hdr_vendor_id_offset = 0,
-  Pci_hdr_device_id_offset = 2,
-  Pci_hdr_command_offset = 4,
-  Pci_hdr_status_offset = 6,
-  Pci_hdr_status_length = 16,
-  Pci_hdr_revision_id_offset = 8,
-  Pci_hdr_classcode_offset = 9,
-  Pci_hdr_cacheline_size_offset = 12,
-  Pci_hdr_type_offset = 14,
-  Pci_hdr_capability_offset = 0x34,
   // see PCI Local Bus Specification V.3 (2004) Section 6.1
+  Pci_hdr_vendor_id_offset = 0x0,
+  Pci_hdr_device_id_offset = 0x2,
+  Pci_hdr_command_offset = 0x4,
+  Pci_hdr_status_offset = 0x6,
+  Pci_hdr_status_length = 0x10,
+  Pci_hdr_revision_id_offset = 0x8,
+  Pci_hdr_classcode_offset = 0x9,
+  Pci_hdr_cacheline_size_offset = 0xc,
+  Pci_hdr_latency_timer_offset = 0xd,
+  Pci_hdr_type_offset = 0xe,
+  Pci_hdr_bist_offset = 0xf,
+  Pci_hdr_base_addr0_offset = 0x10,
+  Pci_hdr_base_addr1_offset = 0x14,
+  Pci_hdr_base_addr2_offset = 0x18,
+  Pci_hdr_base_addr3_offset = 0x1c,
+  Pci_hdr_base_addr4_offset = 0x20,
+  Pci_hdr_base_addr5_offset = 0x24,
+  Pci_hdr_card_bus_offset = 0x28,
+  Pci_hdr_subsystem_vendor_id_offset = 0x2c,
+  Pci_hdr_subsystem_id_offset = 0x2e,
+  Pci_hdr_expansion_rom_offset = 0x30,
+  Pci_hdr_capability_offset = 0x34,
+  Pci_hdr_interrupt_line_offset = 0x3c,
+  Pci_hdr_interrupt_pin_offset = 0x3d,
+  Pci_hdr_interrupt_pin_max = 0x4,
+  Pci_hdr_min_time_offset = 0x3e,
+  Pci_hdr_max_latency_offset = 0x3f,
+};
+
+enum : l4_uint8_t
+{
+  Pci_class_code_bridge_device = 0x06,
+  Pci_subclass_code_host = 0x00,
+};
+
+enum : l4_uint16_t
+{
+  Pci_invalid_vendor_id = 0xffff,
 };
 
 enum
@@ -561,7 +593,7 @@ protected:
     assert_bar_type_size<TYPE>(bar);
 
     get_header<TYPE>()->base_addr_regs[bar] =
-      ((addr & ~Bar_mem_io_attr_mask) | Bar_mem_io_space_bit);
+      ((addr & ~Bar_io_attr_mask) | Bar_io_space_bit);
     _bar_size[bar] = size;
   }
 

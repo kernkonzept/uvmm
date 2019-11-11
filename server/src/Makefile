@@ -54,6 +54,8 @@ SRC_CC-$(CONFIG_VDEV_VIRQ) += device/virq.cc
 SRC_CC-$(CONFIG_VDEV_MMIO_PROXY) += device/mmio_proxy.cc
 SRC_CC-$(CONFIG_VDEV_SYSCTL) += device/sysctl.cc
 SRC_CC-$(CONFIG_VDEV_DEVICE_PROXY) += device/virtio_device_proxy.cc
+SRC_CC-arm-$(CONFIG_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_ecam_generic.cc
+SRC_CC-arm64-$(CONFIG_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_ecam_generic.cc
 
 ifeq ($(ARCH),mips)
 SRC_CC        += ARCH-$(ARCH)/guest_entry.cc

@@ -82,17 +82,6 @@ struct Hw_pci_device
  */
 class Pci_bus_bridge : public Pci_dev, public Device
 {
-  enum : l4_uint8_t
-  {
-    Pci_class_code_bridge_device = 0x06,
-    Pci_subclass_code_host = 0x00,
-  };
-
-  enum : l4_uint16_t
-  {
-    Pci_invalid_vendor_id = 0xffff,
-  };
-
   Pci_header::Type1 *header()
   { return get_header<Pci_header::Type1>(); }
 
