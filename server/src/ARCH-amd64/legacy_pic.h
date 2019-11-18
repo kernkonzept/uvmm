@@ -88,7 +88,7 @@ class Legacy_pic : public Gic::Ic
       if (_offset == 0)
         return -1;
 
-      unsigned irq_bit = 1 << irq;
+      unsigned irq_bit = 1U << irq;
 
       if (_isr || _mask & irq_bit)
         {
@@ -105,16 +105,20 @@ class Legacy_pic : public Gic::Ic
     /// Return the number of the first pending interrupt or -1.
     int check_pending()
     {
-      if (_isr || !_irr)
+      if (_isr || ~(_irr & ~_mask))
         return -1;
 
       for (int i = 0; _irr >> i; ++i)
-        if (_irr & (1 << i))
+        {
+          l4_uint8_t bit = 1U << i;
+
+          if (_irr & bit)
           {
-            _irr &= ~(1 << i);
-            _isr |= 1 << i;
+            _irr &= ~bit;
+            _isr |= bit;
             return i;
           }
+        }
 
       return -1;
     }
@@ -122,7 +126,7 @@ class Legacy_pic : public Gic::Ic
     /// Handle read accesses on the PICs command and data ports.
     void io_in(unsigned port, Vmm::Mem_access::Width width, l4_uint32_t *value)
     {
-      *value = -1;
+      *value = -1U;
 
       if (width != Vmm::Mem_access::Width::Wd8)
         return;
@@ -134,7 +138,6 @@ class Legacy_pic : public Gic::Ic
             {
             case Command::Read_irr: *value = _irr; break;
             case Command::Read_isr: *value = _isr; break;
-            default: *value = -1;
             }
           break;
 
