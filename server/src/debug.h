@@ -33,8 +33,7 @@ public:
    */
   enum Component
   {
-    Guest = 0,
-    Core,
+    Core = 0,
     Cpu,
     Mmio,
     Irq,

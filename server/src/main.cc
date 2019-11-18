@@ -147,7 +147,6 @@ static int run(int argc, char *argv[])
           // quiet actually means guest output only
           verbosity = Dbg::Quiet;
           Dbg::set_verbosity(verbosity);
-          Dbg::set_verbosity(Dbg::Guest, Dbg::Warn);
           break;
         case 'v':
           verbosity = (verbosity << 1) | 1;

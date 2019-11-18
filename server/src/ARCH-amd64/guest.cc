@@ -403,10 +403,10 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
   auto *regs = &vcpu->r;
 
   if (reason != Vmx_state::Exit::Exec_vmcall)
-    Dbg(Dbg::Guest, Dbg::Trace)
-      .printf("Exit at guest IP 0x%lx with 0x%llx (Qual: 0x%llx)\n", vms->ip(),
-              vms->vmx_read(L4VCPU_VMCS_EXIT_REASON),
-              vms->vmx_read(L4VCPU_VMCS_EXIT_QUALIFICATION));
+    trace().printf("Exit at guest IP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
+                   vms->ip(),
+                   vms->vmx_read(L4VCPU_VMCS_EXIT_REASON),
+                   vms->vmx_read(L4VCPU_VMCS_EXIT_QUALIFICATION));
 
   switch (reason)
     {
@@ -566,7 +566,7 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
   register_msr_device(
     Vdev::make_device<Vdev::Microcode_revision>(cpus->vcpu(0)));
 
-  Dbg(Dbg::Guest, Dbg::Info).printf("Starting VMM @ 0x%lx\n", cpus->vcpu(0)->r.ip);
+  info().printf("Starting VMM @ 0x%lx\n", cpus->vcpu(0)->r.ip);
 
   // Additional vCPUs are initialized to run startup on the first reschedule.
   cpus->cpu(0)->startup();
