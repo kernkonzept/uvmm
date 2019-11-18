@@ -58,6 +58,15 @@ public:
            | (crn << 10) | (crm << 1);
   }
 
+  unsigned msr_sysreg_n() const { return _raw & 0x00fffc00; }
+  static constexpr unsigned
+  msr_sysreg_n(unsigned op0, unsigned op1, unsigned crn,
+             unsigned op2)
+  {
+    return   (op0 << 20) | (op2 << 17) | (op1 << 14)
+           | (crn << 10);
+  }
+
   CXX_BITFIELD_MEMBER(12, 19, ldc_imm, _raw);
   CXX_BITFIELD_MEMBER( 5,  8, ldc_rn, _raw);
   CXX_BITFIELD_MEMBER( 4,  4, ldc_offset_form, _raw);
