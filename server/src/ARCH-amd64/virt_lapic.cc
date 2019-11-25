@@ -54,6 +54,16 @@ Virt_lapic::set(unsigned irq)
 }
 
 void
+Virt_lapic::set(Vdev::Msix::Data_register_format data)
+{
+  using namespace Vdev::Msix;
+
+  irq_trigger(data.vector(),
+              data.delivery_mode() == Dm_fixed
+                || data.delivery_mode() == Dm_lowest_prio);
+}
+
+void
 Virt_lapic::clear(unsigned irq)
 {
   if (_irq_queued[irq])
@@ -137,13 +147,19 @@ Virt_lapic::tick()
 
 /// Update the pending interrupt array and send an interrupt to the vCPU.
 void
-Virt_lapic::irq_trigger(l4_uint32_t irq)
+Virt_lapic::irq_trigger(l4_uint32_t irq, bool irr)
 {
-    {
-      std::lock_guard<std::mutex> lock(_int_mutex);
-      if (_irq_queued[irq] < UINT_MAX)
-        ++_irq_queued[irq];
-    }
+  {
+    std::lock_guard<std::mutex> lock(_int_mutex);
+
+    if (irr)
+      {
+        if (_irq_queued[irq] < UINT_MAX)
+          ++_irq_queued[irq];
+      }
+    else
+      _non_irr_irqs.push(irq);
+  }
 
   _lapic_irq->trigger();
 }
@@ -152,6 +168,13 @@ int
 Virt_lapic::next_pending_irq()
 {
   std::lock_guard<std::mutex> lock(_int_mutex);
+
+  if (!_non_irr_irqs.empty())
+    {
+      unsigned irq = _non_irr_irqs.front();
+      _non_irr_irqs.pop();
+      return irq;
+    }
 
   for (int i = 0; i < 256; ++i)
       if (_irq_queued[i] > 0)
@@ -167,6 +190,8 @@ bool
 Virt_lapic::is_irq_pending()
 {
   std::lock_guard<std::mutex> lock(_int_mutex);
+  if (!_non_irr_irqs.empty())
+    return true;
 
   for (int i = 0; i < 256; ++i)
     if (_irq_queued[i] > 0)

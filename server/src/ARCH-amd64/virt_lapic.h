@@ -9,6 +9,7 @@
 
 #include <mutex>
 #include <tuple>
+#include <queue>
 
 #include <l4/re/dataspace>
 #include <l4/re/rm>
@@ -121,8 +122,10 @@ public:
   }
 
   // IC interface
-  void set(unsigned irq) override;
   void clear(unsigned irq) override;
+  void set(unsigned irq) override;
+  // Overload for MSIs
+  void set(Vdev::Msix::Data_register_format data);
 
   void bind_irq_source(unsigned, cxx::Ref_ptr<Irq_source> const &) override;
   cxx::Ref_ptr<Irq_source> get_irq_source(unsigned) const override;
@@ -133,7 +136,7 @@ public:
   void tick() override;
 
   // APIC soft Irq to force VCPU to handle IRQs
-  void irq_trigger(l4_uint32_t irq);
+  void irq_trigger(l4_uint32_t irq, bool irr = true);
 
   // vCPU expected interface
   int next_pending_irq();
@@ -204,6 +207,7 @@ private:
   bool _x2apic_enabled;
   unsigned _irq_queued[256];
   cxx::Ref_ptr<Irq_source> _sources[256];
+  std::queue<unsigned> _non_irr_irqs;
 }; // class Virt_lapic
 
 
@@ -230,13 +234,14 @@ public:
     assert((Lapic_mem_addr & _max_phys_addr_mask) == Lapic_mem_addr);
   }
 
-  bool send_to_logical_dest_id(l4_uint32_t did, unsigned vec) const
+  bool send_to_logical_dest_id(l4_uint32_t did,
+                               Vdev::Msix::Data_register_format data) const
   {
     bool sent = false;
     for (auto &lapic : _lapics)
       if (lapic && lapic->match_ldr(did))
         {
-          lapic->set(vec);
+          lapic->set(data);
           sent = true;
         }
 
@@ -368,7 +373,7 @@ public:
           "Lowest interrupt priority arbitration: send to LAPIC 0x%x\n",
           lapic->id());
 
-        lapic->set(data.vector());
+        lapic->set(data);
         return;
       }
 
@@ -379,7 +384,7 @@ public:
         auto lapic = _apics->get(addr.dest_id()).get();
         if (lapic)
           {
-            lapic->set(data.vector());
+            lapic->set(data);
             return;
           }
       }
@@ -387,7 +392,7 @@ public:
       {
         // logical addressing mode:
         //   dest_id() is a bitmask of logical APIC ID targets
-        if (_apics->send_to_logical_dest_id(addr.dest_id(), data.vector()))
+        if (_apics->send_to_logical_dest_id(addr.dest_id(), data))
           return;
       }
 

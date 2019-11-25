@@ -8,7 +8,6 @@
 #include "legacy_pic.h"
 #include "device_factory.h"
 #include "guest.h"
-#include "irq_dt.h"
 
 namespace
 {
@@ -17,15 +16,10 @@ namespace
     cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                       Vdev::Dt_node const &node) override
     {
-      Vdev::Irq_dt_iterator it(devs, node);
+      auto msi_distr = devs->get_or_create_mc_dev(node);
+      Dbg().printf("PIC found MSI ctlr %p\n", msi_distr.get());
 
-      if (it.next(devs) < 0)
-        return nullptr;
-
-      if (!it.ic_is_virt())
-        L4Re::chksys(-L4_EINVAL, "PIC requires a virtual interrupt controller");
-
-      auto dev = Vdev::make_device<Vdev::Legacy_pic>(it.ic().get());
+      auto dev = Vdev::make_device<Vdev::Legacy_pic>(msi_distr);
 
       auto *vmm = devs->vmm();
       vmm->register_io_device(Vmm::Io_region(0x20, 0x21,

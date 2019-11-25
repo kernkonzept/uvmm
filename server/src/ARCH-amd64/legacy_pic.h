@@ -10,6 +10,8 @@
 #include "io_device.h"
 #include "device.h"
 #include "irq.h"
+#include "msi.h"
+#include "msi_controller.h"
 
 namespace Vdev {
 
@@ -21,11 +23,9 @@ namespace Vdev {
  *   PIC: pic {
  *     compatible = "virt-pic";
  *     reg = <0x0 0x0 0x0 0x0>;
- *     interrupt-parent = <&IOAPIC>;
+ *     msi-parent = <&msi_ctlr>;
  *     interrupt-controller;
  *     #interrupt-cells = <1>;
- *     interrupts = <0>;  // legacy interrupts are connected 1:1 to the
- *                        // IO-APIC. Mimic this here.
  *   };
  *
  * The PIC emulation provides the guest with the ability to assign the legacy
@@ -232,12 +232,12 @@ public:
   /**
    * Create a legacy PIC consisting of a master and slave chip.
    *
-   * \param ic  The parent interrupt controller of the PIC, e.g. IO-APIC.
+   * \param distr  MSI-parent to send interrupts to.
    */
-  Legacy_pic(Gic::Ic *ic)
+  Legacy_pic(cxx::Ref_ptr<Gic::Msix_controller> distr)
   : _master(Vdev::make_device<Chip>(true, this)),
     _slave(Vdev::make_device<Chip>(false, this)),
-    _ic(ic)
+    _distr(distr)
   {
     info().printf("Hello, Legacy_pic\n");
   }
@@ -250,7 +250,19 @@ public:
     int num = irq < 8 ? _master->trigger(irq) : _slave->trigger(irq - 8);
     // Do we need to set the _master line where the slave is wired to?
     if (num >= 32)
-      _ic->set(num);
+      {
+        using namespace Vdev::Msix;
+
+        Interrupt_request_compat addr(0ULL);
+        // dest_id = 0, redirect_hint = 0, dest_mode = 0;
+        addr.fixed() = Address_interrupt_prefix;
+
+        Data_register_format data(0U);
+        data.vector() = num;
+        data.delivery_mode() = Dm_extint;
+
+        _distr->send(addr.raw, data.raw);
+      }
   };
 
   void clear(unsigned) override {}
@@ -288,7 +300,7 @@ private:
 
   cxx::Ref_ptr<Chip> _master;
   cxx::Ref_ptr<Chip> _slave;
-  Gic::Ic *_ic;
+  cxx::Ref_ptr<Gic::Msix_controller> _distr;
 };
 
 } // namespace Vdev
