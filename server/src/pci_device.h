@@ -11,6 +11,7 @@
 #include <l4/sys/types.h>
 #include <l4/cxx/static_vector>
 #include <l4/cxx/bitfield>
+#include <l4/re/error_helper>
 
 #include "mem_access.h"
 #include "device.h"
