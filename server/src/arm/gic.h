@@ -778,41 +778,10 @@ Cpu::inject(Irq_array::Irq const &irq, unsigned irq_id, unsigned src_cpu)
   // currently we use up to 4 (Num_lrs) list registers
   if (!lr_idx)
     {
-      Lr lowest(0);
-      if (0)
-        {
-          // search the LR with the lowest priority pending IRQ
-          unsigned min_prio = 0;
-          for (unsigned i = 0; i < Num_lrs; ++i)
-            {
-              Lr l = _get_lr(i);
-              if (   l.state() == Lr::Pending
-                  && l.prio() > min_prio
-                  && l.prio() > irq.prio())
-                {
-                  lowest = l;
-                  lr_idx = i + 1;
-                  min_prio = l.prio();
-                }
-            }
-        }
-
-      if (!lr_idx)
-        {
-          if (0)
-            {
-              printf("VGIC full while trying to inject irq 0x%x : ",
-                     irq_id);
-              for (unsigned i = 0; i < Num_lrs; ++i)
-                printf("%d: %x ", i, _get_lr(i).raw);
-              printf("\n");
-            }
-
-          return false;
-        }
-
-      if (0)
-        this->irq(lowest.vid()).kick_from_cpu(vmm_current_cpu_id);
+      // We might try to preempt a lower priority interrupt from the
+      // link registers here. But since our main guest does not use
+      // priorities we ignore this possibility.
+      return false;
     }
 
   return add_pending_irq(lr_idx - 1, irq, irq_id, src_cpu);
