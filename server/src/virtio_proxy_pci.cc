@@ -22,12 +22,11 @@ class Virtio_proxy_pci
 public:
   Virtio_proxy_pci(L4::Cap<L4virtio::Device> device, l4_uint64_t config_sz,
                    unsigned nnq_id, Vmm::Vm_ram *ram,
-                   cxx::Ref_ptr<Gic::Msix_controller> distr,
-                   unsigned num_msix_entries)
+                   cxx::Ref_ptr<Gic::Msix_controller> distr)
   : Virtio_proxy<Virtio_proxy_pci>(device, config_sz, nnq_id, ram),
     Virtio_device_pci<Virtio_proxy_pci>(),
     Virtio::Pci_connector<Virtio_proxy_pci>(),
-    _evcon(distr, num_msix_entries)
+    _evcon(distr)
   {}
 
   Virtio::Event_connector_msix *event_connector() { return &_evcon; }
@@ -128,12 +127,11 @@ struct F : Factory
       nnq_id = fdt32_to_cpu(*prop);
 
     auto vmm = devs->vmm();
-    int const num_msix = 10;
 
     // cfgsz + 0x100 => DT tells dev config size; add virtio config hdr
     auto proxy =
       make_device<Virtio_proxy_pci>(cap, cfgsz + 0x100, nnq_id, devs->ram().get(),
-                                    msi_distr, num_msix);
+                                    msi_distr);
 
     if (proxy->init_irqs(devs, node) < 0)
       return nullptr;
@@ -146,6 +144,7 @@ struct F : Factory
       }
 
     proxy->register_irq(vmm->registry());
+    int const num_msix = 10;
     proxy->configure(regs, num_msix, cfgsz);
     pci->register_device(proxy);
 

@@ -25,12 +25,11 @@ class Virtio_console_pci
 {
 public:
   Virtio_console_pci(Vmm::Vm_ram *iommu, L4::Cap<L4::Vcon> con,
-                     cxx::Ref_ptr<Gic::Msix_controller> distr,
-                     unsigned num_msix_entries)
+                     cxx::Ref_ptr<Gic::Msix_controller> distr)
   : Virtio_console(iommu, con),
     Virtio_device_pci<Virtio_console_pci>(),
     Virtio::Pci_connector<Virtio_console_pci>(),
-    _evcon(distr, num_msix_entries)
+    _evcon(distr)
   {
   }
 
@@ -85,10 +84,9 @@ struct F : Factory
     Dbg().printf("Msix controller %p\n", msi_distr.get());
 
     auto vmm = devs->vmm();
-    int const num_msix = 5;
     auto console = make_device<Virtio_console_pci>(devs->ram().get(),
                                                    L4Re::Env::env()->log(),
-                                                   msi_distr, num_msix);
+                                                   msi_distr);
     if (console->init_irqs(devs, node) < 0)
       return nullptr;
 
@@ -96,6 +94,7 @@ struct F : Factory
                                                Vmm::Region_type::Virtual),
                             console);
     console->register_obj(vmm->registry());
+    unsigned num_msix = 5;
     console->configure(regs, num_msix);
     pci->register_device(console);
 

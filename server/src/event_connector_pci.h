@@ -24,12 +24,10 @@ namespace Virtio {
 class Event_connector_msix
 {
 public:
-  Event_connector_msix(cxx::Ref_ptr<Gic::Msix_controller> const &distr,
-                       unsigned max_msix_entries)
+  Event_connector_msix(cxx::Ref_ptr<Gic::Msix_controller> const &distr)
   : _distr(distr),
     _msix_mem(make_ram_ds_handler(Vdev::Pci::Msix_mem_need,
-                                  L4Re::Mem_alloc::Continuous)),
-    _msix_tbl(_msix_mem->local_start(), max_msix_entries)
+                                  L4Re::Mem_alloc::Continuous))
   {}
 
   void send_events(Virtio::Event_set &&ev)
@@ -39,11 +37,11 @@ public:
         send_event(i);
   }
 
-  void send_event(l4_uint16_t const idx)
+  void send_event(l4_uint16_t idx) const
   {
-    auto entry = _msix_tbl.entry(idx);
-    if (!entry.masked())
-      _distr->send(entry.addr, entry.data);
+    auto const *entry = msix_entry(idx);
+    if (!entry->masked())
+      _distr->send(entry->addr, entry->data);
   }
 
   void clear_events(unsigned) {}
@@ -67,7 +65,12 @@ public:
 private:
   cxx::Ref_ptr<Gic::Msix_controller> _distr;
   cxx::Ref_ptr<Ds_handler> _msix_mem;
-  Vdev::Msix::Table _msix_tbl;
+
+  Vdev::Msix::Table_entry *msix_entry(l4_uint16_t idx) const
+  {
+    return &reinterpret_cast<Vdev::Msix::Table_entry *>(
+      _msix_mem->local_start())[idx];
+  }
 
   // I can use RW MMIO memory, as I am the endpoint for the guest configuration
   // of the MSIs and evaluate the entries every time, an event should be send.
