@@ -143,8 +143,8 @@ public:
   bool is_irq_pending();
 
   // X2APIC MSR interface
-  bool read_msr(unsigned msr, l4_uint64_t *value) const;
-  bool write_msr(unsigned msr, l4_uint64_t value);
+  bool read_msr(unsigned msr, l4_uint64_t *value, bool mmio = false) const;
+  bool write_msr(unsigned msr, l4_uint64_t value, bool mmio = false);
 
   l4_addr_t apic_base() const { return _lapic_memory_address; }
 
@@ -298,7 +298,7 @@ public:
     assert(cpu_id < Max_cores && _lapics[cpu_id]);
 
     l4_uint64_t val = -1;
-    _lapics[cpu_id]->read_msr(reg2msr(reg), &val);
+    _lapics[cpu_id]->read_msr(reg2msr(reg), &val, true);
 
     return val;
   }
@@ -307,7 +307,7 @@ public:
   {
     assert(cpu_id < Max_cores && _lapics[cpu_id]);
 
-    _lapics[cpu_id]->write_msr(reg2msr(reg), value);
+    _lapics[cpu_id]->write_msr(reg2msr(reg), value, true);
   }
 
   // Msr_device interface

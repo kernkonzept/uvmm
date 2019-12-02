@@ -201,7 +201,7 @@ Virt_lapic::is_irq_pending()
 }
 
 bool
-Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
+Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value, bool mmio) const
 {
   switch (msr)
     {
@@ -255,6 +255,12 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
     case 0x828: *value = _regs.esr; break;
     case 0x82f: *value = _regs.cmci; break;
     case 0x830: *value = _regs.icr; break;
+    case 0x831:
+      if (mmio)
+        *value = _regs.icr >> 32;
+      else
+        return false;
+      break;
     case 0x832: *value = _timer.raw; break;
     case 0x833: *value = _regs.therm; break;
     case 0x834: *value = _regs.perf; break;
@@ -275,7 +281,7 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
 }
 
 bool
-Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
+Virt_lapic::write_msr(unsigned msr, l4_uint64_t value, bool mmio)
 {
   switch(msr)
     {
@@ -321,7 +327,18 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
       break;
     case 0x828: _regs.esr = 0; break;
     case 0x82f: _regs.cmci = value; break;
-    case 0x830: _regs.icr = value; break;
+    case 0x830:
+      if (mmio)
+        _regs.icr = (_regs.icr & 0xffffffff00000000UL) | (value & 0xffffffffU);
+      else
+        _regs.icr = value;
+      break;
+    case 0x831:
+      if (mmio)
+        _regs.icr = (_regs.icr & 0xffffffffU) | (value << 32);
+      else
+        return false;
+      break;
     case 0x832:
       {
         Timer_reg new_timer(value);
