@@ -25,9 +25,8 @@ namespace Gic {
 using L4Re::chkcap;
 using L4Re::chksys;
 
-Virt_lapic::Virt_lapic(unsigned id, l4_addr_t baseaddr)
+Virt_lapic::Virt_lapic(unsigned id)
 : _lapic_irq(chkcap(L4Re::Util::make_unique_cap<L4::Irq>())),
-  _lapic_memory_address(baseaddr),
   _lapic_x2_id(id),
   _lapic_version(Lapic_version),
   _last_ticks_tsc(0),
@@ -196,7 +195,7 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value, bool mmio) const
   switch (msr)
     {
     case 0x1b: // APIC base, Vol. 3A 10.4.4
-      *value = _lapic_memory_address | Apic_base_enabled;
+      *value = Lapic_access_handler::Mmio_addr | Apic_base_enabled;
 
       if (_lapic_x2_id == 0)
         *value |= Apic_base_bsp_processor;
@@ -287,6 +286,12 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value, bool mmio)
           _regs.ldr =
             (_lapic_x2_id & 0xffff0) << 16 | 1U << (_lapic_x2_id & 0xf);
         }
+
+      // APIC Base field, Vol. 3A 10.4.4
+      if (!((value >> 12) & (Lapic_access_handler::Mmio_addr >> 12)))
+        // Vol. 3A 10.4.5
+        warn().printf(
+          "Relocating the Local APIC Registers is not supported.\n");
       break;
     case 0x6e0:
       {

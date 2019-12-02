@@ -156,11 +156,14 @@ private:
             "        ");
   }
 
-  bool lapic_check(unsigned lapic_no)
-  { return static_cast<T *>(this)->get(lapic_no).get() != nullptr; }
+  bool lapic_check(unsigned lapic_no) const
+  { return static_cast<T const *>(this)->get(lapic_no) != nullptr; }
 
   bool lapic_read_msr(unsigned lapic_no, unsigned msr, l4_uint64_t *value) const
-  { return static_cast<T const *>(this)->read_msr(msr, value, lapic_no); }
+  {
+    return lapic_check(lapic_no)
+           && static_cast<T const *>(this)->get(lapic_no)->read_msr(msr, value);
+  }
 };
 
 }

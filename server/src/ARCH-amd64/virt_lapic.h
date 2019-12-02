@@ -180,7 +180,7 @@ class Virt_lapic : public Vdev::Timer, public Ic
   };
 
 public:
-  Virt_lapic(unsigned id, l4_addr_t baseaddr);
+  Virt_lapic(unsigned id);
 
   void attach_cpu_thread(L4::Cap<L4::Thread> vthread)
   {
@@ -212,8 +212,6 @@ public:
   // X2APIC MSR interface
   bool read_msr(unsigned msr, l4_uint64_t *value, bool mmio = false) const;
   bool write_msr(unsigned msr, l4_uint64_t value, bool mmio = false);
-
-  l4_addr_t apic_base() const { return _lapic_memory_address; }
 
   l4_uint32_t logical_apic_id() const
   {
@@ -261,7 +259,6 @@ private:
   static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "LAPIC"); }
 
   L4Re::Util::Unique_cap<L4::Irq> _lapic_irq; /// IRQ to notify VCPU
-  l4_addr_t const _lapic_memory_address;
   l4_uint32_t _lapic_x2_id;
   unsigned _lapic_version;
   std::mutex _int_mutex;
@@ -278,27 +275,12 @@ private:
 
 
 class Lapic_array
-: public Vmm::Mmio_device_t<Lapic_array>,
-  public Vdev::Device,
-  public Vmm::Msr_device,
+: public Vdev::Device,
   public Monitor::Lapic_cmd_handler<Monitor::Enabled, Lapic_array>
 {
-  enum
-  {
-    Max_lapics = Vmm::Cpu_dev::Max_cpus,
-    X2apic_msr_base = 0x800,
-    Lapic_mem_addr = 0xfee00000,
-    Lapic_mem_size = 0x1000,
-  };
-  static_assert(!(Lapic_mem_addr & 0xfff), "LAPIC memory is 4k-aligned.");
+  enum { Max_lapics = Vmm::Cpu_dev::Max_cpus };
 
 public:
-  explicit Lapic_array(unsigned max_phys_addr_bit)
-  : _max_phys_addr_mask((1UL << max_phys_addr_bit) - 1)
-  {
-    assert((Lapic_mem_addr & _max_phys_addr_mask) == Lapic_mem_addr);
-  }
-
   bool send_to_logical_dest_id(l4_uint32_t did,
                                Vdev::Msix::Data_register_format data) const
   {
@@ -313,13 +295,7 @@ public:
     return sent;
   }
 
-  Vmm::Region mmio_region() const
-  {
-    return Vmm::Region::ss(Vmm::Guest_addr(Lapic_mem_addr), Lapic_mem_size,
-                           Vmm::Region_type::Virtual);
-  }
-
-  cxx::Ref_ptr<Virt_lapic> get(unsigned core_no)
+  cxx::Ref_ptr<Virt_lapic> get(unsigned core_no) const
   {
     return (core_no < Max_lapics) ? _lapics[core_no] : nullptr;
   }
@@ -354,40 +330,81 @@ public:
         return;
       }
 
-    _lapics[core_no] = Vdev::make_device<Virt_lapic>(core_no, Lapic_mem_addr);
+    _lapics[core_no] = Vdev::make_device<Virt_lapic>(core_no);
   }
 
-  // Mmio device if
-  l4_umword_t read(unsigned reg, char, unsigned cpu_id)
+private:
+  cxx::Ref_ptr<Virt_lapic> _lapics[Vmm::Cpu_dev::Max_cpus];
+}; // class Lapic_array
+
+class Lapic_access_handler
+: public Vmm::Mmio_device_t<Lapic_access_handler>,
+  public Vmm::Msr_device,
+  public Vdev::Device
+{
+  enum
   {
-    assert(cpu_id < Max_lapics && _lapics[cpu_id]);
+    X2apic_msr_base = 0x800,
+    Lapic_mem_size = 0x1000,
+  };
 
+public:
+  enum { Mmio_addr = 0xfee00000 };
+  static_assert(!(Mmio_addr & 0xfff), "LAPIC memory is 4k-aligned.");
+
+  Lapic_access_handler(cxx::Ref_ptr<Lapic_array> apics,
+                       unsigned max_phys_addr_bit)
+  : _max_phys_addr_mask((1UL << max_phys_addr_bit) - 1), _apics(apics)
+  {
+    assert((Mmio_addr & _max_phys_addr_mask) == Mmio_addr);
+  }
+
+  // Msr device interface
+  bool read_msr(unsigned msr, l4_uint64_t *value,
+                unsigned vcpu_no) const override
+  {
+    auto lapic = _apics->get(vcpu_no);
+
+    assert((lapic != nullptr) && "Local APIC found at vcpu_no.");
+
+    return lapic->read_msr(msr, value, false);
+  };
+
+  bool write_msr(unsigned msr, l4_uint64_t value, unsigned vcpu_no) override
+  {
+    auto lapic = _apics->get(vcpu_no);
+
+    assert((lapic != nullptr) && "Local APIC found at vcpu_no.");
+
+    return lapic->write_msr(msr, value, false);
+  }
+
+  // Mmio device interface
+  l4_umword_t read(unsigned reg, char, unsigned cpu_id) const
+  {
     l4_uint64_t val = -1;
-    _lapics[cpu_id]->read_msr(reg2msr(reg), &val, true);
+    auto lapic = _apics->get(cpu_id);
 
+    assert((lapic != nullptr) && "Local APIC found at cpu_id.");
+
+    lapic->read_msr(reg2msr(reg), &val, true);
     return val;
   }
 
   void write(unsigned reg, char, l4_umword_t value, unsigned cpu_id)
   {
-    assert(cpu_id < Max_lapics && _lapics[cpu_id]);
+    auto lapic = _apics->get(cpu_id);
 
-    _lapics[cpu_id]->write_msr(reg2msr(reg), value, true);
+    assert((lapic != nullptr) && "Local APIC found at cpu_id.");
+
+    lapic->write_msr(reg2msr(reg), value, true);
   }
 
-  // Msr_device interface
-  bool read_msr(unsigned msr, l4_uint64_t *value, unsigned vcpu_no) const override
+
+  Vmm::Region mmio_region() const
   {
-    assert(vcpu_no < Max_lapics && _lapics[vcpu_no]);
-
-    return _lapics[vcpu_no]->read_msr(msr, value);
-  };
-
-  bool write_msr(unsigned msr, l4_uint64_t value, unsigned vcpu_no) override
-  {
-    assert(vcpu_no < Max_lapics && _lapics[vcpu_no]);
-
-    return _lapics[vcpu_no]->write_msr(msr, value);
+    return Vmm::Region::ss(Vmm::Guest_addr(Mmio_addr), Lapic_mem_size,
+                           Vmm::Region_type::Virtual);
   }
 
 private:
@@ -395,9 +412,8 @@ private:
   { return (reg >> 4) | X2apic_msr_base; }
 
   l4_uint64_t _max_phys_addr_mask;
-  cxx::Ref_ptr<Virt_lapic> _lapics[Max_lapics];
-}; // class Lapic_array
-
+  cxx::Ref_ptr<Lapic_array> _apics;
+}; // class Lapic_access_handler
 
 /**
  * MSI-X control for MSI routing.

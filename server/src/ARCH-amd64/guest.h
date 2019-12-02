@@ -40,11 +40,13 @@ public:
 
   Guest()
   : _ptw(&_memmap, get_max_physical_address_bit()),
-    _apics(Vdev::make_device<Gic::Lapic_array>(get_max_physical_address_bit()))
+    _apics(Vdev::make_device<Gic::Lapic_array>()),
+    _lapic_access_handler(Vdev::make_device<Gic::Lapic_access_handler>(
+      _apics, get_max_physical_address_bit()))
   {
-    add_mmio_device(_apics->mmio_region(), _apics);
-
-    register_msr_device(_apics);
+    add_mmio_device(_lapic_access_handler->mmio_region(),
+                    _lapic_access_handler);
+    register_msr_device(_lapic_access_handler);
   }
 
   static Guest *create_instance();
@@ -136,6 +138,7 @@ private:
   Guest_print_buffer _hypcall_print;
   Pt_walker _ptw;
   cxx::Ref_ptr<Gic::Lapic_array> _apics;
+  cxx::Ref_ptr<Gic::Lapic_access_handler> _lapic_access_handler;
   Binary_type _guest_t;
 };
 
