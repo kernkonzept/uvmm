@@ -23,10 +23,17 @@ class Binary_ds
 public:
   Binary_ds(char const *name)
   : _ds(L4Re::chkcap(L4Re::Util::Env_ns().query<L4Re::Dataspace>(name),
-                     "Kernel binary not found", -L4_EIO))
+                     "Kernel binary not found", -L4_EIO)),
+    _elf(this, _ds.get())
   {
     _loaded_range_start = 0;
     _loaded_range_end = 0;
+
+    // return if we found an ELF binary, otherwise
+    // attach first page
+    if (_elf.is_valid())
+      return;
+
     // Map the first page which should contain all headers necessary
     // to interpret the binary.
     auto *e = L4Re::Env::env();
@@ -38,21 +45,20 @@ public:
 
   bool is_elf_binary()
   {
-    return as_elf_header()->is_valid();
+    return _elf.is_valid();
   }
 
   bool is_elf64()
   {
-    return as_elf_header()->is_64();
+    return _elf.is_64();
   }
 
   l4_addr_t load_as_elf(Vmm::Vm_ram *ram, Vmm::Ram_free_list *free_list)
   {
-    auto const *eh = as_elf_header();
     Vmm::Guest_addr img_start(-1UL);
     Vmm::Guest_addr img_end(0);
 
-    eh->iterate_phdr([this,ram,free_list,&img_start,&img_end](Ldr::Elf_phdr ph) {
+    _elf.iterate_phdr([this,ram,free_list,&img_start,&img_end](Ldr::Elf_phdr ph) {
       if (ph.type() == PT_LOAD)
         {
           auto gstart = ram->boot2guest_phys(ph.paddr());
@@ -83,7 +89,7 @@ public:
     _loaded_range_start = ram->guest2host<l4_addr_t>(img_start);
     _loaded_range_end = ram->guest2host<l4_addr_t>(img_end);
 
-    return eh->entry();
+    return _elf.entry();
   }
 
   l4_addr_t load_as_raw(Vmm::Vm_ram *ram, Vmm::Guest_addr start,
@@ -115,11 +121,35 @@ public:
       l4_cache_coherent(_loaded_range_start, _loaded_range_end);
   }
 
-private:
-  Ldr::Elf_ehdr const *as_elf_header() const
-  { return reinterpret_cast<Ldr::Elf_ehdr const*>(_header.get()); }
+  // App_model API
+  typedef L4::Cap<L4Re::Dataspace> Const_dataspace;
+  l4_addr_t local_attach_ds(Const_dataspace c,
+                            l4_size_t size, l4_addr_t offset) const
+  {
+    auto *e = L4Re::Env::env();
+    l4_addr_t pg_offset = l4_trunc_page(offset);
+    l4_addr_t in_pg_offset = offset - pg_offset;
+    unsigned long pg_size = l4_round_page(size + in_pg_offset);
+    l4_addr_t adr = 0;
 
+    if (e->rm()->attach(&adr, pg_size,
+                        L4Re::Rm::F::Search_addr | L4Re::Rm::F::R,
+                        c, pg_offset) < 0)
+      return 0;
+
+    return adr + in_pg_offset;
+  }
+
+  void local_detach_ds(l4_addr_t addr, l4_size_t) const
+  {
+    L4::Cap<L4Re::Dataspace> c;
+    L4Re::Env::env()->rm()->detach(addr, &c);
+  }
+  // end of App_model API
+
+private:
   L4Re::Util::Unique_cap<L4Re::Dataspace> _ds;
+  Ldr::Elf_binary<Binary_ds> _elf;
   L4Re::Rm::Unique_region<char *> _header;
   l4_addr_t _loaded_range_start;
   l4_addr_t _loaded_range_end;
