@@ -28,6 +28,7 @@
 #include "mmio_device.h"
 #include "msi.h"
 #include "monitor/lapic_cmd_handler.h"
+#include "cpu_dev.h"
 
 using L4Re::Rm;
 
@@ -219,8 +220,7 @@ class Lapic_array
 {
   enum
   {
-    // XXX sync with Max_cpus
-    Max_cores = 1,
+    Max_lapics = Vmm::Cpu_dev::Max_cpus,
     X2apic_msr_base = 0x800,
     Lapic_mem_addr = 0xfee00000,
     Lapic_mem_size = 0x1000,
@@ -256,7 +256,7 @@ public:
 
   cxx::Ref_ptr<Virt_lapic> get(unsigned core_no)
   {
-    return (core_no < Max_cores) ? _lapics[core_no] : nullptr;
+    return (core_no < Max_lapics) ? _lapics[core_no] : nullptr;
   }
 
   Virt_lapic *get_lowest_prio() const
@@ -295,7 +295,7 @@ public:
   // Mmio device if
   l4_umword_t read(unsigned reg, char, unsigned cpu_id)
   {
-    assert(cpu_id < Max_cores && _lapics[cpu_id]);
+    assert(cpu_id < Max_lapics && _lapics[cpu_id]);
 
     l4_uint64_t val = -1;
     _lapics[cpu_id]->read_msr(reg2msr(reg), &val, true);
@@ -305,7 +305,7 @@ public:
 
   void write(unsigned reg, char, l4_umword_t value, unsigned cpu_id)
   {
-    assert(cpu_id < Max_cores && _lapics[cpu_id]);
+    assert(cpu_id < Max_lapics && _lapics[cpu_id]);
 
     _lapics[cpu_id]->write_msr(reg2msr(reg), value, true);
   }
@@ -313,14 +313,14 @@ public:
   // Msr_device interface
   bool read_msr(unsigned msr, l4_uint64_t *value, unsigned vcpu_no) const override
   {
-    assert(vcpu_no < Max_cores && _lapics[vcpu_no]);
+    assert(vcpu_no < Max_lapics && _lapics[vcpu_no]);
 
     return _lapics[vcpu_no]->read_msr(msr, value);
   };
 
   bool write_msr(unsigned msr, l4_uint64_t value, unsigned vcpu_no) override
   {
-    assert(vcpu_no < Max_cores && _lapics[vcpu_no]);
+    assert(vcpu_no < Max_lapics && _lapics[vcpu_no]);
 
     return _lapics[vcpu_no]->write_msr(msr, value);
   }
@@ -330,7 +330,7 @@ private:
   { return (reg >> 4) | X2apic_msr_base; }
 
   l4_uint64_t _max_phys_addr_mask;
-  cxx::Ref_ptr<Virt_lapic> _lapics[Max_cores];
+  cxx::Ref_ptr<Virt_lapic> _lapics[Max_lapics];
 }; // class Lapic_array
 
 
