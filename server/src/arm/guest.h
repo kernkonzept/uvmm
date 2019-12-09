@@ -49,6 +49,9 @@ public:
 
   void prepare_vcpu_startup(Vcpu_ptr vcpu, l4_addr_t entry) const;
 
+  void prepare_platform(Vdev::Device_lookup *)
+  {}
+
   void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
                          Vm_ram *ram, char const *kernel,
                          char const *cmd_line, l4_addr_t dt);

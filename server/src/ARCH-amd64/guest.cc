@@ -107,6 +107,32 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel,
   return entry;
 }
 
+void
+Guest::prepare_platform(Vdev::Device_lookup *devs)
+{
+  auto cpus = devs->cpus();
+  unsigned const max_cpuid = cpus->max_cpuid();
+  for (unsigned id = 0; id <= max_cpuid; ++id)
+    {
+      auto cpu = cpus->cpu(id);
+      cpu->powerup_cpu();
+
+      Vcpu_ptr vcpu = cpu->vcpu();
+      vcpu->user_task = _task.cap();
+      vcpu.set_pt_walker(&_ptw);
+
+      unsigned vcpu_id = vcpu.get_vcpu_id();
+      _apics->register_core(vcpu_id);
+      register_timer_device(_apics->get(vcpu_id));
+      _apics->get(vcpu_id)->attach_cpu_thread(cpu->thread_cap());
+    }
+
+  register_msr_device(Vdev::make_device<Vcpu_msr_handler>(cpus.get()));
+  register_msr_device(
+    Vdev::make_device<Vdev::Microcode_revision>(cpus->vcpu(0)));
+
+}
+
 void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
                               char const * /* kernel */, char const *cmd_line,
                               l4_addr_t dt_boot_addr)
@@ -546,26 +572,6 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
 void
 Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
 {
-  unsigned const max_cpuid = cpus->max_cpuid();
-  for (unsigned id = 0; id <= max_cpuid; ++id)
-    {
-      auto cpu = cpus->cpu(id);
-      cpu->powerup_cpu();
-
-      Vcpu_ptr vcpu = cpu->vcpu();
-      vcpu->user_task = _task.cap();
-      vcpu.set_pt_walker(&_ptw);
-
-      unsigned vcpu_id = vcpu.get_vcpu_id();
-      _apics->register_core(vcpu_id);
-      register_timer_device(_apics->get(vcpu_id));
-      _apics->get(vcpu_id)->attach_cpu_thread(cpu->thread_cap());
-    }
-
-  register_msr_device(Vdev::make_device<Vcpu_msr_handler>(cpus.get()));
-  register_msr_device(
-    Vdev::make_device<Vdev::Microcode_revision>(cpus->vcpu(0)));
-
   info().printf("Starting VMM @ 0x%lx\n", cpus->vcpu(0)->r.ip);
 
   // Additional vCPUs are initialized to run startup on the first reschedule.
