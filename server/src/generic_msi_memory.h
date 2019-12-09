@@ -13,43 +13,38 @@
 #include "debug.h"
 #include "mem_access.h"
 #include "pci_device.h"
-#include "virt_lapic.h"
 #include "msi.h"
 #include "msi_allocator.h"
 #include "ds_mmio_handling.h"
+#include "msi_controller.h"
 
 namespace Vdev { namespace Msix {
 
 /**
- * Forwards L4Re interrupts to an Irq_edge_sink containing the guest's
- * MSI/MSI-X vector.
+ * Translates the L4Re interrupt to the MSIx Table entry and send it to
+ * the Msix_controller.
  */
-class Msi_svr
-:  public L4::Irqep_t<Msi_svr>,
-   public virtual Vdev::Dev_ref
+class Msi_src
+: public L4::Irqep_t<Msi_src>,
+  public virtual Vdev::Dev_ref
 {
 public:
-  Msi_svr(unsigned vbus_msi) : _io_msi(vbus_msi) {}
+  explicit Msi_src(Table_entry const *entry,
+                   cxx::Ref_ptr<Gic::Msix_controller> const &ctrl,
+                   l4_uint32_t io_irq)
+  : _entry(entry), _msix_ctrl(ctrl), _io_irq(io_irq)
+  {}
 
-  void set_sink(Gic::Ic *ic, unsigned guest_msi)
-  {
-    _irq.rebind(ic, guest_msi);
-    _guest_msi = guest_msi;
-  }
+  void handle_irq() const
+  { _msix_ctrl->send(_entry->addr, _entry->data); }
 
-  void handle_irq()
-  {
-    Dbg().printf("Msi_svr: injecting irq 0x%x\n", _guest_msi);
-    _irq.inject();
-  }
-
-  unsigned io_irq() const
-  { return _io_msi; }
+  l4_uint32_t io_irq() const
+  { return _io_irq; }
 
 private:
-  Vmm::Irq_edge_sink _irq;
-  unsigned _io_msi;
-  unsigned _guest_msi;
+  Table_entry const *_entry;
+  cxx::Ref_ptr<Gic::Msix_controller> const _msix_ctrl;
+  l4_uint32_t const _io_irq;
 };
 
 /**
@@ -69,21 +64,22 @@ public:
    * \param con          Access to physical device memory.
    * \param msi_alloc    Pointer to a MSI manager, e.g. vBus.
    * \param registry     Application-global object registry.
-   * \param apics        Local APICs for interrupt routing.
    * \param src_id       IO-specific source ID of the PCI device.
    * \param num_entries  Maximum number of device-supported MSI-X entries.
+   * \param msix_ctrl    MSI-X controller for MSI-X address decoding.
    */
   Virt_msix_table(cxx::Ref_ptr<Vdev::Mmio_ds_converter> &&con,
                   cxx::Ref_ptr<Vdev::Msi::Allocator> msi_alloc,
                   L4Re::Util::Object_registry *registry,
-                  cxx::Ref_ptr<Gic::Lapic_array> apics, unsigned src_id,
-                  unsigned num_entries)
+                  unsigned src_id,
+                  unsigned num_entries,
+                  cxx::Ref_ptr<Gic::Msix_controller> const &msix_ctrl)
   : _con(std::move(con)),
     _registry(registry),
     _msi_alloc(msi_alloc),
-    _local_apics(apics),
     _msi_irqs(num_entries),
     _src_id(src_id),
+    _msix_ctrl(msix_ctrl),
     _virt_table(cxx::make_unique<Table_entry[]>(num_entries))
   {
     unsigned icu_nr_msis = msi_alloc->max_msis();
@@ -135,6 +131,10 @@ public:
       msi_entry_mask_ctrl(reg_to_entry(reg), true);
     // else: PCIe brings TPH Requester fields for vector control.
   }
+
+protected:
+  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PassThrough"); }
+  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PassThrough"); }
 
 private:
   /// MSI-X table access to the vector control DWORD.
@@ -202,35 +202,18 @@ private:
     _con->write(entry_off, Vmm::Mem_access::Wd32, 0U);
   }
 
-  /// Convert the MSI's destination ID into an index in the local APIC array.
-  static unsigned msi_addr_to_lapic_idx(l4_uint64_t msi_addr)
-  {
-    Interrupt_request_compat addr(msi_addr);
-    auto lapic_id = addr.dest_id().get();
-
-    int i = 0;
-    while (lapic_id >>= 1)
-      i++;
-
-    warn().printf("msi destination id: 0x%x\n", i);
-    return i;
-  }
-
   /// True; iff the MSI route was already configured, but masked.
-  bool reconfigure(unsigned idx, unsigned guest_vector,
-                   Gic::Virt_lapic *lapic) const
+  bool reconfigure(unsigned idx) const
   {
+    // Check for reconfiguration or entry unmask
+    trace().printf("check for reconfiguration\n");
+
     if (!_msi_irqs[idx])
       return false;
 
+    // If the entry is present, we just unmask the entry on the device.
     warn().printf("reconfiguring\n");
-    auto msi_svr = _msi_irqs[idx];
     msi_entry_mask_ctrl(idx, false);
-
-    // If the Msi_svr is already present in the table, I assume the device
-    // is already configured. I just have to inject the new vector at the
-    // new destination.
-    msi_svr->set_sink(lapic, guest_vector);
 
     return true;
   }
@@ -238,41 +221,32 @@ private:
   /// Parse MSI-X entry and configure the route.
   void conf_msix_entry(unsigned idx)
   {
-    Table_entry *entry = &_virt_table[idx];
-    auto guest_vector = entry->data & Data_vector_mask;
-
-    warn().printf("Configure MSI-X entry number %u for guest vector 0x%x\n",
-                  idx, guest_vector);
-
-    Gic::Virt_lapic *lapic =
-      _local_apics->get(msi_addr_to_lapic_idx(entry->addr)).get();
-
-    // Check for reconfiguration or entry unmask
-    trace().printf("check for reconfiguration\n");
-
     // If this is a reconfiguration do not configure the device again.
-    if (!reconfigure(idx, guest_vector, lapic))
-      configure_msix_route(idx, guest_vector, lapic);
+    if (!reconfigure(idx))
+      configure_msix_route(idx);
   }
 
   /**
    * Configure the device's MSI-X entry and the interrupt route to inject into
    * the guest.
    */
-  void configure_msix_route(unsigned idx, unsigned guest_vector,
-                            Gic::Virt_lapic *lapic)
+  void configure_msix_route(unsigned idx)
   {
+    Table_entry const *entry = &_virt_table[idx];
+
+    warn().printf("Configure MSI-X entry number %u for entry (0x%llx, 0x%x)\n",
+                  idx, entry->addr, entry->data);
+
     // Allocate the number with the vBus ICU
     long msi =
       L4Re::chksys(_msi_alloc->alloc_msi(), "MSI-X vector allocation failed.");
 
     // allocate IRQ object and bind it to the ICU
-    auto msi_svr = Vdev::make_device<Msi_svr>(msi);
-    msi_svr->set_sink(lapic, guest_vector);
-    _registry->register_irq_obj(msi_svr.get());
+    auto msi_src = Vdev::make_device<Msi_src>(entry, _msix_ctrl, msi);
+    _registry->register_irq_obj(msi_src.get());
 
     long label = L4Re::chksys(_msi_alloc->icu()->bind(msi | L4_ICU_FLAG_MSI,
-                                                      msi_svr->obj_cap()),
+                                                      msi_src->obj_cap()),
                               "Bind MSI-IRQ to vBUS ICU.");
 
     // Currently, this doesn't happen for MSIs as IO's ICU doesn't manage them.
@@ -295,19 +269,16 @@ private:
     write_dev_msix_entry(idx, msiinfo);
 
     // unmask the MSI-IRQ
-    L4Re::chkipc(msi_svr->obj_cap()->unmask(), "Unmaks MSI-IRQ.");
-    _msi_irqs[idx] = msi_svr;
+    L4Re::chkipc(msi_src->obj_cap()->unmask(), "Unmaks MSI-IRQ.");
+    _msi_irqs[idx] = msi_src;
   }
-
-  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PassThrough"); }
-  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PassThrough"); }
 
   cxx::Ref_ptr<Vdev::Mmio_ds_converter> _con;
   L4Re::Util::Object_registry *_registry;
   cxx::Ref_ptr<Vdev::Msi::Allocator> _msi_alloc;
-  cxx::Ref_ptr<Gic::Lapic_array> _local_apics;
-  std::vector<cxx::Ref_ptr<Msi_svr>> _msi_irqs;
+  std::vector<cxx::Ref_ptr<Msi_src>> _msi_irqs;
   unsigned const _src_id;
+  cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;
   cxx::unique_ptr<Table_entry[]> _virt_table;
 }; // class Virt_msix_table
 

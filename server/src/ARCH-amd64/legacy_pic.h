@@ -10,7 +10,7 @@
 #include "io_device.h"
 #include "device.h"
 #include "irq.h"
-#include "msi.h"
+#include "msi_arch.h"
 #include "msi_controller.h"
 
 namespace Vdev {

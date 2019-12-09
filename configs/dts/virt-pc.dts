@@ -73,6 +73,7 @@
             // reg 1: MMIO memory area for PCI devices
             reg = <0x0 0xaaaa0000 0x0 0x00010000>;
             interrupt-parent = <&IOAPIC>;
+            msi-parent = <&msi_ctlr>;
             bus-range = <0x0 0xff>;
             #address-cells = <3>;
             #size-cells = <2>;

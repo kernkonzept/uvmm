@@ -11,60 +11,14 @@
  * \file MSI-X structures and constants
  */
 
-#include <l4/sys/icu>
 #include <l4/cxx/static_vector>
-#include <l4/cxx/bitfield>
 
 namespace Vdev { namespace Msix {
 
 enum Table_entry_const
 {
   Vector_ctrl_mask_bit = 0x1,
-  Data_vector_mask = 0xff,
   Entry_size = 16,      // entry size in bytes: 4 DWORDs.
-};
-
-enum
-{
-  Address_interrupt_prefix = 0xfee,
-};
-
-/// MSI-X address: Interrupt request compatibility format (Intel)
-struct Interrupt_request_compat
-{
-  l4_uint64_t raw;
-  CXX_BITFIELD_MEMBER(32, 63, reserved0_2, raw);
-  CXX_BITFIELD_MEMBER(20, 31, fixed, raw);
-  CXX_BITFIELD_MEMBER(12, 19, dest_id, raw);
-  CXX_BITFIELD_MEMBER(4, 11, reserved0_1, raw);
-  CXX_BITFIELD_MEMBER(3, 3, redirect_hint, raw);
-  CXX_BITFIELD_MEMBER(2, 2, dest_mode, raw);
-  CXX_BITFIELD_MEMBER(0, 1, reserved_0, raw);
-
-  explicit Interrupt_request_compat(l4_uint64_t addr) : raw(addr) {};
-};
-
-enum Delivery_mode : l4_uint8_t
-{
-  Dm_fixed = 0,
-  Dm_lowest_prio = 1,
-  Dm_smi = 2,
-  Dm_nmi = 4,
-  Dm_init = 5,
-  Dm_extint = 7,
-};
-
-/// MSI-X data format (Intel)
-struct Data_register_format
-{
-  // Intel SDM Vol. 3A 10-35, October 2017
-  l4_uint32_t raw;
-  CXX_BITFIELD_MEMBER(15, 15, trigger_mode, raw);
-  CXX_BITFIELD_MEMBER(14, 14, trigger_level, raw);
-  CXX_BITFIELD_MEMBER(8, 10, delivery_mode, raw);
-  CXX_BITFIELD_MEMBER(0, 7, vector, raw);
-
-  explicit Data_register_format(l4_uint32_t data) : raw(data) {};
 };
 
 struct Table_entry

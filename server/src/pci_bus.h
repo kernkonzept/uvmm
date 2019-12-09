@@ -16,6 +16,7 @@
 #include <l4/vbus/vbus_pci>
 
 #include "msi.h"
+#include "msi_controller.h"
 #include "virt_bus.h"
 #include "mem_access.h"
 #include "debug.h"
@@ -41,6 +42,35 @@ struct Devfn_address
   l4_uint16_t dev() { return (value >> Dev_shift) & Mask; }
 };
 
+struct Pci_cfg_bar
+{
+  enum Type
+  {
+    Unused,
+    MMIO32,
+    MMIO64,
+    IO
+  };
+
+  l4_uint64_t addr;
+  l4_size_t size;
+  Type type;
+
+  // for user: get address type dependent
+  // auto addr =
+  //  (type == MMIO64) ? addr : (l4_uint32_t)(addr && 0xffffffff);
+};
+
+struct Hw_pci_device
+{
+  Hw_pci_device(Devfn_address df) : devfn(df)
+  { memset(bars, 0, sizeof(bars)); }
+
+  Devfn_address devfn;
+  Pci_cfg_bar bars[5];
+  Pci_msix_cap msix_cap;
+};
+
 /**
  * PCI bus emulation.
  *
@@ -52,37 +82,6 @@ struct Devfn_address
  */
 class Pci_bus_bridge : public Pci_dev, public Device
 {
-  struct Pci_cfg_bar
-  {
-    enum Type
-    {
-      Unused,
-      MMIO32,
-      MMIO64,
-      IO
-    };
-
-    l4_uint64_t addr;
-    l4_size_t size;
-    Type type;
-
-    // for user: get address type dependent
-    // auto addr =
-    //  (type == MMIO64) ? addr : (l4_uint32_t)(addr && 0xffffffff);
-  };
-
-  struct Hw_pci_device
-  {
-    Hw_pci_device(Devfn_address df) : devfn(df)
-    {
-      memset(bars, 0, sizeof(bars));
-    }
-
-    Devfn_address devfn;
-    Pci_cfg_bar bars[5];
-    Pci_msix_cap msix_cap;
-  };
-
   enum : l4_uint8_t
   {
     Pci_class_code_bridge_device = 0x06,
@@ -130,12 +129,8 @@ public:
   }
 
   void init_bus_range(Dt_node const &node);
-  void init_dev_resources(Device_lookup *devs);
-  void register_msix_table_page(Hw_pci_device const &hwdev, unsigned bir,
-                                Vmm::Guest *vmm,
-                                cxx::Ref_ptr<Vmm::Virt_bus> vbus);
-  void register_msix_bar(Pci_cfg_bar *bar, l4_addr_t tbl_offset,
-                         L4::Cap<L4Re::Dataspace> io_ds, Vmm::Guest *vmm);
+  void init_dev_resources(Device_lookup *devs,
+                          cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl);
 
   bool is_io_pci_host_bridge_present() const { return _io_pci_bridge_present; }
 
