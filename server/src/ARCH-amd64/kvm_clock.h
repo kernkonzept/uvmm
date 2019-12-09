@@ -26,7 +26,9 @@ class Kvm_clock : public Vdev::Timer, public Vmm::Msr_device, public Device
     l4_uint32_t version;
     l4_uint32_t sec;
     l4_uint32_t nsec;
-  } __attribute__((__packed__));
+  };
+  static_assert(sizeof(Wall_clock) == 3 * 4,
+                "KVM Wall_clock struct is compact.");
 
   struct Vcpu_time_info {
     l4_uint32_t   version;
