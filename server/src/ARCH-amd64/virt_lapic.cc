@@ -190,7 +190,7 @@ Virt_lapic::is_irq_pending()
 }
 
 bool
-Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value, bool mmio) const
+Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
 {
   switch (msr)
     {
@@ -245,13 +245,7 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value, bool mmio) const
     case 0x827: *value = _regs.irr.get_reg(msr - 0x820); break;
     case 0x828: *value = _regs.esr; break;
     case 0x82f: *value = _regs.cmci; break;
-    case 0x830: *value = _regs.icr; break;
-    case 0x831:
-      if (mmio)
-        *value = _regs.icr >> 32;
-      else
-        return false;
-      break;
+    // 0x830 handled by Icr_handler
     case 0x832: *value = _timer.raw; break;
     case 0x833: *value = _regs.therm; break;
     case 0x834: *value = _regs.perf; break;
@@ -272,7 +266,7 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value, bool mmio) const
 }
 
 bool
-Virt_lapic::write_msr(unsigned msr, l4_uint64_t value, bool mmio)
+Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
 {
   switch(msr)
     {
@@ -328,18 +322,7 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value, bool mmio)
       break;
     case 0x828: _regs.esr = 0; break;
     case 0x82f: _regs.cmci = value; break;
-    case 0x830:
-      if (mmio)
-        _regs.icr = (_regs.icr & 0xffffffff00000000UL) | (value & 0xffffffffU);
-      else
-        _regs.icr = value;
-      break;
-    case 0x831:
-      if (mmio)
-        _regs.icr = (_regs.icr & 0xffffffffU) | (value << 32);
-      else
-        return false;
-      break;
+    // 0x830 handled by Icr_handler
     case 0x832:
       {
         Timer_reg new_timer(value);
@@ -404,7 +387,9 @@ namespace {
                                       Vdev::Dt_node const &) override
     {
       auto apics = devs->vmm()->apic_array();
-      return Vdev::make_device<Gic::Msix_control>(apics);
+      auto msix_ctlr = Vdev::make_device<Gic::Msix_control>(apics);
+      devs->vmm()->icr_handler()->register_msix_ctlr(msix_ctlr);
+      return msix_ctlr;
     }
   };
 

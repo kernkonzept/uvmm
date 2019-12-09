@@ -112,6 +112,7 @@ void
 Guest::prepare_platform(Vdev::Device_lookup *devs)
 {
   auto cpus = devs->cpus();
+  _icr_handler->register_cpus(cpus);
   unsigned const max_cpuid = cpus->max_cpuid();
   for (unsigned id = 0; id <= max_cpuid; ++id)
     {

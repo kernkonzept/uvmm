@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2018 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
+ *            Benjamin Lamowski <benjamin.lamowski@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
@@ -30,6 +31,7 @@
 #include "msi_arch.h"
 #include "monitor/lapic_cmd_handler.h"
 #include "cpu_dev.h"
+#include "cpu_dev_array.h"
 
 using L4Re::Rm;
 
@@ -114,7 +116,6 @@ class Virt_lapic : public Vdev::Timer, public Ic
     Irq_register irr;
     l4_uint32_t esr;
     l4_uint32_t cmci;
-    l4_uint64_t icr;
     l4_uint32_t therm;
     l4_uint32_t perf;
     l4_uint32_t lint[2];
@@ -210,8 +211,8 @@ public:
   bool is_irq_pending();
 
   // X2APIC MSR interface
-  bool read_msr(unsigned msr, l4_uint64_t *value, bool mmio = false) const;
-  bool write_msr(unsigned msr, l4_uint64_t value, bool mmio = false);
+  bool read_msr(unsigned msr, l4_uint64_t *value) const;
+  bool write_msr(unsigned msr, l4_uint64_t value);
 
   l4_uint32_t logical_apic_id() const
   {
@@ -337,6 +338,241 @@ private:
   cxx::Ref_ptr<Virt_lapic> _lapics[Vmm::Cpu_dev::Max_cpus];
 }; // class Lapic_array
 
+/**
+ * Handle Inter-processor interrupts via the Interrupt Command Register (ICR).
+ *
+ * For details, consult Vol. 3A 10.6.1 of the Intel SDM.
+ */
+class Icr_handler : public Vdev::Device
+{
+  enum : l4_uint32_t
+  {
+    Icr_startup = 0x6,
+    Icr_startup_page_shift = 12
+  };
+
+  struct Icr
+  {
+    l4_uint64_t raw;
+    CXX_BITFIELD_MEMBER_RO(56, 63, dest_field_mmio, raw);
+    CXX_BITFIELD_MEMBER_RO(32, 63, dest_field_x2apic, raw);
+    CXX_BITFIELD_MEMBER_RO(20, 31, reserved3, raw);
+    CXX_BITFIELD_MEMBER_RO(18, 19, dest_shorthand, raw);
+    CXX_BITFIELD_MEMBER_RO(16, 17, reserved2, raw);
+    CXX_BITFIELD_MEMBER_RO(15, 15, trigger_mode, raw);
+    CXX_BITFIELD_MEMBER_RO(14, 14, trigger_level, raw);
+    CXX_BITFIELD_MEMBER_RO(13, 13, reserved1, raw);
+    CXX_BITFIELD_MEMBER_RO(12, 12, delivery_status, raw);
+    CXX_BITFIELD_MEMBER_RO(11, 11, dest_mode, raw);
+    CXX_BITFIELD_MEMBER_RO(8, 10, delivery_mode, raw);
+    CXX_BITFIELD_MEMBER_RO(0, 7, vector, raw);
+    CXX_BITFIELD_MEMBER_RO(0, 31, lower, raw);
+
+    Icr() : raw(0U) {}
+    Icr(uint64_t val) : raw(val) {}
+  };
+
+  enum Destination_shorthand
+  {
+    No_shorthand = 0,
+    Self = 1,
+    All_including_self = 2,
+    All_excluding_self = 3
+  };
+
+public:
+  enum : unsigned
+  {
+    Icr_msr = 0x830,
+    Icr_mmio_ext = 0x831
+  };
+
+  bool read(unsigned msr, l4_uint64_t *value, unsigned vcpu_no) const
+  {
+    assert(vcpu_no < Vmm::Cpu_dev::Max_cpus);
+
+    switch (msr)
+      {
+      case Icr_msr:
+        *value = _icr[vcpu_no];
+        return true;
+      case Icr_mmio_ext:
+        *value = _icr[vcpu_no] >> 32;
+        return true;
+      default:
+        return false;
+      }
+  }
+
+  bool write(unsigned msr, l4_uint64_t value, unsigned vcpu_no, bool mmio)
+  {
+    assert(vcpu_no < Vmm::Cpu_dev::Max_cpus);
+
+    switch (msr)
+      {
+      case Icr_msr:
+        // If the write originates from an MMIO access, only the lower 32bit of
+        // the ICR should be written.
+        if (mmio)
+          _icr[vcpu_no] =
+            (_icr[vcpu_no] & 0xffffffff00000000UL) | (value & 0xffffffffU);
+        else
+          _icr[vcpu_no] = value;
+        // Vol. 3A 10.6.1: "The act of writing to the low doubleword of the ICR
+        // causes the IPI to be sent."
+        send_ipi(value, vcpu_no, !mmio);
+        return true;
+      case Icr_mmio_ext:
+        _icr[vcpu_no] = (_icr[vcpu_no] & 0xffffffffU) | (value << 32);
+        return true;
+      default:
+        return false;
+      }
+  }
+
+  /**
+   * Register the CPU device array with the IPI handler.
+   *
+   * \param cpus  Pointer to the CPU container.
+   */
+  void register_cpus(cxx::Ref_ptr<Vmm::Cpu_dev_array> const &cpus)
+  { _cpus = cpus; }
+
+  /**
+   * Register the MSI-X Controller with the IPI handler.
+   *
+   * \param msix_ctlr  Pointer to the MSI-X Controller.
+   */
+  void register_msix_ctlr(cxx::Ref_ptr<Msix_controller> const &msix_ctlr)
+  { _msix_ctlr = msix_ctlr; }
+
+private:
+  static Dbg info() { return Dbg(Dbg::Irq, Dbg::Info, "IPI"); }
+
+  enum : l4_uint32_t { Data_register_format_mask = 0x0000c7ffU };
+
+  /**
+   * Send an Inter-Processor Interrupt message.
+   *
+   * This function handles the INIT-SIPI-SIPI sequence (cf. Vol. 3A 8.4.3 of
+   * the Intel 64 and IA-32 Architectures Software Developer's Manual) and
+   * forwards all other IPIs to the MSI-X Controller for distribution.
+   *
+   * \param icr_reg  Content of the ICR register.
+   * \param vcpu_no  Current vCPU ID.
+   * \param x2apic   Indicate if X2APIC mode is in use.
+   */
+  void send_ipi(l4_uint64_t icr_reg, unsigned vcpu_no, bool x2apic) const
+  {
+    Icr icr(icr_reg);
+
+    using namespace Vdev::Msix;
+
+    // cf. ICR format: Vol. 3A 10.6.1 / Figure 10-12 vs.
+    // the MSI data format: Vol. 3A 10.11.2 / Figure 10-25
+    Data_register_format const data(icr.lower() & Data_register_format_mask);
+
+    // Cf. Vol 3A 10.6.1 / Figure 10-12 vs. Vol 3A 10.12.9 / Figure 10-28
+    l4_uint32_t id = x2apic ? icr.dest_field_x2apic() : icr.dest_field_mmio();
+    unsigned const max_cpuid = _cpus->max_cpuid();
+
+    // According to Tables 10-3, and 10-4, the Start-Up Delivery Mode is only
+    // valid without Destination Shorthand. Whilst the validity of INIT varies
+    // across generations, we assume that no shorthand is used for the whole
+    // sequence.
+    // Because according to Vol. 3A 10.4.7.1 the LDR is set to 0 in
+    // wait-for-SIPI state, we require Physical Destination Mode.
+    if ((icr.dest_shorthand() == 0) && !icr.dest_mode())
+      {
+        assert(_cpus != nullptr);
+
+        assert(id <= max_cpuid);
+
+        auto cpu = _cpus->cpu(id);
+
+        if (data.delivery_mode() == Delivery_mode::Dm_init)
+          {
+            if (data.trigger_level())
+              cpu->set_cpu_state(Vmm::Cpu_dev::Cpu_state::Init);
+            else
+              cpu->set_cpu_state(Vmm::Cpu_dev::Cpu_state::Init_level_de_assert);
+
+            return;
+          }
+        else if (data.delivery_mode() == Icr_startup)
+          {
+            if (cpu->get_cpu_state()
+                == Vmm::Cpu_dev::Cpu_state::Init_level_de_assert)
+              {
+                l4_addr_t start_eip = data.vector() << Icr_startup_page_shift;
+                start_cpu(id, start_eip);
+                cpu->set_cpu_state(Vmm::Cpu_dev::Cpu_state::Startup);
+              }
+            else
+                cpu->set_cpu_state(Vmm::Cpu_dev::Cpu_state::Running);
+
+            return;
+          }
+      }
+
+    Interrupt_request_compat addr(0ULL);
+    addr.fixed() = Address_interrupt_prefix;
+    addr.dest_mode() = icr.dest_mode();
+
+    assert(_msix_ctlr != nullptr);
+
+    switch (icr.dest_shorthand())
+      {
+      case Destination_shorthand::No_shorthand:
+        addr.dest_id() = id & 0xffU;
+        addr.dest_id_upper() = x2apic ? id >> 8 : 0U;
+        _msix_ctlr->send(addr.raw, data.raw);
+        break;
+      case Destination_shorthand::Self:
+        addr.dest_id() = vcpu_no & 0xffU;
+        addr.dest_id_upper() = x2apic ? vcpu_no >> 8 : 0U;
+        _msix_ctlr->send(addr.raw, data.raw);
+        break;
+      case Destination_shorthand::All_including_self:
+        for (unsigned i = 0; i <= max_cpuid; ++i)
+          {
+            addr.dest_id() = i & 0xffU;
+            addr.dest_id_upper() = x2apic ? i >> 8 : 0U;
+            _msix_ctlr->send(addr.raw, data.raw);
+          }
+        break;
+      case Destination_shorthand::All_excluding_self:
+        for (unsigned i = 0; i <= max_cpuid; ++i)
+          {
+            if (i == vcpu_no)
+              continue;
+            addr.dest_id() = i & 0xffU;
+            addr.dest_id_upper() = x2apic ? i >> 8 : 0U;
+            _msix_ctlr->send(addr.raw, data.raw);
+          }
+      }
+  }
+
+  /**
+   * Start an Application Processor.
+   *
+   * \param id     Number of the CPU to be started.
+   * \param entry  Real Mode entry address.
+   */
+  void start_cpu(unsigned id, l4_addr_t entry) const
+  {
+    auto vcpu = _cpus->cpu(id)->vcpu();
+    vcpu->r.sp = 0;
+    vcpu->r.ip = entry;
+    info().printf("Starting CPU %u on EIP 0x%lx\n", id, entry);
+    _cpus->cpu(id)->reschedule();
+  }
+
+  l4_uint64_t _icr[Vmm::Cpu_dev::Max_cpus] = { 0, };
+  cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
+  cxx::Ref_ptr<Msix_controller> _msix_ctlr;
+}; // class Icr_handler
+
 class Lapic_access_handler
 : public Vmm::Mmio_device_t<Lapic_access_handler>,
   public Vmm::Msr_device,
@@ -353,51 +589,44 @@ public:
   static_assert(!(Mmio_addr & 0xfff), "LAPIC memory is 4k-aligned.");
 
   Lapic_access_handler(cxx::Ref_ptr<Lapic_array> apics,
+                       cxx::Ref_ptr<Icr_handler> icr_handler,
                        unsigned max_phys_addr_bit)
-  : _max_phys_addr_mask((1UL << max_phys_addr_bit) - 1), _apics(apics)
+  : _max_phys_addr_mask((1UL << max_phys_addr_bit) - 1),
+    _apics(apics),
+    _icr_handler(icr_handler)
   {
     assert((Mmio_addr & _max_phys_addr_mask) == Mmio_addr);
   }
 
   // Msr device interface
-  bool read_msr(unsigned msr, l4_uint64_t *value,
-                unsigned vcpu_no) const override
+  bool read_msr(unsigned msr, l4_uint64_t *value, unsigned vcpu_no) const
   {
+    if (msr == Icr_handler::Icr_msr || msr == Icr_handler::Icr_mmio_ext)
+      return _icr_handler->read(msr, value, vcpu_no);
+
     auto lapic = _apics->get(vcpu_no);
 
     assert((lapic != nullptr) && "Local APIC found at vcpu_no.");
 
-    return lapic->read_msr(msr, value, false);
+    return lapic->read_msr(msr, value);
   };
 
   bool write_msr(unsigned msr, l4_uint64_t value, unsigned vcpu_no) override
   {
-    auto lapic = _apics->get(vcpu_no);
-
-    assert((lapic != nullptr) && "Local APIC found at vcpu_no.");
-
-    return lapic->write_msr(msr, value, false);
+    return dispatch_msr(msr, value, vcpu_no, false);
   }
 
   // Mmio device interface
   l4_umword_t read(unsigned reg, char, unsigned cpu_id) const
   {
     l4_uint64_t val = -1;
-    auto lapic = _apics->get(cpu_id);
-
-    assert((lapic != nullptr) && "Local APIC found at cpu_id.");
-
-    lapic->read_msr(reg2msr(reg), &val, true);
+    read_msr(reg2msr(reg), &val, cpu_id);
     return val;
   }
 
   void write(unsigned reg, char, l4_umword_t value, unsigned cpu_id)
   {
-    auto lapic = _apics->get(cpu_id);
-
-    assert((lapic != nullptr) && "Local APIC found at cpu_id.");
-
-    lapic->write_msr(reg2msr(reg), value, true);
+    dispatch_msr(reg2msr(reg), value, cpu_id, true);
   }
 
 
@@ -408,11 +637,36 @@ public:
   }
 
 private:
+  /**
+   * Forward an MSR-encoded write to the ICR handler or to a local APIC.
+   *
+   * \param msr      Number of the MSR written.
+   * \param value    Value written.
+   * \param vcpu_no  vCPU that the write originates from.
+   * \param mmio     Indicates if the write originates from an MMIO write that
+   *                 was converted to a MSR write.
+   *
+   * \return  True if the write was handled successfully, false otherwise.
+   */
+  bool dispatch_msr(unsigned msr, l4_uint64_t value, unsigned vcpu_no,
+                    bool mmio)
+  {
+    if (msr == Icr_handler::Icr_msr || msr == Icr_handler::Icr_mmio_ext)
+      return _icr_handler->write(msr, value, vcpu_no, mmio);
+
+    auto lapic = _apics->get(vcpu_no);
+
+    assert((lapic != nullptr) && "Local APIC found at vcpu_no.");
+
+    return lapic->write_msr(msr, value);
+  }
+
   static unsigned reg2msr(unsigned reg)
   { return (reg >> 4) | X2apic_msr_base; }
 
   l4_uint64_t _max_phys_addr_mask;
   cxx::Ref_ptr<Lapic_array> _apics;
+  cxx::Ref_ptr<Icr_handler> _icr_handler;
 }; // class Lapic_access_handler
 
 /**
@@ -435,6 +689,11 @@ public:
   {
     Vdev::Msix::Interrupt_request_compat addr(msix_addr);
     Vdev::Msix::Data_register_format data(msix_data);
+
+    // Always use the extended MSI-X format. If not in use, the upper bits will
+    // simply be 0. cf.  Intel Virtualization Technology for Directed I/O
+    // Architecture Specification (June 2019) 5.1.8
+    l4_uint32_t id = addr.dest_id_upper() | addr.dest_id();
 
     if (addr.fixed() != Vdev::Msix::Address_interrupt_prefix)
       {
@@ -460,9 +719,8 @@ public:
 
     if (!addr.dest_mode())
       {
-        // physical addressing mode:
-        //   dest_id() references a local APIC ID
-        auto lapic = _apics->get(addr.dest_id()).get();
+        // physical addressing mode: id references a local APIC ID
+        auto lapic = _apics->get(id).get();
         if (lapic)
           {
             lapic->set(data);
@@ -471,9 +729,8 @@ public:
       }
     else
       {
-        // logical addressing mode:
-        //   dest_id() is a bitmask of logical APIC ID targets
-        if (_apics->send_to_logical_dest_id(addr.dest_id(), data))
+        // logical addressing mode: id is a bitmask of logical APIC ID targets
+        if (_apics->send_to_logical_dest_id(id, data))
           return;
       }
 

@@ -21,7 +21,8 @@ enum Table_entry_const_arch
 struct Interrupt_request_compat
 {
   l4_uint64_t raw;
-  CXX_BITFIELD_MEMBER(32, 63, reserved0_2, raw);
+  CXX_BITFIELD_MEMBER(40, 63, dest_id_upper, raw);
+  CXX_BITFIELD_MEMBER(32, 39, reserved0_2, raw);
   CXX_BITFIELD_MEMBER(20, 31, fixed, raw);
   CXX_BITFIELD_MEMBER(12, 19, dest_id, raw);
   CXX_BITFIELD_MEMBER(4, 11, reserved0_1, raw);

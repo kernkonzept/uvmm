@@ -22,9 +22,20 @@ public:
   // SMP is currently not supported on amd64.
   enum { Max_cpus = 1 };
 
+  enum Cpu_state
+  {
+    Sleeping,
+    Init,
+    Init_level_de_assert,
+    Startup,
+    Running
+  };
+
   Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *)
   : Generic_cpu_dev(idx, phys_id)
-  {}
+  {
+    _cpu_state = (idx == 0) ? Running : Sleeping;
+  }
 
   void reset() override
   {
@@ -45,6 +56,15 @@ public:
    */
   static unsigned dtid_to_cpuid(l4_int32_t prop_val)
   { return prop_val; }
+
+  Cpu_state get_cpu_state()
+  { return _cpu_state; }
+
+  void set_cpu_state(Cpu_state state)
+  { _cpu_state = state; }
+
+private:
+  Cpu_state _cpu_state;
 
 }; // class Cpu_dev
 
