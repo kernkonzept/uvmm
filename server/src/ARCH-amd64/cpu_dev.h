@@ -57,6 +57,9 @@ public:
   static unsigned dtid_to_cpuid(l4_int32_t prop_val)
   { return prop_val; }
 
+  unsigned get_phys_cpu_id() const noexcept
+  { return _phys_cpu_id; }
+
   Cpu_state get_cpu_state()
   { return _cpu_state; }
 

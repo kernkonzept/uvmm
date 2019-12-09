@@ -32,6 +32,7 @@ namespace Vmm {
 
 class Guest : public Generic_guest
 {
+  enum : unsigned { Max_cpus = Cpu_dev::Max_cpus };
 
 public:
   enum { Default_rambase = 0, Boot_offset = 0 };
@@ -65,9 +66,25 @@ public:
 
   void register_msr_device(cxx::Ref_ptr<Msr_device> const &dev);
 
-  void register_timer_device(cxx::Ref_ptr<Vdev::Timer> const &dev)
+  /**
+   * Register a device for a timer.
+   *
+   * Uniprocessor timer devices such as the legacy PIT are registered ommiting
+   * the CPU numbers and run off the clock source for vCPU 0.
+   *
+   * Timers registered at run time (e.g. via KVM clock MSR) specify their
+   * core's CPU IDs.
+   *
+   * \param dev      Timer device to register with a clock source.
+   * \param vcpu_no  Virtual CPU that the timer should be registered for,
+   *                 default 0.
+   */
+  void register_timer_device(cxx::Ref_ptr<Vdev::Timer> const &dev,
+                             unsigned vcpu_no = 0)
   {
-    _clock.add_timer(dev);
+    assert(vcpu_no < Max_cpus);
+
+    _clocks[vcpu_no].add_timer(dev);
   }
 
   l4_addr_t load_linux_kernel(Vm_ram *ram, char const *kernel,
@@ -136,7 +153,7 @@ private:
   std::vector<cxx::Ref_ptr<Msr_device>> _msr_devices;
 
   // devices
-  Vdev::Clock_source _clock;
+  Vdev::Clock_source _clocks[Max_cpus];
   Guest_print_buffer _hypcall_print;
   Pt_walker _ptw;
   cxx::Ref_ptr<Gic::Lapic_array> _apics;

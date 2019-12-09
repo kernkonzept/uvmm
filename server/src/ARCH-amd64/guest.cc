@@ -125,8 +125,11 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
 
       unsigned vcpu_id = vcpu.get_vcpu_id();
       _apics->register_core(vcpu_id);
-      register_timer_device(_apics->get(vcpu_id));
+      register_timer_device(_apics->get(vcpu_id), vcpu_id);
       _apics->get(vcpu_id)->attach_cpu_thread(cpu->thread_cap());
+
+      auto phys_cpu_id = cpu->get_phys_cpu_id();
+      _clocks[id].start_timer_thread(id, phys_cpu_id);
     }
 
   register_msr_device(Vdev::make_device<Vcpu_msr_handler>(cpus.get()));
