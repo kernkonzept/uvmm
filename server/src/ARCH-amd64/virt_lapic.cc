@@ -205,9 +205,11 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value, bool mmio) const
 {
   switch (msr)
     {
-    case 0x1b: // APIC base
-      *value =
-        _lapic_memory_address | Apic_base_enabled | Apic_base_bsp_processor;
+    case 0x1b: // APIC base, Vol. 3A 10.4.4
+      *value = _lapic_memory_address | Apic_base_enabled;
+
+      if (_lapic_x2_id == 0)
+        *value |= Apic_base_bsp_processor;
 
       if (_x2apic_enabled)
         *value |= Apic_base_x2_enabled;
