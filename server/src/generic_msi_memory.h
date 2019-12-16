@@ -7,6 +7,8 @@
  */
 #pragma once
 
+#include <mutex>
+
 #include <l4/cxx/unique_ptr>
 #include <l4/re/util/object_registry>
 
@@ -232,6 +234,10 @@ private:
    */
   void configure_msix_route(unsigned idx)
   {
+    // guard against multiple threads accessing the Msi_allocator and the
+    // capability allocator
+    std::lock_guard<std::mutex> lock(_mutex);
+
     Table_entry const *entry = &_virt_table[idx];
 
     warn().printf("Configure MSI-X entry number %u for entry (0x%llx, 0x%x)\n",
@@ -280,6 +286,7 @@ private:
   unsigned const _src_id;
   cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;
   cxx::unique_ptr<Table_entry[]> _virt_table;
+  std::mutex _mutex;
 }; // class Virt_msix_table
 
 } } // namespace Vdev::Msix
