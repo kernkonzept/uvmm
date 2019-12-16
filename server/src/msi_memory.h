@@ -111,6 +111,11 @@ public:
   /// Read from the emulated MSI-X memory.
   l4_umword_t read(unsigned reg, char size, unsigned) const
   {
+    // In case of the vector control, we need to ensure earlier writes reached
+    // the device, hence, we read.
+    if (is_entry_control(reg, size))
+      _con->read(reg, size);
+
     return Vmm::Mem_access::read_width(
              reinterpret_cast<l4_addr_t>(_virt_table.get()) + reg, size);
   }
