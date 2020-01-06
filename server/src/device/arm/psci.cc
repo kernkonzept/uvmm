@@ -111,171 +111,33 @@ public:
       case Psci_version:
         vcpu->r.r[0] = 0x00010000; // v1.0
         break;
-
       case Cpu_suspend:
-        {
-          l4_addr_t power_state  = vcpu->r.r[1];
-          l4_addr_t entry_gpa    = vcpu->r.r[2];
-          l4_umword_t context_id = vcpu->r.r[3];
-
-          _vmm->wait_for_timer_or_irq(vcpu);
-
-          if (power_state & (1 << 30))
-            {
-              memset(&vcpu->r, 0, sizeof(vcpu->r));
-              _vmm->prepare_vcpu_startup(vcpu, entry_gpa);
-              vcpu->r.r[0]  = context_id;
-              l4_vcpu_e_write_32(*vcpu, L4_VCPU_E_SCTLR,
-                                 l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_SCTLR) & ~1U);
-            }
-          else
-            vcpu->r.r[0] = Success;
-        }
+        psci_cpu_suspend(vcpu);
         break;
-
       case Cpu_off:
-        {
-          Vmm::Cpu_dev *target = current_cpu();
-          target->stop();
-          // should never return
-          vcpu->r.r[0] = Internal_failure;
-        }
+        psci_cpu_off(vcpu);
         break;
-
       case Cpu_on:
-        {
-          l4_mword_t hwid = affinity(vcpu->r.r[1], is_64bit_call(vcpu->r.r[0]));
-          Vmm::Cpu_dev *target = lookup_cpu(hwid);
-
-          if (target)
-            {
-              // XXX There is currently no way to detect error conditions like
-              // INVALID_ADDRESS
-              if (!target->online() && target->mark_on_pending())
-                {
-                  l4_mword_t ip = vcpu->r.r[2];
-                  l4_mword_t context =  vcpu->r.r[3];
-                  target->vcpu()->r.r[0] = context;
-                  _vmm->prepare_vcpu_startup(target->vcpu(), ip);
-                  if (target->start_vcpu())
-                    vcpu->r.r[0] = Success;
-                  else
-                    vcpu->r.r[0] = Internal_failure;
-                }
-              else
-                vcpu->r.r[0] = target->online_state() == Vmm::Cpu_dev::Cpu_state::On
-                               ? Already_on : On_pending;
-            }
-          else
-            vcpu->r.r[0] = Invalid_parameters;
-        }
+        psci_cpu_on(vcpu);
         break;
-
       case Affinity_info:
-        {
-          // parameters:
-          // * target_affinity
-          // * lowest affinity level
-          l4_mword_t hwid = affinity(vcpu->r.r[1], is_64bit_call(vcpu->r.r[0]));
-          l4_umword_t lvl = vcpu->r.r[2];
-
-          // Default to invalid in case we do not find a matching CPU
-          vcpu->r.r[0] = Invalid_parameters;
-
-          // There are at most 3 affinity levels
-          if (lvl > 3)
-            break;
-
-          for (auto const &cpu : *_cpus.get())
-            if (cpu && cpu->matches(hwid, lvl))
-              {
-                if (cpu->online())
-                  {
-                    vcpu->r.r[0] = Aff_info_on;
-                    break;
-                  }
-                vcpu->r.r[0] = Aff_info_off;
-              }
-        }
+        psci_affinity_info(vcpu);
         break;
-
       case Migrate_info_type:
         vcpu->r.r[0] = Tos_not_present_mp;
         break;
-
       case System_off:
         _vmm->shutdown(Vmm::Guest::Shutdown);
         break;
-
       case System_reset:
         _vmm->shutdown(Vmm::Guest::Reboot);
         break;
-
       case Psci_features:
-        {
-          // Check this uses an allowed SMCCC bitness and is a valid PSCI
-          // function id.
-          if (!(   is_valid_call(vcpu->r.r[1])
-                && is_valid_func_id(vcpu->r.r[1])))
-            {
-              vcpu->r.r[0] = Not_supported;
-              return true;
-            }
-
-          l4_uint8_t feat_func = vcpu->r.r[1] & 0x1f;
-          switch (feat_func)
-            {
-            case Cpu_suspend:
-              vcpu->r.r[0] = 1 << 1;
-              break;
-            case Psci_version:
-            case Cpu_on:
-            case Cpu_off:
-            case Affinity_info:
-            case Migrate_info_type:
-            case System_off:
-            case System_reset:
-            case Psci_features:
-            case System_suspend:
-              vcpu->r.r[0] = Success;
-              break;
-            default:
-              vcpu->r.r[0] = Not_supported;
-              break;
-            };
-        }
-        break;
-
+        psci_features(vcpu);
+       break;
       case System_suspend:
-          {
-            l4_addr_t entry_gpa = vcpu->r.r[1];
-            l4_umword_t context_id = vcpu->r.r[2];
-
-            // Check preconditions:
-            //   * Request has to be executed on CPU0 (requirement imposed
-            //     by us)
-            //   * all other CPUs have to be off (specification requirement)
-            //   * powermanagement allows suspend operation
-            if (    current_cpu()->vcpu().get_vcpu_id() != 0
-                || !cpus_off() || !_vmm->pm().suspend())
-              {
-                vcpu->r.r[0] = Denied;
-                break;
-              }
-
-            /* Go to sleep */
-            _vmm->wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
-            /* Back alive */
-            _vmm->pm().resume();
-
-            memset(&vcpu->r, 0, sizeof(vcpu->r));
-            _vmm->prepare_vcpu_startup(vcpu, entry_gpa);
-            vcpu->r.r[0]  = context_id;
-            l4_vcpu_e_write_32(*vcpu, L4_VCPU_E_SCTLR,
-                               l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_SCTLR) & ~1U);
-          }
+        psci_system_suspend(vcpu);
         break;
-
       default:
         warn.printf("... Not supported PSCI function 0x%x called\n", (unsigned)func);
         vcpu->r.r[0] = Not_supported;
@@ -286,6 +148,152 @@ public:
   }
 
 private:
+  void psci_cpu_suspend(Vmm::Vcpu_ptr vcpu)
+  {
+    l4_addr_t power_state  = vcpu->r.r[1];
+    l4_addr_t entry_gpa    = vcpu->r.r[2];
+    l4_umword_t context_id = vcpu->r.r[3];
+
+    _vmm->wait_for_timer_or_irq(vcpu);
+
+    if (power_state & (1 << 30))
+      {
+        memset(&vcpu->r, 0, sizeof(vcpu->r));
+        _vmm->prepare_vcpu_startup(vcpu, entry_gpa);
+        vcpu->r.r[0]  = context_id;
+        l4_vcpu_e_write_32(*vcpu, L4_VCPU_E_SCTLR,
+            l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_SCTLR) & ~1U);
+      }
+    else
+      vcpu->r.r[0] = Success;
+  }
+
+  void psci_cpu_off(Vmm::Vcpu_ptr vcpu)
+  {
+    Vmm::Cpu_dev *target = current_cpu();
+    target->stop();
+    // should never return
+    vcpu->r.r[0] = Internal_failure;
+  }
+
+  void psci_cpu_on(Vmm::Vcpu_ptr vcpu)
+  {
+    l4_mword_t hwid = affinity(vcpu->r.r[1], is_64bit_call(vcpu->r.r[0]));
+    Vmm::Cpu_dev *target = lookup_cpu(hwid);
+
+    if (target)
+      {
+        // XXX There is currently no way to detect error conditions like
+        // INVALID_ADDRESS
+        if (!target->online() && target->mark_on_pending())
+          {
+            l4_mword_t ip = vcpu->r.r[2];
+            l4_mword_t context =  vcpu->r.r[3];
+            target->vcpu()->r.r[0] = context;
+            _vmm->prepare_vcpu_startup(target->vcpu(), ip);
+            if (target->start_vcpu())
+              vcpu->r.r[0] = Success;
+            else
+              vcpu->r.r[0] = Internal_failure;
+          }
+        else
+          vcpu->r.r[0] = target->online_state() == Vmm::Cpu_dev::Cpu_state::On
+            ? Already_on : On_pending;
+      }
+    else
+      vcpu->r.r[0] = Invalid_parameters;
+  }
+
+  void psci_affinity_info(Vmm::Vcpu_ptr vcpu)
+  {
+    // parameters:
+    // * target_affinity
+    // * lowest affinity level
+    l4_mword_t hwid = affinity(vcpu->r.r[1], is_64bit_call(vcpu->r.r[0]));
+    l4_umword_t lvl = vcpu->r.r[2];
+
+    // Default to invalid in case we do not find a matching CPU
+    vcpu->r.r[0] = Invalid_parameters;
+
+    // There are at most 3 affinity levels
+    if (lvl > 3)
+      return;
+
+    for (auto const &cpu : *_cpus.get())
+      if (cpu && cpu->matches(hwid, lvl))
+        {
+          if (cpu->online())
+            {
+              vcpu->r.r[0] = Aff_info_on;
+              return;
+            }
+          vcpu->r.r[0] = Aff_info_off;
+        }
+  }
+
+  void psci_features(Vmm::Vcpu_ptr vcpu)
+  {
+    // Check this uses an allowed SMCCC bitness and is a valid PSCI
+    // function id.
+    if (!(   is_valid_call(vcpu->r.r[1])
+          && is_valid_func_id(vcpu->r.r[1])))
+      {
+        vcpu->r.r[0] = Not_supported;
+        return;
+      }
+
+    l4_uint8_t feat_func = vcpu->r.r[1] & 0x1f;
+    switch (feat_func)
+      {
+      case Cpu_suspend:
+        vcpu->r.r[0] = 1 << 1;
+        break;
+      case Psci_version:
+      case Cpu_on:
+      case Cpu_off:
+      case Affinity_info:
+      case Migrate_info_type:
+      case System_off:
+      case System_reset:
+      case Psci_features:
+      case System_suspend:
+        vcpu->r.r[0] = Success;
+        break;
+      default:
+        vcpu->r.r[0] = Not_supported;
+        break;
+      };
+  }
+
+  void psci_system_suspend(Vmm::Vcpu_ptr vcpu)
+  {
+    l4_addr_t entry_gpa = vcpu->r.r[1];
+    l4_umword_t context_id = vcpu->r.r[2];
+
+    // Check preconditions:
+    //   * Request has to be executed on CPU0 (requirement imposed
+    //     by us)
+    //   * all other CPUs have to be off (specification requirement)
+    //   * powermanagement allows suspend operation
+    if (    current_cpu()->vcpu().get_vcpu_id() != 0
+        || !cpus_off() || !_vmm->pm().suspend())
+      {
+        vcpu->r.r[0] = Denied;
+        return;
+      }
+
+    /* Go to sleep */
+    _vmm->wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+    /* Back alive */
+    _vmm->pm().resume();
+
+    memset(&vcpu->r, 0, sizeof(vcpu->r));
+    _vmm->prepare_vcpu_startup(vcpu, entry_gpa);
+    vcpu->r.r[0]  = context_id;
+    l4_vcpu_e_write_32(*vcpu, L4_VCPU_E_SCTLR,
+        l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_SCTLR) & ~1U);
+  }
+
   Vmm::Cpu_dev *current_cpu() const
   { return _cpus->cpu(vmm_current_cpu_id).get(); }
 
