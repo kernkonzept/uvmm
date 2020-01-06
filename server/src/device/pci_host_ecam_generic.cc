@@ -509,6 +509,20 @@ private:
     // Apply interrupt pin mask
     pin &= irq_map.pin_mask;
 
+    // Apply device id mask
+    unsigned dev_id = (hw_dev->dev_id << 11) & irq_map.dev_id_mask;
+    if (!irq_map.map.count(dev_id))
+      L4Re::chksys(-L4_EINVAL, "PCI device not found in interrupt map.");
+
+    // Query the corresponding irq/ic entry based on the device id and irq pin
+    int map_irq = irq_map.map.at(dev_id).targets[pin - 1].irq;
+    cxx::Ref_ptr<Gic::Ic> ic = irq_map.map.at(dev_id).targets[pin - 1].ic;
+
+    // If the ic is empty this means it is unmanaged and we just skip the
+    // setup.
+    if (!ic)
+      return;
+
     l4vbus_resource_t res[6];
     int io_irq = -1;
     for (unsigned i = 0; i < dinfo.num_resources; ++i)
@@ -525,16 +539,7 @@ private:
 
     assert(io_irq != -1);
 
-    // Apply device id mask
-    unsigned dev_id = (hw_dev->dev_id << 11) & irq_map.dev_id_mask;
-    if (!irq_map.map.count(dev_id))
-      L4Re::chksys(-L4_EINVAL, "PCI device not found in interrupt map.");
-
-    // Query the corresponding irq/ic entry based on the device id and irq pin
-    int map_irq = irq_map.map.at(dev_id).targets[pin - 1].irq;
-    cxx::Ref_ptr<Gic::Ic> ic = irq_map.map.at(dev_id).targets[pin - 1].ic;
-
-    // Now try to create the io->guest irq mapping
+    // Create the io->guest irq mapping
     if (ic->get_irq_source(map_irq))
       L4Re::chksys(-L4_EINVAL, "Can't map IRQ. IRQ is already bound.");
 
@@ -635,19 +640,29 @@ struct F : Factory
           L4Re::chksys(-L4_EINVAL, "Can't find node for phandle while "
                        "parsing interrupt-map");
 
+        if (pn.has_prop("#address-cells")) // skip ic address cells
+          i += pn.get_cells_attrib("#address-cells");
+
+        // In case this is an unmanaged ic we have to skip its entries.
+        if (!Vdev::Factory::is_vdev(pn))
+          {
+            if (pn.has_prop("#interrupt-cells")) // skip ic interrupt cells
+              i += pn.get_cells_attrib("#interrupt-cells");
+
+            Interrupt_map::Dev_mapping &m = map->map[dev];
+            m.targets[irq_map - 1].irq = 0;
+            m.targets[irq_map - 1].ic = nullptr;
+
+            continue;
+          }
+
         if (!pn.is_enabled())
           L4Re::chksys(-L4_EINVAL, "Interrupt parent is disabled.");
-
-        if (!Vdev::Factory::is_vdev(pn))
-          L4Re::chksys(-L4_EINVAL, "Interrupt parent not virtual.");
 
         cxx::Ref_ptr<Gic::Ic> ic = cxx::dynamic_pointer_cast<Gic::Ic>(
                 Vdev::Factory::create_dev(devs, pn));
         if (!ic)
           L4Re::chksys(-L4_EINVAL, "Can't create device for interrupt parent.");
-
-        if (pn.has_prop("#address-cells")) // skip ic address cells
-          i += pn.get_cells_attrib("#address-cells");
 
         int int_cells;
         int irq = ic->dt_get_interrupt(&p[i], sz-i, &int_cells);
