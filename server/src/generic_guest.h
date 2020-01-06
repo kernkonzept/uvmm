@@ -120,6 +120,9 @@ public:
     _memmap.remap_mmio_device(old_region, addr);
   }
 
+  L4::Cap<L4::Vm> vm_task()
+  { return _task.get(); }
+
 protected:
   void process_pending_ipc(Vcpu_ptr vcpu, l4_utcb_t *utcb)
   {

@@ -216,8 +216,6 @@ private:
       IO      /// IO space
     };
 
-    cxx::Ref_ptr<Ds_handler> handler; /// Handler forwarding MMIO access
-
     l4_uint64_t io_addr = 0;  /// Address used by IO
     l4_uint64_t map_addr = 0; /// Address to use for the guest mapping
     l4_uint64_t size = 0;     /// Size of the region
@@ -433,11 +431,10 @@ private:
                                           Vmm::Region_type::Vbus,
                                           Vmm::Region_flags::Moveable);
             // Disable eager mapping, because this gets most likely remapped anyway
-            bar.handler = Vdev::make_device<Ds_handler>(vbus->io_ds(), 0x0,
-                                                        bar.size,
-                                                        bar.io_addr,
-                                                        Ds_handler::None);
-            _vmm->add_mmio_device(region, bar.handler);
+            cxx::Ref_ptr<Ds_handler> ds_handler =
+              Vdev::make_device<Ds_handler>(vbus->io_ds(), 0x0, bar.size, bar.io_addr,
+                                            Ds_handler::None);
+            _vmm->add_mmio_device(region, ds_handler);
           }
       }
   }
@@ -483,7 +480,13 @@ private:
             // Instruct the vm map to use the new start address
             _vmm->remap_mmio_device(old_region, Vmm::Guest_addr(addr));
             // Unmap any child mappings which may be happened in the meantime
-            bar.handler->unmap_from_guest();
+            auto vm_task = _vmm->vm_task();
+            l4_addr_t src = bar.map_addr;
+            while (src < bar.map_addr + bar.size - 1)
+              {
+                vm_task->unmap(l4_fpage(src, L4_PAGESHIFT, 0), L4_FP_ALL_SPACES);
+                src += L4_PAGESIZE;
+              }
             // Update our internal mapping address
             bar.map_addr = addr;
           }
