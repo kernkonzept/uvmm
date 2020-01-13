@@ -86,6 +86,12 @@ public:
         }
     });
 
+    if (img_start >= img_end)
+      {
+        Err().printf("ELF binary does not have any PT_LOAD sections.\n");
+        L4Re::chksys(-L4_ENOMEM, "Loading ELF binary.");
+      }
+
     _loaded_range_start = ram->guest2host<l4_addr_t>(img_start);
     _loaded_range_end = ram->guest2host<l4_addr_t>(img_end);
 
