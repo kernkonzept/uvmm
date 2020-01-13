@@ -62,7 +62,7 @@ public:
           if (!free_list->reserve_fixed(gstart, ph.memsz()))
             {
               Err().printf("Failed to load ELF kernel binary. "
-                           "Region [0x%lx-0x%lx] not in RAM.\n",
+                           "Region [0x%lx/0x%lx] not in RAM.\n",
                            ph.paddr(), ph.filesz());
               L4Re::chksys(-L4_ENOMEM, "Loading ELF binary.");
             }
@@ -93,7 +93,7 @@ public:
 
     if (!free_list->reserve_fixed(start, sz))
       {
-        Err().printf("Failed to load kernel binary. Region [0x%lx-0x%llx] not in RAM.\n",
+        Err().printf("Failed to load kernel binary. Region [0x%lx/0x%llx] not in RAM.\n",
                      start.get(), _ds->size());
         L4Re::chksys(-L4_ENOMEM, "Loading kernel binary.");
       }
