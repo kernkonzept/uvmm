@@ -80,6 +80,8 @@ else
 SRC_CC-arm-common += arm/guest_arm_noexc.cc
 endif
 
+include $(wildcard $(PKGDIR)/server/src/Makefile.devs.*)
+
 ifeq ($(ARCH),mips)
 SRC_CC        += ARCH-$(ARCH)/guest_entry.cc
 CXXFLAGS_guest_entry.cc = -msoft-float
