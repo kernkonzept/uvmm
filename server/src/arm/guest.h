@@ -1,11 +1,12 @@
+/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
- * Copyright (C) 2015 Kernkonzept GmbH.
+ * Copyright (C) 2015-2020 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *
- * This file is distributed under the terms of the GNU General Public
- * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 #pragma once
+
+#include <vector>
 
 #include <l4/cxx/ref_ptr>
 #include <l4/sys/vm>
@@ -76,21 +77,43 @@ public:
   enum Smccc_method
   {
     Smc,
-    Hvc
+    Hvc,
+    Num_smcc_methods
   };
 
   void register_vm_handler(Smccc_method method,
                            cxx::Ref_ptr<Vmm::Smccc_device> const &handler)
   {
-    switch (method)
-    {
-    case Smc: _smc_handlers.push_back(handler); break;
-    case Hvc: _hvc_handlers.push_back(handler); break;
-    }
+    _smccc_handlers[method].push_back(handler);
   }
 
-  void handle_vm_call(Vcpu_ptr vcpu);
-  void handle_smc_call(Vcpu_ptr vcpu);
+  template <Smccc_method METHOD>
+  void handle_smccc_call(Vcpu_ptr vcpu)
+  {
+    bool res = false;
+    // Check if this is a valid/supported SMCCC call
+    if (Smccc_device::is_valid_call(vcpu->r.r[0]))
+      {
+        unsigned imm = vcpu.hsr().svc_imm();
+        for (auto h: _smccc_handlers[METHOD])
+          if ((res = h->vm_call(imm, vcpu)))
+            break;
+      }
+
+    if (!res)
+      {
+        warn().printf("No handler for %s call: imm=%x a0=%lx a1=%lx ip=%lx "
+                      "lr=%lx\n",
+                      (METHOD == Smc) ? "SMC" : "HCV",
+                      static_cast<unsigned>(vcpu.hsr().svc_imm()),
+                      vcpu->r.r[0], vcpu->r.r[1],
+                      vcpu->r.ip, vcpu.get_lr());
+        vcpu->r.r[0] = Smccc_device::Not_supported;
+      }
+
+    if (METHOD == Smc)
+      vcpu->r.ip += 4;
+  }
 
   void map_gicc(Vdev::Device_lookup *devs, Vdev::Dt_node const &node) const;
   void handle_wfx(Vcpu_ptr vcpu);
@@ -111,8 +134,7 @@ private:
   cxx::Ref_ptr<Cpu_dev_array> _cpus;
   bool guest_64bit = false;
 
-  std::vector<cxx::Ref_ptr<Vmm::Smccc_device>> _hvc_handlers;
-  std::vector<cxx::Ref_ptr<Vmm::Smccc_device>> _smc_handlers;
+  std::vector<cxx::Ref_ptr<Vmm::Smccc_device>> _smccc_handlers[Num_smcc_methods];
 };
 
 } // namespace

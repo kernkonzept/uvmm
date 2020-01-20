@@ -401,61 +401,14 @@ Guest::handle_entry(Vcpu_ptr vcpu)
   return myself->vcpu_resume_start(utcb);
 }
 
-void
-Guest::handle_vm_call(Vcpu_ptr vcpu)
-{
-  bool res = false;
-  // Check if this is a valid/supported SMCCC call
-  if (Smccc_device::is_valid_call(vcpu->r.r[0]))
-    {
-      unsigned imm = vcpu.hsr().svc_imm();
-      for (auto h: _hvc_handlers)
-        if ((res = h->vm_call(imm, vcpu)))
-          break;
-    }
-
-  if (!res)
-    {
-      warn().printf("No handler for hvc call: imm=%x a0=%lx a1=%lx ip=%lx "
-                    "lr=%lx\n",
-                    static_cast<unsigned>(vcpu.hsr().svc_imm()),
-                    vcpu->r.r[0], vcpu->r.r[1],
-                    vcpu->r.ip, vcpu.get_lr());
-      vcpu->r.r[0] = Smccc_device::Not_supported;
-    }
-}
-
 static void dispatch_vm_call(Vcpu_ptr vcpu)
 {
-  guest->handle_vm_call(vcpu);
-}
-
-void
-Guest::handle_smc_call(Vcpu_ptr vcpu)
-{
-  bool res = false;
-  // Check if this is a valid/supported SMCCC call
-  if (Smccc_device::is_valid_call(vcpu->r.r[0]))
-    {
-      unsigned imm = vcpu.hsr().svc_imm();
-      for (auto h: _smc_handlers)
-        if ((res = h->vm_call(imm, vcpu)))
-          break;
-    }
-
-  if (!res)
-    {
-      warn().printf("No handler for SMC call: a0=%lx a1=%lx ip=%lx lr=%lx\n",
-                    vcpu->r.r[0], vcpu->r.r[1], vcpu->r.ip, vcpu.get_lr());
-      vcpu->r.r[0] = Smccc_device::Not_supported;
-    }
-
-  vcpu->r.ip += 4;
+  guest->handle_smccc_call<Guest::Hvc>(vcpu);
 }
 
 static void dispatch_smc(Vcpu_ptr vcpu)
 {
-  guest->handle_smc_call(vcpu);
+  guest->handle_smccc_call<Guest::Smc>(vcpu);
 }
 
 static void
