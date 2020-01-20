@@ -1,13 +1,11 @@
+/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
- * Copyright (C) 2015-2019 Kernkonzept GmbH.
+ * Copyright (C) 2015-2020 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *            Jean Wolter <jean.wolter@kernkonzept.com>
  *            Christian Pötzsch <christian.poetzsch@kernkonzept.com>
  *
- * This file is distributed under the terms of the GNU General Public
- * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
-
 #include "cpu_dev_array.h"
 #include "debug.h"
 #include "device_factory.h"
@@ -92,18 +90,14 @@ public:
     _cpus(cpus)
   {}
 
-  bool vm_call(Vmm::Vcpu_ptr vcpu) override
+  bool vm_call(unsigned imm, Vmm::Vcpu_ptr vcpu) override
   {
-    l4_mword_t imm = vcpu->r.err & 0xffff;
-    // Check this is imm 0
     if (imm != 0)
       return false;
 
     // Check this is a supported PSCI function call id.
     if (!is_valid_func_id(vcpu->r.r[0]))
-      {
-        return false;
-      }
+      return false;
 
     l4_uint8_t func = vcpu->r.r[0] & 0x1f;
     switch (func)

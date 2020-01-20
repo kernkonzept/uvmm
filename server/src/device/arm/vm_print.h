@@ -1,9 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
- * Copyright (C) 2019 Kernkonzept GmbH.
+ * Copyright (C) 2019-2020 Kernkonzept GmbH.
  * Author(s): Christian Pötzsch <christian.poetzsch@kernkonzept.com>
  *
- * This file is distributed under the terms of the GNU General Public
- * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 #pragma once
 
@@ -23,10 +22,8 @@ class Vm_print_device : public Vdev::Device, public Vmm::Smccc_device
   };
 
 public:
-  bool vm_call(Vmm::Vcpu_ptr vcpu) override
+  bool vm_call(unsigned imm, Vmm::Vcpu_ptr vcpu) override
   {
-    l4_mword_t imm = vcpu->r.err & 0xffff;
-    // Check this is imm 1
     if (imm != 1)
       return false;
 

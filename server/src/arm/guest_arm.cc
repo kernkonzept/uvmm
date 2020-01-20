@@ -1,11 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
- * Copyright (C) 2015 Kernkonzept GmbH.
+ * Copyright (C) 2015-2020 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *
- * This file is distributed under the terms of the GNU General Public
- * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
-
 #include <l4/cxx/unique_ptr>
 #include <l4/cxx/ref_ptr>
 #include <l4/re/error_helper>
@@ -410,16 +408,18 @@ Guest::handle_vm_call(Vcpu_ptr vcpu)
   // Check if this is a valid/supported SMCCC call
   if (Smccc_device::is_valid_call(vcpu->r.r[0]))
     {
+      unsigned imm = vcpu.hsr().svc_imm();
       for (auto h: _hvc_handlers)
-        if ((res = h->vm_call(vcpu)))
+        if ((res = h->vm_call(imm, vcpu)))
           break;
     }
 
   if (!res)
     {
-      warn().printf("No handler for hvc call: imm=%lx a0=%lx a1=%lx ip=%lx "
+      warn().printf("No handler for hvc call: imm=%x a0=%lx a1=%lx ip=%lx "
                     "lr=%lx\n",
-                    vcpu->r.err & 0xffff, vcpu->r.r[0], vcpu->r.r[1],
+                    static_cast<unsigned>(vcpu.hsr().svc_imm()),
+                    vcpu->r.r[0], vcpu->r.r[1],
                     vcpu->r.ip, vcpu.get_lr());
       vcpu->r.r[0] = Smccc_device::Not_supported;
     }
@@ -437,8 +437,9 @@ Guest::handle_smc_call(Vcpu_ptr vcpu)
   // Check if this is a valid/supported SMCCC call
   if (Smccc_device::is_valid_call(vcpu->r.r[0]))
     {
+      unsigned imm = vcpu.hsr().svc_imm();
       for (auto h: _smc_handlers)
-        if ((res = h->vm_call(vcpu)))
+        if ((res = h->vm_call(imm, vcpu)))
           break;
     }
 

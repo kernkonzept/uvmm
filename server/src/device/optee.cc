@@ -1,11 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
- * Copyright (C) 2018 Kernkonzept GmbH.
+ * Copyright (C) 2018-2020 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *
- * This file is distributed under the terms of the GNU General Public
- * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
-
 #include <l4/re/env>
 #include <l4/sys/arm_smccc>
 
@@ -73,8 +71,11 @@ class Optee : public Vdev::Device, public Vmm::Smccc_device
 public:
   Optee(L4::Cap<L4::Arm_smccc> optee) : _optee(optee) {}
 
-  bool vm_call(Vmm::Vcpu_ptr vcpu) override
+  bool vm_call(unsigned imm, Vmm::Vcpu_ptr vcpu) override
   {
+    if (imm != 0)
+      return false;
+
     if (   _optee.is_valid()
         && is_valid_func_id(vcpu->r.r[0]))
       {

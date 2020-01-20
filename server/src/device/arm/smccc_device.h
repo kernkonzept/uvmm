@@ -1,9 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
- * Copyright (C) 2018 Kernkonzept GmbH.
+ * Copyright (C) 2018-2020 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *
- * This file is distributed under the terms of the GNU General Public
- * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 #pragma once
 
@@ -27,12 +26,13 @@ struct Smccc_device : public virtual Vdev::Dev_ref
   /**
    * Method called by the vmm on either a SMC/HVC call.
    *
+   * \param imm   Immediate value of the SMC/HVC instruction.
    * \param vcpu  The cpu pointer when trapped.
    *
    * \return  True when the call was handled by the implementation and false
    *          otherwise.
    */
-  virtual bool vm_call(Vcpu_ptr vcpu) = 0;
+  virtual bool vm_call(unsigned imm, Vcpu_ptr vcpu) = 0;
 
   static constexpr bool is_64bit_call(l4_umword_t reg)
   {
