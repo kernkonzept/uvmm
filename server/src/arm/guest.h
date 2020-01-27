@@ -104,7 +104,7 @@ public:
       {
         warn().printf("No handler for %s call: imm=%x a0=%lx a1=%lx ip=%lx "
                       "lr=%lx\n",
-                      (METHOD == Smc) ? "SMC" : "HCV",
+                      (METHOD == Smc) ? "SMC" : "HVC",
                       static_cast<unsigned>(vcpu.hsr().svc_imm()),
                       vcpu->r.r[0], vcpu->r.r[1],
                       vcpu->r.ip, vcpu.get_lr());
