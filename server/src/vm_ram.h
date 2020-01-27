@@ -84,7 +84,8 @@ public:
                  Vmm::Guest_addr addr, l4_size_t sz) const
   {
     auto *r = find_region(addr, 0);
-    assert(r);
+    if (!r)
+      L4Re::chksys(-L4_ENOENT, "Guest region found");
 
     r->load_file(file, addr, sz);
   }
@@ -93,10 +94,11 @@ public:
    * Get a VMM-virtual pointer from a guest-physical address.
    */
   template <typename T>
-  T guest2host(Vmm::Guest_addr p) const noexcept
+  T guest2host(Vmm::Guest_addr p) const
   {
     auto *r = find_region(p, 0);
-    assert(r);
+    if (!r)
+      L4Re::chksys(-L4_ENOENT, "Guest address found");
 
     return reinterpret_cast<T>(r->guest2host(p));
   }
