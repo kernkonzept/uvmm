@@ -144,22 +144,16 @@ public:
 private:
   void psci_cpu_suspend(Vmm::Vcpu_ptr vcpu)
   {
-    l4_addr_t power_state  = vcpu->r.r[1];
-    l4_addr_t entry_gpa    = vcpu->r.r[2];
-    l4_umword_t context_id = vcpu->r.r[3];
-
+    /*
+     * Ignore the power state. We do not implement any special behavior for low-
+     * power, but behave the same like in the non low-power case. According to
+     * the PSCI spec. section 5.4.5 point 3. it is allowed for the PSCI
+     * implementer to downgrade to a standby state. In this case we just return
+     * from this function without jumping to the entry_point_address.
+     */
     _vmm->wait_for_timer_or_irq(vcpu);
 
-    if (power_state & (1 << 30))
-      {
-        memset(&vcpu->r, 0, sizeof(vcpu->r));
-        _vmm->prepare_vcpu_startup(vcpu, entry_gpa);
-        vcpu->r.r[0]  = context_id;
-        l4_vcpu_e_write_32(*vcpu, L4_VCPU_E_SCTLR,
-            l4_vcpu_e_read_32(*vcpu, L4_VCPU_E_SCTLR) & ~1U);
-      }
-    else
-      vcpu->r.r[0] = Success;
+    vcpu->r.r[0] = Success;
   }
 
   void psci_cpu_off(Vmm::Vcpu_ptr vcpu)
