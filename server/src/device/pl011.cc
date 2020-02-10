@@ -30,18 +30,50 @@ namespace {
  *
  * To use this device e.g. under Linux add something like the following to the
  * device tree:
- *   pl011_uart@30018000 {
+ *   uart0: pl011_uart@30018000 {
  *    compatible = "arm,primecell", "arm,pl011";
- *    reg = <...>;
- *    clocks = <&sysclk>;
+ *    reg = <... 0x1000>;
+ *    interrupts = <0 ... 4>;
+ *    clocks = <&apb_dummy_pclk>;
  *    clock-names = "apb_pclk";
+ *    l4vmm,pl011cap = "log";
  *   };
  *
+ *  apb_dummy_pclk: dummy_clk {
+ *   compatible = "fixed-clock";
+ *   #clock-cells = <0>;
+ *   clock-frequency = <1000000>;
+ *  };
+ *
  * "arm,pl011" is the compatible string used by this device. "arm,primecell" is
- * one of those in linux/Documentation/devicetree/bindings/serial/pl011.txt.
+ * one of those in linux/Documentation/devicetree/bindings/serial/pl011.yaml.
  * Although the linux documentation states that the clock properties are
  * optional, it's impossible to add the device, if these are missing (see add
  * and probe code in linux/drivers/amba/bus.c).
+ *
+ * You may add 'l4vmm,pl011cap = "log";' to the pl011 node to use a
+ * different vcon. Per default the standard uvmm console is used.
+ *
+ * For running this successfully in Linux (around 4.19 - 5.5 era), consider
+ * the required settings:
+ * - The size of the reg must be 0x1000
+ * - The clock must be named "apb_pclk"
+ * - The clock-frequency value of apb_dummy_pclk must be at least 1000000
+ *
+ * On the Linux command line, add "console=ttyAMA0" to use it as the
+ * console.
+ *
+ * For earlycon (at least with arm64), add the following to the device tree
+ * (typically in the very beginning of the device tree):
+ *
+ *   chosen {
+ *     stdout-path = "serial0";
+ *   };
+ *   aliases {
+ *     serial0 = &uart0;
+ *   };
+ *
+ * And add "earlycon" to your Linux command line.
  */
 class Pl011_mmio
 : public Vmm::Mmio_device_t<Pl011_mmio>,
