@@ -73,6 +73,10 @@ Vmx_state::read_msr(unsigned msr, l4_uint64_t *value) const
     {
       switch (msr)
         {
+        case 0x3a: // IA32_FEATURE_CONTROL
+          // Lock register so the guest does not try to enable anything.
+          *value = 1U;
+          break;
         case 0xc0000080: // efer
           *value = vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER);
           break;
