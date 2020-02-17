@@ -685,7 +685,7 @@ public:
   Msix_control(cxx::Ref_ptr<Lapic_array> apics) : _apics(apics) {}
 
   // Msix_controller interface
-  void send(l4_uint64_t msix_addr, l4_uint32_t msix_data) const override
+  void send(l4_uint64_t msix_addr, l4_uint64_t msix_data) const override
   {
     Vdev::Msix::Interrupt_request_compat addr(msix_addr);
     Vdev::Msix::Data_register_format data(msix_data);
@@ -735,7 +735,7 @@ public:
       }
 
     info().printf(
-      "No valid LAPIC found; MSI dropped. MSI address 0x%llx, data 0x%x\n",
+      "No valid LAPIC found; MSI dropped. MSI address 0x%llx, data 0x%llx\n",
       msix_addr, msix_data);
   }
 

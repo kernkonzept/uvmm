@@ -17,7 +17,7 @@ struct Msix_controller : virtual Vdev::Dev_ref
   virtual ~Msix_controller() = default;
 
   /// Analyse the MSI-X message and send it to the specified local APIC.
-  virtual void send(l4_uint64_t msix_addr, l4_uint32_t msix_data) const = 0;
+  virtual void send(l4_uint64_t msix_addr, l4_uint64_t msix_data) const = 0;
 };
 
 } // namespace Gic

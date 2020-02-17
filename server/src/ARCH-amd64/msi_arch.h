@@ -48,13 +48,13 @@ enum Delivery_mode : l4_uint8_t
 struct Data_register_format
 {
   // Intel SDM Vol. 3A 10-35, October 2017
-  l4_uint32_t raw;
+  l4_uint64_t raw;
   CXX_BITFIELD_MEMBER(15, 15, trigger_mode, raw);
   CXX_BITFIELD_MEMBER(14, 14, trigger_level, raw);
   CXX_BITFIELD_MEMBER(8, 10, delivery_mode, raw);
   CXX_BITFIELD_MEMBER(0, 7, vector, raw);
 
-  explicit Data_register_format(l4_uint32_t data) : raw(data)
+  explicit Data_register_format(l4_uint64_t data) : raw(data)
   {}
 };
 
