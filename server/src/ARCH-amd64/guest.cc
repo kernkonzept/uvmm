@@ -285,6 +285,17 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     Stibp_bit = (1UL << 27),
     Ssbd_bit = (1UL << 31),
 
+    // AMD speculation control.
+    // 0x8000'0008 EBX
+    // Whitepaper AMD64 Technology: Indirect Branch Control Extension,
+    // revision 4.10.18
+    Amd_ibpb_bit = (1UL << 12),
+    Amd_ibrs_bit = (1UL << 14),
+    Amd_stibp_bit = (1UL << 15),
+    // Whitepaper AMD64 Technology: Speculative Store Bypass Disable, 5.21.18
+    Amd_ssbd_bit = (1UL << 24),
+
+
     // 0xd
     Xsave_opt = 1,
     Xsave_c = (1UL << 1),
@@ -362,6 +373,16 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     case 0x80000001:
       {
         d &= ~( Rdtscp_bit );
+        break;
+      }
+
+    case 0x80000008:
+      {
+        // According to the Linux source code at arch/x86/kernel/cpu/common.c,
+        // "[...] a hypervisor might have set the individual AMD bits even on
+        // Intel CPUs, for finer-grained selection of what's available."
+        // Thus filter AMD bits for the case of nested virtualization.
+        b &= ~(Amd_ibpb_bit | Amd_ibrs_bit | Amd_stibp_bit | Amd_ssbd_bit);
         break;
       }
     }
