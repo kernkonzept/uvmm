@@ -38,28 +38,38 @@ public:
     { return _dev_info; }
 
     /*
-     * Return the proxy managing this device.
+     * Return the handler managing this device.
      */
-    cxx::Ref_ptr<Vdev::Device> proxy() const
-    { return _proxy; }
+    cxx::Ref_ptr<Vdev::Device> handler() const
+    { return _handler; }
 
     /*
-     * Set the proxy managing this device.
+     * Set the handler managing this device.
      *
-     * \param proxy  The proxy managing this device.
+     * \param handler  The handler managing this device.
+     *
+     * A common pattern is to request the unassigned device from vbus and
+     * assign it to the device implementation responsible for it:
+     *
+     *   auto *vdev = devs->vbus()->find_unassigned_device_by_hid(hid);
+     *   ...
+     *   auto c = Vdev::make_device<Device_impl>(...);
+     *   vdev->set_handler(c);
+     *
+     * Note: If the device does not have a handler it will be assign to the
+     * io_proxy (if configured).
      */
-
-    void set_proxy(cxx::Ref_ptr<Vdev::Device> const &proxy)
-    { _proxy = proxy; }
+    void set_handler(cxx::Ref_ptr<Vdev::Device> const &handler)
+    { _handler = handler; }
 
     /*
-     * Check whether a device is already managed by a proxy.
+     * Check whether a device is already managed by a handler.
      *
-     * \retval true   The device is already managed by a proxy.
+     * \retval true   The device is already managed by a handler.
      * \retval false  The device is still free.
      */
     bool allocated() const
-    { return _proxy != nullptr; }
+    { return _handler != nullptr; }
 
     Devinfo(L4vbus::Device io_dev, l4vbus_device_t dev_info)
     : _io_dev(io_dev), _dev_info(dev_info)
@@ -68,7 +78,7 @@ public:
   private:
     L4vbus::Device _io_dev;
     l4vbus_device_t _dev_info;
-    cxx::Ref_ptr<Vdev::Device> _proxy;
+    cxx::Ref_ptr<Vdev::Device> _handler;
   };
 
 private:
@@ -201,11 +211,11 @@ public:
   void dump_irqs()
   { _irqs.dump_irqs(); }
 
-  Devinfo const *find_device(Vdev::Device const *proxy) const
+  Devinfo const *find_device(Vdev::Device const *handler) const
   {
     for (auto const &i: _devices)
       {
-        if (i.proxy() == proxy)
+        if (i.handler() == handler)
           return &i;
       }
     return nullptr;
@@ -225,7 +235,7 @@ public:
    *
    * \return  Pointer to unallocated device, nullptr if device not present or
    *          already claimed by someone else. To claim the device, invoke
-   *          Devinfo::set_proxy().
+   *          Devinfo::set_handler().
    *
    * The method iterates over the vbus and tries to find a device matching hid.
    * If a device is found and not allocated it is returned. Otherwise we

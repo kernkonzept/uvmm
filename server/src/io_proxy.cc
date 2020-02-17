@@ -374,7 +374,7 @@ struct F : Factory
 
     auto device = make_device<Io_proxy>(vdev->io_dev());
 
-    vdev->set_proxy(device);
+    vdev->set_handler(device);
 
     return device;
   }
