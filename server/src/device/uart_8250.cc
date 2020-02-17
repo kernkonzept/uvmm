@@ -170,8 +170,8 @@ class Uart_8250_mmio
   };
 
 public:
-  Uart_8250_mmio(L4::Cap<L4::Vcon> con, l4_uint64_t regshift, Gic::Ic *ic,
-                 int irq)
+  Uart_8250_mmio(L4::Cap<L4::Vcon> con, l4_uint64_t regshift,
+                 cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
   : _con(con), _regshift(regshift), _sink(ic, irq)
   {
     l4_vcon_attr_t attr;
@@ -383,7 +383,7 @@ struct F : Vdev::Factory
       L4Re::chksys(-L4_EINVAL, "Uart 8250 requires a virtual interrupt controller");
 
 
-    auto c = Vdev::make_device<Uart_8250_mmio>(cap, regshift, it.ic().get(), it.irq());
+    auto c = Vdev::make_device<Uart_8250_mmio>(cap, regshift, it.ic(), it.irq());
     c->register_obj(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
     return c;

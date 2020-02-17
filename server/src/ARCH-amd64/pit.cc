@@ -14,7 +14,7 @@
 
 namespace Vdev {
 
-Pit_timer::Pit_timer(Gic::Ic *ic, int irq)
+Pit_timer::Pit_timer(cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
 : _irq(ic, irq),
   _read_high(false), _wait_for_high_byte(false),
   _port61(make_device<Port61>())
@@ -195,7 +195,7 @@ struct F : Vdev::Factory
     if (!it.ic_is_virt())
       L4Re::chksys(-L4_EINVAL, "PIT requires a virtual interrupt controller");
 
-    auto dev = Vdev::make_device<Vdev::Pit_timer>(it.ic().get(), it.irq());
+    auto dev = Vdev::make_device<Vdev::Pit_timer>(it.ic(), it.irq());
 
     auto *vmm = devs->vmm();
     auto region = Vmm::Io_region(0x40, 0x43, Vmm::Region_type::Virtual);

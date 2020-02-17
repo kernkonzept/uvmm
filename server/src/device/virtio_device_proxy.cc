@@ -92,7 +92,7 @@ public:
     if (!it.ic_is_virt())
       L4Re::chksys(-L4_EINVAL, "Virtio device proxy requires a virtual interrupt controller");
 
-    _irq_sink.rebind(it.ic().get(), it.irq());
+    _irq_sink.rebind(it.ic(), it.irq());
 
     if (self.get_reg_val(1, &_drvmem_base, &_drvmem_size) < 0)
       {

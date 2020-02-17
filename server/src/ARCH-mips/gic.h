@@ -140,17 +140,17 @@ public:
       _irq_array[irq]->ack();
   }
 
-  void bind_irq_source(unsigned irq, cxx::Ref_ptr<Irq_source> const &src) override
+  void bind_eoi_handler(unsigned irq, Eoi_handler *handler) override
   {
     assert(irq < Num_irqs);
 
-    if (_sources[irq])
+    if (handler && _sources[irq])
       throw L4::Runtime_error(-L4_EEXIST);
 
-    _sources[irq] = src;
+    _sources[irq] = handler;
   }
 
-  cxx::Ref_ptr<Irq_source> get_irq_source(unsigned irq) const override
+  Eoi_handler *get_eoi_handler(unsigned irq) const override
   { return _sources[irq]; }
 
   int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override
@@ -221,7 +221,7 @@ private:
   // array of IRQ connections towards core IC
   cxx::unique_ptr<Vmm::Irq_sink> _irq_array[Num_irqs];
   // registered device callbacks for configuration and eoi
-  cxx::Ref_ptr<Irq_source> _sources[Num_irqs];
+  Eoi_handler *_sources[Num_irqs];
   Cpu_info _vcpu_info[Num_vpes];
   std::mutex _lock;
 };

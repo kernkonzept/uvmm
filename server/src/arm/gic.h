@@ -110,13 +110,13 @@ private:
 
   struct Context
   {
-    cxx::Ref_ptr<Irq_source> eoi;
+    Eoi_handler *eoi;
     /*
      * Keeps track of the used lr, uses 0 for "no link register
      * assigned" (see #get_empty_lr())
      */
     unsigned char lr;
-    Context() : eoi(0), lr(0) {};
+    Context() : eoi(nullptr), lr(0) {}
   };
 
   cxx::unique_ptr<Pending[]> _pending;
@@ -139,7 +139,7 @@ public:
     unsigned char target() const { return _p->target(); }
 
     void do_eoi() const { if (_c->eoi) _c->eoi->eoi(); }
-    cxx::Ref_ptr<Irq_source> get_source() const { return _c->eoi; }
+    Eoi_handler *get_eoi_handler() const { return _c->eoi; }
 
     unsigned cpu() const { return _p->cpu(); }
     unsigned lr() const { return _c->lr; }
@@ -160,7 +160,7 @@ public:
   class Irq : public Const_irq
   {
   public:
-    void set_eoi(cxx::Ref_ptr<Irq_source> const &eoi) { _c->eoi = eoi; }
+    void set_eoi(Eoi_handler *eoi) { _c->eoi = eoi; }
     bool enable(bool ena) const
     {
       if (ena)
@@ -907,15 +907,18 @@ public:
 
   void clear(unsigned) override {}
 
-  void bind_irq_source(unsigned irq, cxx::Ref_ptr<Irq_source> const &src) override
+  void bind_eoi_handler(unsigned irq, Eoi_handler *handler) override
   {
     auto pin = spi(irq - Cpu::Num_local);
-    assert (!pin.get_source());
-    pin.set_eoi(src);
+
+    if (handler && pin.get_eoi_handler())
+      L4Re::chksys(-L4_EEXIST, "Assigning EOI handler to GIC");
+
+    pin.set_eoi(handler);
   }
 
-  cxx::Ref_ptr<Irq_source> get_irq_source(unsigned irq) const override
-  { return spi(irq - Cpu::Num_local).get_source(); }
+  Eoi_handler *get_eoi_handler(unsigned irq) const override
+  { return spi(irq - Cpu::Num_local).get_eoi_handler(); }
 
   int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override
   {

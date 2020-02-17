@@ -270,10 +270,10 @@ public:
 
   void clear(unsigned) override {}
 
-  void bind_irq_source(unsigned, cxx::Ref_ptr<Gic::Irq_source> const &) override
+  void bind_eoi_handler(unsigned, Gic::Eoi_handler *) override
   { assert(false); }
 
-  cxx::Ref_ptr<Gic::Irq_source> get_irq_source(unsigned) const override
+  Gic::Eoi_handler *get_eoi_handler(unsigned) const override
   {
     return nullptr;
   }

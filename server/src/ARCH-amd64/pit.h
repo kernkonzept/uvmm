@@ -187,7 +187,7 @@ class Pit_timer
   static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "PIT"); }
 
 public:
-  Pit_timer(Gic::Ic *ic, int irq);
+  Pit_timer(cxx::Ref_ptr<Gic::Ic> const &ic, int irq);
   virtual ~Pit_timer() = default;
 
   cxx::Ref_ptr<Vmm::Io_device> const port61() const { return _port61; }

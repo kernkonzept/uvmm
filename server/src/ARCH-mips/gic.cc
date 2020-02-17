@@ -283,7 +283,7 @@ Dist::setup_source(unsigned irq)
 
   // only int pins at the moment
   if (ic && pin.pin() && pin.map() < 6)
-    _irq_array[irq] = cxx::make_unique<Vmm::Irq_sink>(ic.get(), pin.map() + 2);
+    _irq_array[irq] = cxx::make_unique<Vmm::Irq_sink>(ic, pin.map() + 2);
   else
     _irq_array[irq].reset();
 }

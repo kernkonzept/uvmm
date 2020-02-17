@@ -7,10 +7,13 @@
  */
 #pragma once
 
+#include <vector>
+
 #include <l4/vbus/vbus>
 
 #include "debug.h"
 #include "device.h"
+#include "irq_svr.h"
 #include "virt_bus.h"
 
 namespace Vdev {
@@ -33,8 +36,15 @@ public:
    */
   static void prepare_factory(Device_lookup const *devs);
 
+  bool check_and_bind_irqs(Device_lookup *devs, Dt_node const &node);
+
+  void bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus,
+                cxx::Ref_ptr<Gic::Ic> const &ic,
+                unsigned dt_irq, unsigned io_irq, char const *dev_name);
+
 private:
   L4vbus::Device _dev;
+  std::vector<cxx::Ref_ptr<Irq_svr>> _irqs;
 };
 
 } // namespace

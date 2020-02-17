@@ -159,7 +159,7 @@ public:
     CXX_BITFIELD_MEMBER(4, 4, rx, raw);
   };
 
-  explicit Pl011_mmio(Gic::Ic *ic, int irq,
+  explicit Pl011_mmio(cxx::Ref_ptr<Gic::Ic> const &ic, int irq,
                       L4::Cap<L4::Vcon> con = L4Re::Env::env()->log())
   : _con(con), _sink(ic, irq)
   {
@@ -365,7 +365,7 @@ struct F : Vdev::Factory
     if (!it.ic_is_virt())
       L4Re::chksys(-L4_EINVAL, "PL011 requires a virtual interrupt controller");
 
-    auto c = Vdev::make_device<Pl011_mmio>(it.ic().get(), it.irq(), cap);
+    auto c = Vdev::make_device<Pl011_mmio>(it.ic(), it.irq(), cap);
     c->register_obj(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
     return c;

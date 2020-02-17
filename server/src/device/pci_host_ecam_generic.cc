@@ -328,6 +328,7 @@ private:
     unsigned dev_id;                     /// Virtual device id
     L4vbus::Pci_dev dev;                 /// Reference to vbus PCI device
     Pci_cfg_bar bars[Bar_num_max_type0]; /// Bar configurations
+    cxx::Ref_ptr<Vdev::Irq_svr> irq;
   };
 
   /**
@@ -498,7 +499,7 @@ private:
    */
   void setup_device_irq(cxx::Ref_ptr<Vmm::Virt_bus> const &vbus,
                         Interrupt_map const &irq_map, Hw_pci_device *hw_dev,
-                        l4vbus_device_t const &dinfo) const
+                        l4vbus_device_t const &dinfo)
   {
     unsigned pin = 0;
     L4Re::chksys(hw_dev->dev.cfg_read(Pci_hdr_interrupt_pin_offset, &pin, 8),
@@ -540,10 +541,10 @@ private:
     assert(io_irq != -1);
 
     // Create the io->guest irq mapping
-    if (ic->get_irq_source(map_irq))
+    if (ic->get_eoi_handler(map_irq))
       L4Re::chksys(-L4_EINVAL, "Can't map IRQ. IRQ is already bound.");
 
-    auto irq_svr = Vdev::make_device<Vdev::Irq_svr>(io_irq);
+    auto irq_svr = cxx::make_ref_obj<Vdev::Irq_svr>(io_irq);
     L4Re::chkcap(_vmm->registry()->register_irq_obj(irq_svr.get()),
                  "Invalid IRQ service capability.");
 
@@ -561,9 +562,10 @@ private:
           L4Re::chksys(-L4_EINVAL, "Invalid return code from bind to IRQ.");
           break;
       }
-    irq_svr->set_sink(ic.get(), map_irq);
-    ic->bind_irq_source(map_irq, irq_svr);
+    irq_svr->set_sink(ic, map_irq);
     irq_svr->eoi();
+
+    hw_dev->irq = cxx::move(irq_svr);
 
     info().printf("  IRQ mapping: %d -> %d\n", io_irq, map_irq);
   }

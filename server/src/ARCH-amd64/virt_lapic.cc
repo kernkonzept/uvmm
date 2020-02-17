@@ -62,18 +62,17 @@ Virt_lapic::set(Vdev::Msix::Data_register_format data)
 }
 
 void
-Virt_lapic::bind_irq_source(unsigned irq,
-                            cxx::Ref_ptr<Irq_source> const &src)
+Virt_lapic::bind_eoi_handler(unsigned irq, Eoi_handler *handler)
 {
   assert (irq < 256); // sources array length
-  if(_sources[irq])
+  if(handler && _sources[irq])
     throw L4::Runtime_error(-L4_EEXIST);
 
-  _sources[irq] = src;
+  _sources[irq] = handler;
 }
 
-cxx::Ref_ptr<Irq_source>
-Virt_lapic::get_irq_source(unsigned irq) const
+Eoi_handler *
+Virt_lapic::get_eoi_handler(unsigned irq) const
 {
   assert (irq < 256); // sources array length
   return _sources[irq];

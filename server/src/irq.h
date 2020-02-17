@@ -19,24 +19,23 @@
 namespace Gic {
 
 /**
- * An interrupt-emitting device.
+ * Interface for handlers of end-of-interrupt messages.
  *
  * This is the generic interface for notifications from the
  * interrupt controller to an interrupt-emitting device.
  */
-struct Irq_source : public virtual Vdev::Dev_ref
+struct Eoi_handler
 {
   virtual void eoi() = 0;
-  virtual ~Irq_source() = 0;
+protected:
+  ~Eoi_handler() = default;
 };
-
 
 /**
  * Generic interrupt controller interface.
  */
 struct Ic : public Vdev::Device
 {
-  virtual ~Ic() = 0;
   virtual void set(unsigned irq) = 0;
   virtual void clear(unsigned irq) = 0;
 
@@ -49,9 +48,12 @@ struct Ic : public Vdev::Device
    * \param irq Irq number to connect the listener to.
    * \param src Device source. If the irq is already bound it needs to
    *            be the same device source as the already registered one.
+   *            Set to nullptr to unbind a registered handler.
+   *
+   * \note The caller is responsible to ensure that the eoi handler is
+   *       unbound before it is destructed.
    */
-  virtual void bind_irq_source(unsigned irq,
-                               cxx::Ref_ptr<Irq_source> const &src) = 0;
+  virtual void bind_eoi_handler(unsigned irq, Eoi_handler *src) = 0;
 
   /**
    * Get the irq source currently bound to irq
@@ -59,7 +61,7 @@ struct Ic : public Vdev::Device
    * \param irq Irq number
    * \return Irq source currently bound to irq
    */
-  virtual cxx::Ref_ptr<Irq_source> get_irq_source(unsigned irq) const = 0;
+  virtual Eoi_handler *get_eoi_handler(unsigned irq) const = 0;
 
   /**
    * Extract the interrupt id from a device tree property.
@@ -78,9 +80,6 @@ struct Ic : public Vdev::Device
 
 };
 
-inline Ic::~Ic() = default;
-inline Irq_source::~Irq_source() = default;
-
 } // namespace
 
 namespace Vmm {
@@ -98,7 +97,7 @@ class Irq_sink
 public:
   Irq_sink() : _ic(nullptr), _state(false) {}
 
-  Irq_sink(Gic::Ic *ic, unsigned irq)
+  Irq_sink(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned irq)
   : _irq(irq), _ic(ic), _state(false)
   {}
 
@@ -108,7 +107,7 @@ public:
   ~Irq_sink()
   { ack(); }
 
-  void rebind(Gic::Ic *ic, unsigned irq)
+  void rebind(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned irq)
   {
     ack();
 
@@ -134,9 +133,27 @@ public:
     _state = false;
   }
 
+  /**
+   * Set the given end-of-interrupt handler at the connected IC.
+   *
+   * \param handler  Handler to set for EOI notification.
+   *
+   * The function is only a forwarder to Ic::bind_eoi_handler(), the
+   * handler must still be managed by the caller. In particular, the caller
+   * must make sure that the handler is unbound before the Irq_sink
+   * object is destructed.
+   *
+   * If no IC has been bound yet, the function does nothing.
+   */
+  void set_eoi_handler(Gic::Eoi_handler *handler) const
+  {
+    if (_ic)
+      _ic->bind_eoi_handler(_irq, handler);
+  }
+
 private:
   unsigned _irq;
-  Gic::Ic *_ic;
+  cxx::Ref_ptr<Gic::Ic> _ic;
   bool _state;
 };
 
@@ -149,13 +166,13 @@ private:
 class Irq_edge_sink
 {
 public:
-  Irq_edge_sink() : _ic(nullptr) {}
+  Irq_edge_sink() = default;
 
-  Irq_edge_sink(Gic::Ic *ic, unsigned irq)
+  Irq_edge_sink(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned irq)
   : _irq(irq), _ic(ic)
   {}
 
-  void rebind(Gic::Ic *ic, unsigned irq)
+  void rebind(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned irq)
   {
     _ic = ic;
     _irq = irq;
@@ -166,7 +183,7 @@ public:
 
 private:
   unsigned _irq;
-  Gic::Ic *_ic;
+  cxx::Ref_ptr<Gic::Ic> _ic;
 };
 
 

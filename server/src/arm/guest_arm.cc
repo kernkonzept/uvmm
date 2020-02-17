@@ -79,7 +79,7 @@ struct F_timer : Factory
     if (!it.ic_is_virt())
       L4Re::chksys(-L4_EINVAL, "Timer not connected to virtual interrupt controller");
 
-    auto timer = Vdev::make_device<Vdev::Core_timer>(it.ic().get(), it.irq(), node);
+    auto timer = Vdev::make_device<Vdev::Core_timer>(it.ic(), it.irq(), node);
 
     devs->vmm()->set_timer(timer);
     return timer;

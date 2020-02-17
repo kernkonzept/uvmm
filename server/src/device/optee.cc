@@ -139,6 +139,9 @@ public:
     return L4_EOK;
   }
 
+  void set_notification_irq(cxx::Ref_ptr<Vdev::Irq_svr> &&irq)
+  { _irq = std::move(irq); }
+
 private:
   long fast_call(l4_umword_t func, l4_umword_t out[])
   {
@@ -154,6 +157,7 @@ private:
   }
 
   L4::Cap<L4::Arm_smccc> _optee;
+  cxx::Ref_ptr<Vdev::Irq_svr> _irq;
 };
 
 struct F : Vdev::Factory
@@ -188,7 +192,7 @@ struct F : Vdev::Factory
 
             // XXX Using a standard IO interrupt here. Possibly better to
             // write our own non-masking irq svr.
-            auto irq_svr = Vdev::make_device<Vdev::Irq_svr>(0);
+            auto irq_svr = cxx::make_ref_obj<Vdev::Irq_svr>(0);
 
             L4Re::chkcap(devs->vmm()->registry()->register_irq_obj(irq_svr.get()),
                 "Register IRQ handling server.");
@@ -209,8 +213,9 @@ struct F : Vdev::Factory
               }
 
             int dt_irq = it.irq();
-            irq_svr->set_sink(it.ic().get(), dt_irq);
-            it.ic()->bind_irq_source(dt_irq, irq_svr);
+            irq_svr->set_sink(it.ic(), dt_irq);
+
+            c->set_notification_irq(std::move(irq_svr));
           }
         else
           // When no proxy is used, there is also no notification available.

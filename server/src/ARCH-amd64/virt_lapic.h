@@ -195,8 +195,8 @@ public:
   // Overload for MSIs
   void set(Vdev::Msix::Data_register_format data);
 
-  void bind_irq_source(unsigned, cxx::Ref_ptr<Irq_source> const &) override;
-  cxx::Ref_ptr<Irq_source> get_irq_source(unsigned) const override;
+  void bind_eoi_handler(unsigned irq, Eoi_handler *handler) override;
+  Eoi_handler *get_eoi_handler(unsigned irq) const override;
 
   int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override;
 
@@ -270,7 +270,7 @@ private:
   l4_uint64_t _tsc_deadline;
   l4_kernel_clock_t _last_ticks_tsc;
   bool _x2apic_enabled;
-  cxx::Ref_ptr<Irq_source> _sources[256];
+  Eoi_handler *_sources[256];
   std::queue<unsigned> _non_irr_irqs;
 }; // class Virt_lapic
 
@@ -755,8 +755,8 @@ private:
  * IRQ.
  *  set: send an MSI instead of the legacy IRQ (programmed by OS)
  *  clear: nop
- *  bind_irq_source:  ?
- *  get_irq_source: ?
+ *  bind_eoi_handler:  ?
+ *  get_eoi_handler: ?
  *  dt_get_interrupt: parse DT
  *
  */
@@ -795,16 +795,11 @@ public:
 
   void clear(unsigned irq) override { _apics->get(0)->clear(irq); }
 
-  void bind_irq_source(unsigned irq,
-                       cxx::Ref_ptr<Irq_source> const &src) override
-  {
-    _apics->get(0)->bind_irq_source(irq, src);
-  }
+  void bind_eoi_handler(unsigned irq, Eoi_handler *handler) override
+  { _apics->get(0)->bind_eoi_handler(irq, handler); }
 
-  cxx::Ref_ptr<Irq_source> get_irq_source(unsigned irq) const override
-  {
-    return _apics->get(0)->get_irq_source(irq);
-  }
+  Eoi_handler *get_eoi_handler(unsigned irq) const override
+  { return _apics->get(0)->get_eoi_handler(irq); }
 
   int dt_get_interrupt(fdt32_t const *prop, int propsz,
                        int *read) const override

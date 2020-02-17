@@ -45,7 +45,7 @@ class Irq_rcv
   public Device
 {
 public:
-  Irq_rcv(Gic::Ic *ic, unsigned irq) : _sink(ic, irq) {}
+  Irq_rcv(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned irq) : _sink(ic, irq) {}
 
   void handle_irq()
   { _sink.inject(); }
@@ -74,7 +74,7 @@ struct F_rcv : Factory
     if (!it.ic_is_virt())
       L4Re::chksys(-L4_EINVAL, "Irq_rcv requires a virtual interrupt controller");
 
-    auto c = make_device<Irq_rcv>(it.ic().get(), it.irq());
+    auto c = make_device<Irq_rcv>(it.ic(), it.irq());
     auto res = devs->vmm()->registry()->register_obj(c.get(), cap);
     if (res.is_valid())
       return c;

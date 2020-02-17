@@ -65,7 +65,7 @@ public:
     if (it.next(devs) < 0 || !it.ic_is_virt())
       return -1;
 
-    _sink.rebind(it.ic().get(), it.irq());
+    _sink.rebind(it.ic(), it.irq());
     return 0;
   }
 
