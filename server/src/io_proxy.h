@@ -20,6 +20,15 @@ namespace Vdev {
 
 class Io_proxy : public Device
 {
+  class Io_irq_svr : public Irq_svr
+  {
+  public:
+    using Irq_svr::Irq_svr;
+
+    unsigned get_io_irq() const
+    { return _irq_num; }
+  };
+
 public:
   Io_proxy(L4vbus::Device const &dev)
   : _dev(dev)
@@ -44,7 +53,7 @@ public:
 
 private:
   L4vbus::Device _dev;
-  std::vector<cxx::Ref_ptr<Irq_svr>> _irqs;
+  std::vector<cxx::Ref_ptr<Io_irq_svr>> _irqs;
 };
 
 } // namespace

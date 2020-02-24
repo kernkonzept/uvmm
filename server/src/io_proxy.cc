@@ -125,36 +125,13 @@ Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus,
 {
   info.printf("IO device '%s' - registering irq 0x%x -> 0x%x\n",
       dev_name, io_irq, dt_irq);
-  if (!ic->get_eoi_handler(dt_irq))
+
+  auto *irq_source = ic->get_eoi_handler(dt_irq);
+  if (!irq_source)
     {
-      auto irq_svr = cxx::make_ref_obj<Vdev::Irq_svr>(io_irq);
-
-      L4Re::chkcap(vmm->registry()->register_irq_obj(irq_svr.get()),
-          "Invalid capability");
-
-      // We have a 1:1 association, so if the irq is not bound yet we
-      // should be able to bind the icu irq
-      int ret = L4Re::chksys(vbus->icu()->bind(io_irq, irq_svr->obj_cap()),
-          "Cannot bind to IRQ");
-      switch (ret)
-        {
-        case 0:
-          info.printf("Irq 0x%x will be unmasked directly\n", io_irq);
-          irq_svr->set_eoi(irq_svr->obj_cap());
-          break;
-        case 1:
-          info.printf("Irq 0x%x will be unmasked at ICU\n", io_irq);
-          irq_svr->set_eoi(vbus->icu());
-          break;
-        default:
-          L4Re::chksys(-L4_EINVAL, "Invalid return code from bind to IRQ");
-          break;
-        }
-
-      // Point irq_svr to ic:dt_irq for upstream events (like
-      // interrupt delivery)
-      irq_svr->set_sink(ic, dt_irq);
-
+      auto irq_svr =
+        cxx::make_ref_obj<Io_irq_svr>(vmm->registry(), vbus->icu(),
+                                      io_irq, ic, dt_irq);
       irq_svr->eoi();
 
       _irqs.push_back(std::move(irq_svr));
@@ -166,8 +143,7 @@ Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus,
 
   // Ensure we have the correct binding of the currently registered
   // source
-  auto *irq_source = ic->get_eoi_handler(dt_irq);
-  auto other_svr = dynamic_cast<Vdev::Irq_svr *>(irq_source);
+  auto other_svr = dynamic_cast<Io_irq_svr *>(irq_source);
 
   if (!other_svr)
     {

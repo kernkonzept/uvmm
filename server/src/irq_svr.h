@@ -9,6 +9,8 @@
 #pragma once
 
 #include <l4/cxx/ref_ptr>
+#include <l4/re/error_helper>
+#include <l4/re/util/object_registry>
 
 #include "debug.h"
 #include "irq.h"
@@ -26,22 +28,45 @@ class Irq_svr
   public cxx::Ref_obj
 {
 public:
-  Irq_svr(unsigned io_irq) : _io_irq{io_irq} {}
+  Irq_svr(L4Re::Util::Object_registry *registry, L4::Cap<L4::Icu> icu,
+          unsigned irq, cxx::Ref_ptr<Gic::Ic> const &ic, unsigned dt_irq)
+  {
+    if (ic->get_eoi_handler(dt_irq))
+      L4Re::throw_error(-L4_EEXIST, "Bind IRQ for Irq_svr object.");
+
+    L4Re::chkcap(registry->register_irq_obj(this), "Cannot register irq");
+
+    int ret = L4Re::chksys(icu->bind(irq, obj_cap()),
+                           "Cannot bind to IRQ");
+    switch (ret)
+      {
+      case 0:
+        Dbg(Dbg::Dev, Dbg::Info, "irq_svr")
+          .printf("Irq 0x%x will be unmasked directly\n", irq);
+        set_eoi(obj_cap());
+        break;
+      case 1:
+        Dbg(Dbg::Dev, Dbg::Info, "irq_svr")
+          .printf("Irq 0x%x will be unmasked at ICU\n", irq);
+        set_eoi(icu);
+        break;
+      default:
+        L4Re::throw_error(-L4_EINVAL, "Invalid return code from bind to IRQ");
+        break;
+      }
+
+    _irq_num = irq;
+
+    // Point irq_svr to ic:dt_irq for upstream events (like
+    // interrupt delivery)
+    _irq.rebind(ic, dt_irq);
+    _irq.set_eoi_handler(this);
+  }
 
   ~Irq_svr() noexcept
   {
     unbind_eoi_handler();
   }
-
-  void set_sink(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned irq)
-  {
-    unbind_eoi_handler();
-    _irq.rebind(ic, irq);
-    _irq.set_eoi_handler(this);
-  }
-
-  void set_eoi(L4::Cap<L4::Irq_eoi> eoi)
-  { _eoi = eoi; }
 
   void handle_irq()
   { _irq.inject(); }
@@ -49,19 +74,20 @@ public:
   void eoi() override
   {
     _irq.ack();
-    _eoi->unmask(_io_irq);
+    _eoi->unmask(_irq_num);
   }
 
-  unsigned get_io_irq() const
-  { return _io_irq; }
-
 private:
+  void set_eoi(L4::Cap<L4::Irq_eoi> eoi)
+  { _eoi = eoi; }
+
   void unbind_eoi_handler() const
   { _irq.set_eoi_handler(nullptr); }
 
   Vmm::Irq_sink _irq;
-  unsigned _io_irq;
   L4::Cap<L4::Irq_eoi> _eoi;
+protected:
+  unsigned _irq_num;
 };
 
 } // namespace

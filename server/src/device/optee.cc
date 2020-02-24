@@ -192,28 +192,9 @@ struct F : Vdev::Factory
 
             // XXX Using a standard IO interrupt here. Possibly better to
             // write our own non-masking irq svr.
-            auto irq_svr = cxx::make_ref_obj<Vdev::Irq_svr>(0);
-
-            L4Re::chkcap(devs->vmm()->registry()->register_irq_obj(irq_svr.get()),
-                "Register IRQ handling server.");
-
-            int ret = L4Re::chksys(icu->bind(0, irq_svr->obj_cap()),
-                                   "Bind to IRQ to OP-TEE service.");
-
-            switch (ret)
-              {
-              case 0:
-                irq_svr->set_eoi(irq_svr->obj_cap());
-                break;
-              case 1:
-                irq_svr->set_eoi(icu);
-                break;
-              default:
-                L4Re::chksys(-L4_EINVAL, "Invalid return from bind IRQ.");
-              }
-
-            int dt_irq = it.irq();
-            irq_svr->set_sink(it.ic(), dt_irq);
+            auto irq_svr =
+              cxx::make_ref_obj<Vdev::Irq_svr>(devs->vmm()->registry(), icu, 0,
+                                               it.ic(), it.irq());
 
             c->set_notification_irq(std::move(irq_svr));
           }

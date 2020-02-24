@@ -541,32 +541,9 @@ private:
     assert(io_irq != -1);
 
     // Create the io->guest irq mapping
-    if (ic->get_eoi_handler(map_irq))
-      L4Re::chksys(-L4_EINVAL, "Can't map IRQ. IRQ is already bound.");
-
-    auto irq_svr = cxx::make_ref_obj<Vdev::Irq_svr>(io_irq);
-    L4Re::chkcap(_vmm->registry()->register_irq_obj(irq_svr.get()),
-                 "Invalid IRQ service capability.");
-
-    int ret = L4Re::chksys(vbus->icu()->bind(io_irq, irq_svr->obj_cap()),
-                           "Cannot bind to vbus IRQ.");
-    switch (ret)
-      {
-        case 0:
-          irq_svr->set_eoi(irq_svr->obj_cap());
-          break;
-        case 1:
-          irq_svr->set_eoi(vbus->icu());
-          break;
-        default:
-          L4Re::chksys(-L4_EINVAL, "Invalid return code from bind to IRQ.");
-          break;
-      }
-    irq_svr->set_sink(ic, map_irq);
-    irq_svr->eoi();
-
-    hw_dev->irq = cxx::move(irq_svr);
-
+    hw_dev->irq = cxx::make_ref_obj<Vdev::Irq_svr>(_vmm->registry(), vbus->icu(),
+                                            io_irq, ic, map_irq);
+    hw_dev->irq->eoi();
     info().printf("  IRQ mapping: %d -> %d\n", io_irq, map_irq);
   }
 
