@@ -23,6 +23,23 @@
 
 namespace Vdev {
 
+/**
+ * Virtio device that lets guests communicate with an L4::Vcon object.
+ *
+ * Example device tree entry to make it available to guests:
+ *   virtio_uart@20000 {
+ *     compatible = "virtio,mmio";
+ *     reg = <0x20000 0x100>;
+ *     interrupt-parent = <0x1>;
+ *     interrupts = <0x0 0x7a 0x4>;
+ *     l4vmm,vdev = "console";
+ *     l4vmm,virtiocap = "guest_log";
+ *   };
+ *
+ * "l4vmm,virtiocap" is a capability to a L4::Vcon passed to uvmm. If it is not
+ * given in the device tree or no such capability exists in uvmm's initial
+ * namespace, the log of L4Re::Env is used.
+ */
 template <typename DEV>
 class Virtio_console
 : public Virtio::Dev,
