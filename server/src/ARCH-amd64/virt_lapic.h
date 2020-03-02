@@ -599,7 +599,8 @@ public:
   }
 
   // Msr device interface
-  bool read_msr(unsigned msr, l4_uint64_t *value, unsigned vcpu_no) const
+  bool read_msr(unsigned msr, l4_uint64_t *value,
+                unsigned vcpu_no) const override
   {
     if (msr == Icr_handler::Icr_msr || msr == Icr_handler::Icr_mmio_ext)
       return _icr_handler->read(msr, value, vcpu_no);
