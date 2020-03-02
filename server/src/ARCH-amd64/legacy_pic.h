@@ -23,7 +23,7 @@ namespace Vdev {
  *   PIC: pic {
  *     compatible = "virt-pic";
  *     reg = <0x0 0x0 0x0 0x0>;
- *     msi-parent = <&msi_ctlr>;
+ *     msi-parent = <&msi_ctrl>;
  *     interrupt-controller;
  *     #interrupt-cells = <1>;
  *   };

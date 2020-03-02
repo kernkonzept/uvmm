@@ -77,7 +77,7 @@ private:
   std::mutex _mutex;
 };
 
-class Kvm_clock_ctlr : public Vmm::Msr_device, public Device
+class Kvm_clock_ctrl : public Vmm::Msr_device, public Device
 {
   struct Wall_clock
   {
@@ -98,7 +98,7 @@ class Kvm_clock_ctlr : public Vmm::Msr_device, public Device
   };
 
 public:
-  Kvm_clock_ctlr(Vdev::Device_lookup *devs)
+  Kvm_clock_ctrl(Vdev::Device_lookup *devs)
   : _boottime(l4_rdtsc()),
     _memmap(devs->vmm()->memmap()),
     _vmm(devs->vmm())

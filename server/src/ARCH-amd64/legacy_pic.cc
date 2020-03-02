@@ -17,7 +17,7 @@ namespace
                                       Vdev::Dt_node const &node) override
     {
       auto msi_distr = devs->get_or_create_mc_dev(node);
-      Dbg().printf("PIC found MSI ctlr %p\n", msi_distr.get());
+      Dbg().printf("PIC found MSI ctrl %p\n", msi_distr.get());
 
       auto dev = Vdev::make_device<Vdev::Legacy_pic>(msi_distr);
 

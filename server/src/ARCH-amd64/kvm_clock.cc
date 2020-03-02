@@ -17,7 +17,7 @@ struct F : Vdev::Factory
   cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                     Vdev::Dt_node const &) override
   {
-    auto dev = Vdev::make_device<Vdev::Kvm_clock_ctlr>(devs);
+    auto dev = Vdev::make_device<Vdev::Kvm_clock_ctrl>(devs);
 
     devs->vmm()->register_msr_device(dev);
 

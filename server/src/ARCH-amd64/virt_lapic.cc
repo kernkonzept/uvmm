@@ -386,9 +386,9 @@ namespace {
                                       Vdev::Dt_node const &) override
     {
       auto apics = devs->vmm()->apic_array();
-      auto msix_ctlr = Vdev::make_device<Gic::Msix_control>(apics);
-      devs->vmm()->icr_handler()->register_msix_ctlr(msix_ctlr);
-      return msix_ctlr;
+      auto msix_ctrl = Vdev::make_device<Gic::Msix_control>(apics);
+      devs->vmm()->icr_handler()->register_msix_ctrl(msix_ctrl);
+      return msix_ctrl;
     }
   };
 

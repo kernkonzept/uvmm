@@ -78,12 +78,12 @@ Vm::get_or_create_mc_dev(Vdev::Dt_node const &node)
     L4Re::chksys(-L4_EINVAL, "MSI parent node is a device.");
 
   auto dev = Vdev::Factory::create_dev(this, msi_parent);
-  auto msi_ctlr = cxx::dynamic_pointer_cast<Gic::Msix_controller>(dev);
+  auto msi_ctrl = cxx::dynamic_pointer_cast<Gic::Msix_controller>(dev);
 
-  if (!msi_ctlr)
+  if (!msi_ctrl)
     L4Re::chksys(-L4_EINVAL, "MSI controller is the MSI parent of the device.");
 
-  return msi_ctlr;
+  return msi_ctrl;
 }
 
 void
