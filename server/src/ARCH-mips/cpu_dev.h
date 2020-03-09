@@ -86,6 +86,8 @@ public:
   static unsigned dtid_to_cpuid(l4_int32_t prop_val)
   { return prop_val; }
 
+  static bool has_fixed_dt_mapping() { return true; }
+
   unsigned core_other() const
   { return _core_other; }
 

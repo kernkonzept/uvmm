@@ -9,21 +9,11 @@
 
 #include "cpu_dev.h"
 #include "cpu_dev_subarch.h"
+#include "arm_hyp.h"
+
 #include <l4/sys/ipc.h>
 
 namespace Vmm {
-
-// we enumerate the CPUs as they are listed in the device tree and
-// boot on logical cpu 0
-static unsigned logical_cpu_num = 0;
-
-unsigned
-Cpu_dev::dtid_to_cpuid(l4_umword_t)
-{
-  // ignore topology information and simply return the next logical
-  // cpu number
-  return logical_cpu_num++;
-}
 
 Cpu_dev::Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *node)
 : Generic_cpu_dev(idx, phys_id)
@@ -56,7 +46,7 @@ Cpu_dev::reset()
   //
   // initialize hardware related virtualization state
   //
-  init_vgic(*_vcpu);
+  Vmm::Arm::Gic_h::init_vcpu(*_vcpu);
 
   // we set FB, and BSU to inner sharable to tolerate migrations
   l4_umword_t hcr = 0x30023f; // VM, PTW, AMO, IMO, FMO, FB, SWIO, TIDCP, TAC

@@ -2,6 +2,7 @@
 /*
  * Copyright (C) 2015-2020 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
+ *            Alexander Warg <alexander.warg@kernkonzept.com>
  *
  */
 #include <l4/cxx/unique_ptr>
@@ -16,6 +17,7 @@
 #include "irq.h"
 #include "irq_dt.h"
 #include "pm.h"
+#include "sys_reg.h"
 #include "virt_bus.h"
 
 #include "vm_print.h"
@@ -57,7 +59,8 @@ struct DBGDTRxX : Sys_reg_const<0>
 }
 
 Guest::Guest()
-: _gic(Vdev::make_device<Gic::Dist>(16, Vmm::Cpu_dev::Max_cpus))
+: _gic(Gic::Dist_if::create_dist(l4_vcpu_e_info(*Cpu_dev::main_vcpu())->gic_version,
+                                 16))
 {
   register_vm_handler(Hvc, Vdev::make_device<Vm_print_device>());
   cxx::Ref_ptr<Sys_reg> r = cxx::make_ref_obj<DCCSR>();
@@ -91,11 +94,7 @@ struct F : Factory
                                     Vdev::Dt_node const &node) override
   {
     auto gic = devs->vmm()->gic();
-    // attach GICD to VM
-    devs->vmm()->register_mmio_device(gic, Region_type::Virtual, node);
-    // attach GICC to VM
-    devs->vmm()->map_gicc(devs, node);
-    return gic;
+    return gic->setup_gic(devs, node);
   }
 };
 
@@ -400,9 +399,7 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
 
   for (auto cpu: *cpus.get())
     {
-      if (!cpu)
-        continue;
-
+      assert (cpu);
       auto vcpu = cpu->vcpu();
 
       vcpu->user_task = _task.cap();
@@ -410,7 +407,7 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
       info().printf("Powered up cpu%d [%p]\n", vcpu.get_vcpu_id(),
                     cpu.get());
 
-      _gic->set_cpu(vcpu.get_vcpu_id(), *vcpu, cpu->thread_cap());
+      _gic->setup_cpu(vcpu, cpu->thread_cap());
     }
   cpus->cpu(0)->mark_on_pending();
   cpus->cpu(0)->startup();

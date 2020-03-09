@@ -2,6 +2,7 @@
 /*
  * Copyright (C) 2015-2020 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
+ *            Alexander Warg <alexander.warg@kernkonzept.com>
  *
  */
 #pragma once
@@ -16,7 +17,7 @@
 #include "device.h"
 #include "device_tree.h"
 #include "generic_guest.h"
-#include "gic.h"
+#include "gic_iface.h"
 #include "vm_ram.h"
 #include "cpu_dev_array.h"
 #include "smccc_device.h"
@@ -68,7 +69,7 @@ public:
 
   void show_state_interrupts(FILE *, Vcpu_ptr) {}
 
-  cxx::Ref_ptr<Gic::Dist> gic() const
+  cxx::Ref_ptr<Gic::Dist_if> gic() const
   { return _gic; }
 
   void set_timer(cxx::Ref_ptr<Vdev::Core_timer> &timer)
@@ -166,7 +167,7 @@ private:
   void check_guest_constraints(l4_addr_t ram_base) const;
   void arm_update_device_tree();
 
-  cxx::Ref_ptr<Gic::Dist> _gic;
+  cxx::Ref_ptr<Gic::Dist_if> _gic;
   cxx::Ref_ptr<Vdev::Core_timer> _timer;
   cxx::Ref_ptr<Cpu_dev_array> _cpus;
   bool guest_64bit = false;

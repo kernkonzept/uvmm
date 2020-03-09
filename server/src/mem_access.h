@@ -72,6 +72,33 @@ struct Mem_access
     return L4_EOK;
   }
 
+  template<typename STORAGE>
+  static STORAGE read(STORAGE v, unsigned offs, char width)
+  {
+    if ((1u << width) >= sizeof(STORAGE))
+      return v;
+
+    unsigned const szm = sizeof(STORAGE) - 1;
+    unsigned const sh = (offs & (szm << width) & szm) * 8;
+    STORAGE const m = ~((~(STORAGE)0) << (8 << width));
+    return (v >> sh) & m;
+  }
+
+  template<typename STORAGE, typename VAL>
+  static void write(STORAGE *s, VAL v, unsigned offs, char width)
+  {
+    if ((1u << width) >= sizeof(STORAGE))
+      {
+        *s = v;
+      }
+    else
+      {
+        unsigned const szm = sizeof(STORAGE) - 1;
+        unsigned const sh = (offs & (szm << width) & szm) * 8;
+        STORAGE const m = ~((~(STORAGE)0) << (8 << width)) << sh;
+        *s = (*s & ~m) | ((STORAGE)v & m);
+      }
+  }
 };
 
 }

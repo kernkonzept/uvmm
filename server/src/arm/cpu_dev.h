@@ -23,7 +23,6 @@ class Cpu_dev
   public Monitor::Cpu_dev_cmd_handler<Monitor::Enabled, Cpu_dev>
 {
 public:
-  // The ARM GIC has a hard architectural limit of 8 CPUs.
   enum { Max_cpus = 8 };
 
   enum
@@ -68,8 +67,6 @@ public:
 
     return true;
   }
-
-  void init_vgic(void *vcpu);
 
   /**
    * Enter the virtual machine
@@ -164,7 +161,8 @@ public:
    * might encode topology information into this value, which needs to
    * be translated.
    */
-  static unsigned dtid_to_cpuid(l4_umword_t prop_val);
+  static unsigned dtid_to_cpuid(l4_umword_t) { return 0; }
+  static bool has_fixed_dt_mapping() { return false; }
 
   bool matches(l4_umword_t hwid)
   { return hwid == _dt_affinity; }
@@ -174,6 +172,9 @@ public:
     l4_umword_t mask = ~0UL << (lvl * 8);
     return ((hwid ^ _dt_affinity) & mask) == 0;
   }
+
+  l4_uint32_t affinity() const
+  { return _dt_affinity; }
 
 private:
   enum

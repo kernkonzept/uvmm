@@ -11,32 +11,49 @@
 
 namespace Vmm {
 
+static
+unsigned get_dt_cpuid(Vdev::Dt_node const *node)
+{
+  // fallback to 0 if do DT node given
+  if (!node)
+    return Cpu_dev::dtid_to_cpuid(0);
+
+  auto *prop = node->get_prop<fdt32_t>("reg", nullptr);
+  if (!prop)
+    {
+      Err().printf("Cpu node '%s' has missing reg property. Ignored.\n",
+                   node->get_name());
+      return ~0u;
+    }
+
+  return Cpu_dev::dtid_to_cpuid(fdt32_to_cpu(*prop));
+}
+
 cxx::Ref_ptr<Vdev::Device>
 Cpu_dev_array::create_vcpu(Vdev::Dt_node const *node)
 {
-  l4_int32_t prop_val = 0;
-  if (node)
-    {
-      auto *prop = node->get_prop<fdt32_t>("reg", nullptr);
-      if (!prop)
-        {
-          Err().printf("Cpu node '%s' has missing reg property. Ignored.\n",
-                       node->get_name());
-          return nullptr;
-        }
-      prop_val = fdt32_to_cpu(*prop);
-    }
+  unsigned id = ~0u;
+  if (Cpu_dev::has_fixed_dt_mapping())
+    id = get_dt_cpuid(node);
+  else if (_ncpus < capacity())
+    id = _ncpus++;
 
-  unsigned id = Cpu_dev::dtid_to_cpuid(prop_val);
-  if (id >= Cpu_dev::Max_cpus)
-    return nullptr;
+  if (id >= capacity())
+    {
+      Err().printf("Too many virtual CPUs. Ignored.\n");
+      return nullptr;
+    }
 
   if (_cpus[id])
     {
-      Dbg(Dbg::Cpu, Dbg::Warn).printf("Duplicate definitions for Cpu%d (%x)\n",
-                                      id, prop_val);
+      Dbg(Dbg::Cpu, Dbg::Warn)
+        .printf("Duplicate definitions for Cpu%d\n", id);
+
       return _cpus[id];
     }
+
+  if (id >= _ncpus)
+    _ncpus = id + 1;
 
   unsigned cpu_mask = _placement.next_free();
   if (cpu_mask == Vcpu_placement::Invalid_id)

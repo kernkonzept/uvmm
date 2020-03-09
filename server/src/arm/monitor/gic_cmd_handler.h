@@ -32,7 +32,7 @@ public:
   void exec(FILE *f, Arglist *) override
   {
     fprintf(f, "#\n# Spis\n#\n");
-    fprintf(f, "Irq     raw pen act ena src tar pri con grp\n");
+    fprintf(f, "Irq     raw pen act ena tar pri con grp\n");
     for (unsigned i = 0; i < dist()->tnlines * 32; ++i)
       show_irq(f, dist()->_spis[i], i);
   }
@@ -46,12 +46,11 @@ private:
 
     auto *p = irq._p;
 
-    fprintf(f, "%3d %x  %c   %c   %c  %3d %3d %3d %3d %3d\n",
+    fprintf(f, "%3d %x  %c   %c   %c  %3d %3d %3d %3d\n",
             num, p->_state,
             p->pending() ? 'y' : 'n',
             p->active()  ? 'y' : 'n',
             p->enabled() ? 'y' : 'n',
-            (int)p->src(),
             (int)p->target(),
             (int)p->prio(),
             (int)p->config(),
