@@ -34,7 +34,7 @@ asm
  "  stp    q28, q29, [sp, #16 * 28] \n"
  "  stp    q30, q31, [sp, #16 * 30] \n"
 
- "  ldr    x8, [x0, #0x208]         \n"  // L4_VCPU_OFFSET_EXT_INFOS + 8
+ "  ldr    x8, [x0, #0x248]         \n"  // l4_vcpu_e_info_user()[1]
  "  ldr    w9, [x0, #0x148]         \n"  // vcpu->r.err
  "  msr    TPIDR_EL0, x8            \n"
  "  lsr    x9, x9, #23              \n"

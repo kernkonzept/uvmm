@@ -18,7 +18,7 @@ asm
  "  sub    sp, sp, #16            \n"
  "  mov    r4, r0                 \n"
  "  mrc    p15, 0, r5, c13, c0, 2 \n"
- "  ldr    r2, [r0, #0x200]       \n"  // L4_VCPU_OFFSET_EXT_INFOS
+ "  ldr    r2, [r0, #0x240]       \n"  // l4_vcpu_e_info_user()[0]
  "  ldr    r3, [r0, #0x24]        \n"  // vcpu->r.err
  "  mcr    p15, 0, r2, c13, c0, 2 \n"
  "  lsr    r3, r3, #24            \n"

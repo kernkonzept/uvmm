@@ -47,7 +47,7 @@ public:
   void thread_attach()
   {
     control_ext(L4::Cap<L4::Thread>());
-    *reinterpret_cast<l4_utcb_t **>((char *)_s + L4_VCPU_OFFSET_EXT_INFOS) = l4_utcb();
+    reinterpret_cast<l4_utcb_t **>(l4_vcpu_e_info_user(_s))[0] = l4_utcb();
   }
 
   Arm::Hsr hsr() const

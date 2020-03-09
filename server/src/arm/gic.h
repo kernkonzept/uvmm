@@ -526,9 +526,9 @@ public:
    *         + 1) otherwise
    */
   unsigned get_empty_lr() const
-  { return __builtin_ffs(l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_ELSR0)); }
+  { return __builtin_ffs(l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_ELSR)); }
 
-  bool pending_irqs() const { return l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_ELSR0) != (1ULL << Num_lrs) - 1; }
+  bool pending_irqs() const { return l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_ELSR) != (1ULL << Num_lrs) - 1; }
 
   Irq_array::Irq irq(unsigned irqn);
   Irq_array::Const_irq irq(unsigned irqn) const;
@@ -589,16 +589,16 @@ public:
   void *_vcpu = nullptr;
   L4Re::Util::Unique_cap<L4::Irq> _cpu_irq;
 
-  void _set_elsr(unsigned idx, l4_uint32_t bits) const
+  void _set_elsr(l4_uint32_t bits) const
   {
-    unsigned id = L4_VCPU_E_GIC_ELSR0 + idx * 4;
+    unsigned id = L4_VCPU_E_GIC_ELSR;
     l4_uint32_t e = l4_vcpu_e_read_32(_vcpu, id);
     l4_vcpu_e_write_32(_vcpu, id, e | bits);
   }
 
-  void _clear_elsr(unsigned idx, l4_uint32_t bits) const
+  void _clear_elsr(l4_uint32_t bits) const
   {
-    unsigned id = L4_VCPU_E_GIC_ELSR0 + idx * 4;
+    unsigned id = L4_VCPU_E_GIC_ELSR;
     l4_uint32_t e = l4_vcpu_e_read_32(_vcpu, id);
     l4_vcpu_e_write_32(_vcpu, id, e & ~bits);
   }
@@ -691,9 +691,7 @@ Cpu::handle_eois()
   if (!misr.eoi())
     return;
 
-  unsigned ridx = 0;
-  // currently we use up to 32 list registers
-  l4_uint32_t eisr = l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_EISR0 + ridx * 4);
+  l4_uint32_t eisr = l4_vcpu_e_read_32(_vcpu, L4_VCPU_E_GIC_EISR);
   if (!eisr)
     return;
 
@@ -708,7 +706,7 @@ Cpu::handle_eois()
         {
           c.clear_lr();
           _set_lr(i, Gic_h::Lr(0));
-          _set_elsr(ridx, 1U << i);
+          _set_elsr(1U << i);
         }
 
       c.do_eoi();
@@ -716,7 +714,7 @@ Cpu::handle_eois()
     }
 
   // all EOIs are handled
-  l4_vcpu_e_write_32(_vcpu, L4_VCPU_E_GIC_EISR0 + ridx * 4, 0);
+  l4_vcpu_e_write_32(_vcpu, L4_VCPU_E_GIC_EISR, 0);
   misr.eoi() = 0;
   l4_vcpu_e_write_32(_vcpu, L4_VCPU_E_GIC_MISR, misr.raw);
 }
@@ -740,7 +738,7 @@ Cpu::add_pending_irq(unsigned lr, Irq_array::Irq const &irq,
   // uses 0 for "no link register assigned" (see #get_empty_lr())
   irq.set_lr(lr + 1);
   _set_lr(lr, new_lr);
-  _clear_elsr(0, 1U << lr);
+  _clear_elsr(1U << lr);
   return true;
 }
 

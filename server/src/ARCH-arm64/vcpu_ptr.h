@@ -45,18 +45,18 @@ public:
   }
 
   void *saved_tls() const
-  { return reinterpret_cast<void **>((char *)_s + L4_VCPU_OFFSET_EXT_INFOS)[1]; }
+  { return reinterpret_cast<void *>(l4_vcpu_e_info_user(_s)[1]); }
 
   l4_utcb_t *restore_on_entry() const
   {
     asm volatile("msr TPIDR_EL0, %0" : : "r"(saved_tls()));
-    return reinterpret_cast<l4_utcb_t **>((char *)_s + L4_VCPU_OFFSET_EXT_INFOS)[0]; 
+    return reinterpret_cast<l4_utcb_t *>(l4_vcpu_e_info_user(_s)[0]);
   }
 
   void thread_attach()
   {
     control_ext(L4::Cap<L4::Thread>());
-    void **x = reinterpret_cast<void **>((char *)_s + L4_VCPU_OFFSET_EXT_INFOS);
+    void **x = reinterpret_cast<void **>(l4_vcpu_e_info_user(_s));
     x[0] = l4_utcb();
     asm volatile ("mrs %0, TPIDR_EL0" : "=r"(x[1]));
   }
