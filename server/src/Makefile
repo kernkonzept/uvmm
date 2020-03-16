@@ -35,7 +35,7 @@ CXXFLAGS-$(CONFIG_MONITOR)       += -DCONFIG_MONITOR
 CXXFLAGS-amd64-$(CONFIG_MONITOR) += -DGUEST_DEBUGGER_SUPPORT
 CXXFLAGS                         += $(CXXFLAGS-$(ARCH)-y)
 endif
-SRC_CC-arm-common = arm/gic.cc arm/gic-v2.cc \
+SRC_CC-arm-common = arm/gic.cc arm/gic-v2.cc arm/gic-v3.cc \
                     arm/guest_arm.cc arm/cpu_dev_arm.cc
 
 SRC_CC-arm   = $(SRC_CC-arm-common)
