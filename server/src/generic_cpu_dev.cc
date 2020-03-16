@@ -1,10 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
- * Copyright (C) 2017 Kernkonzept GmbH.
+ * Copyright (C) 2017-2020 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *            Alexander Warg <alexander.warg@kernkonzept.com>
  *
- * This file is distributed under the terms of the GNU General Public
- * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
 #include "generic_cpu_dev.h"
@@ -16,10 +15,19 @@
 
 namespace Vmm {
 
+Vcpu_ptr Generic_cpu_dev::_main_vcpu(nullptr);
+bool Generic_cpu_dev::_main_vcpu_used = false;
+
 void
 Generic_cpu_dev::startup()
 {
-  _vcpu.thread_attach();
+  // CPU 0 is the boot CPU and the main thread is already attached
+  if (!_attached)
+    {
+      _attached = true;
+      _vcpu.thread_attach();
+    }
+
   reset();
 }
 

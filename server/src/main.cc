@@ -165,6 +165,7 @@ static int run(int argc, char *argv[])
         }
     }
 
+  Vmm::Cpu_dev::alloc_main_vcpu();
   vm_instance.create_default_devices();
 
   auto *vmm = vm_instance.vmm();
