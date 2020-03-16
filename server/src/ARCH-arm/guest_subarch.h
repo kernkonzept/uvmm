@@ -1,9 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
- * Copyright (C) 2017 Kernkonzept GmbH.
+ * Copyright (C) 2017-2020 Kernkonzept GmbH.
  * Author(s): Alexander Warg <alexander.warg@kernkonzept.com>
  *
- * This file is distributed under the terms of the GNU General Public
- * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
 #pragma once
@@ -12,6 +11,12 @@ namespace Vmm {
 
 enum { Guest_64bit_supported = false };
 
-#define guest_msr_access guest_unknown_fault
+void
+Guest::add_sys_reg_aarch64(unsigned, unsigned,
+                           unsigned, unsigned,
+                           unsigned,
+                           cxx::Ref_ptr<Sys_reg> const &)
+{
+}
 
 }

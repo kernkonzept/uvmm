@@ -7,6 +7,7 @@
 #pragma once
 
 #include <vector>
+#include <unordered_map>
 
 #include <l4/cxx/ref_ptr>
 #include <l4/sys/vm>
@@ -19,6 +20,7 @@
 #include "vm_ram.h"
 #include "cpu_dev_array.h"
 #include "smccc_device.h"
+#include "sys_reg.h"
 #include "vmprint.h"
 
 namespace Vmm {
@@ -121,6 +123,41 @@ public:
 
   void handle_ex_regs_exception(Vcpu_ptr vcpu);
 
+  using Sys_reg = Vmm::Arm::Sys_reg;
+
+  cxx::Weak_ptr<Sys_reg> sys_reg(Sys_reg::Key k)
+  { return _sys_regs.at(k); }
+
+  void add_sys_reg_aarch32(unsigned cp, unsigned op1,
+                           unsigned crn, unsigned crm,
+                           unsigned op2,
+                           cxx::Ref_ptr<Sys_reg> const &r)
+  {
+    _sys_regs[Sys_reg::Key::cp_r(cp, op1, crn, crm, op2)] = r;
+  }
+
+  void add_sys_reg_aarch32_cp64(unsigned cp, unsigned op1,
+                                unsigned crm,
+                                cxx::Ref_ptr<Sys_reg> const &r)
+  {
+    _sys_regs[Sys_reg::Key::cp_r_64(cp, op1, crm)] = r;
+  }
+
+  void add_sys_reg_aarch64(unsigned op0, unsigned op1,
+                           unsigned crn, unsigned crm,
+                           unsigned op2,
+                           cxx::Ref_ptr<Sys_reg> const &r);
+
+  void add_sys_reg_both(unsigned op0, unsigned op1,
+                        unsigned crn, unsigned crm,
+                        unsigned op2,
+                        cxx::Ref_ptr<Sys_reg> const &r)
+  {
+    add_sys_reg_aarch64(op0, op1, crn, crm, op2, r);
+    // op0 == 3 -> cp15, op0 == 2 -> cp14
+    add_sys_reg_aarch32(op0 + 12, op1, crn, crm, op2, r);
+  }
+
   Pm &pm()
   { return _pm; }
 
@@ -135,6 +172,7 @@ private:
   bool guest_64bit = false;
 
   std::vector<cxx::Ref_ptr<Vmm::Smccc_device>> _smccc_handlers[Num_smcc_methods];
+  std::unordered_map<Sys_reg::Key, cxx::Ref_ptr<Sys_reg>> _sys_regs;
 };
 
 } // namespace

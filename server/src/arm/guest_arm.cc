@@ -28,10 +28,50 @@ typedef void (*Entry)(Vmm::Vcpu_ptr vcpu);
 
 namespace Vmm {
 
+namespace {
+
+using namespace Arm;
+
+struct DCCSR : Sys_reg_ro
+{
+  l4_uint32_t flip = 0;
+
+  l4_uint64_t read(Vmm::Vcpu_ptr, Key) override
+  {
+    // printascii in Linux is doing busyuart which wants to see a
+    // busy flag to quit its loop while waituart does not want to
+    // see a busy flag; this little trick makes it work
+    flip ^= 1 << 29;
+    return flip;
+  }
+};
+
+struct DBGDTRxX : Sys_reg_const<0>
+{
+  void write(Vmm::Vcpu_ptr, Key, l4_uint64_t v) override
+  {
+    putchar(v);
+  }
+};
+
+}
+
 Guest::Guest()
 : _gic(Vdev::make_device<Gic::Dist>(16, Vmm::Cpu_dev::Max_cpus))
 {
   register_vm_handler(Hvc, Vdev::make_device<Vm_print_device>());
+  cxx::Ref_ptr<Sys_reg> r = cxx::make_ref_obj<DCCSR>();
+  add_sys_reg_aarch32(14, 0, 0, 1, 0, r); // DBGDSCRint
+  add_sys_reg_aarch64( 2, 3, 0, 1, 0, r);
+  // MDSCR_EL1 (we can map this to DBGSCRint as long as we only implement bit 29..30
+  add_sys_reg_aarch64( 2, 0, 0, 2, 2, r);
+
+  // DBGIDR
+  add_sys_reg_aarch32(14, 0, 0, 0, 0, cxx::make_ref_obj<Sys_reg_const<0>>());
+
+  r = cxx::make_ref_obj<DBGDTRxX>();
+  add_sys_reg_aarch32(14, 0, 0, 5, 0, r);
+  add_sys_reg_aarch64( 2, 3, 0, 5, 0, r);
 }
 
 Guest *
@@ -504,52 +544,130 @@ static void guest_irq(Vcpu_ptr vcpu)
   guest->handle_ipc(vcpu->i.tag, vcpu->i.label, l4_utcb());
 }
 
-static void guest_mcr_access(Vcpu_ptr vcpu)
+template<unsigned CP>
+static void guest_mcrr_access_cp(Vcpu_ptr vcpu)
 {
+  using Vmm::Arm::Sys_reg;
+  using Key = Sys_reg::Key;
   auto hsr = vcpu.hsr();
-  if (   hsr.mcr_opc1() == 0
-      && hsr.mcr_crn() == 0
-      && hsr.mcr_crm() == 1
-      && hsr.mcr_opc2() == 0
-      && hsr.mcr_read()) // DCC Status
-    {
-      // printascii in Linux is doing busyuart which wants to see a
-      // busy flag to quit its loop while waituart does not want to
-      // see a busy flag; this little trick makes it work
-      static l4_umword_t flip;
-      flip ^= 1 << 29;
-      vcpu.set_gpr(hsr.mcr_rt(), flip);
-    }
-  else if (   hsr.mcr_opc1() == 0
-           && hsr.mcr_crn() == 0
-           && hsr.mcr_crm() == 5
-           && hsr.mcr_opc2() == 0) // DCC Get/Put
-    {
-      if (hsr.mcr_read())
-        vcpu.set_gpr(hsr.mcr_rt(), 0);
-      else
-        putchar(vcpu.get_gpr(hsr.mcr_rt()));
-    }
-  else
-    {
-      if (   hsr.mcr_opc1() == 0
-          && hsr.mcr_crn() == 0
-          && hsr.mcr_crm() == 0
-          && hsr.mcr_opc2() == 0
-          && hsr.mcr_read())
-        printf("Unhandled DCC request: Non-ARMv7 guest?\n");
 
-      printf("%08lx: %s p14, %d, r%d, c%d, c%d, %d (hsr=%08lx)\n",
-             vcpu->r.ip, hsr.mcr_read() ? "MRC" : "MCR",
+  try
+    {
+      Key k = Key::cp_r_64(CP, hsr.mcrr_opc1(),
+                        hsr.mcr_crm());
+
+      auto r = guest->sys_reg(k);
+      if (hsr.mcr_read())
+        {
+          l4_uint64_t v = r->read(vcpu, k);
+          vcpu.set_gpr(hsr.mcr_rt(), v & 0xffffffff);
+          vcpu.set_gpr(hsr.mcrr_rt2(), v >> 32);
+        }
+      else
+        {
+          l4_uint64_t v = (vcpu.get_gpr(hsr.mcr_rt()) & 0xffffffff)
+                          | (((l4_uint64_t)vcpu.get_gpr(hsr.mcrr_rt2())) << 32);
+
+          r->write(vcpu, k, v);
+        }
+
+      vcpu.jump_instruction();
+    }
+  catch (...)
+    {
+      printf("%08lx: %s p%u, %d, r%d, c%d, c%d, %d (hsr=%08lx)\n",
+             vcpu->r.ip, hsr.mcr_read() ? "MRC" : "MCR", CP,
              (unsigned)hsr.mcr_opc1(),
              (unsigned)hsr.mcr_rt(),
              (unsigned)hsr.mcr_crn(),
              (unsigned)hsr.mcr_crm(),
              (unsigned)hsr.mcr_opc2(),
              (l4_umword_t)hsr.raw());
+      vcpu.jump_instruction();
     }
+}
+template<unsigned CP>
+static void guest_mcr_access_cp(Vcpu_ptr vcpu)
+{
+  using Vmm::Arm::Sys_reg;
+  using Key = Sys_reg::Key;
+  auto hsr = vcpu.hsr();
 
-  vcpu->r.ip += 2 << hsr.il();
+  try
+    {
+      Key k = Key::cp_r(CP, hsr.mcr_opc1(),
+                        hsr.mcr_crn(),
+                        hsr.mcr_crm(),
+                        hsr.mcr_opc2());
+
+      auto r = guest->sys_reg(k);
+      if (hsr.mcr_read())
+        vcpu.set_gpr(hsr.mcr_rt(), r->read(vcpu, k));
+      else
+        r->write(vcpu, k, vcpu.get_gpr(hsr.mcr_rt()));
+
+      vcpu.jump_instruction();
+    }
+  catch (...)
+    {
+      printf("%08lx: %s p%u, %d, r%d, c%d, c%d, %d (hsr=%08lx)\n",
+             vcpu->r.ip, hsr.mcr_read() ? "MRC" : "MCR", CP,
+             (unsigned)hsr.mcr_opc1(),
+             (unsigned)hsr.mcr_rt(),
+             (unsigned)hsr.mcr_crn(),
+             (unsigned)hsr.mcr_crm(),
+             (unsigned)hsr.mcr_opc2(),
+             (l4_umword_t)hsr.raw());
+      vcpu.jump_instruction();
+    }
+}
+
+static void guest_msr_access(Vcpu_ptr vcpu)
+{
+  using Vmm::Arm::Sys_reg;
+  using Key = Sys_reg::Key;
+  auto hsr = vcpu.hsr();
+
+  try
+    {
+      Key k = Key::sr(hsr.msr_op0(),
+                      hsr.msr_op1(),
+                      hsr.msr_crn(),
+                      hsr.msr_crm(),
+                      hsr.msr_op2());
+
+      auto r = guest->sys_reg(k);
+      if (hsr.msr_read())
+        vcpu.set_gpr(hsr.msr_rt(), r->read(vcpu, k));
+      else
+        r->write(vcpu, k, vcpu.get_gpr(hsr.msr_rt()));
+
+      vcpu.jump_instruction();
+    }
+  catch (...)
+    {
+      if (hsr.msr_read())
+        printf("%08lx: mrs r%u, S%u_%u_C%u_C%u_%u (hsr=%08lx)\n",
+               vcpu->r.ip, (unsigned)hsr.msr_rt(),
+               (unsigned)hsr.msr_op0(),
+               (unsigned)hsr.msr_op1(),
+               (unsigned)hsr.msr_crn(),
+               (unsigned)hsr.msr_crm(),
+               (unsigned)hsr.msr_op2(),
+               (l4_umword_t)hsr.raw());
+      else
+        printf("%08lx: msr S%u_%u_C%u_C%u_%u, r%u (hsr=%08lx)\n",
+               vcpu->r.ip,
+               (unsigned)hsr.msr_op0(),
+               (unsigned)hsr.msr_op1(),
+               (unsigned)hsr.msr_crn(),
+               (unsigned)hsr.msr_crm(),
+               (unsigned)hsr.msr_op2(),
+               (unsigned)hsr.msr_rt(),
+               (l4_umword_t)hsr.raw());
+
+      vcpu.jump_instruction();
+    }
 }
 
 void Vmm::Guest::handle_ex_regs_exception(Vcpu_ptr vcpu)
@@ -575,16 +693,16 @@ Entry vcpu_entries[64] =
   [0x00] = guest_unknown_fault,
   [0x01] = guest_wfx,
   [0x02] = guest_unknown_fault,
-  [0x03] = guest_unknown_fault,
-  [0x04] = guest_unknown_fault,
-  [0x05] = guest_mcr_access,
+  [0x03] = guest_mcr_access_cp<15>,
+  [0x04] = guest_mcrr_access_cp<15>,
+  [0x05] = guest_mcr_access_cp<14>,
   [0x06] = guest_unknown_fault,
   [0x07] = guest_unknown_fault,
   [0x08] = guest_unknown_fault,
   [0x09] = guest_unknown_fault,
   [0x0a] = guest_unknown_fault,
   [0x0b] = guest_unknown_fault,
-  [0x0c] = guest_unknown_fault,
+  [0x0c] = guest_mcrr_access_cp<14>,
   [0x0d] = guest_unknown_fault,
   [0x0e] = guest_unknown_fault,
   [0x0f] = guest_unknown_fault,
