@@ -177,9 +177,38 @@
  * The `pfc` cap can also be implemented by IO. In that case the guest can
  * start a machine suspend/shutdown/reboot.
  *
+ * Ram block device support
+ * ------------------------
+ *
+ * The example ramdisk works by loading a file system into RAM, which needs RAM
+ * block device support to work. In the Linux kernel configuration add:
+ *      CONFIG_BLK_DEV_RAM=y
+ *
+ * Recommended Linux configuration options for uvmm/amd64 guests
+ * -------------------------------------------------------------
+ *
+ * The following options are recommended in additon to the amd64 defaults
+ * provided by a `make defconfig`:
+ *
+ * Virtio support is required to access virtual devices provided by uvmm:
+ *
+ *      CONFIG_VIRTIO=y
+ *      CONFIG_VIRTIO_PCI=y
+ *      CONFIG_VIRTIO_BLK=y
+ *      CONFIG_BLK_MQ_VIRTIO=y
+ *      CONFIG_VIRTIO_CONSOLE=y
+ *      CONFIG_VIRTIO_INPUT=y
+ *      CONFIG_VIRTIO_NET=y
+ *
+ * It is highly recommended to use the X2APIC, which needs virtualization
+ * awareness to work under uvmm:
+ *
+ *      CONFIG_X86_X2APIC=y
+ *      CONFIG_PARAVIRT=y
+ *      CONFIG_PARAVIRT_SPINLOCKS=y
  *
  * KVM clock for uvmm/amd64 guests
- * -------------------------
+ * -------------------------------
  *
  * When executing L4Re + uvmm on QEMU, the PIT as clock source is not reliable.
  * The paravirtualized KVM clock provides the guest with a stable clock source.
@@ -207,8 +236,8 @@
  * expected.
  *
  *
- * Development notices for amd64
- * -----------------------------
+ * Development notes for amd64
+ * ---------------------------
  *
  * When you are developing on Linux using QEMU please note that nested
  * virtualization support is necessary on your host system to run uvmm guests.
