@@ -95,7 +95,7 @@ public:
     if (Smccc_device::is_valid_call(vcpu->r.r[0]))
       {
         unsigned imm = vcpu.hsr().svc_imm();
-        for (auto h: _smccc_handlers[METHOD])
+        for (auto const &h: _smccc_handlers[METHOD])
           if ((res = h->vm_call(imm, vcpu)))
             break;
       }
