@@ -1,10 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
- * Copyright (C) 2018 Kernkonzept GmbH.
+ * Copyright (C) 2018-2020 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *            Benjamin Lamowski <benjamin.lamowski@kernkonzept.com>
- *
- * This file is distributed under the terms of the GNU General Public
- * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 #pragma once
 
@@ -420,7 +418,7 @@ public:
           _icr[vcpu_no] = value;
         // Vol. 3A 10.6.1: "The act of writing to the low doubleword of the ICR
         // causes the IPI to be sent."
-        send_ipi(value, vcpu_no, !mmio);
+        send_ipi(_icr[vcpu_no], vcpu_no, !mmio);
         return true;
       case Icr_mmio_ext:
         _icr[vcpu_no] = (_icr[vcpu_no] & 0xffffffffU) | (value << 32);
