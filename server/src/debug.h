@@ -131,7 +131,7 @@ public:
    *
    *   <component>=<level>
    *
-   * where component is one of: guest, core, cpu, mmio, irq, dev
+   * where component is one of: core, cpu, mmio, irq, dev, pm, vbus_event
    * and level the same as above.
    *
    * To change the verbosity of multiple components repeat
