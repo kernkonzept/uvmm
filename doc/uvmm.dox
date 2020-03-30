@@ -6,6 +6,61 @@
  *
  * \page l4re_servers_uvmm Uvmm, the virtual machine monitor
  *
+ * Command Line Options
+ * --------------------
+ *
+ * uvmm provides the following command line options:
+ *
+ * * `-c, --cmdline=<guest command line>`
+ *
+ *    Command line that is passed to the guest on boot.
+ *
+ * * `-k, --kernel=<kernel image name>`
+ *
+ *    The name of the guest-kernel image file present in the ROM namespace.
+ *
+ * * `-d, --dtb=<DTB overlay>`
+ *
+ *    The name of the device tree file present in the ROM namespace.
+ *
+ * * `-r, --ramdisk=<RAM disk name>`
+ *
+ *    The name of the RAM disk file present in the ROM namespace
+ *
+ * * `-b, --rambase=<Base address of the guest RAM>`
+ *
+ *    Physical start address for the guest RAM. This value is
+ *    platform specific.
+ *
+ * * `-D, --debug=[<component>=][level]`
+ *
+ *    Control the verbosity level of the uvmm. Possible `level` values are:
+ *      quiet, warn, info, trace
+ *
+ *    Using the `component` prefix, the verbosity level of each uvmm
+ *    component is configurable. The component names are:
+ *      core, cpu, mmio, irq, dev, pm, vbus_event
+ *
+ *    For example, the following command line sets the verbosity of all uvmm
+ *    components to `info` except for IRQ handling, which is set to `trace`.
+ *
+ *        uvmm -D info -D irq=trace
+ *
+ * * `-q, --quiet`
+ *
+ *    Silence all uvmm output.
+ *
+ * * `-v, --verbose`
+ *
+ *   Increase the verbosity of the uvmm. Repeating the option increases the
+ *   verbosity by another level.
+ *
+ * * `-W, --wakeup-on-system-resume`
+ *
+ *    When set, the uvmm resumes when the host system resumes after a
+ *    suspend call.
+ *
+ *
  * Setting up guest memory
  * -----------------------
  *
