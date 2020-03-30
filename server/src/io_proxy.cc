@@ -348,6 +348,7 @@ struct F : Factory
               }
 
             auto it = Irq_dt_iterator(devs, node);
+            it.next(devs);
 
             for (unsigned n = 0; n < resid; ++n)
               {
