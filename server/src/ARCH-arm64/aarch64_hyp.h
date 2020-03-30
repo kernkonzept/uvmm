@@ -17,6 +17,5 @@ inline void arm_subarch_setup(void *vcpu, bool guest_64bit)
       hcr |= 1UL << 31; // set RW bit
       l4_vcpu_e_write(vcpu, L4_VCPU_E_HCR, hcr);
     }
-  l4_vcpu_e_write_32(vcpu, L4_VCPU_E_MDCR, 1 << 9 /*TDA*/);
 }
 

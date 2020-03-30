@@ -67,7 +67,7 @@ asm
 
  "  msr    TPIDR_EL0, x20           \n"
  "  mov    sp, x19                  \n"
- "  svc    #0                       \n"
+ "  hvc    #0                       \n"
 );
 
 /**
