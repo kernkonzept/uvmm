@@ -24,6 +24,7 @@
 #include <getopt.h>
 
 #include <l4/re/env>
+#include <l4/re/random>
 
 #include "debug.h"
 #include "guest.h"
@@ -94,6 +95,30 @@ setup_ramdisk(char const *ram_disk, Vdev::Host_dt const &dt,
 
   info.printf("Loaded ramdisk image %s to %lx (size: %08zx)\n",
       ram_disk, rd_start.get(), rd_size);
+}
+
+static void
+setup_kaslr_seed(Vdev::Host_dt const &dt)
+{
+  auto c = L4Re::Env::env()->get_cap<L4Re::Random>("rng");
+  if (!c)
+    return;
+
+  union
+  {
+    l4_uint64_t r;
+    char c[sizeof(l4_uint64_t)];
+  } random;
+
+  L4::Ipc::Array<char, unsigned long> msg(sizeof(random), random.c);
+  int ret = c->get_random(sizeof(random), &msg);
+  if (ret < (int) sizeof(random))
+    L4Re::throw_error(ret < 0 ? ret : -L4_EAGAIN,
+                      "Getting random seed for KASLR initialisation.");
+
+
+  auto node = dt.get().path_offset("/chosen");
+  node.setprop_u64("kaslr-seed", random.r);
 }
 
 static char const *const options = "+k:d:r:c:b:vqD:";
@@ -191,6 +216,7 @@ static int run(int argc, char *argv[])
 
   verify_cpu0_setup();
 
+  setup_kaslr_seed(dt);
   setup_ramdisk(ram_disk, dt, &ram_free_list, ram);
 
   // finally copy in the device tree
