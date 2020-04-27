@@ -121,6 +121,11 @@ int
 Dbg::set_verbosity(char const *str)
 {
   unsigned mask = 0;
+
+  // ignore leading whitespace
+  while(*str && *str == ' ')
+    ++str;
+
   if (verbosity_mask_from_string(str, &mask))
     {
       set_verbosity(mask);
