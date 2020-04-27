@@ -676,7 +676,7 @@ private:
  * according to the Destination Mode.
  * If RH=0 the MSI is sent to the specified LAPIC(s) according to the DM.
  *
- * Design wise, this class is located between IO-MMU and all LAPICs.
+ * Design wise, this class is located between IOMMU and all LAPICs.
  */
 class Msix_control : public Msix_controller, public Vdev::Device
 {
