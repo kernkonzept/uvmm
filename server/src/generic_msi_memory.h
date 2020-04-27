@@ -85,7 +85,7 @@ public:
     _virt_table(cxx::make_unique<Table_entry[]>(num_entries))
   {
     unsigned icu_nr_msis = msi_alloc->max_msis();
-    if (num_entries >= icu_nr_msis)
+    if (num_entries > icu_nr_msis)
       {
         Err().printf("ICU does not support enough MSIs. Requested %i; "
                      "Supported %i\n",
