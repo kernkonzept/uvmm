@@ -399,7 +399,9 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
 
   for (auto cpu: *cpus.get())
     {
-      assert (cpu);
+      if (!cpu)
+        continue;
+
       auto vcpu = cpu->vcpu();
 
       vcpu->user_task = _task.cap();
