@@ -326,19 +326,21 @@ public:
       {
         Err().printf("Failed to read 'reg[1]' from node %s: %s\n",
                      node.get_name(), node.strerror(res));
-        return self;
+        L4Re::throw_error(-L4_EINVAL, "Setup GICv3");
       }
 
     if (base & 0xffff)
       {
         Err().printf("%s: GICR mmio is not 64K aligned: <%llx, %llx>.\n",
                      node.get_name(), base, size);
+        L4Re::throw_error(-L4_EINVAL, "Setup GICv3");
       }
 
     if ((size >> Redist::Stride) < _cpu.size())
       {
         Err().printf("%s: GICR mmio is too small for %u cpus: <%llx, %llx>.\n",
                      node.get_name(), _cpu.size(), base, size);
+        L4Re::throw_error(-L4_EINVAL, "Setup GICv3");
       }
 
     devs->vmm()->register_mmio_device(redist, Vmm::Region_type::Virtual, node, 1);
