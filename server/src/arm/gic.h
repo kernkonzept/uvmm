@@ -280,7 +280,7 @@ public:
   public:
     Irq() = default;
 
-    void set_eoi(Eoi_handler *eoi) { this->_c->eoi = eoi; }
+    void set_eoi(Eoi_handler *eoi) { _c->eoi = eoi; }
     bool enable(bool ena) const
     {
       if (ena)
@@ -450,7 +450,7 @@ public:
       return (*_spis)[intid - Num_local];
   }
 
-  /// Get the accosiated vCPU
+  /// Get the associated vCPU
   Vmm::Vcpu_ptr vcpu() const { return _vcpu; }
 
   /**
@@ -1026,11 +1026,13 @@ private:
   bool _demux_irq_block(unsigned reg, unsigned size, unsigned cpu_id, OP &&op)
   {
     unsigned const rsh = 10 - SHIFT;
-    unsigned const x = reg >> rsh;
-    if (x < (END >> rsh))
+    static_assert((START & ((1U << rsh) - 1)) == 0U, "low bits of START zero");
+    static_assert((END   & ((1U << rsh) - 1)) == 0U, "low bits of END zero");
+    if (reg < END)
       {
+        unsigned const x = reg >> rsh;
         _demux_irq_reg<SHIFT>(x - (START >> rsh) + BLK,
-                              reg & ~((~0u) << rsh), size, cpu_id, op);
+                              reg & ~((~0U) << rsh), size, cpu_id, op);
         return true;
       }
     return false;
@@ -1089,10 +1091,10 @@ private:
     unsigned r = reg >> 2;
     switch (r)
       {
-      case 0: return ctlr;
-      case 1: return get_typer();
-      case 2: return 0x43b;
-      default: break;
+      case 0: return ctlr;        // GICD_CTRL
+      case 1: return get_typer(); // GICD_TYPER
+      case 2: return 0x43b;       // GICD_IIDR
+      default: break;             // includes GICD_TYPER2
       }
     return 0;
   }
@@ -1143,14 +1145,19 @@ protected:
    */
   bool dist_read(unsigned reg, char size, unsigned cpu_id, l4_uint64_t *res)
   {
-    unsigned x = reg >> 4;
-    if (x < 0x1)
+    if (reg < 0x10) // GICD_CTRL..GICD_TYPER2
       {
         *res = _read_gicd_header(reg);
         return true;
       }
 
-    if (x < 0x8)
+    if (reg == 0x10) // GICD_STATUS
+      {
+        *res = 0;
+        return true;
+      }
+
+    if (reg < 0x80) // < GICD_IGROUPR
       return true;
 
     if (read_multi_irq(reg, size, cpu_id, res))
@@ -1175,9 +1182,8 @@ protected:
         return true;
       }
 
-    unsigned x = reg >> 4;
-    if (x < 0x8)
-      return true; // all WO or not implemented
+    if (reg < 0x80) // < GICD_IGROUPR
+      return true; // all RO, WI, WO or not implemented
 
     return write_multi_irq(reg, size, value, cpu_id);
   }
