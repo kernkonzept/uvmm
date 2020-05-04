@@ -125,8 +125,8 @@ private:
 
     l4_uint64_t read_rd(Cpu *cif, unsigned reg, char size, bool last)
     {
-      (void) size;
       unsigned r32 = reg & ~3u;
+      using Ma = Vmm::Mem_access;
 
       switch (r32)
         {
@@ -139,9 +139,10 @@ private:
         case IIDR2:
           return IID2;
 
-        case TYPER:
-          return TYPE
-                 | cif->get_typer() | (last ? 0x10 : 0x00);
+        case TYPER: /* fall-through */
+        case TYPER + 4:
+          return Ma::read(TYPE | cif->get_typer() | (last ? 0x10 : 0x00),
+                          reg, size);
         case STATUSR:
           return status();
 
