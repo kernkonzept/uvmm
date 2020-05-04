@@ -89,10 +89,10 @@ public:
 }
 
 namespace std {
-    template<>
-    struct hash<Vmm::Arm::Sys_reg::Key> : hash<unsigned>
-    {
-      size_t operator () (Vmm::Arm::Sys_reg::Key k) const
-      { return hash<unsigned>()(k.k); }
-    };
+  template<>
+  struct hash<Vmm::Arm::Sys_reg::Key> : hash<unsigned>
+  {
+    size_t operator () (Vmm::Arm::Sys_reg::Key k) const
+    { return hash<unsigned>()(k.k); }
+  };
 }

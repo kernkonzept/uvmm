@@ -553,8 +553,7 @@ static void guest_mcrr_access_cp(Vcpu_ptr vcpu)
 
   try
     {
-      Key k = Key::cp_r_64(CP, hsr.mcrr_opc1(),
-                        hsr.mcr_crm());
+      Key k = Key::cp_r_64(CP, hsr.mcrr_opc1(), hsr.mcr_crm());
 
       auto r = guest->sys_reg(k);
       if (hsr.mcr_read())
