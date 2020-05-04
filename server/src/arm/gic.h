@@ -493,7 +493,7 @@ public:
   template<typename CPU_IF>
   bool inject(Irq const &irq, unsigned irq_id, unsigned src_cpu = 0);
 
-  /// Handle pending vGIC maintanance IRQs
+  /// Handle pending vGIC maintenance IRQs
   template<typename CPU_IF>
   void handle_maintenance_irq(unsigned /*current_cpu*/)
   { handle_eois<CPU_IF>(); }
@@ -1039,8 +1039,8 @@ private:
   }
 
   /**
-   * demux the access to the whole multi-IRQ register rnage of the
-   * GIC dirstributor.
+   * Demux the access to the whole multi-IRQ register range of the
+   * GIC distributor.
    */
   template<typename OP>
   bool _demux_per_irq(unsigned reg, unsigned size, unsigned cpu_id, OP &&op)
@@ -1068,7 +1068,7 @@ private:
 
   /**
    * Helper to access the IIDR register range of CoreSight GICs
-   * This hepler forwards to the iidr_read interface.
+   * This helper forwards to the iidr_read interface.
    * \retval true if `reg` is in the IIDR range of the device.
    * \retval false otherwise
    */
@@ -1084,7 +1084,7 @@ private:
   }
 
   /**
-   * Helper for reads in the GICD headrer area 0x00 - 0x10
+   * Helper for reads in the GICD header area 0x00 - 0x10
    */
   l4_uint32_t _read_gicd_header(unsigned reg)
   {
