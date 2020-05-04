@@ -56,7 +56,6 @@ SRC_CC-$(CONFIG_VDEV_PL011) += device/pl011.cc
 SRC_CC-arm-$(CONFIG_VDEV_OPTEE)   += device/optee.cc
 SRC_CC-arm64-$(CONFIG_VDEV_OPTEE) += device/optee.cc
 SRC_CC-$(CONFIG_VDEV_VIRTIO_POWER)   += device/virtio_input_power.cc
-SRC_CC-$(CONFIG_VDEV_VIRTIO_RNG) += device/virtio_rng.cc
 SRC_CC-$(CONFIG_VDEV_VIRQ) += device/virq.cc
 SRC_CC-$(CONFIG_VDEV_MMIO_PROXY) += device/mmio_proxy.cc
 SRC_CC-$(CONFIG_VDEV_SYSCTL) += device/sysctl.cc

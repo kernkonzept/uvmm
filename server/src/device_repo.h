@@ -65,16 +65,6 @@ public:
   std::vector<Dt_device>::const_iterator end() const
   { return _devices.end(); }
 
-  void boot_devices(Device_lookup *devs, Vdev::Device_tree dt)
-  {
-    for (auto &d : _devices)
-      {
-        auto *bootable = dynamic_cast<Vdev::Device_bootable *>(d.dev.get());
-        if (bootable)
-          bootable->boot_device(devs, dt, d.path.c_str());
-      }
-  }
-
 private:
   std::vector<Dt_device> _devices;
 };

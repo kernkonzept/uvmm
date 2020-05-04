@@ -112,9 +112,6 @@ public:
    */
   void scan_device_tree(Vdev::Device_tree dt);
 
-  void boot_devices(Vdev::Device_tree dt)
-  { _devices.boot_devices(this, dt); }
-
 private:
   bool add_virt_device(Vdev::Dt_node const &node);
   bool add_phys_device(Vdev::Dt_node const &node);
