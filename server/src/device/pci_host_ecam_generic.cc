@@ -388,18 +388,19 @@ private:
   void setup_device_bars(cxx::Ref_ptr<Vmm::Virt_bus> const &vbus,
                          Hw_pci_device *hw_dev) const
   {
+    // Disable any bar access
+    l4_uint32_t cmd_reg = 0;
+    L4Re::chksys(hw_dev->dev.cfg_read(Pci_hdr_command_offset, &cmd_reg, 16),
+                 "Read Command register of PCI device header.");
+    L4Re::chksys(hw_dev->dev.cfg_write(Pci_hdr_command_offset,
+                              cmd_reg & ~(Io_space_bit | Memory_space_bit), 16),
+                 "Write Command register of PCI device header (disable "
+                 "decode).");
+
     for (unsigned bar_offs = Pci_hdr_base_addr0_offset, i = 0;
          bar_offs <= Pci_hdr_base_addr5_offset; ++i)
       {
         Pci_cfg_bar &bar = hw_dev->bars[i];
-        // Disable any bar access
-        l4_uint32_t cmd_reg = 0;
-        L4Re::chksys(hw_dev->dev.cfg_read(Pci_hdr_command_offset, &cmd_reg, 16),
-                     "Read Command register of PCI device header.");
-        cmd_reg = cmd_reg & 0x3; // disable MMIO and IO accesses
-        L4Re::chksys(hw_dev->dev.cfg_write(Pci_hdr_command_offset, cmd_reg, 16),
-                     "Write Command register of PCI device header (disable "
-                     "decode).");
 
         // Read one bar configuration
         bar_offs = hw_dev->read_bar(bar_offs, &bar.io_addr, &bar.size,
@@ -411,10 +412,6 @@ private:
         // Initial map address is equal to io address
         bar.map_addr = bar.io_addr;
 
-        // Reenable bar access
-        L4Re::chksys(hw_dev->dev.cfg_write(Pci_hdr_command_offset, cmd_reg, 16),
-                     "Write Command register of PCI device header (enable "
-                     "decode).");
 
         info().printf("  bar[%u] addr=0x%llx size=0x%llx type=%s\n", i,
                       bar.io_addr, bar.size, Pci_cfg_bar::to_string(bar.type));
@@ -438,6 +435,11 @@ private:
             _vmm->add_mmio_device(region, ds_handler);
           }
       }
+
+    // Reenable bar access
+    L4Re::chksys(hw_dev->dev.cfg_write(Pci_hdr_command_offset, cmd_reg, 16),
+                 "Write Command register of PCI device header (enable "
+                 "decode).");
   }
 
   /**
