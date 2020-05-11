@@ -20,11 +20,11 @@ inline cxx::Ref_ptr<Virt_msix_table>
 make_virt_msix_table(cxx::Ref_ptr<Vdev::Mmio_ds_converter> &&con,
                      cxx::Ref_ptr<Vdev::Msi::Allocator> msi_alloc,
                      Vmm::Guest *vmm,
-                     unsigned devfn,
+                     Vdev::Pci::Devfn_address devfn,
                      unsigned num_entries,
                      cxx::Ref_ptr<Gic::Msix_controller> const &msix_ctrl)
 {
-  unsigned const src_id = 0x40000 | devfn;
+  unsigned const src_id = 0x40000 | devfn.io_compatible_msi_srcid_devfn();
 
   auto hdlr =
     make_device<Msix::Virt_msix_table>(std::move(con), msi_alloc,

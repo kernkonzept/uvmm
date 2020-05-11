@@ -33,13 +33,31 @@ struct Devfn_address
   {
     Dev_shift = 16,
     Mask = 0xffff,
+    Io_dev_shift = 0x3,
+    Io_dev_mask = 0xf8,
+    Io_fn_mask = 0x7,
   };
 
   Devfn_address(l4_uint32_t dev, l4_uint32_t func)
   { value = ((dev & Mask) << Dev_shift) | (func & Mask); }
 
-  l4_uint16_t fn() { return value & Mask; }
-  l4_uint16_t dev() { return (value >> Dev_shift) & Mask; }
+  l4_uint16_t fn() const { return value & Mask; }
+  l4_uint16_t dev() const { return (value >> Dev_shift) & Mask; }
+
+  /**
+   * Generate a devfn number which is compatible with the io expected format.
+   *
+   * io expects a devfn number in the lower eight bits of the srcid.
+   * See io/server/src/acpi/acpi.cc. (X86 only!)
+   *
+   * \note Not compatible with ARM source IDs.
+   */
+  l4_uint16_t io_compatible_msi_srcid_devfn() const
+  {
+    return static_cast<l4_uint16_t>(
+             ((dev() << Io_dev_shift) & Io_dev_mask)
+             | (fn() & Io_fn_mask));
+  }
 };
 
 struct Pci_cfg_bar

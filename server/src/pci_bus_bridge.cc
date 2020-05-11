@@ -78,7 +78,7 @@ register_msix_table_page(Hw_pci_device const &hwdev, unsigned bir,
     Vdev::Msix::make_virt_msix_table(std::move(con),
                                      cxx::static_pointer_cast<Msi::Allocator>(
                                        vbus),
-                                     vmm, hwdev.devfn.value, max_msis,
+                                     vmm, hwdev.devfn, max_msis,
                                      msix_ctrl);
 
   warn.printf("Register MSI-X MMIO region: [0x%lx, 0x%lx]\n",
