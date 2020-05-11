@@ -212,11 +212,13 @@ static int run(int argc, char *argv[])
   dt.set_command_line(cmd_line);
 
   if (dt.valid())
-    vm_instance.scan_device_tree(dt.get());
+    {
+      vm_instance.scan_device_tree(dt.get());
+      setup_kaslr_seed(dt);
+    }
 
   verify_cpu0_setup();
 
-  setup_kaslr_seed(dt);
   setup_ramdisk(ram_disk, dt, &ram_free_list, ram);
 
   // finally copy in the device tree
