@@ -32,6 +32,7 @@ enum Pci_command_register : l4_uint16_t
 {
   Io_space_bit = 1U,
   Memory_space_bit = 1U << 1,
+  Access_mask = Io_space_bit | Memory_space_bit,
   Bus_master_bit = 1U << 2,
   Interrupt_disable_bit = 1U << 10,
 };
