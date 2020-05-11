@@ -252,81 +252,149 @@ private:
 
   void parse_all_pci_bars(Devfn_address devfn, Hw_pci_device *hwdev)
   {
-    for (int i = 0; i < 5; i++)
-      parse_pci_bar(devfn.value, i, &hwdev->bars[i]);
+    unsigned index = 0;
+    while (index < 6)
+      index = parse_pci_bar(devfn.value, index, &hwdev->bars[index]);
   }
 
-  // TODO Handle 64-bit BARs
-  void parse_pci_bar(l4_uint32_t devfn, unsigned idx, Pci_cfg_bar *bar_cfg)
+  /*
+   * Read raw values of the address and size of a PCI BAR
+   *
+   * \param      devfn    PCI device function
+   * \param      index    PCI BAR index. Valid are 0-5
+   * \param[out] bar_addr The base address of the PCI bar
+   * \param[out] bar_size The size of the memory area as read from the BAR
+   *
+   * \pre IO and MMIO decoding has been disabled for this device.
+   *
+   * \note This function is not thread safe.
+   */
+  void read_bar_raw(l4_uint32_t devfn, unsigned index, l4_uint32_t *bar_addr,
+                    l4_uint32_t *bar_size)
+  {
+    assert(index <= 5);
+
+    // Reading the size of a PCI BAR:
+    // 1. Read original value
+    // 2. Write -1
+    // 3. Read value
+    // 4. Write original value
+    l4_uint32_t bar_offset = Pci_hdr_base_addr0_offset + index * 4;
+    L4Re::chksys(_io_hb.cfg_read(0, devfn, bar_offset, bar_addr, 32),
+                 "Read BAR register of PCI device header (org value).");
+    L4Re::chksys(_io_hb.cfg_write(0, devfn, bar_offset, 0xffffffffUL, 32),
+                 "Write BAR register of PCI device header (sizing).");
+    L4Re::chksys(_io_hb.cfg_read(0, devfn, bar_offset, bar_size, 32),
+                 "Read BAR register of PCI device header (size).");
+    L4Re::chksys(_io_hb.cfg_write(0, devfn, bar_offset, *bar_addr, 32),
+                 "Write BAR register of PCI device header (write back).");
+  }
+
+  /*
+   * Parse a PCI BAR. Returns the index of the next PCI BAR.
+   *
+   * \param      devfn    PCI device function
+   * \param      index    The index of the PCI BAR. Valid are 0-5
+   * \param[out] bar_cfg  Parsed information about the PCI BAR
+   * \retval              Index of the next PCI BAR
+   *
+   * \pre  bar_cfg needs to be initialized to zero.
+   * \note This function is not thread safe.
+   * \note This function does not check if the returned index is valid.
+   */
+  unsigned parse_pci_bar(l4_uint32_t devfn, unsigned index, Pci_cfg_bar *bar_cfg)
   {
     // disable decode in command register
-    // write ~0UL to BAR; then read back;
-    // clear bits 0 (IO bar) 0-3 (MEM BAR)
-    // logical negate and increment by one.
-    // NOTE: ignore upper 16bits in IO BARs
-
-    unsigned bar_offset = 0x10 + idx * 4;
-
-    l4_uint32_t bar = 0;
-    L4Re::chksys(_io_hb.cfg_read(0, devfn, bar_offset, &bar, 32),
-                 "Read BAR register of PCI device header.");
-
-    bool io_bar = bar & 0x1;
-
-    if (!io_bar && (bar & 0x6) == 0x4)
-      L4Re::chksys(-L4_ENOSYS, "No 64bit PCI BAR support!");
-
     l4_uint32_t cmd_reg = 0;
-    L4Re::chksys(_io_hb.cfg_read(0, devfn, Pci_hdr_command_offset, &cmd_reg, 16),
+    L4Re::chksys(_io_hb.cfg_read(0, devfn, Pci_hdr_command_offset, &cmd_reg,
+                                 16),
                  "Read Command register of PCI device header.");
 
-    cmd_reg = cmd_reg & 0x3; // disable MMIO and IO accesses
-
-    L4Re::chksys(_io_hb.cfg_write(0, devfn, Pci_hdr_command_offset, cmd_reg, 16),
+    // disable MMIO and IO accesses
+    L4Re::chksys(_io_hb.cfg_write(0, devfn, Pci_hdr_command_offset,
+                                  cmd_reg & ~0x3, 16),
                  "Write Command register of PCI device header (disable "
                  "decode).");
 
+    l4_uint32_t bar_orig, bar_orig_high;
+    l4_uint32_t bar_size_low, bar_size_high;
 
-    l4_uint32_t const bar_all_1 = 0xffffffffUL;
-    L4Re::chksys(_io_hb.cfg_write(0, devfn, bar_offset, bar_all_1, 32),
-                 "Write BAR register of PCI device header (sizing).");
+    read_bar_raw(devfn, index, &bar_orig, &bar_size_low);
 
-    l4_uint32_t bar_size = 0;
-    L4Re::chksys(_io_hb.cfg_read(0, devfn, bar_offset, &bar_size, 32),
-                 "Read BAR register of PCI device header (size).");
+    bool is_64 = (bar_orig & 0x6) == 0x4;
+    if (is_64)
+      {
+        ++index;
+        if (index > 5)
+          L4Re::throw_error(-L4_EINVAL, "Interpret PCI BAR 6 as 64-bit BAR.");
+        read_bar_raw(devfn, index, &bar_orig_high, &bar_size_high);
+      }
 
-    L4Re::chksys(_io_hb.cfg_write(0, devfn, bar_offset, bar, 32),
-                 "Write BAR register of PCI device header (write back).");
-
-    L4Re::chksys(_io_hb.cfg_write(0, devfn, Pci_hdr_command_offset, cmd_reg, 16),
+    // Reenable bar decode
+    L4Re::chksys(_io_hb.cfg_write(0, devfn, Pci_hdr_command_offset, cmd_reg,
+                                  16),
                  "Write Command register of PCI device header (enable "
                  "decode).");
 
-    warn().printf("bar size 0x%x\n", bar_size);
+    // size calculation according to PCI Spec Version 3, Chapter 6.2.5.1.
 
-    if (bar_size == 0)
-      return;
-
-    if (io_bar)
-        bar_size = ((~bar_size) & 0xffff) | 0x2;
-    else
-        bar_size = ~bar_size;// & ~0xf;
-
-    bar_cfg->size = ++bar_size;
-
-    warn().printf("bar size 0x%x\n", bar_size);
-    if (io_bar)
+    // 1. mask decoding information
+    // 2. invert
+    // 3. increment
+    l4_uint64_t bar_size = 0;
+    if (bar_orig & 1) // IO bar
       {
-        bar_cfg->addr = bar & ~0x3;
+        bar_size_low &= ~1;
+        bar_size_low  = ~bar_size_low;
+        bar_size_low += 1;
+        bar_size_low &= 0xff; // ignore upper 16 bit
+        bar_size = static_cast<l4_uint64_t>(bar_size_low);
+      }
+    else if ((bar_orig & 0x6) == 0) // MMIO32
+      {
+        bar_size_low &= ~0xf;
+        bar_size_low  = ~bar_size_low;
+        bar_size_low += 1;
+        bar_size = static_cast<l4_uint64_t>(bar_size_low);
+      }
+    else if (is_64) // MMIO64
+      {
+        bar_size |= static_cast<l4_uint64_t>(bar_size_high) << 32;
+        bar_size |= static_cast<l4_uint64_t>(bar_size_low);
+        bar_size &= ~0xf;
+        bar_size = ~bar_size;
+        bar_size += 1;
+      }
+    bar_cfg->size = bar_size;
+
+    // bar not used, advance to next one
+    if (!bar_size)
+      return index + 1;
+
+    if (bar_orig & 1) // IO
+      {
+        bar_cfg->addr = bar_orig & ~0x3;
         bar_cfg->type = Pci_cfg_bar::IO;
+        info().printf("PCI IO BAR, size = %lx, addr = %llx\n",
+                      bar_cfg->size, bar_cfg->addr);
       }
-    else if ((bar & 0x6) == 0) // 32bit
+    else if ((bar_orig & 0x6) == 0) // MMIO32
       {
-        bar_cfg->addr = bar & ~0x7;
+        bar_cfg->addr = bar_orig & ~0xf;
         bar_cfg->type = Pci_cfg_bar::MMIO32;
+        info().printf("PCI MMIO32 BAR, size = %lx, addr = %llx\n",
+                      bar_cfg->size, bar_cfg->addr);
       }
-    else if ((bar & 0x6) == 0x4) // 64bit
-      L4Re::chksys(-L4_ENOSYS, "No 64bit PCI BAR support!");
+    else if (is_64) // MMIO64
+      {
+        bar_cfg->addr = bar_orig & ~0xf;
+        bar_cfg->addr |= static_cast<l4_uint64_t>(bar_orig_high) << 32;
+        bar_cfg->type = Pci_cfg_bar::MMIO64;
+        info().printf("PCI MMIO64 BAR, size = %lx, addr = %llx\n",
+                      bar_cfg->size, bar_cfg->addr);
+      }
+
+    return index + 1;
   }
 
   //

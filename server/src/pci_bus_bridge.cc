@@ -96,7 +96,7 @@ register_msix_table_page(Hw_pci_device const &hwdev, unsigned bir,
  * \param vmm         Guest pointer.
  */
 static void
-register_msix_bar(Pci_cfg_bar *bar, l4_addr_t tbl_offset,
+register_msix_bar(Pci_cfg_bar const *bar, l4_addr_t tbl_offset,
                   L4::Cap<L4Re::Dataspace> io_ds, Vmm::Guest *vmm)
 {
   auto warn = Dbg(Dbg::Dev, Dbg::Warn, "PCI");
@@ -217,6 +217,7 @@ Pci_bus_bridge::init_dev_resources(Device_lookup *devs,
               }
 
             case Pci_cfg_bar::Type::MMIO32:
+            case Pci_cfg_bar::Type::MMIO64:
               {
                 auto region = Region::ss(addr, size, Vmm::Region_type::Vbus);
                 warn().printf("Register MMIO region: [0x%lx, 0x%lx]\n",
@@ -227,7 +228,6 @@ Pci_bus_bridge::init_dev_resources(Device_lookup *devs,
                 break;
               }
 
-            case Pci_cfg_bar::Type::MMIO64: break;
             default: break;
             }
 
