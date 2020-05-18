@@ -85,7 +85,7 @@ struct Hw_pci_device
   { memset(bars, 0, sizeof(bars)); }
 
   Devfn_address devfn;
-  Pci_cfg_bar bars[5];
+  Pci_cfg_bar bars[Pci_config_consts::Bar_num_max_type0];
   Pci_msix_cap msix_cap;
 };
 

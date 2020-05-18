@@ -171,25 +171,17 @@ Pci_bus_bridge::init_dev_resources(Device_lookup *devs,
   // memmap or iomap.
   for (auto &hwdev : _hwpci_devs)
     {
-      bool bars_used[5] = {false, false, false, false, false};
-
-      for (int i = 0; i < 5; ++i)
-        if (hwdev.bars[i].type != Pci_cfg_bar::Type::Unused)
-          bars_used[i] = true;
-
       auto bir = hwdev.msix_cap.tbl.bir();
-      assert(bir < 5);
+      assert(bir < Pci_config_consts::Bar_num_max_type0);
 
       register_msix_table_page(hwdev, bir, vmm, vbus, msix_ctrl);
 
       register_msix_bar(&hwdev.bars[bir], hwdev.msix_cap.tbl.offset(),
                         vbus->io_ds(), vmm);
 
-      bars_used[bir] = false;
-
-      for (int i = 0; i < 5; ++i)
+      for (int i = 0; i < Pci_config_consts::Bar_num_max_type0; ++i)
         {
-          if (!bars_used[i])
+          if (i == bir || hwdev.bars[i].type == Pci_cfg_bar::Type::Unused)
             continue;
 
           Guest_addr addr(hwdev.bars[i].addr);
@@ -230,8 +222,6 @@ Pci_bus_bridge::init_dev_resources(Device_lookup *devs,
 
             default: break;
             }
-
-          bars_used[i] = false;
         }
     }
 }
