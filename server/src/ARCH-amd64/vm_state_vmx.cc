@@ -73,6 +73,10 @@ Vmx_state::read_msr(unsigned msr, l4_uint64_t *value) const
     {
       switch (msr)
         {
+        case 0x8b: // IA32_BIOS_SIGN_ID
+        case 0x1a0: // IA32_MISC_ENABLE
+          *value = 0U;
+          break;
         case 0x3a: // IA32_FEATURE_CONTROL
           // Lock register so the guest does not try to enable anything.
           *value = 1U;
@@ -81,6 +85,21 @@ Vmx_state::read_msr(unsigned msr, l4_uint64_t *value) const
           *value = vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER);
           break;
 
+        /*
+         * Non-architectural MSRs known to be probed by Linux that can be
+         * safely ignored:
+         *   0xce // MSR_PLATFORM_INFO
+         *   0x33 // TEST_CTRL
+         *   0x34 // MSR_SMI_COUNT
+         *  0x140 // MISC_FEATURE_ENABLES
+         *  0x64e // MSR_PPERF
+         *  0x639 // MSR_PP0_ENERGY_STATUS
+         *  0x611 // MSR_PKG_ENERGY_STATUS
+         *  0x619 // MSR_DRAM_ENERGY_STATUS
+         *  0x641 // MSR_PP1_ENERGY_STATUS
+         *  0x64d // MSR_PLATFORM_ENERGY_COUNTER
+         *  0x606 // MSR_RAPL_POWER_UNIT
+         */
         default:
           return false;
         }
