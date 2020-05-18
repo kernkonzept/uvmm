@@ -31,6 +31,7 @@ register_msix_table_page(Hw_pci_device const &hwdev, unsigned bir,
                          cxx::Ref_ptr<Vmm::Virt_bus> vbus,
                          cxx::Ref_ptr<Gic::Msix_controller> const &msix_ctrl)
 {
+  assert(hwdev.has_msix);
   auto warn = Dbg(Dbg::Dev, Dbg::Warn, "PCI");
   unsigned max_msis = hwdev.msix_cap.ctrl.max_msis() + 1;
 
@@ -174,10 +175,13 @@ Pci_bus_bridge::init_dev_resources(Device_lookup *devs,
       auto bir = hwdev.msix_cap.tbl.bir();
       assert(bir < Pci_config_consts::Bar_num_max_type0);
 
-      register_msix_table_page(hwdev, bir, vmm, vbus, msix_ctrl);
+      if (hwdev.has_msix)
+        {
+          register_msix_table_page(hwdev, bir, vmm, vbus, msix_ctrl);
 
-      register_msix_bar(&hwdev.bars[bir], hwdev.msix_cap.tbl.offset(),
-                        vbus->io_ds(), vmm);
+          register_msix_bar(&hwdev.bars[bir], hwdev.msix_cap.tbl.offset(),
+                            vbus->io_ds(), vmm);
+        }
 
       for (int i = 0; i < Pci_config_consts::Bar_num_max_type0; ++i)
         {

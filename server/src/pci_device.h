@@ -68,6 +68,13 @@ enum Cap_ident : l4_uint8_t
   Msi_x = 0x11,
 };
 
+enum Pci_cap_mask : l4_uint8_t
+{
+  Next_cap = 0xfc, // Lowest two bits of the pointer to the
+                   // next capability are reserved
+  Cap_id   = 0xff, // Capability ID
+};
+
 enum
 {
   // see PCI Local Bus Specification V.3 (2004) Section 6.1

@@ -81,12 +81,13 @@ struct Pci_cfg_bar
 
 struct Hw_pci_device
 {
-  Hw_pci_device(Devfn_address df) : devfn(df)
+  Hw_pci_device(Devfn_address df) : devfn(df), has_msix(false)
   { memset(bars, 0, sizeof(bars)); }
 
   Devfn_address devfn;
   Pci_cfg_bar bars[Pci_config_consts::Bar_num_max_type0];
   Pci_msix_cap msix_cap;
+  bool has_msix;
 };
 
 /**
@@ -244,11 +245,14 @@ private:
           {
             parse_msix_cap(devfn.value, msix_cap_addr, &hwdev->msix_cap);
 
+            hwdev->has_msix = true;
+
             dbg().printf("DevFn 0x%x has an MSIX cap at 0x%x\n", devfn.value,
                          msix_cap_addr);
           }
         else
-          dbg().printf("Did not find an MSI-X capability for %x\n", devfn.value);
+          dbg().printf("Did not find an MSI-X capability for %x\n",
+                       devfn.value);
       }
 
   }
@@ -419,6 +423,16 @@ private:
   // *** PCI cap ************************************************************
   //
 
+  /*
+   * Walk capabilities list and return the first capability of cap_type (see
+   * PCI Spec. Version 3, Chapter 6.7). If none is found return 0.
+   *
+   * \param devfn     Device function to query
+   * \param cap_type  Capability type to retrieve
+   *
+   * \returns 0       If no capability was found.
+   *          >0      Pointer to the capability.
+   */
   unsigned get_capability(unsigned devfn, l4_uint8_t cap_type) const
   {
     unsigned val = 0;
@@ -440,29 +454,32 @@ private:
         return 0;
       }
 
-    if (val == 0)
+    l4_uint8_t next_cap = val & Pci_cap_mask::Next_cap;
+
+    if (next_cap == 0)
       {
-        dbg().printf("Capability pointer is zero.\n");
+        dbg().printf("get_capability: Capability pointer is zero.\n");
         return 0;
       }
 
-    l4_uint8_t next_cap = val & 0xff;
-
     while (!_io_hb.cfg_read(0, devfn, next_cap, &val, 16))
       {
-        l4_uint8_t cap_id = val & 0xff;
+        l4_uint8_t cap_id = val & Pci_cap_mask::Cap_id;
         dbg().printf("get_capability: found cap id 0x%x (cap addr 0x%x)\n",
                      cap_id, next_cap);
 
-        if(cap_id == cap_type)
+        if (cap_id == cap_type)
           return next_cap;
 
-        next_cap = (val >> 8) & 0xff;
+        next_cap = (val >> 8) & Pci_cap_mask::Next_cap;
+        if (!next_cap) // next pointer is zero -> end of list
+          break;
       }
 
-    dbg().printf("Failed to read next cap @ 0x%x\n", next_cap);
+    dbg().printf("get_capability: Did not find capability of type 0x%x "
+                 "(devfn=0x%x)\n", cap_type, devfn);
 
-    return false;
+    return 0;
   }
 
   /**
