@@ -357,9 +357,17 @@ public:
     }
   };
 
-  void inject_event(int event_num, Vmx_int_info_field::Int_type type)
+  enum Deliver_error_code : unsigned
   {
-    Vmx_int_info_field info(event_num, type);
+    No_error_code = 0,
+    Push_error_code = 1,
+  };
+
+  void inject_event(int event_num, Vmx_int_info_field::Int_type type,
+                    Deliver_error_code deliver_err = No_error_code,
+                    l4_uint32_t err_code = 0)
+  {
+    Vmx_int_info_field info(event_num, type, deliver_err);
 
     if (0)
       warn().printf(
@@ -367,6 +375,9 @@ public:
         event_num,
         l4_vm_vmx_field_ptr(_vmcs, L4VCPU_VMCS_VM_ENTRY_INTERRUPT_INFO),
         info.field);
+
+    if (deliver_err == Push_error_code)
+      vmx_write(L4VCPU_VMCS_VM_ENTRY_EXCEPTION_ERROR, err_code);
 
     vmx_write(L4VCPU_VMCS_VM_ENTRY_INTERRUPT_INFO, info.field);
     if (vmx_read(L4VCPU_VMCS_GUEST_ACTIVITY_STATE) == 1) // HLT
@@ -381,10 +392,18 @@ public:
     inject_event(irq, Int_type::External_interrupt);
   }
 
-  void inject_hw_exception(int exc_num)
+  /**
+   * Inject a hardware description into the guest.
+   *
+   * \param exec_num     Exception number.
+   * \param deliver_err  Deliver error code on the guest stack.
+   * \param err_code     Error code to deliver, if any.
+   */
+  void inject_hw_exception(int exc_num, Deliver_error_code deliver_err,
+                           l4_uint32_t err_code = 0)
   {
     using Int_type = Vmx_int_info_field::Int_type;
-    inject_event(exc_num, Int_type::Hardware_exception);
+    inject_event(exc_num, Int_type::Hardware_exception, deliver_err, err_code);
   }
 
   void unhalt() override
