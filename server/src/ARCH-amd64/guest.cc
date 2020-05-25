@@ -286,6 +286,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     // 0x7 EDX
     Ibrs_ibpb_bit = (1UL << 26),
     Stibp_bit = (1UL << 27),
+    Arch_capabilities_supported_bit = (1UL << 29), // IA32_ARCH_CAPABILITIES MSR
     Ssbd_bit = (1UL << 31),
 
     // AMD speculation control.
@@ -334,7 +335,8 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
       if (!rcx)
         {
           b &= ~(Invpcid_bit | Tsc_adjust);
-          d &= ~(Ibrs_ibpb_bit | Stibp_bit | Ssbd_bit);
+          d &= ~(Ibrs_ibpb_bit | Stibp_bit | Ssbd_bit
+                 | Arch_capabilities_supported_bit);
         }
       break;
 
