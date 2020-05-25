@@ -83,9 +83,13 @@ struct F : Factory
     auto msi_distr = devs->get_or_create_mc_dev(node);
     Dbg().printf("Msix controller %p\n", msi_distr.get());
 
+    auto cap = Vdev::get_cap<L4::Vcon>(node, "l4vmm,virtiocap",
+                                       L4Re::Env::env()->log());
+    if (!cap)
+      return nullptr;
+
     auto vmm = devs->vmm();
-    auto console = make_device<Virtio_console_pci>(devs->ram().get(),
-                                                   L4Re::Env::env()->log(),
+    auto console = make_device<Virtio_console_pci>(devs->ram().get(), cap,
                                                    msi_distr);
     if (console->init_irqs(devs, node) < 0)
       return nullptr;
