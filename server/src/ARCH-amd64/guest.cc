@@ -471,15 +471,21 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
     case Exit::Io_access:
       {
         auto qual = vms->vmx_read(L4VCPU_VMCS_EXIT_QUALIFICATION);
-        int qw = qual & 7;
+        unsigned qwidth = qual & 7;
+        bool is_read = qual & 8;
+        unsigned port = (qual >> 16) & 0xFFFFU;
 
-        Dbg(Dbg::Dev, Dbg::Trace).printf("IO @ guest with qual 0x%llx\n", qual);
-        if (((qual >> 16) & 0xFFFF) == 0xcfb)
+        Dbg(Dbg::Dev, Dbg::Trace)
+          .printf("VM exit: IO port access with exit qualification 0x%llx: "
+                  "%s port 0x%x\n",
+                  qual, is_read ? "read" : "write", port);
+
+        if (port == 0xcfb)
           Dbg(Dbg::Dev, Dbg::Trace)
             .printf(" 0xcfb access from ip: %lx\n", vms->ip());
 
         Mem_access::Width wd = Mem_access::Wd32;
-        switch(qw)
+        switch(qwidth)
           {
           // only 0,1,3 are valid values in the exit qualification.
           case 0: wd = Mem_access::Wd8; break;
@@ -487,7 +493,7 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
           case 3: wd = Mem_access::Wd32; break;
           }
 
-        return handle_io_access((qual >> 16) & 0xFFFF, qual & 8, wd, regs);
+        return handle_io_access(port, is_read, wd, regs);
       }
 
     // Ept_violation needs to be checked here, as handle_mmio needs a vCPU ptr,
