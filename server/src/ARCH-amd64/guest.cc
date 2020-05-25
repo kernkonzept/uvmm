@@ -554,6 +554,8 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
           warn().printf("Reading unsupported MSR 0x%lx\n", regs->cx);
           regs->ax = 0;
           regs->dx = 0;
+          vms->inject_hw_exception(13, Vmx_state::Push_error_code, 0);
+          return L4_EOK;
         }
 
       return Jump_instr;
@@ -564,7 +566,8 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
       else
         {
           warn().printf("Writing unsupported MSR 0x%lx\n", regs->cx);
-          return -L4_ENOSYS;
+          vms->inject_hw_exception(13, Vmx_state::Push_error_code, 0);
+          return L4_EOK;
         }
 
     case Exit::Virtualized_eoi:
