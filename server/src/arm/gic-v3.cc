@@ -89,7 +89,8 @@ private:
     {
       // as long as we have do 1 of N routing or LPI support
       // as well as no write pending bits
-      return 0;
+      // bit 4: ARE (affinity routing always enabled), see also GICD_TYPER.
+      return (1U << 4);
     }
 
     void ctlr(l4_uint32_t)
@@ -312,7 +313,11 @@ public:
 
   l4_uint32_t get_typer() const override
   {
-    return tnlines;
+    // CPUNumber: ARE always enabled, see also GICD_CTLR.
+    // IDBits:    Let's assume 10 (IDs 0-1019, 1020-1023 are reserved).
+    return tnlines
+           | (0 << 5)
+           | (9 << 19);
   }
 
   cxx::Ref_ptr<Vdev::Device>
