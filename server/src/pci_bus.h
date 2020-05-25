@@ -209,52 +209,69 @@ private:
     Max_devfn = Max_num_dev_functions * Max_bus_devs,
   };
 
+  // return true if there is a device, false if not
+  bool parse_pci_device_function(unsigned devnr, unsigned function)
+  {
+    l4_uint32_t val;
+    Devfn_address devfn(devnr, function);
+
+    int err =
+      _io_hb.cfg_read(0, devfn.value, Pci_hdr_vendor_id_offset, &val, 16);
+    if (err)
+      return false;
+
+    if (val == Pci_invalid_vendor_id)
+      return false;
+
+    // record BUS-DEV-FN
+    // record BAR resources
+    // parse MSI-X capability
+
+    _hwpci_devs.emplace_back(devfn);
+    Hw_pci_device *hwdev = &_hwpci_devs.back();
+    parse_all_pci_bars(devfn, hwdev);
+
+    unsigned msix_cap_addr = get_capability(devfn.value, Cap_ident::Msi_x);
+
+    if (msix_cap_addr != 0)
+      {
+        parse_msix_cap(devfn.value, msix_cap_addr, &hwdev->msix_cap);
+
+        hwdev->has_msix = true;
+
+        dbg().printf("DevFn 0x%x has an MSIX cap at 0x%x\n", devfn.value,
+                     msix_cap_addr);
+      }
+    else
+      dbg().printf("Did not find an MSI-X capability for %x\n", devfn.value);
+    return true;
+  }
+
   void iterate_pci_root_bus()
   {
-    dbg().printf("Iterating io PCI root bus\n");
+    dbg().printf("Parsing io PCI config space\n");
 
-    // TODO why am I not iterating over function numbers?
-    // Can ignore all function numbers after first zero function or if the
-    // device is not a multi-function device.
     for (unsigned devnr = 0; devnr < Max_bus_devs; ++devnr)
       {
-        l4_uint32_t val;
-        Devfn_address devfn(devnr, 0);
-
-        int err =
-          _io_hb.cfg_read(0, devfn.value, Pci_hdr_vendor_id_offset, &val, 16);
-        if (err)
-          continue;
-
-        if (val == Pci_invalid_vendor_id)
+        if (!parse_pci_device_function(devnr, 0))
           continue;
 
         _devfns.alloc_used_dev_num(devnr);
 
-        // record BUS-DEV-FN
-        // record BAR resources
-        // parse MSI-X capability
-
-        _hwpci_devs.emplace_back(devfn);
-        Hw_pci_device *hwdev = &_hwpci_devs.back();
-        parse_all_pci_bars(devfn, hwdev);
-
-        unsigned msix_cap_addr = get_capability(devfn.value, Cap_ident::Msi_x);
-
-        if (msix_cap_addr != 0)
+        Devfn_address devfn(devnr, 0);
+        l4_uint32_t type;
+        int err =
+          _io_hb.cfg_read(0, devfn.value, Pci_hdr_type_offset, &type, 8);
+        if (err)
+          continue;
+        if (type & Multi_func_bit)
           {
-            parse_msix_cap(devfn.value, msix_cap_addr, &hwdev->msix_cap);
+            dbg().printf("Multifunction device found. Parsing functions.\n");
 
-            hwdev->has_msix = true;
-
-            dbg().printf("DevFn 0x%x has an MSIX cap at 0x%x\n", devfn.value,
-                         msix_cap_addr);
+            for (unsigned fn = 1; fn < Max_num_dev_functions; ++fn)
+              parse_pci_device_function(devnr, fn);
           }
-        else
-          dbg().printf("Did not find an MSI-X capability for %x\n",
-                       devfn.value);
       }
-
   }
 
   void parse_msix_cap(unsigned devfn, unsigned msix_cap_addr, Pci_msix_cap *cap)
