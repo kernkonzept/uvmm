@@ -56,6 +56,57 @@ struct DBGDTRxX : Sys_reg_const<0>
   }
 };
 
+// Helper for logging read/write accesses to groups of known system registers
+// where the 'n' value is encoded by the 'CRm'.
+// Write accesses are not performed. Read accesses return 0.
+struct Sys_reg_log_n : Sys_reg
+{
+  Sys_reg_log_n(char const *name)
+  : name(name)
+  {}
+
+  void write(Vmm::Vcpu_ptr vcpu, Key k, l4_uint64_t v) override
+  {
+    Dbg(Dbg::Core, Dbg::Info)
+      .printf("%08lx: msr %s%d_EL1 = %08llx (ignored)\n",
+              vcpu->r.ip, name, (unsigned)k.crm(), v);
+  }
+
+  l4_uint64_t read(Vmm::Vcpu_ptr vcpu, Key k) override
+  {
+    Dbg(Dbg::Core, Dbg::Info)
+      .printf("%08lx: mrs %s%d_EL1 (read 0)\n",
+              vcpu->r.ip, name, (unsigned)k.crm());
+    return 0;
+  }
+
+  char const *name;
+};
+
+// Helper for logging read/write accesses to dedicated known system registers.
+// Write accesses are not performed. Read accesses return 0.
+struct Sys_reg_log : Sys_reg
+{
+  Sys_reg_log(char const *name)
+  : name(name)
+  {}
+
+  void write(Vmm::Vcpu_ptr vcpu, Key, l4_uint64_t v) override
+  {
+    Dbg(Dbg::Core, Dbg::Info)
+      .printf("%08lx: msr %s = %08llx (ignored)\n", vcpu->r.ip, name, v);
+  }
+
+  l4_uint64_t read(Vmm::Vcpu_ptr vcpu, Key) override
+  {
+    Dbg(Dbg::Core, Dbg::Info)
+      .printf("%08lx: mrs %s (read 0)\n", vcpu->r.ip, name);
+    return 0;
+  }
+
+  char const *name;
+};
+
 }
 
 Guest::Guest()
@@ -75,6 +126,32 @@ Guest::Guest()
   r = cxx::make_ref_obj<DBGDTRxX>();
   add_sys_reg_aarch32(14, 0, 0, 5, 0, r);
   add_sys_reg_aarch64( 2, 3, 0, 5, 0, r);
+
+  // Log miscellaneous debug / non-debug registers
+  r = cxx::make_ref_obj<Sys_reg_log_n>("DBGBVR");
+  for (unsigned i = 0; i < 16; ++i)
+    add_sys_reg_aarch64(2, 0, 0, i, 4, r);
+
+  r = cxx::make_ref_obj<Sys_reg_log_n>("DBGBCR");
+  for (unsigned i = 0; i < 16; ++i)
+    add_sys_reg_aarch64(2, 0, 0, i, 5, r);
+
+  r = cxx::make_ref_obj<Sys_reg_log_n>("DBGWVR");
+  for (unsigned i = 0; i < 16; ++i)
+    add_sys_reg_aarch64(2, 0, 0, i, 6, r);
+
+  r = cxx::make_ref_obj<Sys_reg_log_n>("DBGWCR");
+  for (unsigned i = 0; i < 16; ++i)
+    add_sys_reg_aarch64(2, 0, 0, i, 7, r);
+
+  r = cxx::make_ref_obj<Sys_reg_log>("OSLAR_EL1");
+  add_sys_reg_aarch64(2, 0, 1, 0, 4, r);
+
+  r = cxx::make_ref_obj<Sys_reg_log>("OSDLR_EL1");
+  add_sys_reg_aarch64(2, 0, 1, 3, 4, r);
+
+  r = cxx::make_ref_obj<Sys_reg_log>("PMUSERENR_EL0");
+  add_sys_reg_aarch64(3, 3, 9, 14, 0, r);
 }
 
 Guest *
@@ -655,14 +732,14 @@ static void guest_msr_access(Vcpu_ptr vcpu)
                (unsigned)hsr.msr_op2(),
                (l4_umword_t)hsr.raw());
       else
-        printf("%08lx: msr S%u_%u_C%u_C%u_%u, r%u (hsr=%08lx)\n",
+        printf("%08lx: msr S%u_%u_C%u_C%u_%u = %08lx (hsr=%08lx)\n",
                vcpu->r.ip,
                (unsigned)hsr.msr_op0(),
                (unsigned)hsr.msr_op1(),
                (unsigned)hsr.msr_crn(),
                (unsigned)hsr.msr_crm(),
                (unsigned)hsr.msr_op2(),
-               (unsigned)hsr.msr_rt(),
+               vcpu.get_gpr(hsr.msr_rt()),
                (l4_umword_t)hsr.raw());
 
       vcpu.jump_instruction();
