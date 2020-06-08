@@ -333,6 +333,24 @@ public:
     dev()->virtio_cfg()->irq_status = val;
   }
 
+  enum
+  {
+    Device_config_start = 0x100,
+  };
+
+  template<typename T>
+  void writeback_cache(T const *p)
+  {
+    l4_cache_clean_data((l4_addr_t)p, (l4_addr_t)p + sizeof(T));
+  }
+
+  template<typename T>
+  T *virtio_device_config()
+  {
+    return reinterpret_cast<T *>(  (l4_addr_t)dev()->virtio_cfg()
+                                 + Device_config_start);
+  }
+
 private:
   DEV *dev() { return static_cast<DEV *>(this); }
   DEV const *dev() const { return static_cast<DEV const *>(this); }
@@ -357,7 +375,8 @@ private:
       reinterpret_cast<l4_addr_t>(l4virtio_device_config(dev()->virtio_cfg()))
       + port;
 
-    Vmm::Mem_access::write_width(dev_cfg, val, wd);
+    if (Vmm::Mem_access::write_width(dev_cfg, val, wd) == L4_EOK)
+      dev()->virtio_pci_device_config_written();
   }
 
   unsigned _msi_table_idx_config = ::Vdev::Virtio_msix_no_vector;

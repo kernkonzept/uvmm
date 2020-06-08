@@ -33,6 +33,8 @@ public:
 
   Virtio::Event_connector_msix *event_connector() { return &_evcon; }
 
+  void virtio_pci_device_config_written() {}
+
 protected:
   cxx::Ref_ptr<Vmm::Mmio_device> get_mmio_bar_handler(unsigned) override
   {

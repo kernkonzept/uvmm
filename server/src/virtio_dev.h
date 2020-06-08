@@ -191,13 +191,14 @@ class Mmio_connector
 {
   enum { Device_config_start = 0x100 };
 
-protected:
+public:
   template<typename T>
   void writeback_cache(T const *p)
   {
     l4_cache_clean_data((l4_addr_t)p, (l4_addr_t)p + sizeof(T));
   }
 
+protected:
   template<typename T>
   T *virtio_device_config()
   {

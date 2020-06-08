@@ -66,6 +66,7 @@ SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_OPTEE) += device/optee.cc
 SRC_CC_arm-l4f-$(CONFIG_UVMM_VDEV_PL031)   += device/arm/pl031.cc
 SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_PL031) += device/arm/pl031.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_POWER)   += device/virtio_input_power.cc
+SRC_CC-amd64-$(CONFIG_UVMM_VDEV_VIRTIO_POWER) += device/virtio_input_power_pci.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_VIRQ) += device/virq.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_MMIO_PROXY) += device/mmio_proxy.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_SYSCTL) += device/sysctl.cc
