@@ -54,7 +54,7 @@ public:
   void add_source(char const *fname);
 
   /**
-   * Set the command line paramter in the device tree.
+   * Set the command line parameter in the device tree.
    *
    * \param cmd_line  Command line to pass to the device tree.
    *

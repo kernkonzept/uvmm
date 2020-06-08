@@ -73,7 +73,7 @@ private:
   }
 
   // I can use RW MMIO memory, as I am the endpoint for the guest configuration
-  // of the MSIs and evaluate the entries every time, an event should be send.
+  // of the MSIs and evaluate the entries every time, an event should be sent.
   cxx::Ref_ptr<Ds_handler> make_ram_ds_handler(l4_size_t size,
                                                unsigned long flags)
   {

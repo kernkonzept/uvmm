@@ -15,7 +15,7 @@ namespace Vdev {
 /**
  * MSR device handling read access to IA32_BIOS_SIGN_ID.
  *
- * This MSR provides the currenlty loaded microcode revision in bit [32:63].
+ * This MSR provides the currently loaded microcode revision in bit [32:63].
  * As MSR access is a priviledged instruction this data can only be read with
  * support from the kernel. By default, the kernel provides the relevant 32
  * bits of IA32_BIOS_SIGN_ID in the last user_data register of the vCPU state.
