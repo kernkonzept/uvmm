@@ -21,6 +21,7 @@
 
 static cxx::Static_container<Vmm::Guest> guest;
 Acpi::Acpi_device_hub *Acpi::Acpi_device_hub::_hub;
+Acpi::Facs_storage *Acpi::Facs_storage::_facs_storage;
 
 namespace {
 
@@ -181,14 +182,13 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel,
 void
 Guest::prepare_platform(Vdev::Device_lookup *devs)
 {
-  auto cpus = devs->cpus();
-  _cpus = cpus;
-  _icr_handler->register_cpus(cpus);
-  unsigned const max_cpuid = cpus->max_cpuid();
+  _cpus = devs->cpus();
+  _icr_handler->register_cpus(_cpus);
+  unsigned const max_cpuid = _cpus->max_cpuid();
   _ptw = cxx::make_ref_obj<Pt_walker>(devs->ram(), get_max_physical_address_bit());
   for (unsigned id = 0; id <= max_cpuid; ++id)
     {
-      auto cpu = cpus->cpu(id);
+      auto cpu = _cpus->cpu(id);
       cpu->powerup_cpu();
 
       Vcpu_ptr vcpu = cpu->vcpu();
@@ -204,12 +204,12 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
       _clocks[id].start_timer_thread(id, phys_cpu_id);
     }
 
-  register_msr_device(Vdev::make_device<Vcpu_msr_handler>(cpus.get()));
+  register_msr_device(Vdev::make_device<Vcpu_msr_handler>(_cpus.get()));
   register_msr_device(
-    Vdev::make_device<Vdev::Microcode_revision>(cpus->vcpu(0)));
+    Vdev::make_device<Vdev::Microcode_revision>(_cpus->vcpu(0)));
 
   Acpi::Tables acpi_tables(devs->ram());
-  acpi_tables.write_to_guest(cpus->max_cpuid() + 1);
+  acpi_tables.write_to_guest(_cpus->max_cpuid() + 1);
 }
 
 void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,

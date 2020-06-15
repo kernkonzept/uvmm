@@ -25,6 +25,7 @@
 #include "cpu_dev_array.h"
 #include "cpu_dev.h"
 #include "virt_lapic.h"
+#include "mem_types.h"
 
 extern "C" {
 #include "platform/acenv.h"
@@ -97,6 +98,42 @@ public:
 };
 
 /**
+ * Singleton for access to the FACS table.
+ *
+ * Used by ACPI platform to acquire the wakeup vector and zeropage to reserve
+ * the FACS location in guest memory in the e820 map.
+ */
+class Facs_storage
+{
+public:
+  static Facs_storage *get()
+  {
+    if (!_facs_storage)
+      _facs_storage = new Facs_storage();
+    return _facs_storage;
+  }
+
+  void set_addr(ACPI_TABLE_FACS *table) { _facs = table; }
+  void set_gaddr(l4_addr_t gaddr) { _gfacs = Vmm::Guest_addr(gaddr); }
+  l4_uint32_t waking_vector() const { return _facs->FirmwareWakingVector; }
+  Vmm::Region mem_region() const
+  {
+    assert(_gfacs.get() != 0);
+
+    return Vmm::Region::ss(_gfacs, sizeof(ACPI_TABLE_FACS),
+                           Vmm::Region_type::Ram);
+  }
+
+private:
+  Facs_storage() = default;
+  ~Facs_storage() = default;
+
+  static Facs_storage *_facs_storage;
+  ACPI_TABLE_FACS *_facs;
+  Vmm::Guest_addr _gfacs;
+};
+
+/**
  * ACPI control.
  *
  * Manage the creation of ACPI tables in guest memory.
@@ -121,7 +158,8 @@ class Tables
     Fadt_size = sizeof(ACPI_TABLE_FADT),
     Ioapic_size = sizeof(ACPI_MADT_IO_APIC),
     Lapic_size = sizeof(ACPI_MADT_LOCAL_APIC),
-    Madt_basic_size = sizeof(ACPI_TABLE_MADT)
+    Madt_basic_size = sizeof(ACPI_TABLE_MADT),
+    Facs_size = sizeof(ACPI_TABLE_FACS)
   };
 
 public:
@@ -153,7 +191,8 @@ public:
     l4_addr_t const rsdt = l4_round_size(rsdp + Rsdp_size, 4);
     l4_addr_t const fadt = l4_round_size(rsdt + Rsdt_size, 4);
     l4_addr_t const madt = l4_round_size(fadt + Fadt_size, 4);
-    l4_addr_t const dsdt = l4_round_size(madt + madt_size, 4);
+    l4_addr_t const facs = l4_round_size(madt + madt_size, 4);
+    l4_addr_t const dsdt = l4_round_size(facs + Facs_size, 4);
     // we allow the dsdt to take up the rest of the page
     size_t dsdt_max = L4_PAGESIZE - (dsdt - rsdp);
 
@@ -169,8 +208,9 @@ public:
 
     write_rsdp(reinterpret_cast<ACPI_TABLE_RSDP *>(rsdp), rsdt);
     write_rsdt(reinterpret_cast<ACPI_TABLE_RSDT *>(rsdt), madt, fadt);
-    write_fadt(reinterpret_cast<ACPI_TABLE_FADT *>(fadt), dsdt);
+    write_fadt(reinterpret_cast<ACPI_TABLE_FADT *>(fadt), dsdt, facs);
     write_madt(reinterpret_cast<ACPI_TABLE_MADT *>(madt), cpus);
+    write_facs(reinterpret_cast<ACPI_TABLE_FACS *>(facs));
     write_dsdt(reinterpret_cast<ACPI_TABLE_HEADER *>(dsdt), dsdt_max);
   }
 
@@ -302,15 +342,29 @@ private:
   }
 
   /**
+   * Write a Firmware ACPI Control Structure (FACS).
+   */
+  void write_facs(ACPI_TABLE_FACS *t)
+  {
+    memcpy(t->Signature, ACPI_SIG_FACS, ACPI_NAMESEG_SIZE);
+    t->Length = Facs_size;
+    t->Version = 2;
+    // other fields written by OSPM or should be zero.
+
+    Facs_storage::get()->set_addr(t);
+  }
+
+  /**
    * Write a Fixed ACPI Description Table (FADT).
    *
    * Table providing fixed hardware information as defined in section 5.2.8 of
    * the ACPI Specification.
    *
    * \param t     Pointer to the destination.
-   * \param dsdt  Address of the DSDT.
+   * \param dsdt_addr  Address of the DSDT.
+   * \param facs_addr  Address of the FACS.
    */
-  void write_fadt(ACPI_TABLE_FADT *t, l4_addr_t dsdt_addr)
+  void write_fadt(ACPI_TABLE_FADT *t, l4_addr_t dsdt_addr, l4_addr_t facs_addr)
   {
     auto header = &(t->Header);
     write_header(header, ACPI_SIG_FADT, Fadt_size);
@@ -327,6 +381,9 @@ private:
 
     t->Dsdt = acpi_phys_addr(dsdt_addr);
     t->XDsdt = 0; // For now we don't implement the extended DSDT.
+    t->Facs = acpi_phys_addr(facs_addr);
+    t->XFacs = 0;
+    Facs_storage::get()->set_gaddr(t->Facs);
 
     // How to pick the ID?
     t->HypervisorId = 0;

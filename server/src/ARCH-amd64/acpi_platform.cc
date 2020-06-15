@@ -11,6 +11,7 @@
 namespace Acpi {
 
 /**
+ * \file
  * Acpi platform support
  *
  * This implements minimal Acpi command support. Enough that Linux believes
@@ -41,6 +42,7 @@ private:
     Acpi_enable     = 0xf2,
     Acpi_disable    = 0xf1,
     Acpi_shutdown   = 0x7,
+    Acpi_suspend    = 0x6,
     Reboot          = 0x4,
   };
 
@@ -108,18 +110,25 @@ public:
    */
   size_t amend_dsdt(void *buf, size_t max_size) const override
   {
-    unsigned char dsdt_S5 [] =
+    // _S3 == suspend to ram
+    // _S5 == shutdown
+    unsigned char dsdt_S3S5 [] =
     {
-      0x08, 0x5F, 0x53, 0x35, 0x5F, 0x12, 0x08, 0x04,
+      0x08, 0x5F, 0x53, '3', 0x5F, 0x12, 0x08, 0x04,
+      0x0A, Command_values::Acpi_suspend,
+      0x0A, Command_values::Acpi_suspend,
+      0x00, 0x00,
+      0x08, 0x5F, 0x53, '5', 0x5F, 0x12, 0x08, 0x04,
       0x0A, Command_values::Acpi_shutdown,
       0x0A, Command_values::Acpi_shutdown,
       0x00, 0x00,
     };
-    size_t size = sizeof(dsdt_S5);
+
+    size_t size = sizeof(dsdt_S3S5);
     if (max_size < size)
       L4Re::throw_error(-L4_ENOMEM,
                         "Not enough space in DSDT");
-    memcpy(buf, reinterpret_cast<void*>(dsdt_S5), size);
+    memcpy(buf, reinterpret_cast<void*>(dsdt_S3S5), size);
     return size;
   }
 
@@ -166,12 +175,31 @@ public:
    */
   void handle_pm1a_control(l4_uint32_t value)
   {
-    if (value & (1 << 13)) // SLP_EN
-      if ((value & (7 << 10)) >> 10 == Acpi_shutdown)
-        {
-          trace().printf("Guest requested power off. Bye\n");
-          _vmm->shutdown(Vmm::Guest::Shutdown);
-        }
+    enum
+    {
+      Slp_enable = 1 << 13,
+      Slp_type_shutdown = Acpi_shutdown << 10,
+      Slp_type_suspend = Acpi_suspend << 10,
+      Slp_type_mask = 0x7 << 10,
+    };
+    static_assert((Slp_type_shutdown & Slp_type_mask) == Slp_type_shutdown,
+                  "ACPI platform: Sleep type shutdown within field bounds");
+    static_assert((Slp_type_suspend & Slp_type_mask) == Slp_type_suspend,
+                  "ACPI platform: Sleep type suspend within field bounds");
+
+    if (value & Slp_enable)
+      {
+        if ((value & Slp_type_mask) == Slp_type_shutdown)
+          {
+            trace().printf("Guest requested power off. Bye\n");
+            _vmm->shutdown(Vmm::Guest::Shutdown);
+          }
+        else if ((value & Slp_type_mask) == Slp_type_suspend)
+          {
+            trace().printf("System suspend requested\n");
+            _vmm->suspend(Facs_storage::get()->waking_vector());
+          }
+      }
   }
 
   /**
@@ -257,6 +285,7 @@ public:
 
 private:
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "Acpi_platform"); }
+  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "Acpi_platform"); }
 
   Vmm::Guest *_vmm;
   Vmm::Irq_edge_sink _sci;

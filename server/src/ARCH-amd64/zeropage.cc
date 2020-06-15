@@ -8,6 +8,7 @@
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 #include "zeropage.h"
+#include "acpi.h"
 
 namespace Vmm {
 
@@ -38,6 +39,10 @@ void Zeropage::cfg_e820(Vm_ram *ram)
       add_e820_entry(r.vm_start().get(), r.size(), E820_ram);
     last_addr = r.vm_start().get() + r.size();
   });
+
+  auto facs = Acpi::Facs_storage::get()->mem_region();
+  add_e820_entry(facs.start.get(), facs.end - facs.start + 1,
+                 E820_reserved);
 
   // e820 memory map: Linux expects at least two entries to be present to
   // qualify as a e820 map. From our side, the second entry is currently

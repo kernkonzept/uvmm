@@ -114,6 +114,27 @@ public:
 
   void run(cxx::Ref_ptr<Cpu_dev_array> const &cpus);
 
+  void suspend(l4_addr_t wake_vector)
+  {
+    if (!_pm->suspend())
+      {
+        warn().printf("System suspend not possible. Waking up immediately.\n");
+        return;
+      }
+
+    /* Go to sleep */
+    wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+    /* Back alive */
+    _pm->resume();
+
+    auto vcpu = _cpus->cpu(0)->vcpu();
+    vcpu.vm_state()->init_state();
+    vcpu.vm_state()->setup_real_mode(wake_vector);
+    vcpu->r.sp = 0;
+    vcpu->r.ip = wake_vector;
+    Dbg().printf("Starting CPU %u on EIP 0x%lx\n", 0, wake_vector);
+  }
+
   void handle_entry(Vcpu_ptr vcpu);
 
   Gic::Virt_lapic *lapic(Vcpu_ptr vcpu)
