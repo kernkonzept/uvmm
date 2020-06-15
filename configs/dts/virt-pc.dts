@@ -72,6 +72,12 @@
           interrupts = <0>;
         };
 
+        acpi_platform {
+          compatible = "virt-acpi";
+          interrupt-parent = <&PIC>;
+          interrupts = <9>;
+        };
+
         rtc {
             compatible = "virt-rtc";
             reg = <0x0 0x0 0x0 0x0>;

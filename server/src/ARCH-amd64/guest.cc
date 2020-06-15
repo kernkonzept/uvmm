@@ -22,6 +22,7 @@
 #include "acpi.h"
 
 static cxx::Static_container<Vmm::Guest> guest;
+Acpi::Acpi_device_hub *Acpi::Acpi_device_hub::_hub;
 
 namespace Vmm {
 

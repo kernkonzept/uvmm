@@ -18,6 +18,7 @@
 
 #include <l4/cxx/utils>
 #include <consts.h>
+#include <vector>
 
 #include "debug.h"
 #include "guest.h"
@@ -36,6 +37,64 @@ namespace Acpi
 static Dbg info(Dbg::Dev, Dbg::Info, "ACPI");
 static Dbg warn(Dbg::Dev, Dbg::Warn, "ACPI");
 static Dbg trace(Dbg::Dev, Dbg::Trace, "ACPI");
+
+class Tables;
+class Acpi_device;
+/**
+ * Registry of devices that need to insert information into Acpi tables.
+ *
+ * Upon Uvmm startup devices will be created from the device tree. These can
+ * register themselves here. The Acpi::Tables class will then call the
+ * Acpi_device functions of these devices to fill the Acpi tables. It will
+ * also delete the Acpi_device_hub after use.
+ */
+class Acpi_device_hub
+{
+  friend class Tables;
+public:
+  static void register_device(Acpi_device const *dev)
+  { get()->_devices.push_back(dev); }
+
+private:
+  static Acpi_device_hub *get()
+  {
+    if (!_hub)
+      _hub = new Acpi_device_hub();
+    return _hub;
+  }
+
+  std::vector<Acpi_device const*> const &devices() const
+  {
+    return _devices;
+  }
+
+  static void destroy()
+  {
+    if (_hub)
+      delete _hub;
+    _hub = nullptr;
+  }
+
+  Acpi_device_hub() = default;
+  ~Acpi_device_hub() = default;
+  static Acpi_device_hub *_hub;
+  std::vector<Acpi_device const*> _devices;
+};
+
+/**
+ * Devices that must register with Acpi shall implement this interface.
+ */
+class Acpi_device
+{
+public:
+  explicit Acpi_device()
+  {
+    Acpi_device_hub::register_device(this);
+  }
+
+  virtual void amend_fadt(ACPI_TABLE_FADT *) const {};
+  virtual size_t amend_dsdt(void *, size_t) const { return 0; };
+};
 
 /**
  * ACPI control.
@@ -69,13 +128,18 @@ public:
   /**
    * ACPI control structure.
    *
-   * \param ram Guest RAM.
+   * \param ram  Guest RAM.
    */
   Tables(cxx::Ref_ptr<Vmm::Vm_ram> ram)
   {
     info.printf("Initialize ACPI tables.\n");
     _dest_addr = ram->guest2host<l4_addr_t>(Vmm::Guest_addr(Phys_start_addr));
     _ram = ram;
+  }
+
+  ~Tables()
+  {
+    Acpi_device_hub::destroy();
   }
 
   /**
@@ -90,6 +154,8 @@ public:
     l4_addr_t const fadt = l4_round_size(rsdt + Rsdt_size, 4);
     l4_addr_t const madt = l4_round_size(fadt + Fadt_size, 4);
     l4_addr_t const dsdt = l4_round_size(madt + madt_size, 4);
+    // we allow the dsdt to take up the rest of the page
+    size_t dsdt_max = L4_PAGESIZE - (dsdt - rsdp);
 
     auto acpi_mem =
       Vmm::Region::ss(Vmm::Guest_addr(Phys_start_addr),
@@ -97,11 +163,15 @@ public:
     // Throws an exception if the ACPI memory region isn't within guest RAM.
     _ram->guest2host<l4_addr_t>(acpi_mem);
 
+    // Clear memory because we do not rely on the DS provider to do this for
+    // us, and we must not have spurious values in Acpi tables.
+    memset(reinterpret_cast<void *>(rsdp), 0, dsdt_max);
+
     write_rsdp(reinterpret_cast<ACPI_TABLE_RSDP *>(rsdp), rsdt);
     write_rsdt(reinterpret_cast<ACPI_TABLE_RSDT *>(rsdt), madt, fadt);
     write_fadt(reinterpret_cast<ACPI_TABLE_FADT *>(fadt), dsdt);
     write_madt(reinterpret_cast<ACPI_TABLE_MADT *>(madt), cpus);
-    write_dsdt(reinterpret_cast<ACPI_TABLE_HEADER *>(dsdt));
+    write_dsdt(reinterpret_cast<ACPI_TABLE_HEADER *>(dsdt), dsdt_max);
   }
 
 private:
@@ -175,8 +245,6 @@ private:
    */
   void write_header(ACPI_TABLE_HEADER *h, char const *sig, l4_uint32_t len)
   {
-    memset(reinterpret_cast<void *>(h), 0, static_cast<size_t>(len));
-
     memcpy(h->Signature, sig, ACPI_NAMESEG_SIZE);
     h->Length = len;
     h->Revision = 0;
@@ -250,9 +318,6 @@ private:
     // Emulate ACPI 6.3.
     t->Header.Revision = 6;
     t->MinorRevision = 3;
-    t->SmiCommand = 0;
-    t->AcpiEnable = 0;
-    t->AcpiDisable = 0;
 
     // Switching on Hardware-Reduced ACPI has the positive effect of
     // eliminating a lot of legacy features we do not implement.
@@ -265,6 +330,10 @@ private:
 
     // How to pick the ID?
     t->HypervisorId = 0;
+
+    std::vector<Acpi_device const*> const &devs = Acpi_device_hub::get()->devices();
+    for (auto const &d: devs)
+      d->amend_fadt(t);
 
     compute_checksum(header);
   }
@@ -322,14 +391,25 @@ private:
   /**
    * Write Differentiated System Description Table (DSDT).
    *
-   * \param t  Pointer to the destination.
+   * \param t         Pointer to the destination.
+   * \param max_size  Maximum size this table can use.
    *
    * XXX stub implementation, add actual device info.
    * Defined in section 5.2.11.1 of the ACPI Specification.
    */
-  void write_dsdt(ACPI_TABLE_HEADER *t)
+  void write_dsdt(ACPI_TABLE_HEADER *t, size_t max_size)
   {
-    write_header(t, ACPI_SIG_DSDT, Header_size);
+    size_t dsdt_size = Header_size;
+    void *ptr = reinterpret_cast<void*>(reinterpret_cast<l4_addr_t>(t)
+                                        + Header_size);
+    std::vector<Acpi_device const*> const &devs = Acpi_device_hub::get()->devices();
+    for (auto const &d: devs)
+      {
+        size_t s = d->amend_dsdt(ptr, max_size - dsdt_size);
+        dsdt_size += s;
+        ptr = reinterpret_cast<void *>(reinterpret_cast<l4_addr_t>(ptr) + s);
+      }
+    write_header(t, ACPI_SIG_DSDT, dsdt_size);
     compute_checksum(t);
   }
 
