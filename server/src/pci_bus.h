@@ -223,13 +223,9 @@ private:
     if (val == Pci_invalid_vendor_id)
       return false;
 
-    // record BUS-DEV-FN
-    // record BAR resources
-    // parse MSI-X capability
-
     _hwpci_devs.emplace_back(devfn);
     Hw_pci_device *hwdev = &_hwpci_devs.back();
-    parse_all_pci_bars(devfn, hwdev);
+    parse_all_pci_bars(hwdev);
 
     unsigned msix_cap_addr = get_capability(devfn.value, Cap_ident::Msi_x);
 
@@ -289,11 +285,11 @@ private:
                  "Read HW PCI device MSI-X cap pba.");
   }
 
-  void parse_all_pci_bars(Devfn_address devfn, Hw_pci_device *hwdev)
+  void parse_all_pci_bars(Hw_pci_device *hwdev)
   {
     unsigned index = 0;
     while (index < 6)
-      index = parse_pci_bar(devfn.value, index, &hwdev->bars[index]);
+      index = parse_pci_bar(hwdev->devfn.value, index, &hwdev->bars[index]);
   }
 
   /*
