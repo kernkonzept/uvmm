@@ -307,8 +307,8 @@
  * Using the uvmm monitor interface
  * --------------------------------
  *
- * Uvmm implements an interface with which parts of the guests state can be
- * queried and manipulated at runtime. This monitor interface needs to enabled
+ * Uvmm implements an interface with which parts of the guest's state can be
+ * queried and manipulated at runtime. This monitor interface needs to be enabled
  * during compilation as well as during startup of uvmm. This is described in
  * detail below.
  *
@@ -330,7 +330,7 @@
  * - `mon=true` (default): The monitor interface is enabled but no server
  *                         implementing the client side of the monitor interface
  *                         is started. The monitor interface can still be
- *                         utilized via `con` but no readline functionality will
+ *                         utilized via `cons` but no readline functionality will
  *                         be available.
  *
  * - `mon='some_binary'`: If a string is passed as the value of `mon`, the
@@ -348,7 +348,7 @@
  *
  * ### Using the monitor interface
  *
- * If the monitor interface was enabled you can connect to it via `con` under
+ * If the monitor interface was enabled you can connect to it via `cons` under
  * the name `mon<n>` where `<n>` is a unique integer for every uvmm instance
  * that is started with the monitor interface enabled (numbered starting from
  * one in order of corresponding `vmm.start_vm` calls). If `mon='uvmm_cli'` was
@@ -364,7 +364,7 @@
  * ### Using the guest debugger
  *
  * The guest debugger provides monitoring functionality akin to a very
- * bare-bones GDB interface, e.g. guest RAM and page table dumping,
+ * bare-bone GDB interface, e.g. guest RAM and page table dumping,
  * breakpointing and single stepping. Additional functionality might be added in
  * the future.
  *
