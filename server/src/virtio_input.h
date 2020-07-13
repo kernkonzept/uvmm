@@ -60,8 +60,8 @@ protected:
   Virtio::Virtqueue _vqs[Input_queue_num];
 
 public:
-  Virtio_input(Vmm::Vm_ram *iommu)
-  : Virtio::Dev(iommu, 0x44, L4VIRTIO_ID_INPUT)
+  Virtio_input(Vmm::Vm_ram *ram)
+  : Virtio::Dev(ram, 0x44, L4VIRTIO_ID_INPUT)
   {
     Features feat(0);
     feat.ring_indirect_desc() = true;

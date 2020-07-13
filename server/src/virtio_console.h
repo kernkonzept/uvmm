@@ -74,8 +74,8 @@ public:
     {}
   };
 
-  Virtio_console(Vmm::Vm_ram *iommu, L4::Cap<L4::Vcon> con)
-  : Virtio::Dev(iommu, 0x44, L4VIRTIO_ID_CONSOLE),
+  Virtio_console(Vmm::Vm_ram *ram, L4::Cap<L4::Vcon> con)
+  : Virtio::Dev(ram, 0x44, L4VIRTIO_ID_CONSOLE),
     _con(con)
   {
     Features feat(0);
@@ -298,9 +298,9 @@ class Virtio_console_mmio
   public Virtio::Mmio_connector<Virtio_console_mmio>
 {
 public:
-  Virtio_console_mmio(Vmm::Vm_ram *iommu,
+  Virtio_console_mmio(Vmm::Vm_ram *ram,
                       L4::Cap<L4::Vcon> con = L4Re::Env::env()->log())
-  : Virtio_console(iommu, con)
+  : Virtio_console(ram, con)
   {}
 
   Virtio::Event_connector_irq *event_connector() { return &_evcon; }

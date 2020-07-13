@@ -40,8 +40,8 @@ class Virtio_input_power_mmio
                                         Virtio_input_power_mmio>;
 
 public:
-  Virtio_input_power_mmio(Vmm::Vm_ram *iommu, L4::Cap<L4::Vcon> con)
-  : Virtio_input(iommu), _con(con)
+  Virtio_input_power_mmio(Vmm::Vm_ram *ram, L4::Cap<L4::Vcon> con)
+  : Virtio_input(ram), _con(con)
   {}
 
   int init_irqs(Vdev::Device_lookup *devs, Vdev::Dt_node const &self)

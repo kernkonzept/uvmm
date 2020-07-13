@@ -24,9 +24,9 @@ class Virtio_console_pci
   public Virtio::Pci_connector<Virtio_console_pci>
 {
 public:
-  Virtio_console_pci(Vmm::Vm_ram *iommu, L4::Cap<L4::Vcon> con,
+  Virtio_console_pci(Vmm::Vm_ram *ram, L4::Cap<L4::Vcon> con,
                      cxx::Ref_ptr<Gic::Msix_controller> distr)
-  : Virtio_console(iommu, con),
+  : Virtio_console(ram, con),
     Virtio_device_pci<Virtio_console_pci>(),
     Virtio::Pci_connector<Virtio_console_pci>(),
     _evcon(distr)
