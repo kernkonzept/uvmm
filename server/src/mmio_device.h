@@ -51,7 +51,7 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    * \return true if there is a superpage containing the address
    *                 inside the region
    */
-  inline bool sp_in_range(l4_addr_t addr, l4_addr_t start, l4_addr_t end)
+  inline bool sp_in_range(l4_addr_t addr, l4_addr_t start, l4_addr_t end) const
 
   {
     auto superpage = l4_trunc_size(addr, L4_SUPERPAGESHIFT);
@@ -73,7 +73,7 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    */
   inline char get_page_shift(l4_addr_t addr, l4_addr_t start, l4_addr_t end,
                                  l4_addr_t offset, l4_addr_t l_start,
-                                 l4_addr_t l_end = 0)
+                                 l4_addr_t l_end = 0) const
   {
     // Check whether a superpage is inside the regions
     if (   !sp_in_range(addr, start, end)
