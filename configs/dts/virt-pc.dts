@@ -95,6 +95,11 @@
           l4vmm,vcon_cap = "uart";
         };
 
+        l4rtc {
+            compatible = "l4rtc";
+            l4vmm,rtccap = "rtc";
+        };
+
         kvm_clock {
             compatible = "kvm-clock";
             reg = <0x0 0x0 0x0 0x0>;

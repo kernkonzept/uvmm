@@ -49,6 +49,8 @@ SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                ARCH-amd64/legacy_pic.cc ARCH-amd64/acpi_platform.cc \
                ARCH-amd64/acpi_timer.cc
 
+SRC_CC-amd64-$(CONFIG_EXTERNAL_RTC) += ARCH-amd64/l4rtc.cc
+
 SRC_CC-arm-$(CONFIG_VDEV_PSCI)   += device/arm/psci.cc
 SRC_CC-arm64-$(CONFIG_VDEV_PSCI) += device/arm/psci.cc
 
