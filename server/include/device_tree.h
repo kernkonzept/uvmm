@@ -319,7 +319,10 @@ public:
   }
 
   bool has_prop(char const *name) const
-  { return fdt_getprop(_tree, _node, name, nullptr) != nullptr; }
+  {
+    return fdt_getprop_namelen(_tree, _node, name, strlen(name), nullptr)
+           != nullptr;
+  }
 
   bool has_compatible() const
   { return has_prop("compatible"); }
@@ -538,7 +541,7 @@ public:
   template <typename T>
   T const *get_prop(char const *name, int *size) const
   {
-    void const *p = fdt_getprop(_tree, _node, name, size);
+    void const *p = fdt_getprop_namelen(_tree, _node, name, strlen(name), size);
 
     if (p && size)
       *size /= sizeof(T);
@@ -550,7 +553,8 @@ public:
   T const *check_prop(char const *name, int size) const
   {
     int len;
-    void const *prop = fdt_getprop(_tree, _node, name, &len);
+    void const *prop = fdt_getprop_namelen(_tree, _node, name, strlen(name),
+                                           &len);
     if (!prop)
       ERR(this, "could not get property '%s': %s", name, fdt_strerror(len));
 
