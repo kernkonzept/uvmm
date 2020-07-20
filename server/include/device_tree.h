@@ -468,6 +468,26 @@ public:
     return lenp > 2 && (!strncmp(p, "okay", lenp) || !strcmp(p, "ok"));
   }
 
+  /**
+   * Disable a device node.
+   *
+   * Linux treats a node as enabled if
+   *  \li \c status == "ok"
+   *  \li \c status == "okay"
+   *  \li \c status property does not exist
+   *
+   * Linux convention for disabling a node:
+   * \li \c status == "disabled"
+   *
+   * Writing "disa" instead of "disabled" would increase the chance that an
+   * existing status == "okay" can be replaced without changing the property
+   * size. A change of the property size can change node offsets requiring a
+   * flush of the caches. However, as the documentation is not entirely clear
+   * about other status words for disabled nodes, we play safe.
+   */
+  void disable() const
+  { setprop_string("status", "disabled"); }
+
   bool has_prop(char const *name) const
   {
     return fdt_getprop_namelen(_fdt->dt(), _node, name, strlen(name), nullptr)

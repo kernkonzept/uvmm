@@ -123,8 +123,7 @@ Vm::add_virt_device(Vdev::Dt_node const &node)
   warn.printf("Device creation for virtual device %s failed. Disabling device.\n",
               node.get_name());
 
-  node.setprop_string("status", "disabled");
-
+  node.disable();
   return false;
 }
 
@@ -182,7 +181,7 @@ Vm::add_phys_device(Vdev::Dt_node const &node)
   warn.printf("Device creation for %s failed. Disabling device.\n",
               node.get_name());
 
-  node.setprop_string("status", "disabled");
+  node.disable();
   return false;
 }
 
@@ -201,7 +200,7 @@ Vm::add_phys_device_by_vbus_id(Vdev::Dt_node const &node)
   warn.printf("Device creation for %s failed. Disabling device.\n",
               node.get_name());
 
-  node.setprop_string("status", "disabled");
+  node.disable();
   return false;
 }
 

@@ -171,7 +171,7 @@ Vmm::Vm_ram::setup_from_device_tree(Vdev::Host_dt const &dt, Vm_mem *memmap,
               return true;
 
             if (add_from_dt_node(memmap, &has_memory_nodes, node) < 0)
-              node.setprop_string("status", "disabled");
+              node.disable();
 
             // memory nodes should not have children, so no point in further
             // scanning
