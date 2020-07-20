@@ -298,7 +298,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
    */
   static l4_uint32_t dt_get_reg_flags(Vdev::Dt_node const &node, int reg_num)
   {
-    if ((node.get_address_cells() != 3) && (node.get_size_cells() != 2))
+    if (node.get_address_cells() != 3 || node.get_size_cells() != 2)
       L4Re::chksys(-L4_EINVAL,
                    "PCI device register lengths are three (address) "
                    "and two (size).");
