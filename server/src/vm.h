@@ -28,8 +28,9 @@ class Vm
 
 public:
   cxx::Ref_ptr<Vdev::Device>
-  device_from_node(Vdev::Dt_node const &node) const override
-  { return _devices.device_from_node(node); }
+  device_from_node(Vdev::Dt_node const &node,
+                   std::string *path = nullptr) const override
+  { return _devices.device_from_node(node, path); }
 
   Vmm::Guest *vmm() const override
   { return _vmm; }
@@ -74,8 +75,9 @@ public:
   }
 
   void add_device(Vdev::Dt_node const &node,
-                  cxx::Ref_ptr<Vdev::Device> dev) override
-  { _devices.add(node, dev); }
+                  cxx::Ref_ptr<Vdev::Device> dev,
+                  std::string const &path = std::string()) override
+  { _devices.add(node, dev, path); }
 
   /**
    * Find MSI parent of node.

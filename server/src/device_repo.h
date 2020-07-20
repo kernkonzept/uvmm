@@ -25,7 +25,8 @@ public:
     cxx::Ref_ptr<Device> dev;
   };
 
-  cxx::Ref_ptr<Device> device_from_node(Dt_node const &node) const
+  cxx::Ref_ptr<Device> device_from_node(Dt_node const &node,
+                                        std::string *path = nullptr) const
   {
     l4_uint32_t phandle = node.get_phandle();
 
@@ -41,6 +42,9 @@ public:
     char buf[1024];
     node.get_path(buf, sizeof(buf));
 
+    if (path)
+      path->assign(buf);
+
     for (auto const &d : _devices)
       {
         if (d.path == buf)
@@ -50,13 +54,19 @@ public:
     return cxx::Ref_ptr<Device>();
   }
 
-  void add(Dt_node const &node, cxx::Ref_ptr<Device> dev)
+  void add(Dt_node const &node, cxx::Ref_ptr<Device> dev,
+           std::string const &path)
   {
-    char buf[1024];
     l4_uint32_t phandle = node.get_phandle();
-    node.get_path(buf, sizeof(buf));
 
-    _devices.push_back({buf, phandle, dev});
+    if (path.empty())
+      {
+        char buf[1024];
+        node.get_path(buf, sizeof(buf));
+        _devices.push_back({buf, phandle, dev});
+      }
+    else
+      _devices.push_back({path.c_str(), phandle, dev});
   }
 
   std::vector<Dt_device>::const_iterator begin() const

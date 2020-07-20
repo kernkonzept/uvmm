@@ -10,6 +10,8 @@
 #include <l4/cxx/ref_ptr>
 #include <l4/cxx/exceptions>
 
+#include <string>
+
 #include "device_tree.h"
 #include "debug.h"
 
@@ -126,8 +128,11 @@ inline Device::~Device() = default;
 struct Device_lookup
 {
   virtual void add_device(Vdev::Dt_node const &node,
-                          cxx::Ref_ptr<Vdev::Device> dev) = 0;
-  virtual cxx::Ref_ptr<Device> device_from_node(Dt_node const &node) const = 0;
+                          cxx::Ref_ptr<Vdev::Device> dev,
+                          std::string const &path = std::string()) = 0;
+  virtual cxx::Ref_ptr<Device> device_from_node(Dt_node const &node,
+                                                std::string *path = nullptr)
+                                                const = 0;
   virtual Vmm::Guest *vmm() const = 0;
   virtual cxx::Ref_ptr<Vmm::Vm_ram> ram() const = 0;
   virtual cxx::Ref_ptr<Vmm::Virt_bus> vbus() const = 0;

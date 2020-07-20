@@ -78,7 +78,8 @@ Factory::create_irq_parent(Device_lookup *devs, Vdev::Dt_node const &node,
 cxx::Ref_ptr<Device>
 Factory::create_dev(Device_lookup *devs, Dt_node const &node)
 {
-  if (cxx::Ref_ptr<Device> d = devs->device_from_node(node))
+  std::string path;
+  if (cxx::Ref_ptr<Device> d = devs->device_from_node(node, &path))
     return d;
 
   Factory *f = find_factory(node);
@@ -94,7 +95,7 @@ Factory::create_dev(Device_lookup *devs, Dt_node const &node)
       if (!dev)
         return nullptr;
 
-      devs->add_device(node, dev);
+      devs->add_device(node, dev, path);
       return dev;
     }
   catch (...)
