@@ -84,7 +84,15 @@ public:
   { return fdt_setprop_u64(dt_rw(), node, name, value); }
 
   int setprop_string(int node, char const *name, char const *value)
-  { return fdt_setprop_string(dt_rw(), node, name, value); }
+  {
+    int err = fdt_setprop_inplace_namelen_partial(_dtmem, node, name,
+                                                  strlen(name), 0, value,
+                                                  strlen(value) + 1);
+    if (err >= 0)
+      return err;
+
+    return fdt_setprop_string(dt_rw(), node, name, value);
+  }
 
   int setprop(int node, char const *name, void const *data, int len)
   { return fdt_setprop(dt_rw(), node, name, data, len); }
