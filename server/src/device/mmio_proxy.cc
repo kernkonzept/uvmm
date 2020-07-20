@@ -242,9 +242,9 @@ private:
     L4Re::Dma_space::Dma_addr phys_ram;
     l4_size_t phys_size = size;
     long err = dma->map(L4::Ipc::make_cap(cap, L4_CAP_FPAGE_RW),
-        offset, &phys_size,
-        L4Re::Dma_space::Attributes::None,
-        L4Re::Dma_space::Bidirectional, &phys_ram);
+                        offset, &phys_size,
+                        L4Re::Dma_space::Attributes::None,
+                        L4Re::Dma_space::Bidirectional, &phys_ram);
 
     if (err < 0)
       {
@@ -283,4 +283,3 @@ static F f;
 static Device_type t = { "l4vmm,l4-mmio", nullptr, &f };
 
 }
-
