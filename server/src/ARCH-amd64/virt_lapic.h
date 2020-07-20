@@ -49,13 +49,13 @@ class Virt_lapic final : public Vdev::Timer, public Ic
     void set_irq(l4_uint8_t irq)
     {
       l4_uint8_t idx = irq / Reg_bits;
-      _reg.u64[idx] |= 1U << (irq % Reg_bits);
+      _reg.u64[idx] |= 1ULL << (irq % Reg_bits);
     }
 
     void clear_irq(l4_uint8_t irq)
     {
       l4_uint8_t idx = irq / Reg_bits;
-      _reg.u64[idx] &= ~(1U << (irq % Reg_bits));
+      _reg.u64[idx] &= ~(1ULL << (irq % Reg_bits));
     }
 
     int get_highest_irq() const
@@ -66,7 +66,7 @@ class Virt_lapic final : public Vdev::Timer, public Ic
             continue;
 
           for (l4_int8_t j = Reg_bits - 1; j >= 0; --j)
-            if (_reg.u64[i] & (1U << j))
+            if (_reg.u64[i] & (1ULL << j))
               return i * Reg_bits + j;
         }
       return -1;
