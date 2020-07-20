@@ -179,7 +179,7 @@ public:
 private:
   int next_extended_ic(Device_lookup *devs)
   {
-    _ic_node = _node.find_phandle(_prop);
+    _ic_node = _node.find_phandle(*_prop);
 
     ++_prop;
     --_prop_size;

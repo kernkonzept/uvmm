@@ -578,9 +578,9 @@ public:
     return reinterpret_cast<T const *>(prop);
   }
 
-  Node find_phandle(fdt32_t const *prop) const
+  Node find_phandle(fdt32_t prop) const
   {
-    return Node(_tree, fdt_node_offset_by_phandle(_tree, fdt32_to_cpu(*prop)));
+    return Node(_tree, fdt_node_offset_by_phandle(_tree, fdt32_to_cpu(prop)));
   }
 
   /**
@@ -603,7 +603,7 @@ public:
         auto *prop = node.get_prop<fdt32_t>("interrupt-parent", &size);
 
         if (prop)
-          node = (size > 0) ? find_phandle(prop) : Node(_tree, -1);
+          node = (size > 0) ? find_phandle(*prop) : Node(_tree, -1);
         else
           node = node.parent_node();
 

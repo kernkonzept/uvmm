@@ -97,7 +97,7 @@ public:
       L4Re::chksys(-L4_EINVAL,
                    "MSI parent is a single reference without sideband data.");
 
-    return (prop && size > 0) ? node.find_phandle(prop)
+    return (prop && size > 0) ? node.find_phandle(*prop)
                               : Vdev::Dt_node();
   }
 

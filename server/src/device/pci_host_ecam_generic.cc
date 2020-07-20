@@ -657,7 +657,7 @@ struct F : Factory
         i += map_int_cells;
 
         // Query dt node for ic
-        Dt_node const pn = node.find_phandle(&p[i++]);
+        Dt_node const pn = node.find_phandle(p[i++]);
         if (!pn.is_valid())
           L4Re::chksys(-L4_EINVAL, "Can't find node for phandle while "
                        "parsing interrupt-map");
