@@ -305,6 +305,31 @@ public:
            && (vmx_read(L4VCPU_VMCS_GUEST_INTERRUPTIBILITY_STATE) == 0);
   }
 
+  /**
+   * Check if there is an event currently being injected.
+   *
+   * This could happen, e.g. if the vmx_resume was interrupted before entering
+   * the guest.
+   *
+   * \return true  iff an event is in the process of being injected
+   */
+  bool event_injected() const
+  {
+    return Vmx_int_info_field(vmx_read(L4VCPU_VMCS_VM_ENTRY_INTERRUPT_INFO)
+                              & ((1ULL << 32) - 1)).valid();
+  }
+
+  /**
+   * This function checks if interrupts are enabled and no event injection is
+   * in flight.
+   *
+   * \return true  iff we can inject in an interrupt into the guest
+   */
+  bool can_inject_interrupt() const
+  {
+    return interrupts_enabled() && !event_injected();
+  }
+
   void disable_interrupt_window() override
   {
     vmx_write(L4VCPU_VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,

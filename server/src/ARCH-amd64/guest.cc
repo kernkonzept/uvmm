@@ -660,7 +660,7 @@ Guest::run_vmx(Vcpu_ptr vcpu)
             }
         }
 
-      if (vm->interrupts_enabled())
+      if (vm->can_inject_interrupt())
         {
           vm->disable_interrupt_window();
           int irq = lapic(vcpu)->next_pending_irq();
