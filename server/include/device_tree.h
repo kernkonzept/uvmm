@@ -175,9 +175,10 @@ public:
     return val;
   }
 
-  size_t get_cells_attrib_default(const char *name, int default_cells) const
+  size_t get_cells_attrib_default(const char *name, int default_cells,
+                                  Node const &parent) const
   {
-    int val = parent_node().get_cells_attrib(name);
+    int val = parent.get_cells_attrib(name);
     if (val >= 0)
       return val;
 
@@ -204,11 +205,17 @@ public:
     return default_cells;
   }
 
-  size_t get_address_cells() const
-  { return get_cells_attrib_default("#address-cells", Default_address_cells); }
+  size_t get_address_cells(Node const &parent) const
+  {
+    return get_cells_attrib_default("#address-cells", Default_address_cells,
+                                    parent);
+  }
 
-  size_t get_size_cells() const
-  { return get_cells_attrib_default("#size-cells", Default_size_cells); }
+  size_t get_size_cells(Node const &parent) const
+  {
+    return get_cells_attrib_default("#size-cells", Default_size_cells,
+                                    parent);
+  }
 
   void setprop_u32(char const *name, l4_uint32_t value) const
   {
@@ -401,8 +408,9 @@ public:
    */
   int get_reg_val(int index, l4_uint64_t *address, l4_uint64_t *size) const
   {
-    size_t addr_cells = get_address_cells();
-    size_t size_cells = get_size_cells();
+    auto parent = parent_node();
+    size_t addr_cells = get_address_cells(parent);
+    size_t size_cells = get_size_cells(parent);
     int rsize = addr_cells + size_cells;
 
     int prop_size;
@@ -419,7 +427,7 @@ public:
     prop += rsize * index;
 
     Reg reg{Cell{prop, addr_cells}, Cell(prop + addr_cells, size_cells)};
-    bool res = translate_reg(&reg);
+    bool res = translate_reg(parent, &reg);
 
     if (!reg.address.is_uint64() || !reg.size.is_uint64())
       return -ERR_RANGE;
@@ -443,12 +451,16 @@ public:
    */
   void set_reg_val(l4_uint64_t address, l4_uint64_t size, bool append = false) const
   {
-    if (append)
-      appendprop("reg", address, get_address_cells());
-    else
-      setprop("reg", address, get_address_cells());
+    auto parent = parent_node();
+    size_t addr_cells = get_address_cells(parent);
+    size_t size_cells = get_size_cells(parent);
 
-    appendprop("reg", size, get_size_cells());
+    if (append)
+      appendprop("reg", address, addr_cells);
+    else
+      setprop("reg", address, addr_cells);
+
+    appendprop("reg", size, size_cells);
   }
 
   /**
@@ -516,22 +528,23 @@ public:
    * Reg entries are bus local information. To get an address valid on
    * the "root bus" we have to traverse the tree and translate the reg
    * entry using ranges properties. If we reach the root node, the
-   * translation was successfull and reg contains the translated
+   * translation was successful and reg contains the translated
    * address. If any of the intermediate nodes is unable to translate
    * the reg, the translation fails and reg is not changed.
    *
+   * \param parent     Parent node. Performance optimization.
    * \param[inout] reg Pointer to reg structures which shall be
    *                   translated. If the translation was successful,
    *                   *reg contains the translated values.
    * \return True if the translation was successful.
    */
-  bool translate_reg(Reg *reg) const
+  bool translate_reg(Node const &parent, Reg *reg) const
   {
     if (is_root_node())
       return true;
 
     Cell tmp{reg->address};
-    if (!translate_reg(&tmp, reg->size))
+    if (!translate_reg(parent, &tmp, reg->size))
       return false;
 
     reg->address = tmp;
@@ -618,10 +631,11 @@ private:
    * Reg entries are bus local information. To get an address valid on
    * the "root bus" we have to traverse the tree and translate the reg
    * entry using ranges properties. If we reach the root node, the
-   * translation was successfull and reg contains the translated
+   * translation was successful and reg contains the translated
    * address. If any of the intermediate nodes is unable to translate
    * the reg, the translation fails and reg is not changed.
    *
+   * \param parent         Parent node. Performance optimization.
    * \param[inout] address Pointer to address cell which shall be
    *                       translated. If the translation was
    *                       successful, *address contains the
@@ -629,7 +643,7 @@ private:
    * \param[in] size       Size cell describing the size of the region
    * \return True if the translation was successful.
    */
-  bool translate_reg(Cell *address, Cell const &size) const;
+  bool translate_reg(Node const &parent, Cell *address, Cell const &size) const;
 
   void *_tree;
   int _node;
@@ -765,9 +779,8 @@ private:
 
 template<typename ERR>
 bool
-Node<ERR>::translate_reg(Cell *address, Cell const &size) const
+Node<ERR>::translate_reg(Node const &parent, Cell *address, Cell const &size) const
 {
-  auto parent = parent_node();
   if (parent.is_root_node())
     return true;
 
@@ -779,9 +792,10 @@ Node<ERR>::translate_reg(Cell *address, Cell const &size) const
   if (!prop_size)
     return true; // Ident mapping
 
-  auto child_addr = get_address_cells();
-  auto parent_addr = parent.get_address_cells();
-  auto child_size = get_size_cells();
+  auto child_addr = get_address_cells(parent);
+  auto parent_parent = parent.parent_node();
+  auto parent_addr = parent.get_address_cells(parent_parent);
+  auto child_size = get_size_cells(parent);
 
   unsigned range_size = child_addr + parent_addr + child_size;
   if (prop_size % range_size != 0)
@@ -795,7 +809,7 @@ Node<ERR>::translate_reg(Cell *address, Cell const &size) const
                   Cell(prop + child_addr, parent_addr),
                   Cell(prop + child_addr + parent_addr, child_size)};
       if (range.translate(address, size))
-        return parent.translate_reg(address, size);
+        return parent.translate_reg(parent_parent, address, size);
     }
   return false;
 }
@@ -809,19 +823,20 @@ Node<ERR>::has_mmio_regs() const
   if (!prop)
     return false;
 
-  unsigned addr_cells = get_address_cells();
-  unsigned size_cells = get_size_cells();
-  unsigned reg_size = addr_cells + size_cells;
-  unsigned num_regs = prop_size/reg_size;
+  auto parent = parent_node();
+  size_t addr_cells = get_address_cells(parent);
+  size_t size_cells = get_size_cells(parent);
+  size_t reg_size = addr_cells + size_cells;
+  size_t num_regs = prop_size/reg_size;
 
   if (prop_size % reg_size != 0)
-    ERR(this, "Unexpected property size %d/%d vs %d",
+    ERR(this, "Unexpected property size %zd/%zd vs %zd",
         addr_cells, size_cells, reg_size);
 
-  for (unsigned i = 0; i < num_regs; ++i, prop += reg_size)
+  for (size_t i = 0; i < num_regs; ++i, prop += reg_size)
     {
       Reg reg{Cell{prop, addr_cells}, Cell(prop + addr_cells, size_cells)};
-      if (translate_reg(&reg))
+      if (translate_reg(parent, &reg))
         return true;
     }
   return false;

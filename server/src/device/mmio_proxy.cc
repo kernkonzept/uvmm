@@ -144,6 +144,9 @@ private:
     l4_size_t dssize = cap->size();
     l4_uint64_t regbase, base, size;
     l4_uint64_t offset = get_offset_from_node(node);
+    auto parent = node.parent_node();
+    size_t addr_cells = node.get_address_cells(parent);
+    size_t size_cells = node.get_size_cells(parent);
 
     if (node.get_reg_val(0, &regbase, &size) < 0)
       L4Re::chksys(-L4_EINVAL, "reg property not found or invalid");
@@ -164,9 +167,9 @@ private:
           {
             sz = offs < dssize ? dssize - offs : 0;
 
-            unsigned poff = ((index + 1) * node.get_address_cells()
-                            + index * node.get_size_cells()) * sizeof(fdt32_t);
-            switch (node.get_size_cells())
+            unsigned poff = ((index + 1) * addr_cells
+                            + index * size_cells) * sizeof(fdt32_t);
+            switch (size_cells)
               {
               case 1:
                 {
@@ -194,10 +197,9 @@ private:
               {
                 auto phys = get_phys_mapping(cap, dma, offs, sz, node.get_name());
 
-                int addr_cells = node.get_address_cells();
                 node.appendprop("dma-ranges", phys, addr_cells);
                 node.appendprop("dma-ranges", base, addr_cells);
-                node.appendprop("dma-ranges", sz, node.get_size_cells());
+                node.appendprop("dma-ranges", sz, size_cells);
               }
           }
       }

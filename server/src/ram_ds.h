@@ -76,10 +76,12 @@ public:
 
   void dt_append_dmaprop(Vdev::Dt_node const &mem_node) const
   {
-    int addr_cells = mem_node.get_address_cells();
+    auto parent = mem_node.parent_node();
+    size_t addr_cells = mem_node.get_address_cells(parent);
+    size_t size_cells = mem_node.get_size_cells(parent);
     mem_node.appendprop("dma-ranges", _phys_ram, addr_cells);
     mem_node.appendprop("dma-ranges", _vm_start.get(), addr_cells);
-    mem_node.appendprop("dma-ranges", _phys_size, mem_node.get_size_cells());
+    mem_node.appendprop("dma-ranges", _phys_size, size_cells);
   }
 
   Vmm::Guest_addr vm_start() const noexcept { return _vm_start; }

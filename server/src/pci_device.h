@@ -298,12 +298,16 @@ struct Pci_device : public virtual Vdev::Dev_ref
    */
   static l4_uint32_t dt_get_reg_flags(Vdev::Dt_node const &node, int reg_num)
   {
-    if (node.get_address_cells() != 3 || node.get_size_cells() != 2)
+    auto parent = node.parent_node();
+    size_t addr_cells = node.get_address_cells(parent);
+    size_t size_cells = node.get_size_cells(parent);
+
+    if (addr_cells != 3 || size_cells != 2)
       L4Re::chksys(-L4_EINVAL,
                    "PCI device register lengths are three (address) "
                    "and two (size).");
 
-    int const reg_len = node.get_address_cells() + node.get_size_cells();
+    int const reg_len = addr_cells + size_cells;
     int dt_regs_size = 0;
     auto dt_regs = node.get_prop<fdt32_t>("reg", &dt_regs_size);
     assert(reg_num < (dt_regs_size / reg_len));
@@ -330,8 +334,9 @@ struct Pci_device : public virtual Vdev::Dev_ref
                                          l4_uint64_t *address,
                                          l4_uint64_t *size)
   {
-    size_t addr_cells = node.get_address_cells();
-    size_t size_cells = node.get_size_cells();
+    auto parent = node.parent_node();
+    size_t addr_cells = node.get_address_cells(parent);
+    size_t size_cells = node.get_size_cells(parent);
     int rsize = addr_cells + size_cells;
 
     int prop_size;
