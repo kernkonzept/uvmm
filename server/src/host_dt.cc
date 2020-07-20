@@ -86,23 +86,17 @@ Vdev::Host_dt::add_source(char const *fname)
       return;
     }
 
-  Device_tree dt(mem.get());
+  Dtb::Fdt fdt(mem.get());
+  Device_tree dt(&fdt);
 
   dt.check_tree();
 
   // XXX would be nice to expand dynamically
-  l4_size_t padding = cxx::max(dt.size(), 0x200U);
-
-  _dtmem = malloc(dt.size() + padding);
-  if (!_dtmem)
-    L4Re::chksys(-L4_ENOMEM, "Allocating memory for temporary device tree");
-
-  memcpy(_dtmem, mem.get(), dt.size());
-  get().add_to_size(padding);
+  _fdt = new Dtb::Fdt(fdt, cxx::max(dt.size(), 0x200U));
 }
 
 void
-Vdev::Host_dt::set_command_line(char const *cmd_line) const
+Vdev::Host_dt::set_command_line(char const *cmd_line)
 {
   if (!valid() || !cmd_line)
     return;

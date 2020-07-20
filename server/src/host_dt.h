@@ -25,31 +25,34 @@ class Host_dt
 : public Monitor::Dt_cmd_handler<Monitor::Enabled, Host_dt>
 {
 public:
-  Host_dt() : _dtmem(nullptr) {}
+  Host_dt() = default;
+
+  // Copying isn't allowed
   Host_dt(Host_dt const &) = delete;
   Host_dt &operator=(Host_dt const &) = delete;
-  Host_dt &operator=(Host_dt &&) = default;
 
+  // Move is allowed
   Host_dt(Host_dt &&other)
   {
-    if (_dtmem)
-      free(_dtmem);
+    _fdt = other._fdt;
+    other._fdt = nullptr;
+  }
 
-    _dtmem = other._dtmem;
-    other._dtmem = nullptr;
+  Host_dt &operator=(Host_dt &&other)
+  {
+    _fdt = other._fdt;
+    other._fdt = nullptr;
+    return *this;
   }
 
   ~Host_dt()
-  {
-    if (_dtmem)
-      free(_dtmem);
-  }
+  { delete(_fdt); }
 
   bool valid() const noexcept
-  { return _dtmem; }
+  { return _fdt; }
 
   Device_tree get() const
-  { return Device_tree(_dtmem); }
+  { return Device_tree(_fdt); }
 
   void add_source(char const *fname);
 
@@ -61,15 +64,15 @@ public:
    * If the device tree is not set up or if the cmd_line is a null pointer,
    * then the function is a no-op.
    */
-  void set_command_line(char const *cmd_line) const;
+  void set_command_line(char const *cmd_line);
 
   /**
    * Remove unused entries and pack the device tree.
    *
    * \note Only packing is implemented at the moment.
    */
-  void compact() const
-  { fdt_pack(_dtmem); }
+  void compact()
+  { _fdt->pack(); }
 
   /**
    * Move the device tree to the given target address.
@@ -83,29 +86,17 @@ public:
   {
     if (Monitor::cmd_control_enabled())
       {
-        void *tmp = malloc(get().size());
-        if (tmp)
-          memcpy(tmp, _dtmem, get().size());
-
-        do_move(target);
-
-        free(_dtmem);
-        _dtmem = tmp;
+        // Create a copy for the monitor
+        Dtb::Fdt *new_fdt = new Dtb::Fdt(_fdt);
+        _fdt->move(target);
+        _fdt = new_fdt;
       }
     else
-      {
-        do_move(target);
-
-        free(_dtmem);
-        _dtmem = nullptr;
-      }
+        _fdt->move(target);
   }
 
 private:
-  void do_move(void *target)
-  { fdt_move(_dtmem, target, get().size()); }
-
-  void *_dtmem;
+  Dtb::Fdt *_fdt = nullptr;
 };
 
 }

@@ -152,7 +152,8 @@ void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
     {
       // read initrd addr and size from device tree
       Vmm::Guest_addr dt_addr = ram->boot2guest_phys(dt_boot_addr);
-      auto dt = Vdev::Device_tree(ram->guest2host<void *>(dt_addr));
+      Dtb::Fdt fdt(ram->guest2host<void *>(dt_addr));
+      auto dt = Vdev::Device_tree(&fdt);
       int prop_sz1, prop_sz2;
       auto node = dt.path_offset("/chosen");
       auto prop_start = node.get_prop<fdt32_t>("linux,initrd-start", &prop_sz1);

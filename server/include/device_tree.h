@@ -8,7 +8,9 @@
 #pragma once
 
 #include <l4/sys/l4int.h>
+#include <l4/re/error_helper>
 #include <utility>
+#include <map>
 
 extern "C" {
 #include <libfdt.h>
@@ -17,6 +19,139 @@ extern "C" {
 #include "cell.h"
 
 namespace Dtb {
+
+/**
+ * Wrapper around the actual device tree memory to allow results caching of
+ * certain functions. 'fdt' functions altering the tree have to use the
+ * implemented wrapper functions. 'fdt_' functions reading the tree use dt() to
+ * access the device tree memory read only.
+ *
+ * Additionally this class can handle external dt memory or manage a copy
+ * itself.
+ */
+class Fdt
+{
+public:
+  Fdt() : _dtmem(nullptr) {}
+  Fdt(void *dtmem) : _dtmem(dtmem) {}
+  Fdt(Fdt const &o, int padding = 0)
+  : _owned(true)
+  {
+    size_t s = o.size() + padding;
+    _dtmem = malloc(s);
+    if (!_dtmem)
+      L4Re::chksys(-L4_ENOMEM, "Allocating memory for device tree.");
+
+    memcpy(_dtmem, o.dt(), o.size());
+    fdt_set_totalsize(_dtmem, s);
+  }
+
+  ~Fdt()
+  {
+    if (_owned && _dtmem)
+      free(_dtmem);
+  }
+
+  size_t size() const
+  { return fdt_totalsize(_dtmem); }
+
+  // read-only access
+  const void *dt() const
+  { return _dtmem; }
+
+  void move(void *dst)
+  {
+    fdt_move(dt_rw(), dst, size());
+    _dtmem = nullptr;
+  }
+
+  void pack()
+  { fdt_pack(dt_rw()); }
+
+  int overlay_apply(void *fdt_overlay)
+  { return fdt_overlay_apply(dt_rw(), fdt_overlay); }
+
+  int add_subnode(int node, char const *name)
+  { return fdt_add_subnode(dt_rw(), node, name); }
+
+  int del_node(int node)
+  { return fdt_del_node(dt_rw(), node); }
+
+  int setprop_u32(int node, char const *name, fdt32_t value)
+  { return fdt_setprop_u32(dt_rw(), node, name, value); }
+
+  int setprop_u64(int node, char const *name, fdt64_t value)
+  { return fdt_setprop_u64(dt_rw(), node, name, value); }
+
+  int setprop_string(int node, char const *name, char const *value)
+  { return fdt_setprop_string(dt_rw(), node, name, value); }
+
+  int setprop(int node, char const *name, void const *data, int len)
+  { return fdt_setprop(dt_rw(), node, name, data, len); }
+
+  int setprop_inplace_namelen_partial(int node,
+                                      char const *name, int name_len,
+                                      uint32_t idx, void const *val, int len)
+  {
+    return fdt_setprop_inplace_namelen_partial(dt_rw(), node,
+                                               name, name_len,
+                                               idx, val, len);
+  }
+
+  int appendprop_u32(int node, char const *name, fdt32_t value)
+  { return fdt_appendprop_u32(dt_rw(), node, name, value); }
+
+  int appendprop_u64(int node, char const *name, fdt64_t value)
+  { return fdt_appendprop_u64(dt_rw(), node, name, value); }
+
+  int delprop(int node, char const *name)
+  { return fdt_delprop(dt_rw(), node, name); }
+
+  fdt32_t phandle(fdt32_t prop) const
+  {
+    int offs;
+    auto it = _phandles.find(prop);
+    if (it == _phandles.end())
+      {
+        offs = fdt_node_offset_by_phandle(_dtmem, fdt32_to_cpu(prop));
+        _phandles[prop] = offs;
+      }
+    else
+      offs = it->second;
+
+    return offs;
+  }
+
+  int parent(int node) const
+  {
+    int offs;
+    auto it = _parents.find(node);
+    if (it == _parents.end())
+      {
+        offs = fdt_parent_offset(_dtmem, node);
+        _parents[node] = offs;
+      }
+    else
+      offs = it->second;
+    return offs;
+  }
+
+private:
+  // private write access
+  void *dt_rw()
+  {
+    _phandles.clear();
+    _parents.clear();
+    return _dtmem;
+  }
+
+  // Caches
+  mutable std::map<fdt32_t, int> _phandles;
+  mutable std::map<int, int> _parents;
+
+  void *_dtmem;
+  bool _owned = false;
+};
 
 template<typename ERR>
 class Node
@@ -57,10 +192,10 @@ public:
 
 public:
   Node() : _node(-1) {}
-  Node(void *dt, int node) : _tree(dt), _node(node) {}
+  Node(Fdt *dt, int node) : _fdt(dt), _node(node) {}
 
   bool operator == (Node const &other) const
-  { return (_tree == other._tree) && (_node == other._node); }
+  { return (_fdt == other._fdt) && (_node == other._node); }
 
   bool operator != (Node const &other) const
   { return !operator==(other); }
@@ -77,7 +212,7 @@ public:
    *         libfdt error)
    */
   Node add_subnode(char const *name)
-  { return Node(_tree, fdt_add_subnode(_tree, _node, name)); }
+  { return Node(_fdt, _fdt->add_subnode(_node, name)); }
 
   /**
    * Delete a node
@@ -86,7 +221,7 @@ public:
    */
   int del_node()
   {
-    int res = fdt_del_node(_tree, _node);
+    int res = _fdt->del_node(_node);
     if (res == 0)
       _node = -1; // invalidate node
     return res;
@@ -105,7 +240,7 @@ public:
    *         offset equals the libfdt error)
    */
   Node next_node(int *depth = nullptr) const
-  { return Node(_tree, fdt_next_node(_tree, _node, depth)); }
+  { return Node(_fdt, fdt_next_node(_fdt->dt(), _node, depth)); }
 
   /**
    * Get the next compatible node of this tree
@@ -116,7 +251,7 @@ public:
    *         offset equals the libfdt error)
    */
   Node next_compatible_node(char const *compatible) const
-  { return Node(_tree, fdt_node_offset_by_compatible(_tree, _node, compatible)); }
+  { return Node(_fdt, fdt_node_offset_by_compatible(_fdt->dt(), _node, compatible)); }
 
   /**
    * Get the first child node
@@ -125,7 +260,7 @@ public:
    *              equals the libfdt error)
    */
   Node first_child_node() const
-  { return Node(_tree, fdt_first_subnode(_tree, _node)); }
+  { return Node(_fdt, fdt_first_subnode(_fdt->dt(), _node)); }
 
   /**
    * Get the next sibling
@@ -134,26 +269,26 @@ public:
    *              equals the libfdt error)
    */
   Node sibling_node() const
-  { return Node(_tree, fdt_next_subnode(_tree, _node)); }
+  { return Node(_fdt, fdt_next_subnode(_fdt->dt(), _node)); }
 
   Node parent_node() const
-  { return Node(_tree, fdt_parent_offset(_tree, _node)); }
+  { return Node(_fdt, _fdt->parent(_node)); }
 
   bool is_root_node() const
   { return _node == 0; };
 
   bool has_children() const
-  { return fdt_first_subnode(_tree, _node) >= 0; }
+  { return fdt_first_subnode(_fdt->dt(), _node) >= 0; }
 
   int get_depth() const
-  { return fdt_node_depth(_tree, _node); }
+  { return fdt_node_depth(_fdt->dt(), _node); }
 
   char const *get_name() const
   {
     if (is_root_node())
       return "/";
 
-    char const *name = fdt_get_name(_tree, _node, nullptr);
+    char const *name = fdt_get_name(_fdt->dt(), _node, nullptr);
     return name ? name : "<unknown name>";
   }
 
@@ -192,7 +327,7 @@ public:
         // It looks like some device trees assume the cells attributes
         // of the root node as default, so we check the root node
         // here, before returning the default value.
-        auto root_node = Node(_tree, 0); // Tree::first_node()
+        auto root_node = Node(_fdt, 0); // Tree::first_node()
         val = root_node.get_cells_attrib(name);
         if (val >= 0)
           return val;
@@ -219,7 +354,7 @@ public:
 
   void setprop_u32(char const *name, l4_uint32_t value) const
   {
-    int r = fdt_setprop_u32(_tree, _node, name, value);
+    int r = _fdt->setprop_u32(_node, name, value);
     if (r < 0)
       ERR(this, "cannot set property '%s' to '0x%x': %s", name, value,
           fdt_strerror(r));
@@ -227,7 +362,7 @@ public:
 
   void setprop_u64(char const *name, l4_uint64_t value) const
   {
-    int r = fdt_setprop_u64(_tree, _node, name, value);
+    int r = _fdt->setprop_u64(_node, name, value);
     if (r < 0)
       ERR(this, "cannot set property '%s' to '0x%llx': %s", name, value,
           fdt_strerror(r));
@@ -256,21 +391,21 @@ public:
 
   void setprop_string(char const *name, char const *value) const
   {
-    int r = fdt_setprop_string(_tree, _node, name, value);
+    int r = _fdt->setprop_string(_node, name, value);
     if (r < 0)
       ERR(this, "cannot set property '%s' to '%s'", name, value);
   }
 
   void setprop_data(char const *name, void const *data, int len) const
   {
-    int r = fdt_setprop(_tree, _node, name, data, len);
+    int r = _fdt->setprop(_node, name, data, len);
     if (r < 0)
       ERR(this, "cannot set property '%s'", name);
   }
 
   void appendprop_u32(char const *name, l4_uint32_t value) const
   {
-    int r = fdt_appendprop_u32(_tree, _node, name, value);
+    int r = _fdt->appendprop_u32(_node, name, value);
     if (r < 0)
       ERR(this, "cannot append '0x%x' to property '%s': %s", value, name,
           fdt_strerror(r));
@@ -278,7 +413,7 @@ public:
 
   void appendprop_u64(char const *name, l4_uint64_t value) const
   {
-    int r = fdt_appendprop_u64(_tree, _node, name, value);
+    int r = _fdt->appendprop_u64(_node, name, value);
     if (r < 0)
       ERR(this, "cannot append '0x%llx' to property '%s': %s", value, name,
           fdt_strerror(r));
@@ -313,7 +448,7 @@ public:
    * \return 0 on success, libfdt error codes otherwise
    */
   int delprop(char const *name) const
-  { return fdt_delprop(_tree, _node, name); }
+  { return _fdt->delprop(_node, name); }
 
   bool is_enabled() const
   {
@@ -327,7 +462,7 @@ public:
 
   bool has_prop(char const *name) const
   {
-    return fdt_getprop_namelen(_tree, _node, name, strlen(name), nullptr)
+    return fdt_getprop_namelen(_fdt->dt(), _node, name, strlen(name), nullptr)
            != nullptr;
   }
 
@@ -335,23 +470,23 @@ public:
   { return has_prop("compatible"); }
 
   bool is_compatible(char const *compatible) const
-  { return fdt_node_check_compatible(_tree, _node, compatible) == 0; }
+  { return fdt_node_check_compatible(_fdt->dt(), _node, compatible) == 0; }
 
   void get_path(char *buf, int buflen) const
   {
-    int r = fdt_get_path(_tree, _node, buf, buflen);
+    int r = fdt_get_path(_fdt->dt(), _node, buf, buflen);
     if (r < 0)
       ERR(this, r, "cannot get path for node");
   }
 
   l4_uint32_t get_phandle() const
-  { return fdt_get_phandle(_tree, _node); }
+  { return fdt_get_phandle(_fdt->dt(), _node); }
 
   int stringlist_count(char const *property) const
-  { return fdt_stringlist_count(_tree, _node, property); }
+  { return fdt_stringlist_count(_fdt->dt(), _node, property); }
 
   char const *stringlist_get(char const *property, int index, int *lenp) const
-  { return fdt_stringlist_get(_tree, _node, property, index, lenp); }
+  { return fdt_stringlist_get(_fdt->dt(), _node, property, index, lenp); }
 
   l4_uint64_t get_prop_val(fdt32_t const *prop, l4_uint32_t size,
                            bool check_range) const
@@ -383,9 +518,9 @@ public:
   int set_prop_partial(char const *property, uint32_t idx,
                         const void *val, int len) const
   {
-    return fdt_setprop_inplace_namelen_partial(_tree, _node,
-                                               property, strlen(property),
-                                               idx, val, len);
+    return _fdt->setprop_inplace_namelen_partial(_node,
+                                                  property, strlen(property),
+                                                  idx, val, len);
   }
 
   /**
@@ -554,7 +689,7 @@ public:
   template <typename T>
   T const *get_prop(char const *name, int *size) const
   {
-    void const *p = fdt_getprop_namelen(_tree, _node, name, strlen(name), size);
+    void const *p = fdt_getprop_namelen(_fdt->dt(), _node, name, strlen(name), size);
 
     if (p && size)
       *size /= sizeof(T);
@@ -566,7 +701,7 @@ public:
   T const *check_prop(char const *name, int size) const
   {
     int len;
-    void const *prop = fdt_getprop_namelen(_tree, _node, name, strlen(name),
+    void const *prop = fdt_getprop_namelen(_fdt->dt(), _node, name, strlen(name),
                                            &len);
     if (!prop)
       ERR(this, "could not get property '%s': %s", name, fdt_strerror(len));
@@ -579,9 +714,7 @@ public:
   }
 
   Node find_phandle(fdt32_t prop) const
-  {
-    return Node(_tree, fdt_node_offset_by_phandle(_tree, fdt32_to_cpu(prop)));
-  }
+  { return Node(_fdt, _fdt->phandle(prop)); }
 
   /**
    * Find IRQ parent of node.
@@ -603,7 +736,7 @@ public:
         auto *prop = node.get_prop<fdt32_t>("interrupt-parent", &size);
 
         if (prop)
-          node = (size > 0) ? find_phandle(*prop) : Node(_tree, -1);
+          node = (size > 0) ? find_phandle(*prop) : Node(_fdt, -1);
         else
           node = node.parent_node();
 
@@ -616,7 +749,7 @@ public:
           }
       }
 
-    return Node(_tree, -1);
+    return Node(_fdt, -1);
   }
 
   template <typename PRE, typename POST>
@@ -645,7 +778,7 @@ private:
    */
   bool translate_reg(Node const &parent, Cell *address, Cell const &size) const;
 
-  void *_tree;
+  Fdt *_fdt;
   int _node;
 };
 
@@ -654,19 +787,16 @@ class Tree
 {
 public:
   typedef Dtb::Node<ERR> Node;
-  explicit Tree(void *dt) : _tree(dt) {}
+  explicit Tree(Fdt *dt) : _fdt(dt) {}
 
   void check_tree()
   {
-    if (fdt_check_header(_tree) < 0)
+    if (fdt_check_header(_fdt->dt()) < 0)
       ERR("Not a device tree");
   }
 
   unsigned size() const
-  { return fdt_totalsize(_tree); }
-
-  void add_to_size(l4_size_t padding) const
-  { fdt_set_totalsize(_tree, fdt_totalsize(_tree) + padding); }
+  { return _fdt->size(); }
 
   /**
    * Apply the device tree overlay at 'fdt_overlay'.
@@ -680,13 +810,13 @@ public:
    */
   void apply_overlay(void *fdt_overlay, char const *name)
   {
-    int ret = fdt_overlay_apply(_tree, fdt_overlay);
+    int ret = _fdt->overlay_apply(fdt_overlay);
     if (ret < 0)
       ERR("cannot apply overlay '%s': %d\n", name, ret);
   }
 
   Node first_node() const
-  { return Node(_tree, 0); }
+  { return Node(_fdt, 0); }
 
   /**
    * Get the first compatible node of this tree
@@ -697,7 +827,7 @@ public:
    *         offset equals the libfdt error)
    */
   Node first_compatible_node(char const *compatible) const
-  { return Node(_tree, fdt_node_offset_by_compatible(_tree, -1, compatible)); }
+  { return Node(_fdt, fdt_node_offset_by_compatible(_fdt->dt(), -1, compatible)); }
 
   /**
    * Return the node at the given path.
@@ -706,23 +836,11 @@ public:
    */
   Node path_offset(char const *path) const
   {
-    int ret = fdt_path_offset_namelen(_tree, path, strlen(path));
+    int ret = fdt_path_offset_namelen(_fdt->dt(), path, strlen(path));
     if (ret < 0)
       ERR("cannot find node '%s'", path);
 
-    return Node(_tree, ret);
-  }
-
-  /**
-   * Return the device tree node for the given handle.
-   *
-   * \return The node for the handle or an invalid node
-   *         if phandle was not found.
-   */
-  Node phandle_offset(l4_uint32_t phandle) const
-  {
-    int node = fdt_node_offset_by_phandle(_tree, phandle);
-    return Node(_tree, node);
+    return Node(_fdt, ret);
   }
 
   template <typename PRE, typename POST>
@@ -774,7 +892,7 @@ public:
   }
 
 private:
-  void *_tree;
+  Fdt *_fdt;
 };
 
 template<typename ERR>

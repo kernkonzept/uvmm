@@ -36,8 +36,8 @@ public:
     Prop_uint32_array
   };
 
-  Property(void *tree, int node, struct fdt_property const *prop)
-  : _tree(tree),
+  Property(Dtb::Fdt *fdt, int node, struct fdt_property const *prop)
+  : _fdt(fdt),
     _node(node),
     _prop(prop)
   {}
@@ -48,18 +48,18 @@ public:
     std::vector<Property> properties;
 
     int offset;
-    fdt_for_each_property_offset(offset, node._tree, node._node)
+    fdt_for_each_property_offset(offset, node._fdt->dt(), node._node)
       {
         properties.emplace_back(
-          node._tree, node._node,
-          fdt_get_property_by_offset(node._tree, offset, nullptr));
+          node._fdt, node._node,
+          fdt_get_property_by_offset(node._fdt->dt(), offset, nullptr));
       }
 
     return properties;
   }
 
   char const *get_name() const
-  { return fdt_get_string(_tree, fdt32_ld(&_prop->nameoff), nullptr); }
+  { return fdt_get_string(_fdt->dt(), fdt32_ld(&_prop->nameoff), nullptr); }
 
   Value_type get_value_type() const
   {
@@ -98,10 +98,10 @@ public:
     std::vector<char const *> values;
 
     char const *name = get_name();
-    for (int i = 0; i < fdt_stringlist_count(_tree, _node, name); ++i)
+    for (int i = 0; i < fdt_stringlist_count(_fdt->dt(), _node, name); ++i)
       {
         values.push_back(
-          fdt_stringlist_get(_tree, _node, name, i, nullptr));
+          fdt_stringlist_get(_fdt->dt(), _node, name, i, nullptr));
       }
 
     return values;
@@ -133,7 +133,7 @@ private:
   l4_uint32_t length() const
   { return fdt32_ld(&_prop->len); }
 
-  void *_tree;
+  Dtb::Fdt *_fdt;
   int _node;
   struct fdt_property const *_prop;
 };
