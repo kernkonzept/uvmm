@@ -16,7 +16,6 @@
 #include "guest_subarch.h"
 #include "irq.h"
 #include "irq_dt.h"
-#include "pm.h"
 #include "sys_reg.h"
 #include "virt_bus.h"
 
@@ -443,7 +442,6 @@ Guest::prepare_vcpu_startup(Vcpu_ptr vcpu, l4_addr_t entry) const
   vcpu->r.ip    = entry;
 }
 
-
 void
 Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
                          Vm_ram * /* ram */, char const * /* kernel */,
@@ -473,8 +471,6 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
   if (!_timer)
     warn().printf("WARNING: No timer found. Your guest will likely not work properly!\n");
 
-  _cpus = cpus;
-
   for (auto cpu: *cpus.get())
     {
       if (!cpu)
@@ -493,17 +489,15 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
   cpus->cpu(0)->startup();
 }
 
-void L4_NORETURN Guest::shutdown(int val)
+void Guest::stop_cpus()
 {
-  // Stop all vcpu's (skip the current one) executing guest code
+  // Exit all vCPU threads into the vmm and stop the vCPUs.
   for (auto cpu: *_cpus.get())
     {
       if (   cpu && cpu->online()
           && cpu->vcpu().get_vcpu_id() != vmm_current_cpu_id)
         cpu->thread_cap()->ex_regs(~0, ~0, L4_THREAD_EX_REGS_TRIGGER_EXCEPTION);
     }
-  _pm.shutdown(val == Reboot);
-  exit(val);
 }
 
 l4_msgtag_t

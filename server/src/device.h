@@ -24,6 +24,7 @@ namespace Vmm {
   class Vm_ram;
   class Virt_bus;
   class Cpu_dev_array;
+  class Pm;
 }
 
 namespace Vdev {
@@ -137,6 +138,7 @@ struct Device_lookup
   virtual cxx::Ref_ptr<Vmm::Vm_ram> ram() const = 0;
   virtual cxx::Ref_ptr<Vmm::Virt_bus> vbus() const = 0;
   virtual cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus() const = 0;
+  virtual cxx::Ref_ptr<Vmm::Pm> pm() const = 0;
 
   /// Result values for get_or_create_ic()
   enum Ic_error

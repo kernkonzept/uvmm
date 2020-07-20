@@ -85,8 +85,10 @@ class Psci_device : public Vdev::Device, public Vmm::Smccc_device
   }
 
 public:
-  Psci_device(Vmm::Guest *vmm, cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus)
+  Psci_device(Vmm::Guest *vmm, cxx::Ref_ptr<Vmm::Pm> pm,
+              cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus)
   : _vmm(vmm),
+    _pm(pm),
     _cpus(cpus)
   {}
 
@@ -264,7 +266,7 @@ private:
     //   * all other CPUs have to be off (specification requirement)
     //   * powermanagement allows suspend operation
     if (    current_cpu()->vcpu().get_vcpu_id() != 0
-        || !cpus_off() || !_vmm->pm().suspend())
+        || !cpus_off() || !_pm->suspend())
       {
         vcpu->r.r[0] = Denied;
         return;
@@ -273,7 +275,7 @@ private:
     /* Go to sleep */
     _vmm->wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
     /* Back alive */
-    _vmm->pm().resume();
+    _pm->resume();
 
     memset(&vcpu->r, 0, sizeof(vcpu->r));
     _vmm->prepare_vcpu_startup(vcpu, entry_gpa);
@@ -324,6 +326,7 @@ private:
   }
 
   Vmm::Guest *_vmm;
+  cxx::Ref_ptr<Vmm::Pm> _pm;
   cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
 };
 
@@ -332,7 +335,7 @@ struct F : Factory
   cxx::Ref_ptr<Device> create(Vdev::Device_lookup *devs,
                               Dt_node const &node) override
   {
-    auto c = make_device<Psci_device>(devs->vmm(), devs->cpus());
+    auto c = make_device<Psci_device>(devs->vmm(), devs->pm(), devs->cpus());
     Vmm::Guest::Smccc_method smccc_method = Vmm::Guest::Hvc;
 
     char const *method = node.get_prop<char>("method", nullptr);

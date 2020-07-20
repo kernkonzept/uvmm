@@ -38,12 +38,6 @@ public:
     Boot_offset = 0
   };
 
-  enum
-  {
-    Shutdown = 0x0,
-    Reboot = 0x66
-  };
-
   Guest();
 
   void setup_device_tree(Vdev::Device_tree) {}
@@ -51,17 +45,27 @@ public:
   l4_addr_t load_linux_kernel(Vm_ram *ram, char const *kernel,
                               Ram_free_list *free_list);
 
-  void prepare_vcpu_startup(Vcpu_ptr vcpu, l4_addr_t entry) const;
+  void prepare_platform(Vdev::Device_lookup *devs)
+  { _cpus = devs->cpus(); }
 
-  void prepare_platform(Vdev::Device_lookup *)
-  {}
+  void prepare_vcpu_startup(Vcpu_ptr vcpu, l4_addr_t entry) const;
 
   void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
                          Vm_ram *ram, char const *kernel,
                          char const *cmd_line, l4_addr_t dt);
   void run(cxx::Ref_ptr<Cpu_dev_array> cpus);
 
-  void L4_NORETURN shutdown(int val);
+  void L4_NORETURN halt_vm()
+  {
+    stop_cpus();
+    Generic_guest::halt_vm();
+  }
+
+  void L4_NORETURN shutdown(int val)
+  {
+    stop_cpus();
+    Generic_guest::shutdown(val);
+  }
 
   l4_msgtag_t handle_entry(Vcpu_ptr vcpu);
 
@@ -159,13 +163,11 @@ public:
     add_sys_reg_aarch32(op0 + 12, op1, crn, crm, op2, r);
   }
 
-  Pm &pm()
-  { return _pm; }
-
 private:
 
   void check_guest_constraints(l4_addr_t ram_base) const;
   void arm_update_device_tree();
+  void stop_cpus();
 
   cxx::Ref_ptr<Gic::Dist_if> _gic;
   cxx::Ref_ptr<Vdev::Core_timer> _timer;

@@ -197,7 +197,7 @@ static int run(int argc, char *argv[])
   auto *ram = vm_instance.ram().get();
 
   if (use_wakeup_inhibitor)
-    vmm->use_wakeup_inhibitor(true);
+    vm_instance.pm()->use_wakeup_inhibitor(true);
 
   warn.printf("Hello out there.\n");
 
@@ -226,6 +226,7 @@ static int run(int argc, char *argv[])
   if (dt.valid())
     dt_boot_addr = ram->move_in_device_tree(&ram_free_list, cxx::move(dt));
 
+  vmm->prepare_generic_platform(&vm_instance);
   vmm->prepare_platform(&vm_instance);
   vmm->prepare_linux_run(vm_instance.cpus()->vcpu(0), entry, ram, kernel_image,
                          cmd_line, dt_boot_addr);

@@ -15,6 +15,8 @@
 #include "debug.h"
 #include "pm.h"
 
+namespace Vmm {
+
 static Dbg warn(Dbg::Pm, Dbg::Warn, "pm");
 
 Pm::Pm()
@@ -151,4 +153,6 @@ Pm::resume()
           && (r = _vbus->release(L4VBUS_INHIBITOR_WAKEUP)))
         warn.printf("Failed to release wakeup inhibitor: %d.\n", r);
     }
+}
+
 }

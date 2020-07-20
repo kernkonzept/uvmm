@@ -31,8 +31,17 @@ namespace Vmm {
 class Generic_guest
 {
 public:
+  enum
+  {
+    Shutdown = 0x0,
+    Reboot = 0x66
+  };
+
   Generic_guest();
   virtual ~Generic_guest() = default;
+
+  void prepare_generic_platform(Vdev::Device_lookup *devs)
+  { _pm = devs->pm(); }
 
   L4Re::Util::Object_registry *registry() { return &_registry; }
 
@@ -45,16 +54,21 @@ public:
 
   void L4_NORETURN halt_vm()
   {
-    // XXX Only halts the current CPU. For the SMP case some
-    // further signaling might be required.
     Err().printf("VM entered a fatal state. Halting.\n");
-    _pm.free_inhibitors();
+
+    _pm->free_inhibitors();
 
     if (!Monitor::cmd_control_enabled())
       exit(EXIT_FAILURE);
 
     for (;;)
       wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+  }
+
+  void L4_NORETURN shutdown(int val)
+  {
+    _pm->shutdown(val == Reboot);
+    exit(val);
   }
 
   void handle_ipc(l4_msgtag_t tag, l4_umword_t label, l4_utcb_t *utcb)
@@ -106,9 +120,6 @@ public:
       handle_ipc(tag, src, utcb);
   }
 
-  void use_wakeup_inhibitor(bool wakeup_inhibitor)
-  { _pm.use_wakeup_inhibitor(wakeup_inhibitor); }
-
   void add_mmio_device(Region const &region,
                        cxx::Ref_ptr<Vmm::Mmio_device> const &dev)
   {
@@ -143,7 +154,7 @@ protected:
   L4Re::Util::Object_registry _registry;
   Vm_mem _memmap;
   L4Re::Util::Unique_cap<L4::Vm> _task;
-  Pm _pm;
+  cxx::Ref_ptr<Pm> _pm;
 };
 
 } // namespace
