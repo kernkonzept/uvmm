@@ -706,7 +706,7 @@ public:
    */
   Node path_offset(char const *path) const
   {
-    int ret = fdt_path_offset(_tree, path);
+    int ret = fdt_path_offset_namelen(_tree, path, strlen(path));
     if (ret < 0)
       ERR("cannot find node '%s'", path);
 
