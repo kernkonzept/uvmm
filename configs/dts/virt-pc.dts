@@ -132,6 +132,12 @@
             //    reg = < 0x0 0xA0000 0x20000     // MMIO [0xA0000-0xBFFFF]
             //            0x1   0x3C0    0x20 >   // IO   [0x3C0-0x3DF]
             // }
+
+            isa_debugport {
+                compatible = "l4vmm,isa-debugport";
+                reg = <0x1 0x402 0x1>;
+                l4vmm,vcon_cap = "debug";
+            };
         };
 
         pci0: pci@aa000000 {
