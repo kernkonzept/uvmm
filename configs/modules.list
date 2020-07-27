@@ -13,5 +13,5 @@ module[shell] echo $SRC_BASE_ABS/pkg/uvmm/configs/vmm.lua
 module[shell] echo $SRC_BASE_ABS/pkg/uvmm/configs/bsp/plat-$PLATFORM_TYPE/io.cfg
 module[shell] echo $SRC_BASE_ABS/pkg/uvmm/configs/bsp/plat-$PLATFORM_TYPE/vm_hw.vbus
 module[shell] echo $SRC_BASE_ABS/pkg/uvmm/configs/uvmm.ned
-module[shell] echo $ZIMAGE_FILE
+module[shell,uncompress] echo $ZIMAGE_FILE
 #module <path_to_ramdisk>/arm-image
