@@ -81,35 +81,23 @@ struct Dt_error_hdl
 typedef Dtb::Node<Dt_error_hdl> Dt_node;
 typedef Dtb::Tree<Dt_error_hdl> Device_tree;
 
-struct Dev_ref
-{
-  virtual void add_ref() const noexcept = 0;
-  virtual int remove_ref() const noexcept = 0;
-};
-
-template <typename BASE>
-class Dev_ref_obj : public virtual Dev_ref, public BASE
+class Dev_ref
 {
 private:
-  mutable int _ref_cnt;
+  mutable int _ref_cnt = 0;
 
 public:
-  template <typename... Args>
-  Dev_ref_obj(Args &&... args)
-  : BASE(cxx::forward<Args>(args)...), _ref_cnt(0)
-  {}
-
-  void add_ref() const noexcept override
+  void add_ref() const noexcept
   { __atomic_add_fetch(&_ref_cnt, 1, __ATOMIC_ACQUIRE); }
 
-  int remove_ref() const noexcept override
+  int remove_ref() const noexcept
   { return __atomic_sub_fetch(&_ref_cnt, 1, __ATOMIC_RELEASE); }
 };
 
 template< typename T, typename... Args >
 cxx::Ref_ptr<T>
 make_device(Args &&... args)
-{ return cxx::make_ref_obj<Dev_ref_obj<T> >(cxx::forward<Args>(args)...); }
+{ return cxx::make_ref_obj<T>(cxx::forward<Args>(args)...); }
 
 struct Device_lookup;
 

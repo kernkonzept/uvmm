@@ -290,7 +290,7 @@ private:
   };
 
   cxx::unique_ptr<l4_uint64_t[]> _router;
-  Vdev::Dev_ref_obj<Redist> _redist;
+  Redist _redist;
   Sgir_sysreg _sgir;
 
 public:
