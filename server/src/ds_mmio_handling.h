@@ -101,7 +101,7 @@ private:
  * Convert MMIO accesses to the Ds_access_mgr interface and manage the offset
  * into the managed area.
  */
-class Mmio_ds_converter : public Vmm::Mmio_device_t<Mmio_ds_converter>
+class Mmio_ds_converter final : public Vmm::Mmio_device_t<Mmio_ds_converter>
 {
 public:
   /**

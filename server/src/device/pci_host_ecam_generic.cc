@@ -98,7 +98,7 @@ struct Interrupt_map
   std::map<l4_uint32_t, Dev_mapping> map; /// Device id - Interrupt map
 };
 
-class Pci_host_ecam_generic
+class Pci_host_ecam_generic final
 : public Pci_dev,
   public Device,
   public Vmm::Mmio_device_t<Pci_host_ecam_generic>

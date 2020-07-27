@@ -17,7 +17,7 @@ namespace Vdev {
 
 using namespace Vmm;
 
-class Io_port_handler : public Io_device, public Device
+class Io_port_handler final : public Io_device, public Device
 {
   unsigned _base;
 

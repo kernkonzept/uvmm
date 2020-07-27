@@ -22,7 +22,7 @@
 
 namespace Gic {
 
-class Dist
+class Dist final
 : public Vmm::Read_mapped_mmio_device_t<Dist, char>,
   public Ic
 {

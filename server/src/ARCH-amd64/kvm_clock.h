@@ -36,7 +36,7 @@ struct Vcpu_time_info
 static_assert(sizeof(Vcpu_time_info) == 32,
               "Vcpu_time_info structure is compact.");
 
-class Kvm_clock : public Vdev::Timer, public Device
+class Kvm_clock final : public Vdev::Timer, public Device
 {
 
 public:

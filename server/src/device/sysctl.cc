@@ -85,7 +85,7 @@ private:
   Vmm::Guest *_vmm;
 };
 
-struct System_controller_mmio
+struct System_controller_mmio final
 : public System_controller,
   public Vmm::Mmio_device_t<System_controller_mmio>
 {

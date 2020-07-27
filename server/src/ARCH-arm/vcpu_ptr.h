@@ -15,7 +15,7 @@
 
 namespace Vmm {
 
-class Vcpu_ptr : public Generic_vcpu_ptr
+class Vcpu_ptr final : public Generic_vcpu_ptr
 {
 public:
   explicit Vcpu_ptr(l4_vcpu_state_t *s) : Generic_vcpu_ptr(s) {}

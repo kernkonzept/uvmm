@@ -15,7 +15,7 @@
 #include "mmio_device.h"
 #include "vcpu_ptr.h"
 
-class Ds_handler : public Vmm::Mmio_device
+class Ds_handler final : public Vmm::Mmio_device
 {
   L4::Cap<L4Re::Dataspace> _ds;
   l4_addr_t _local_start;

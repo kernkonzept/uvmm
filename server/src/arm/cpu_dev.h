@@ -18,7 +18,7 @@ extern __thread unsigned vmm_current_cpu_id;
 
 namespace Vmm {
 
-class Cpu_dev
+class Cpu_dev final
 : public Generic_cpu_dev,
   public Monitor::Cpu_dev_cmd_handler<Monitor::Enabled, Cpu_dev>
 {

@@ -14,7 +14,7 @@ namespace {
 static Dbg warn(Dbg::Dev, Dbg::Warn, "vm_print");
 static Dbg info(Dbg::Dev, Dbg::Info, "vm_print");
 
-class Vm_print_device : public Vdev::Device, public Vmm::Smccc_device
+class Vm_print_device final : public Vdev::Device, public Vmm::Smccc_device
 {
   enum Vm_print_error_codes
   {

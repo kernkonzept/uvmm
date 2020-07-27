@@ -292,7 +292,7 @@ private:
   DEV *dev() { return static_cast<DEV *>(this); }
 };
 
-class Virtio_console_mmio
+class Virtio_console_mmio final
 : public Virtio_console<Virtio_console_mmio>,
   public Vmm::Ro_ds_mapper_t<Virtio_console_mmio>,
   public Virtio::Mmio_connector<Virtio_console_mmio>

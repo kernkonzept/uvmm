@@ -57,7 +57,7 @@ static Dbg info(Dbg::Dev, Dbg::Info, "VioDrv");
  * The guest device may notify the driver about queue changes by writing
  * the appropriate driver_notify_index of the queue to the queue_notify field.
  */
-class Virtio_device_proxy
+class Virtio_device_proxy final
 : public Vmm::Read_mapped_mmio_device_t<Virtio_device_proxy, l4virtio_config_hdr_t>,
   public L4::Epiface_t<Virtio_device_proxy, L4virtio::Device>,
   public Vdev::Device

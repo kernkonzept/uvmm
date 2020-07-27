@@ -16,7 +16,7 @@ using namespace Gic;
 /**
  * GICv2 Distributor implementation.
  */
-class Dist_v2 : public Dist_mixin<Dist_v2>
+class Dist_v2 final : public Dist_mixin<Dist_v2>
 {
 private:
   using Dist = Dist_mixin<Dist_v2>;

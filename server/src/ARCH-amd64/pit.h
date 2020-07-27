@@ -23,7 +23,7 @@ namespace Vdev {
  *
  * Supports only channel 0 and 2.
  */
-class Pit_timer
+class Pit_timer final
 : public Vmm::Io_device,
   public Vdev::Device,
   public Vdev::Timer

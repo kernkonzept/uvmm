@@ -21,7 +21,7 @@ namespace Vmm {
 /**
  * The main instance of a hardware-virtualized guest.
  */
-class Vm
+class Vm final
 : public Vdev::Device_lookup,
   public Monitor::Vm_cmd_handler<Monitor::Enabled, Vm>
 {

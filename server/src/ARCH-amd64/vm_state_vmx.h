@@ -17,7 +17,7 @@
 
 namespace Vmm {
 
-class Vmx_state : public Vm_state
+class Vmx_state final : public Vm_state
 {
 public:
   enum class Exit {

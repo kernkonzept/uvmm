@@ -15,7 +15,7 @@
 
 namespace Vdev {
 
-struct Core_timer : public Device, public Vmm::Irq_edge_sink
+struct Core_timer final : public Device, public Vmm::Irq_edge_sink
 {
   Core_timer(cxx::Ref_ptr<Gic::Ic> const &ic, int irq, Dt_node const &self)
   : Irq_edge_sink(ic, irq)

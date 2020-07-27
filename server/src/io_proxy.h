@@ -18,9 +18,9 @@
 
 namespace Vdev {
 
-class Io_proxy : public Device
+class Io_proxy final : public Device
 {
-  class Io_irq_svr : public Irq_svr
+  class Io_irq_svr final : public Irq_svr
   {
   public:
     using Irq_svr::Irq_svr;

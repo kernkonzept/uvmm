@@ -20,7 +20,7 @@ namespace Vmm {
 /**
  * Abstract CPU container.
  */
-class Cpu_dev_array
+class Cpu_dev_array final
 : public virtual Vdev::Dev_ref,
   public Monitor::Cpu_dev_array_cmd_handler<Monitor::Enabled, Cpu_dev_array>
 {

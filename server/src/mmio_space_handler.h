@@ -13,7 +13,7 @@
 
 namespace Vdev {
 
-class Mmio_space_handler
+class Mmio_space_handler final
 : public Vmm::Mmio_device_t<Mmio_space_handler>
 {
 public:

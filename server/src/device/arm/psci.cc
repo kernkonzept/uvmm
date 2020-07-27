@@ -20,7 +20,7 @@ using namespace Vdev;
 static Dbg warn(Dbg::Dev, Dbg::Warn, "psci");
 static Dbg info(Dbg::Dev, Dbg::Info, "psci");
 
-class Psci_device : public Vdev::Device, public Vmm::Smccc_device
+class Psci_device final : public Vdev::Device, public Vmm::Smccc_device
 {
   enum Psci_error_codes
   {

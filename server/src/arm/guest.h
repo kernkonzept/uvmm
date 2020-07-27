@@ -29,7 +29,7 @@ namespace Vmm {
 /**
  * ARM virtual machine monitor.
  */
-class Guest : public Generic_guest
+class Guest final : public Generic_guest
 {
 public:
   enum

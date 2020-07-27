@@ -77,7 +77,7 @@ struct State : l4_vm_state_t
   { l4_thread_mips_save_vm_state(L4_INVALID_CAP, bits); }
 };
 
-class Vcpu_ptr : public Generic_vcpu_ptr
+class Vcpu_ptr final : public Generic_vcpu_ptr
 {
 public:
   explicit Vcpu_ptr(l4_vcpu_state_t *s) : Generic_vcpu_ptr(s) {}

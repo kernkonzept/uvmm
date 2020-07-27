@@ -20,7 +20,7 @@ namespace Vdev {
  * support from the kernel. By default, the kernel provides the relevant 32
  * bits of IA32_BIOS_SIGN_ID in the last user_data register of the vCPU state.
  */
-class Microcode_revision : public Vmm::Msr_device
+class Microcode_revision final : public Vmm::Msr_device
 {
   enum { Ia32_bios_sign_id = 0x8d};
 

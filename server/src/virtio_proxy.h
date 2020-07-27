@@ -345,7 +345,7 @@ private:
   L4virtio::Driver::Device _dev;
 };
 
-class Virtio_proxy_mmio
+class Virtio_proxy_mmio final
 : public Virtio_proxy<Virtio_proxy_mmio>,
   public Vmm::Ro_ds_mapper_t<Virtio_proxy_mmio>,
   public Virtio::Mmio_connector<Virtio_proxy_mmio>
