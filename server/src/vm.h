@@ -45,12 +45,6 @@ public:
   { return _cpus; }
 
   /**
-   * \see Device_lookup::get_or_create_ic_dev(Vdev::Dt_node const &node,
-   *                                          bool fatal)
-   */
-  cxx::Ref_ptr<Gic::Ic> get_or_create_ic_dev(Vdev::Dt_node const &node,
-                                             bool fatal) override;
-  /**
    * \see Device_lookup::get_or_create_ic(Vdev::Dt_node const &node,
    *                                      cxx::Ref_ptr<Gic::Ic> *ic_ptr)
    */

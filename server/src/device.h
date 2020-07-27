@@ -166,25 +166,7 @@ struct Device_lookup
     };
     return (res < sizeof(err)/sizeof(err[0])) ? err[res] : "unknown error";
   }
-  /**
-   * Get the interrupt controller for a given node.
-   *
-   * \param node   The device tree node an interrupt parent is looked for.
-   * \param fatal  Abort if true and no virtual device for the interrupt parent
-   *               could be found.
-   *
-   * \return Either a pointer to the virtual device of the interrupt parent or
-   *         nullptr in case of an error
-   *
-   * This method tries to fetch and return the interrupt parent of the node. If
-   * the device doesn't exist yet and is a virtual device it tries to create it.
-   * It walks the interrupt tree up and creates the missing devices starting
-   * with the top most missing device. If creation of any device fails it
-   * emits a diagnostic message and aborts if fatal is true. Otherwise it
-   * returns a nullptr.
-   */
-  virtual cxx::Ref_ptr<Gic::Ic>get_or_create_ic_dev(Vdev::Dt_node const &node,
-                                                    bool fatal) = 0;
+
   /**
    * Get the interrupt controller for a given node.
    *

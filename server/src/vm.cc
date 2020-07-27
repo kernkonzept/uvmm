@@ -49,23 +49,6 @@ Vm::get_or_create_ic(Vdev::Dt_node const &node, cxx::Ref_ptr<Gic::Ic> *ic_ptr)
   return Ic_ok;
 }
 
-cxx::Ref_ptr<Gic::Ic>
-Vm::get_or_create_ic_dev(Vdev::Dt_node const &node, bool fatal)
-{
-  cxx::Ref_ptr<Gic::Ic> ic;
-  Ic_error res = get_or_create_ic(node, &ic);
-  if (res == Ic_ok)
-    return ic;
-
-  Dbg(Dbg::Dev, Dbg::Info).printf("%s: Failed to get interrupt parent: %s\n",
-                                  node.get_name(), ic_err_str(res));
-
-  if (fatal)
-    L4Re::chksys(-L4_ENODEV, "Unable to locate interrupt parent");
-
-  return nullptr;
-}
-
 cxx::Ref_ptr<Gic::Msix_controller>
 Vm::get_or_create_mc_dev(Vdev::Dt_node const &node)
 {
