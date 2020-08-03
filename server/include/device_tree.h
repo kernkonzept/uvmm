@@ -62,6 +62,9 @@ public:
   void move(void *dst)
   {
     fdt_move(dt_rw(), dst, size());
+    if (_owned)
+      free(_dtmem);
+
     _dtmem = nullptr;
   }
 
