@@ -87,7 +87,7 @@ public:
     if (Monitor::cmd_control_enabled())
       {
         // Create a copy for the monitor
-        Dtb::Fdt *new_fdt = new Dtb::Fdt(_fdt);
+        Dtb::Fdt *new_fdt = new Dtb::Fdt(*_fdt);
         _fdt->move(target);
         _fdt = new_fdt;
       }
