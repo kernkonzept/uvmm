@@ -104,9 +104,11 @@ public:
                                       char const *name, int name_len,
                                       uint32_t idx, void const *val, int len)
   {
-    return fdt_setprop_inplace_namelen_partial(dt_rw(), node,
-                                               name, name_len,
-                                               idx, val, len);
+    // That function does not change any node offset as it just replaces the
+    // property without changing its size. Hence, use _dtmem as flushing the
+    // caches is not necessary.
+    return fdt_setprop_inplace_namelen_partial(_dtmem, node, name,
+                                               name_len, idx, val, len);
   }
 
   int appendprop_u32(int node, char const *name, fdt32_t value)
