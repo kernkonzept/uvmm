@@ -212,6 +212,8 @@ int main(int argc, char *argv[])
 
   dt.set_command_line(cmd_line);
 
+  setup_ramdisk(ram_disk, dt, &ram_free_list, ram);
+
   if (dt.valid())
     {
       vm_instance.scan_device_tree(dt.get());
@@ -219,8 +221,6 @@ int main(int argc, char *argv[])
     }
 
   verify_cpu0_setup();
-
-  setup_ramdisk(ram_disk, dt, &ram_free_list, ram);
 
   // finally copy in the device tree
   l4_addr_t dt_boot_addr = 0;
