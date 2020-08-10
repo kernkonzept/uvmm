@@ -66,8 +66,13 @@ public:
 
         if (!(entry & Present_bit))
           {
-            Err().printf("Entry not present 0x%llx\n", entry);
-            L4Re::chksys(-L4_EINVAL, "Found entry is present.\n");
+            char buf[78];
+            snprintf(buf, sizeof(buf),
+                     "Found entry is present. Actual: Entry 0x%llx not "
+                     "present.\n",
+                     entry);
+
+            L4Re::chksys(-L4_EINVAL, buf);
           }
 
         // check for PS = 0 in PDPT & PD entries
