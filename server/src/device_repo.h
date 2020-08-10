@@ -28,6 +28,9 @@ public:
   cxx::Ref_ptr<Device> device_from_node(Dt_node const &node,
                                         std::string *path = nullptr) const
   {
+    // Is a device corresponding to that node already part of the repository?
+    // Identify the device using the phandle (if the node contains a phandle)
+    // or using the full node node path (otherwise).
     l4_uint32_t phandle = node.get_phandle();
 
     if (phandle != 0 && phandle != -1U)
@@ -42,14 +45,16 @@ public:
     char buf[1024];
     node.get_path(buf, sizeof(buf));
 
-    if (path)
-      path->assign(buf);
-
     for (auto const &d : _devices)
       {
         if (d.path == buf)
           return d.dev;
       }
+
+    // Return the path to the caller for passing to add(). This saves an
+    // expensive operation.
+    if (path)
+      path->assign(buf);
 
     return cxx::Ref_ptr<Device>();
   }
@@ -66,7 +71,7 @@ public:
         _devices.push_back({buf, phandle, dev});
       }
     else
-      _devices.push_back({path.c_str(), phandle, dev});
+      _devices.push_back({path, phandle, dev});
   }
 
   std::vector<Dt_device>::const_iterator begin() const
