@@ -267,7 +267,8 @@ public:
 
 private:
   Readline_loop() {
-    rl_attempted_completion_function = (CPPFunction *)attempt_completion;
+    rl_attempted_completion_function =
+      (CPPFunction *)(uintptr_t)attempt_completion;
     rl_completer_word_break_characters = const_cast<char *>(" \t\n");
   }
 
@@ -307,7 +308,8 @@ private:
           _completions_buf.emplace_back(completion);
       }
 
-    return completion_matches(nullptr, (CPFunction *)generate_completion);
+    return completion_matches(nullptr,
+                              (CPFunction *)(uintptr_t)generate_completion);
   }
 
   static std::string trim_left(std::string const &line)
