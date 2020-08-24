@@ -772,7 +772,8 @@ public:
           _bus->cfg_space_read(Devfn_address(_cfg_addr.dev().get(),
                                              _cfg_addr.func().get()),
                                reg, 0, width, value);
-          trace().printf("IN access @0x%x/%d --> 0x%x\n", port, width, *value);
+          trace().printf("IN access @0x%x/%d reg: 0x%x --> 0x%x\n", port, width,
+                         reg, *value);
           return;
         }
       }
