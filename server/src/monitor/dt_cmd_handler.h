@@ -272,9 +272,9 @@ private:
 
                   fprintf(f, " = <");
 
-                  fprintf(f, "0x%0x", values[0]);
+                  fprintf(f, "0x%0x", fdt32_to_cpu(values[0]));
                   for (auto i = 1u; i < values.size(); ++i)
-                    fprintf(f, " 0x%0x", values[i]);
+                    fprintf(f, " 0x%0x", fdt32_to_cpu(values[i]));
 
                   fprintf(f, ">;\n");
                 }
