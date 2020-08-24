@@ -127,9 +127,9 @@ public:
     _devfns.init();
 
     auto *hdr = header();
-    // Linux' x86 PCI_direct code sanity checks for class code of first device,
-    // either PCI_CLASS_DISPLAY_VGA(0x0300) or PCI_CLASS_BRIDGE_HOST(0x00)
-    // device should be there. --> First device is BRIDGE_HOST device
+    // Linux' x86 PCI_direct code sanity checks for a device with class code
+    // PCI_CLASS_DISPLAY_VGA(0x0300) or PCI_CLASS_BRIDGE_HOST(0x00) or for a
+    // device of vendor INTEL or COMPAQ.
     // see linux/arch/x86/pci/direct.c
     hdr->classcode[2] = Pci_class_code_bridge_device;
     hdr->classcode[1] = Pci_subclass_code_host;
