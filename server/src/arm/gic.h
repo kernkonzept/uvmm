@@ -284,48 +284,48 @@ public:
     bool enable(bool ena) const
     {
       if (ena)
-        return this->_p->enable();
+        return _p->enable();
       else
-        return this->_p->disable();
+        return _p->disable();
     }
 
     using Const_irq::pending;
     bool pending(bool pend) const
     {
       if (pend)
-        return this->_p->set_pending();
+        return _p->set_pending();
       else
-        return this->_p->clear_pending();
+        return _p->clear_pending();
     }
 
     bool take_on_cpu(unsigned char cpu, unsigned char min_prio) const
     {
-      return this->_p->take_on_cpu(cpu, min_prio);
+      return _p->take_on_cpu(cpu, min_prio);
     }
 
     void kick_from_cpu(unsigned char cpu)
     {
-      return this->_p->kick_from_cpu(cpu);
+      return _p->kick_from_cpu(cpu);
     }
 
 
     using Const_irq::prio;
-    void prio(unsigned char p) const { this->_p->prio(p); }
-    bool eoi(unsigned cpu, bool pending) const { return this->_p->eoi(cpu, pending); }
+    void prio(unsigned char p) const { _p->prio(p); }
+    bool eoi(unsigned cpu, bool pending) const { return _p->eoi(cpu, pending); }
     using Const_irq::active;
-    void active(bool act) const { this->_p->active(act); }
+    void active(bool act) const { _p->active(act); }
     using Const_irq::group;
-    void group(bool grp1) const { this->_p->group(grp1); }
+    void group(bool grp1) const { _p->group(grp1); }
     using Const_irq::config;
-    void config(unsigned char cfg) const { this->_p->config(cfg); }
+    void config(unsigned char cfg) const { _p->config(cfg); }
 
-    void set_lr(unsigned idx) const { this->_c->lr = idx; }
+    void set_lr(unsigned idx) const { _c->lr = idx; }
     void clear_lr() const { set_lr(0); }
 
     using Const_irq::target;
-    bool target(unsigned char tgt) const  { return this->_p->target(tgt); }
+    bool target(unsigned char tgt) const  { return _p->target(tgt); }
 
-    Irq &operator ++ () { ++this->_c; ++this->_p; return *this; }
+    Irq &operator ++ () { ++_c; ++_p; return *this; }
 
 
   private:
