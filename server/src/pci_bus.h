@@ -239,7 +239,7 @@ private:
                      msix_cap_addr);
       }
     else
-      dbg().printf("Did not find an MSI-X capability for %x\n", devfn.value);
+      dbg().printf("Did not find an MSI-X capability for 0x%x\n", devfn.value);
     return true;
   }
 
@@ -410,14 +410,14 @@ private:
       {
         bar_cfg->addr = bar_orig & ~0x3;
         bar_cfg->type = Pci_cfg_bar::IO;
-        info().printf("PCI IO BAR, size = %lx, addr = %llx\n",
+        info().printf("PCI IO BAR, size = 0x%lx, addr = 0x%llx\n",
                       bar_cfg->size, bar_cfg->addr);
       }
     else if ((bar_orig & 0x6) == 0) // MMIO32
       {
         bar_cfg->addr = bar_orig & ~0xf;
         bar_cfg->type = Pci_cfg_bar::MMIO32;
-        info().printf("PCI MMIO32 BAR, size = %lx, addr = %llx\n",
+        info().printf("PCI MMIO32 BAR, size = 0x%lx, addr = 0x%llx\n",
                       bar_cfg->size, bar_cfg->addr);
       }
     else if (is_64) // MMIO64
@@ -425,7 +425,7 @@ private:
         bar_cfg->addr = bar_orig & ~0xf;
         bar_cfg->addr |= static_cast<l4_uint64_t>(bar_orig_high) << 32;
         bar_cfg->type = Pci_cfg_bar::MMIO64;
-        info().printf("PCI MMIO64 BAR, size = %lx, addr = %llx\n",
+        info().printf("PCI MMIO64 BAR, size = 0x%lx, addr = 0x%llx\n",
                       bar_cfg->size, bar_cfg->addr);
       }
 
