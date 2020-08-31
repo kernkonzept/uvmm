@@ -14,6 +14,8 @@
 #include <l4/cxx/ref_ptr>
 #include <l4/re/error_helper>
 
+#include "consts.h"
+
 namespace Vmm {
 
 /**
@@ -36,6 +38,8 @@ private:
   L4Re::Rm::Unique_region<void *> _local;
   /// Region flags to be used when locally attaching the dataspace
   L4Re::Rm::Region_flags _local_flags;
+  /// Region alignment (log2)
+  unsigned char _align;
 
   /**
    * Get the VMM local address of the managed portion of the dataspace.
@@ -55,7 +59,7 @@ private:
                             | L4Re::Rm::F::Search_addr
                             | L4Re::Rm::F::Eager_map,
                             L4::Ipc::make_cap_rw(_ds.get()),
-                            _offset, L4_SUPERPAGESHIFT));
+                            _offset, _align));
     return _local.get();
   }
 
@@ -66,8 +70,10 @@ public:
   Ds_manager(L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap const &ds,
              L4Re::Dataspace::Offset offset,
              L4Re::Dataspace::Size size,
-             L4Re::Rm::Region_flags local_flags = L4Re::Rm::F::RW)
-  : _ds(ds), _offset(offset), _size(size), _local_flags(local_flags)
+             L4Re::Rm::Region_flags local_flags = L4Re::Rm::F::RW,
+             unsigned char align = L4_SUPERPAGESHIFT)
+  : _ds(ds), _offset(offset), _size(size), _local_flags(local_flags),
+    _align(align)
   {}
 
   /**

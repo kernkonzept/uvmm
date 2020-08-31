@@ -45,21 +45,26 @@ struct Mmio_device : public virtual Vdev::Dev_ref
   };
 
   /**
-   * Check whether a superpage containing address is inside a region
+   * Check whether a log2-sized page containing address is inside a region
    *
-   * \param addr     address to check
-   * \param start    start of region.
-   * \param end      end of region; do not check end of region if end is zero.
-   * \return true if there is a superpage containing the address
+   * \param align    log2 of the page alignment.
+   * \param addr     Address to check.
+   * \param start    Start of region.
+   * \param end      Last byte of region; do not check end of region if zero.
+   * \return true if there is a log2-aligned page containing the address
    *                 inside the region
    */
-  inline bool sp_in_range(l4_addr_t addr, l4_addr_t start, l4_addr_t end) const
-
+  inline bool log2_page_in_range(unsigned char align, l4_addr_t addr,
+                                 l4_addr_t start, l4_addr_t end) const
   {
-    auto superpage = l4_trunc_size(addr, L4_SUPERPAGESHIFT);
-    return    (start <= superpage)
-           && (!end || ((superpage + L4_SUPERPAGESIZE - 1) <= end));
+    auto log2page = l4_trunc_size(addr, align);
+    return    start <= log2page
+           && (!end || (log2page + (1UL << align) - 1) <= end);
   }
+
+  inline bool log2_alignment_compatible(unsigned char align, l4_addr_t addr1,
+                                        l4_addr_t addr2) const
+  { return (addr1 & ((1UL << align) - 1)) == (addr2 & ((1UL << align) - 1)); }
 
   /**
    * Calculate log_2(pagesize) for a location in a region
@@ -70,23 +75,33 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    * \param offset   Accessed address relative to the beginning of the region.
    * \param l_start  Local address of start of memory region.
    * \param l_end    Local address of end of memory region, default 0.
-   * \return largest possible pageshift (currently either L4_PAGESHIFT
-   *                 or L4_SUPERPAGESHIFT)
+   *
+   * \return largest possible pageshift.
    */
   inline char get_page_shift(l4_addr_t addr, l4_addr_t start, l4_addr_t end,
-                                 l4_addr_t offset, l4_addr_t l_start,
-                                 l4_addr_t l_end = 0) const
+                             l4_addr_t offset, l4_addr_t l_start,
+                             l4_addr_t l_end = 0) const
   {
-    // Check whether a superpage is inside the regions
-    if (   !sp_in_range(addr, start, end)
-        || !sp_in_range(l_start + offset, l_start, l_end))
+    if (end <= start)
       return L4_PAGESHIFT;
 
-    // Check whether both regions have a compatible alignment
-    if ((start & (L4_SUPERPAGESIZE - 1)) != (l_start & (L4_SUPERPAGESIZE - 1)))
-      return L4_PAGESHIFT;
+    // Start with a reasonable maximum value: log2 of the memory region size
+    l4_addr_t const size = end - start + 1;
+    unsigned char align = sizeof(l4_addr_t) * 8 - (__builtin_clzl(size) + 1);
+    for (; align > L4_PAGESHIFT; --align)
+      {
+        // Check whether a log2-sized page is inside the regions
+        if (   !log2_page_in_range(align, addr, start, end)
+            || !log2_page_in_range(align, l_start + offset, l_start, l_end))
+          continue;
 
-    return L4_SUPERPAGESHIFT;
+        if (!log2_alignment_compatible(align, start, l_start))
+          continue;
+
+        return align;
+      }
+
+    return L4_PAGESHIFT;
   }
 
   /**

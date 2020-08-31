@@ -15,4 +15,10 @@ enum Handler_return_codes
   Jump_instr = 1,
 };
 
+enum
+{
+  Ram_hugepageshift  = 24,
+  Ram_hugepagesize   = 1UL << Ram_hugepageshift,
+};
+
 } // namespace Vmm
