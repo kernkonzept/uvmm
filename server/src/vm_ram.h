@@ -125,7 +125,7 @@ public:
    * \param dt               Device tree to scan. May be invalid, in which case
    *                         only a single region from the 'ram' dataspace is
    *                         set up.
-   * \param memap            Geust memory map where to register the new region.
+   * \param memap            Guest memory map where to register the new region.
    * \param default_address  Address to map RAM to when no config is found
    *                         in the device tree.
    *
