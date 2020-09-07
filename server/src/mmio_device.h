@@ -325,7 +325,8 @@ struct Ro_ds_mapper_t : Mmio_device
                 l4_addr_t min, l4_addr_t max)
   {
 #ifdef MAP_OTHER
-    auto res = dev()->mmio_ds()->map(offset, L4Re::Dataspace::F::RX, pfa, min, max, vm_task);
+    auto res = dev()->mmio_ds()->map(offset, L4Re::Dataspace::F::RX, pfa,
+                                     min, max, vm_task);
 #else
     auto local_start = local_addr();
 

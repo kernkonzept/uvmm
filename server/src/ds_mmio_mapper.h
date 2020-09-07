@@ -25,7 +25,7 @@
  * pages to the VM using L4::Task::map.
  *
  * The dataspace and the VMM local mapping is managed by the associated
- * Ds_handler. The VMM local mapping is created lazily, either on first
+ * Ds_manager. The VMM local mapping is created lazily, either on first
  * access() or map_eager() calls.
  */
 class Ds_handler final : public Vmm::Mmio_device
@@ -146,9 +146,9 @@ private:
  * Ds_handler represents a dataspace-backed region in the VMs memory
  * map.
  *
- * This version uses maps the dataspace directly from the dataspace into
- * the VM, without creating VMM local mappings. If such mappings are needed
- * the Ds_manager interface must be used.
+ * This version maps the dataspace directly from the dataspace into the VM,
+ * without creating VMM local mappings. If such mappings are needed the
+ * Ds_manager interface must be used.
  */
 class Ds_handler final : public Vmm::Mmio_device
 {

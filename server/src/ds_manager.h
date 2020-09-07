@@ -26,7 +26,7 @@ namespace Vmm {
 class Ds_manager : public cxx::Ref_obj
 {
 private:
-  /// Dataspace capability for the to be managed
+  /// Dataspace capability for the dataspace to be managed
   L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap _ds;
   /// Offset within the dataspace of the managed part
   L4Re::Dataspace::Offset _offset = 0;
@@ -40,7 +40,7 @@ private:
   /**
    * Get the VMM local address of the managed portion of the dataspace.
    *
-   * NOTE: this function might create a local mapping if it does
+   * \note This function might create a local mapping if it does
    * not already exist.
    */
   void *_local_addr()
@@ -51,7 +51,9 @@ private:
     auto rm = L4Re::Env::env()->rm();
 
     L4Re::chksys(rm->attach(&_local, _size,
-                            _local_flags | L4Re::Rm::F::Search_addr | L4Re::Rm::F::Eager_map,
+                            _local_flags
+                            | L4Re::Rm::F::Search_addr
+                            | L4Re::Rm::F::Eager_map,
                             L4::Ipc::make_cap_rw(_ds.get()),
                             _offset, L4_SUPERPAGESHIFT));
     return _local.get();
