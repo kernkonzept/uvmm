@@ -83,7 +83,7 @@ public:
   void load_file(L4::Cap<L4Re::Dataspace> const &file,
                  Vmm::Guest_addr addr, l4_size_t sz) const
   {
-    auto *r = find_region(addr, 0);
+    auto r = find_region(addr, 0);
     if (!r)
       L4Re::chksys(-L4_ENOENT, "Guest region found");
 
@@ -96,7 +96,7 @@ public:
   template <typename T>
   T guest2host(Vmm::Guest_addr p) const
   {
-    auto *r = find_region(p, 0);
+    auto r = find_region(p, 0);
     if (!r)
       L4Re::chksys(-L4_ENOENT, "Guest address found");
 
@@ -112,7 +112,7 @@ public:
   template <typename T>
   T guest2host(Region region) const
   {
-    auto *r = find_region(region.start, region.end - region.start + 1);
+    auto r = find_region(region.start, region.end - region.start + 1);
     if (!r)
       L4Re::chksys(-L4_ERANGE, "Guest address outside RAM region");
 
@@ -166,7 +166,7 @@ public:
   void copy_from_ds(L4::Cap<L4Re::Dataspace> ds, l4_addr_t offset,
                     Vmm::Guest_addr gp_addr, l4_size_t size) const
   {
-    auto *r = find_region(gp_addr, size);
+    auto r = find_region(gp_addr, size);
 
     // XXX cannot handle copying into consecutive DS at the moment
     if (!r)
@@ -181,16 +181,16 @@ public:
   void foreach_region(FUNC &&func) const
   {
     for (auto const &r : _regions)
-      func(r);
+      func(*r.get());
   }
 
 private:
-  Ram_ds const *find_region(Vmm::Guest_addr addr, l4_size_t size) const
+  cxx::Ref_ptr<Ram_ds> find_region(Vmm::Guest_addr addr, l4_size_t size) const
   {
     for (auto const &r : _regions)
       {
-        if (addr >= r.vm_start() && addr - r.vm_start() + size <= r.size())
-          return &r;
+        if (addr >= r->vm_start() && addr - r->vm_start() + size <= r->size())
+          return r;
       }
 
     return nullptr;
@@ -215,7 +215,7 @@ private:
   void setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,
                             Vmm::Guest_addr baseaddr);
 
-  std::vector<Vmm::Ram_ds> _regions;
+  std::vector<cxx::Ref_ptr<Vmm::Ram_ds>> _regions;
   l4_addr_t _boot_offset;
 };
 

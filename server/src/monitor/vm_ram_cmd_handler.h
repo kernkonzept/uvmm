@@ -63,12 +63,12 @@ private:
     fprintf(f, "Dataspace  Guest area             Size        Local address  Phys?\n");
     for (auto const &r : vm_ram()->_regions)
       fprintf(f, "%9lu  0x%08llx-0x%08llx  0x%08llx  0x%08llx     %s\n",
-              r.ds().cap() >> L4_CAP_SHIFT,
-              (l4_uint64_t)r.vm_start().get(),
-              (l4_uint64_t)(r.vm_start().get() + r.size()),
-              (l4_uint64_t)r.size(),
-              (l4_uint64_t)r.local_start(),
-              r.has_phys_addr() ? "Y" : "N");
+              r->dataspace().cap() >> L4_CAP_SHIFT,
+              (l4_uint64_t)r->vm_start().get(),
+              (l4_uint64_t)(r->vm_start().get() + r->size()),
+              (l4_uint64_t)r->size(),
+              (l4_uint64_t)r->local_start(),
+              r->has_phys_addr() ? "Y" : "N");
   }
 
   bool dump_memory(FILE *f, Arglist *args) const
@@ -77,7 +77,7 @@ private:
 
     Vmm::Guest_addr ga(mem_dumper.addr_start());
 
-    auto const *r = vm_ram()->find_region(ga, 0);
+    auto const r = vm_ram()->find_region(ga, 0);
     if (!r)
       argument_error( "Invalid RAM region");
 

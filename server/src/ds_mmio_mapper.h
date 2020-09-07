@@ -14,11 +14,136 @@
 
 #include "mmio_device.h"
 #include "vcpu_ptr.h"
+#include "ds_manager.h"
 
+#ifndef MAP_OTHER
+/**
+ * Ds_handler represents a dataspace-backed region in the VMs memory
+ * map.
+ *
+ * This version uses VMM local mappings for the dataspace and forwards
+ * pages to the VM using L4::Task::map.
+ *
+ * The dataspace and the VMM local mapping is managed by the associated
+ * Ds_handler. The VMM local mapping is created lazily, either on first
+ * access() or map_eager() calls.
+ */
 class Ds_handler final : public Vmm::Mmio_device
 {
-  L4::Cap<L4Re::Dataspace> _ds;
-  l4_addr_t _local_start;
+  /// manager for a portion of a dataspace + local mapping
+  cxx::Ref_ptr<Vmm::Ds_manager> _ds;
+
+  /// Stores the offset relative to the offset in the Ds_manager
+  l4_addr_t _offset;
+
+  /**
+   * Get the full offset from the start of the dataspace.
+   *
+   * This is mainly useful for implementing _mergable().
+   */
+  l4_addr_t full_offset() const
+  { return _offset + _ds->offset(); }
+
+  /**
+   * Get the VMM local address for this part of the dataspace
+   * represented by this Ds_handler.
+   *
+   * NOTE: this function might create a VMM local mapping of the
+   * dataspace part managed by the Ds_manager (_ds).
+   */
+  l4_addr_t local_start() const
+  {
+    return _ds->local_addr<l4_addr_t>() + _offset;
+  }
+
+  bool _mergable(cxx::Ref_ptr<Mmio_device> other,
+                 Vmm::Guest_addr start_other, Vmm::Guest_addr start_this) override
+  {
+    // same device type and same underlying dataspace?
+    auto dsh = dynamic_cast<Ds_handler *>(other.get());
+    if (!dsh || (_ds->dataspace() != dsh->_ds->dataspace()))
+      return false;
+
+    // reference the same part of the data space?
+    return (full_offset() + (start_other - start_this)) == dsh->full_offset();
+  }
+
+  /// map the memory into the guest. (this might establish a VMM local mapping)
+  void map_eager(L4::Cap<L4::Vm> vm_task, Vmm::Guest_addr start,
+                 Vmm::Guest_addr end) override
+  {
+    map_guest_range(vm_task, start, local_start(), end - start + 1,
+                    L4_FPAGE_RWX);
+  }
+
+  int access(l4_addr_t pfa, l4_addr_t offset, Vmm::Vcpu_ptr vcpu,
+             L4::Cap<L4::Vm> vm_task, l4_addr_t min, l4_addr_t max) override
+  {
+    long res;
+    l4_addr_t ls = local_start();
+    // Make sure that the page is currently mapped.
+    res = page_in(ls + offset, true);
+
+    if (res >= 0)
+      {
+        // We assume that the region manager provided the largest possible
+        // page size and try to map the largest possible page to the
+        // client.
+        unsigned char ps = get_page_shift(pfa, min, max, offset, ls);
+
+        res = l4_error(
+                vm_task->map(L4Re::This_task,
+                             l4_fpage(l4_trunc_size(ls + offset, ps),
+                                      ps, L4_FPAGE_RWX),
+                             l4_trunc_size(pfa, ps)));
+      }
+
+    if (res < 0)
+      {
+        Err().printf("cannot handle VM memory access @ %lx ip=%lx r=%ld\n",
+                     pfa, vcpu->r.ip, res);
+        return res;
+      }
+
+    return Vmm::Retry;
+  }
+
+  char const *dev_info(char *buf, size_t size) const override
+  {
+    snprintf(buf, size, "mmio ds: [%lx - ?] -> [%lx:%lx - ?]",
+             _ds->local_addr<unsigned long>(), _ds->dataspace().cap(),
+             (long)_ds->offset() + _offset);
+    return buf;
+  }
+
+public:
+  explicit Ds_handler(cxx::Ref_ptr<Vmm::Ds_manager> ds,
+                      l4_addr_t offset = 0)
+  : _ds(ds), _offset(offset)
+  {
+    l4_addr_t page_offs = offset & ~L4_PAGEMASK;
+    if (page_offs)
+      Dbg(Dbg::Mmio, Dbg::Warn)
+        .printf("Region not page aligned\n");
+  }
+};
+
+#else /* MAP_OTHER */
+
+/**
+ * Ds_handler represents a dataspace-backed region in the VMs memory
+ * map.
+ *
+ * This version uses maps the dataspace directly from the dataspace into
+ * the VM, without creating VMM local mappings. If such mappings are needed
+ * the Ds_manager interface must be used.
+ */
+class Ds_handler final : public Vmm::Mmio_device
+{
+  /// just keep the dataspace cap (no local region is needed)
+  L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap _ds;
+
+  /// store the offset relative to the start of the dataspace.
   l4_addr_t _offset;
 
   bool _mergable(cxx::Ref_ptr<Mmio_device> other,
@@ -33,44 +158,21 @@ class Ds_handler final : public Vmm::Mmio_device
     return (_offset + (start_other - start_this)) == dsh->_offset;
   }
 
-  void map_eager(L4::Cap<L4::Vm> vm_task, Vmm::Guest_addr start,
-                 Vmm::Guest_addr end) override
+  void map_eager(L4::Cap<L4::Vm> /*vm_task*/, Vmm::Guest_addr /*start*/,
+                 Vmm::Guest_addr /*end*/) override
   {
-#ifndef MAP_OTHER
-    if (_flags & Map_eager)
-      map_guest_range(vm_task, start, local_start(), end - start + 1,
-                      L4_FPAGE_RWX);
-#endif
+    // eager mapping not yet supported
   }
 
   int access(l4_addr_t pfa, l4_addr_t offset, Vmm::Vcpu_ptr vcpu,
              L4::Cap<L4::Vm> vm_task, l4_addr_t min, l4_addr_t max) override
   {
     long res;
-#ifdef MAP_OTHER
     L4Re::Dataspace::Flags f = L4Re::Dataspace::F::RX;
     if (vcpu.pf_write())
       f |= L4Re::Dataspace::F::W;
 
     res = _ds->map(offset + _offset, f, pfa, min, max, vm_task);
-#else
-    // Make sure that the page is currently mapped.
-    res = page_in(_local_start + offset, true);
-
-    if (res >= 0)
-      {
-        // We assume that the region manager provided the largest possible
-        // page size and try to map the largest possible page to the
-        // client.
-        unsigned char ps = get_page_shift(pfa, min, max, offset, _local_start);
-
-        res = l4_error(
-                vm_task->map(L4Re::This_task,
-                             l4_fpage(l4_trunc_size(_local_start + offset, ps),
-                                      ps, L4_FPAGE_RWX),
-                             l4_trunc_size(pfa, ps)));
-      }
-#endif
 
     if (res < 0)
       {
@@ -84,54 +186,15 @@ class Ds_handler final : public Vmm::Mmio_device
 
   char const *dev_info(char *buf, size_t size) const override
   {
-#ifndef MAP_OTHER
-    snprintf(buf, size, "mmio ds: [%lx - ?] -> [%lx:%lx - ?]",
-             _local_start, _ds.cap(), _offset);
-#else
-    snprintf(buf, size, "mmio ds: [? - ?] -> [%lx:%lx - ?]",
+    snprintf(buf, size, "mmio ds: [not mapped] -> [%lx:%lx - ?]",
              _ds.cap(), _offset);
-#endif
     return buf;
   }
 
 public:
-  enum Flags
-  {
-    None = 0x0,
-    Map_eager = 0x1
-  };
-
-  explicit Ds_handler(L4::Cap<L4Re::Dataspace> ds,
-                      l4_addr_t local_start,
-                      l4_size_t size,
-                      l4_addr_t offset = 0, Flags flags = Map_eager)
-    : _ds(ds),  _local_start(local_start), _offset(offset), _flags(flags)
-  {
-    assert(size);
-#ifndef MAP_OTHER
-    if (local_start == 0)
-      {
-        auto rm = L4Re::Env::env()->rm();
-        L4Re::chksys(rm->attach(&_local_start, size,
-                                L4Re::Rm::F::Search_addr | L4Re::Rm::F::Eager_map | L4Re::Rm::F::RWX,
-                                L4::Ipc::make_cap_rw(ds), offset,
-                                L4_SUPERPAGESHIFT));
-      }
-
-    l4_addr_t page_offs = offset & ~L4_PAGEMASK;
-    if (page_offs)
-      {
-        auto tmp = l4_trunc_page(_local_start) + page_offs;
-        Dbg(Dbg::Mmio, Dbg::Warn)
-          .printf("Region not page aligned, adjusting local_start: %lx -> %lx\n",
-                  _local_start, tmp);
-        _local_start = tmp;
-      }
-#endif
-  }
-
-  l4_addr_t local_start() const { return _local_start; }
-
-private:
-  Flags _flags;
+  explicit Ds_handler(cxx::Ref_ptr<Vmm::Ds_manager> const &ds,
+                      l4_addr_t offset = 0)
+  : _ds(ds->dataspace()), _offset(ds->offset() + offset)
+  {}
 };
+#endif /* MAP_OTHER */

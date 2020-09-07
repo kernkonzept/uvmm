@@ -115,6 +115,7 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
   auto cpus = devs->cpus();
   _icr_handler->register_cpus(cpus);
   unsigned const max_cpuid = cpus->max_cpuid();
+  _ptw = cxx::make_ref_obj<Pt_walker>(devs->ram(), get_max_physical_address_bit());
   for (unsigned id = 0; id <= max_cpuid; ++id)
     {
       auto cpu = cpus->cpu(id);
@@ -122,7 +123,7 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
 
       Vcpu_ptr vcpu = cpu->vcpu();
       vcpu->user_task = _task.cap();
-      vcpu.set_pt_walker(&_ptw);
+      vcpu.set_pt_walker(_ptw.get());
 
       unsigned vcpu_id = vcpu.get_vcpu_id();
       _apics->register_core(vcpu_id);

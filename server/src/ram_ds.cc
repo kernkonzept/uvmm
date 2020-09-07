@@ -40,12 +40,12 @@ Ram_ds::setup(Vmm::Guest_addr vm_base)
         trace.printf("Cannot access physical address space mappings.\n");
     }
 
-  l4_size_t phys_size = _size;
+  l4_size_t phys_size = size();
   L4Re::Dma_space::Dma_addr phys_ram = 0;
 
   if (err >= 0)
-    err = dma_cap->map(L4::Ipc::make_cap(_ds, L4_CAP_FPAGE_RW),
-                       _ds_offset, &phys_size,
+    err = dma_cap->map(L4::Ipc::make_cap(dataspace().get(), L4_CAP_FPAGE_RW),
+                       offset(), &phys_size,
                        L4Re::Dma_space::Attributes::None,
                        L4Re::Dma_space::Bidirectional, &phys_ram);
   else
@@ -54,7 +54,7 @@ Ram_ds::setup(Vmm::Guest_addr vm_base)
   bool cont = false;
   bool ident = false;
 
-  if (err < 0 || phys_size < _size)
+  if (err < 0 || phys_size < size())
     {
       if (_vm_start == Vmm::Guest_addr(Ram_base_identity_mapped))
         {
@@ -74,19 +74,14 @@ Ram_ds::setup(Vmm::Guest_addr vm_base)
     }
 
   info.printf("RAM: @ 0x%lx size=0x%lx (%c%c)\n",
-              _vm_start.get(), (l4_addr_t) _size,
+              _vm_start.get(), (l4_addr_t) size(),
               cont ? 'c' : '-',
               ident ? 'i' : '-');
 
-  _local_start = 0;
-  L4Re::chksys(env->rm()->attach(&_local_start, _size,
-                                 L4Re::Rm::F::Search_addr | L4Re::Rm::F::Eager_map
-                                 | L4Re::Rm::F::RWX,
-                                 L4::Ipc::make_cap_rw(_ds), _ds_offset,
-                                 L4_SUPERPAGESHIFT));
-  info.printf("RAM: VMM mapping @ 0x%lx size=0x%lx\n", _local_start, (l4_addr_t)_size);
+  l4_addr_t local_start = this->local_start();
+  info.printf("RAM: VMM mapping @ 0x%lx size=0x%lx\n", local_start, (l4_addr_t)size());
 
-  _offset = _local_start - _vm_start.get();
+  _offset = local_start - _vm_start.get();
   info.printf("RAM: VM offset=0x%lx\n", _offset);
 
   if (err >= 0)
@@ -122,7 +117,7 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
 
   info.printf("copy in: to offset 0x%lx-0x%lx\n", offset, offset + sz);
 
-  L4Re::chksys(_ds->copy_in(offset + _ds_offset, file, 0, sz), "copy in");
+  L4Re::chksys(dataspace()->copy_in(offset + this->offset(), file, 0, sz), "copy in");
 }
 
 } // namespace

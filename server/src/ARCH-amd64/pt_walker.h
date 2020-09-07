@@ -9,27 +9,25 @@
 
 #include <l4/sys/types.h>
 #include <l4/l4virtio/virtqueue>
+#include <l4/cxx/ref_ptr>
 
 #include "debug.h"
 #include "ds_mmio_mapper.h"
 #include "vcpu_ptr.h"
-#include "vm_memmap.h"
+#include "vm_ram.h"
 
 namespace Vmm {
 
-class Pt_walker
+class Pt_walker : public cxx::Ref_obj
 {
 public:
-  Pt_walker(Vm_mem const *mmap, unsigned max_phys_addr_bit)
+  Pt_walker(cxx::Ref_ptr<Vm_ram> mmap, unsigned max_phys_addr_bit)
   : _mmap(mmap),
     _levels {{Pml4_shift, Pml4_mask},
              {Pdpt_shift, Pdpt_mask},
              {Pd_shift, Pd_mask},
              {Pt_shift, Pt_mask}
             },
-    cached_start(-1),
-    cached_end(0),
-    cached_ds_local_start(0),
     _max_phys_addr_mask((1UL << max_phys_addr_bit) - 1)
   {
     trace().printf("PT_walker: MAXPHYSADDR bits %i\n", max_phys_addr_bit);
@@ -92,52 +90,9 @@ public:
   }
 
 private:
-  Vm_mem::value_type const *addr_to_mem(Vmm::Guest_addr addr) const
-  {
-    Vm_mem::const_iterator f = _mmap->find(Region(addr));
-    if (f == _mmap->end())
-      {
-        Dbg().printf("Fail: 0x%lx memory not found.\n", addr.get());
-        L4Re::chksys(-L4_EINVAL,
-                     "Memory used in page table walk is registered.");
-      }
-    if (f->first.type != Vmm::Region_type::Ram)
-      {
-        Dbg().printf("Fail: 0x%lx region has invalid type %d.\n", addr.get(),
-                     static_cast<int>(f->first.type));
-        L4Re::chksys(-L4_EINVAL,
-                     "Address used in page table walk references RAM.");
-      }
-
-    return &*f;
-  }
-
-  Ds_handler const *mem_to_ds(Vm_mem::value_type const *mem) const
-  {
-    Ds_handler const *ds = dynamic_cast<Ds_handler *>(mem->second.get());
-    if (!ds)
-      L4Re::chksys(-L4_EINVAL,
-                   "Dataspace handler for page table memory registered\n");
-
-    return ds;
-  }
-
   l4_uint64_t *translate_to_table_base(l4_uint64_t addr)
   {
-    Vmm::Guest_addr ga(addr);
-    if (cached_start.get() == -1U || cached_start > ga || cached_end < ga)
-      {
-        auto const *cached_mem = addr_to_mem(ga);
-        cached_start = cached_mem->first.start;
-        cached_end = cached_mem->first.end;
-        cached_ds_local_start = mem_to_ds(cached_mem)->local_start();
-      }
-
-    if (ga + 512 * 8 > cached_end)
-      L4Re::chksys(-L4_EINVAL, "Page-table end within guest memory\n");
-
-    auto *ret = reinterpret_cast<l4_uint64_t *>(
-                  cached_ds_local_start + (ga - cached_start));
+    auto *ret = _mmap->guest2host<l4_uint64_t *>(Guest_addr(addr));
     trace().printf("Ram_addr: addr 0x%llx --> %p\n", addr, ret);
     return ret;
   }
@@ -228,13 +183,11 @@ private:
     Pt_levels = 4,
   };
 
-  Vm_mem const *_mmap;
+  cxx::Ref_ptr<Vm_ram> _mmap;
   Level const _levels[Pt_levels];
   l4_uint64_t _phys_addr_mask_4k;
   l4_uint64_t _phys_addr_mask_2m;
   l4_uint64_t _phys_addr_mask_1g;
-  Vmm::Guest_addr cached_start, cached_end;
-  l4_addr_t cached_ds_local_start;
   l4_uint64_t _max_phys_addr_mask;
 };
 

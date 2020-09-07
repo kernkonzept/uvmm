@@ -297,8 +297,11 @@ struct F : Factory
                       vdev->dev_info().name, resname, res.start, res.end,
                       dtaddr, dtaddr + (dtsize - 1));
 
-            auto handler = Vdev::make_device<Ds_handler>(vbus->io_ds(),
-                                                         0, dtsize, res.start);
+            auto handler = Vdev::make_device<Ds_handler>(
+                cxx::make_ref_obj<Vmm::Ds_manager>(vbus->io_ds(),
+                                                   res.start, dtsize)
+              );
+
             auto region = Vmm::Region::ss(Vmm::Guest_addr(dtaddr), dtsize,
                                           Vmm::Region_type::Virtual);
             devs->vmm()->add_mmio_device(region, handler);

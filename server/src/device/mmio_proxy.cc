@@ -5,7 +5,6 @@
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
-
 #include <l4/re/env>
 #include <l4/sys/meta>
 
@@ -97,10 +96,12 @@ public:
                          "Associate with physical address space");
           }
 
+        auto mgr = cxx::make_ref_obj<Vmm::Ds_manager>(dscap, 0, dscap->size());
+
         if (physmap)
-          register_physmap_region(dscap, devs, node, dma.get());
+          register_physmap_region(mgr, devs, node, dma.get());
         else
-          register_mmio_regions(dscap, devs, node, dma.get());
+          register_mmio_regions(mgr, devs, node, dma.get());
         auto dev = Vdev::make_device<Mmio_proxy>();
         dev->set_dma_space(cxx::move(dma));
 
@@ -119,10 +120,11 @@ public:
   }
 
 private:
-  void register_physmap_region(L4::Cap<L4Re::Dataspace> cap, Device_lookup const *devs,
-                             Dt_node const &node, L4::Cap<L4Re::Dma_space> dma)
+  void register_physmap_region(cxx::Ref_ptr<Vmm::Ds_manager> const &mgr,
+                               Device_lookup const *devs,
+                               Dt_node const &node, L4::Cap<L4Re::Dma_space> dma)
   {
-    l4_size_t sz = cap->size();
+    l4_size_t sz = mgr->size();
     l4_uint64_t offset = get_offset_from_node(node);
 
     if (offset > sz)
@@ -130,18 +132,20 @@ private:
 
     sz -= offset;
 
-    auto phys = get_phys_mapping(cap, dma, offset, sz, node.get_name());
+    auto phys = get_phys_mapping(mgr->dataspace().get(), dma,
+                                 mgr->offset() + offset,
+                                 sz, node.get_name());
 
     node.set_reg_val(phys, sz, false);
 
-    auto handler = Vdev::make_device<Ds_handler>(cap, 0, sz, offset);
+    auto handler = Vdev::make_device<Ds_handler>(mgr, offset);
     devs->vmm()->register_mmio_device(handler, Vmm::Region_type::Ram, node, 0);
   }
 
-  void register_mmio_regions(L4::Cap<L4Re::Dataspace> cap, Device_lookup const *devs,
+  void register_mmio_regions(cxx::Ref_ptr<Vmm::Ds_manager> mgr, Device_lookup const *devs,
                              Dt_node const &node, L4::Cap<L4Re::Dma_space> dma)
   {
-    l4_size_t dssize = cap->size();
+    l4_size_t dssize = mgr->size();
     l4_uint64_t regbase, base, size;
     l4_uint64_t offset = get_offset_from_node(node);
     auto parent = node.parent_node();
@@ -190,12 +194,14 @@ private:
 
         if (sz)
           {
-            auto handler = Vdev::make_device<Ds_handler>(cap, 0, sz, offs);
+            auto handler = Vdev::make_device<Ds_handler>(mgr, offs);
             devs->vmm()->register_mmio_device(handler, Vmm::Region_type::Virtual, node, index);
 
             if (dma.is_valid())
               {
-                auto phys = get_phys_mapping(cap, dma, offs, sz, node.get_name());
+                auto phys = get_phys_mapping(mgr->dataspace().get(), dma,
+                                             mgr->offset() + offs,
+                                             sz, node.get_name());
 
                 node.appendprop("dma-ranges", phys, addr_cells);
                 node.appendprop("dma-ranges", base, addr_cells);

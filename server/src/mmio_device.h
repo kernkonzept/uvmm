@@ -10,6 +10,7 @@
 #include <typeinfo>
 
 #include <l4/cxx/ref_ptr>
+#include <l4/cxx/unique_ptr>
 #include <l4/re/util/cap_alloc>
 #include <l4/re/util/unique_cap>
 #include <l4/re/env>
@@ -23,6 +24,7 @@
 #include "mem_access.h"
 #include "mem_types.h"
 #include "consts.h"
+#include "ds_manager.h"
 
 namespace Vmm {
 
@@ -286,6 +288,8 @@ struct Ro_ds_mapper_t : Mmio_device
     if (size > dev()->mapped_mmio_size())
       size = dev()->mapped_mmio_size();
     map_guest_range(vm_task, start, dev()->local_addr(), size, L4_FPAGE_RX);
+#else
+  (void)vm_task; (void)start; (void)end;
 #endif
   }
 
@@ -321,7 +325,7 @@ struct Ro_ds_mapper_t : Mmio_device
                 l4_addr_t min, l4_addr_t max)
   {
 #ifdef MAP_OTHER
-    auto res = dev()->mmio_ds()->map(offset, L4Re::Dataspace::F::RWX, pfa, min, max, vm_task);
+    auto res = dev()->mmio_ds()->map(offset, L4Re::Dataspace::F::RX, pfa, min, max, vm_task);
 #else
     auto local_start = local_addr();
 
@@ -393,36 +397,28 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
    */
   explicit Read_mapped_mmio_device_t(l4_size_t size,
                                      L4Re::Rm::Flags rm_flags = L4Re::Rm::F::Cache_uncached)
-  : _mapped_size(size)
   {
     auto *e = L4Re::Env::env();
-    auto ds = L4Re::chkcap(L4Re::Util::make_unique_del_cap<L4Re::Dataspace>());
+
+    L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap ds
+      = L4Re::chkcap(L4Re::Util::make_ref_cap<L4Re::Dataspace>());
+
     L4Re::chksys(e->mem_alloc()->alloc(size, ds.get()));
-
-    rm_flags |= L4Re::Rm::F::Search_addr | L4Re::Rm::F::Eager_map | L4Re::Rm::F::RW;
-    L4Re::Rm::Unique_region<T *> mem;
-    L4Re::chksys(e->rm()->attach(&mem, size, rm_flags,
-                                 L4::Ipc::make_cap_rw(ds.get())));
-
-    _mmio_region = cxx::move(mem);
-    _ds = cxx::move(ds);
+    _mgr = cxx::make_unique<Ds_manager>(ds, 0, size, rm_flags.region_flags());
+    _mgr->local_addr<void *>();
   }
 
   l4_size_t mapped_mmio_size() const
-  { return _mapped_size; }
+  { return _mgr->size(); }
 
   L4::Cap<L4Re::Dataspace> mmio_ds() const
-  { return _ds.get(); }
+  { return _mgr->dataspace().get(); }
 
   T *mmio_local_addr() const
-  { return _mmio_region.get(); }
+  { return _mgr->local_addr<T *>(); }
 
 private:
-  L4Re::Util::Unique_del_cap<L4Re::Dataspace> _ds;
-
-protected:
-  L4Re::Rm::Unique_region<T *> _mmio_region;
-  l4_size_t _mapped_size;
+  cxx::unique_ptr<Ds_manager> _mgr;
 };
 
 inline Mmio_device::~Mmio_device() = default;

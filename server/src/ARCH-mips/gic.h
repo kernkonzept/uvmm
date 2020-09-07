@@ -203,7 +203,7 @@ private:
 
   template <typename T>
   T *gic_mem(unsigned offset) const
-  { return reinterpret_cast<T *>(_mmio_region.get() + offset); }
+  { return reinterpret_cast<T *>(mmio_local_addr() + offset); }
 
   void gic_mem_set(unsigned offset, char size, l4_umword_t value) const
   {

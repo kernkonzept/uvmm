@@ -115,6 +115,11 @@ register_msix_bar(Pci_cfg_bar const *bar, l4_addr_t tbl_offset,
   warn.printf("sizes before 0x%lx, after 0x%lx\n", before_area_size,
                 after_area_size);
 
+  cxx::Ref_ptr<Vmm::Ds_manager> m;
+
+  if (before_area_size || after_area_size)
+    m = cxx::make_ref_obj<Vmm::Ds_manager>(io_ds, bar->addr, bar->size);
+
   if (before_area_size > 0)
     {
       auto region = Region::ss(Guest_addr(before_area_begin), before_area_size,
@@ -123,9 +128,7 @@ register_msix_bar(Pci_cfg_bar const *bar, l4_addr_t tbl_offset,
       warn.printf("Register MMIO region in MSI-X bar: [0x%lx, 0x%lx]\n",
                     region.start.get(), region.end.get());
 
-      vmm->add_mmio_device(region,
-                           make_device<Ds_handler>(io_ds, 0, before_area_size,
-                                                   region.start.get()));
+      vmm->add_mmio_device(region, make_device<Ds_handler>(m, 0));
     }
 
   if (after_area_size > 0)
@@ -137,8 +140,7 @@ register_msix_bar(Pci_cfg_bar const *bar, l4_addr_t tbl_offset,
                     region.start.get(), region.end.get());
 
       vmm->add_mmio_device(region,
-                           make_device<Ds_handler>(io_ds, 0, after_area_size,
-                                                   region.start.get()));
+                           make_device<Ds_handler>(m, after_area_begin_rel));
     }
 }
 
@@ -218,9 +220,9 @@ Pci_bus_bridge::init_dev_resources(Device_lookup *devs,
                 auto region = Region::ss(addr, size, Vmm::Region_type::Vbus);
                 warn().printf("Register MMIO region: [0x%lx, 0x%lx]\n",
                               region.start.get(), region.end.get());
-                vmm->add_mmio_device(region,
-                                     make_device<Ds_handler>(vbus->io_ds(), 0,
-                                                             size, addr.get()));
+                auto m = cxx::make_ref_obj<Ds_manager>(vbus->io_ds(),
+                                                       hwdev.bars[i].addr, size);
+                vmm->add_mmio_device(region, make_device<Ds_handler>(m));
                 break;
               }
 

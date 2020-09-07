@@ -40,8 +40,7 @@ public:
   using Io_mem = std::map<Io_region, cxx::Ref_ptr<Io_device>>;
 
   Guest()
-  : _ptw(&_memmap, get_max_physical_address_bit()),
-    _apics(Vdev::make_device<Gic::Lapic_array>()),
+  : _apics(Vdev::make_device<Gic::Lapic_array>()),
     _icr_handler(Vdev::make_device<Gic::Icr_handler>()),
     _lapic_access_handler(Vdev::make_device<Gic::Lapic_access_handler>(
       _apics, _icr_handler, get_max_physical_address_bit()))
@@ -152,7 +151,7 @@ private:
   // devices
   Vdev::Clock_source _clocks[Max_cpus];
   Guest_print_buffer _hypcall_print;
-  Pt_walker _ptw;
+  cxx::Ref_ptr<Pt_walker> _ptw;
   cxx::Ref_ptr<Gic::Lapic_array> _apics;
   cxx::Ref_ptr<Gic::Icr_handler> _icr_handler;
   cxx::Ref_ptr<Gic::Lapic_access_handler> _lapic_access_handler;

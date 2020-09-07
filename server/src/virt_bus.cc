@@ -83,8 +83,9 @@ Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
             }
           else
             {
-              auto handler = Vdev::make_device<Ds_handler>(io_ds(), 0, size,
-                                                           res.start);
+              auto handler = Vdev::make_device<Ds_handler>(
+                  cxx::make_ref_obj<Ds_manager>(io_ds(), res.start, size, L4Re::Rm::F::RW)
+                );
               devs->vmm()->add_mmio_device(region, handler);
             }
 

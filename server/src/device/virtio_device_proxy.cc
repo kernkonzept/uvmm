@@ -179,12 +179,11 @@ public:
         return -L4_ERANGE;
       }
 
-    // XXX Ds_handler should RAII the cap
     auto ds = L4Re::chkcap(L4::Epiface::server_iface()->rcv_cap<L4Re::Dataspace>(0));
     L4Re::chksys(L4::Epiface::server_iface()->realloc_rcv_cap(0));
 
     _vmm->add_mmio_device(Vmm::Region::ss(Vmm::Guest_addr(_drvmem_base + ds_base), sz, Vmm::Region_type::Virtual),
-                          Vdev::make_device<Ds_handler>(ds, 0, sz, offset));
+                          Vdev::make_device<Ds_handler>(cxx::make_ref_obj<Vmm::Ds_manager>(ds, offset, sz)));
 
     return 0;
   }

@@ -467,8 +467,9 @@ private:
                                           Vmm::Region_flags::Moveable);
             // Disable eager mapping, because this gets most likely remapped anyway
             cxx::Ref_ptr<Ds_handler> ds_handler =
-              Vdev::make_device<Ds_handler>(vbus->io_ds(), 0x0, bar.size, bar.io_addr,
-                                            Ds_handler::None);
+              Vdev::make_device<Ds_handler>(
+                  cxx::make_ref_obj<Vmm::Ds_manager>(vbus->io_ds(), bar.io_addr, bar.size)
+                );
             _vmm->add_mmio_device(region, ds_handler);
           }
       }

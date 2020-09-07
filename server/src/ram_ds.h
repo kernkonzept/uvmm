@@ -19,6 +19,7 @@
 
 #include "device.h"
 #include "device_tree.h"
+#include "ds_manager.h"
 #include "mem_types.h"
 
 namespace Vmm {
@@ -26,7 +27,7 @@ namespace Vmm {
 /**
  * A contiguous piece of RAM backed by a part of an L4 dataspace.
  */
-class Ram_ds
+class Ram_ds : public Vmm::Ds_manager
 {
 public:
   enum { Ram_base_identity_mapped = ~0UL };
@@ -38,8 +39,9 @@ public:
    * \param size     Size of the region (default: use dataspace size).
    * \param offset   Offset into the dataspace.
    */
-  Ram_ds(L4::Cap<L4Re::Dataspace> ds, l4_size_t size, l4_addr_t offset)
-  : _size(size), _ds_offset(offset), _ds(ds)
+  Ram_ds(L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap ds,
+         l4_size_t size, l4_addr_t offset)
+  : Ds_manager(ds, offset, size, L4Re::Rm::F::RWX)
   {}
 
   Ram_ds(Vmm::Ram_ds const &) = delete;
@@ -72,7 +74,7 @@ public:
   { return p.get() + _offset; }
 
   L4::Cap<L4Re::Dataspace> ds() const noexcept
-  { return _ds; }
+  { return dataspace().get(); }
 
   void dt_append_dmaprop(Vdev::Dt_node const &mem_node) const
   {
@@ -85,26 +87,18 @@ public:
   }
 
   Vmm::Guest_addr vm_start() const noexcept { return _vm_start; }
-  l4_size_t size() const noexcept { return _size; }
-  l4_addr_t local_start() const noexcept { return _local_start; }
-  l4_addr_t ds_offset() const noexcept { return _ds_offset; }
+
+  l4_addr_t local_start() { return local_addr<l4_addr_t>(); }
+  l4_addr_t ds_offset() const noexcept { return offset(); }
 
   bool has_phys_addr() const noexcept { return _phys_size > 0; }
 
 private:
   /// Offset between guest-physical and host-virtual address.
   l4_mword_t _offset;
-  /// uvmm local address where the dataspace has been mapped.
-  l4_addr_t _local_start;
   /// Guest-physical address of the mapped dataspace.
   Vmm::Guest_addr _vm_start;
-  /// Size of the mapped area.
-  l4_size_t _size;
-  /// Offset into the dataspace where the mapped area starts.
-  l4_addr_t _ds_offset;
 
-  /// Backing dataspace for the RAM area.
-  L4::Cap<L4Re::Dataspace> _ds;
   /// DMA space providing device access (if applicable).
   L4Re::Util::Unique_cap<L4Re::Dma_space> _dma;
   /// Host-physical address of the beginning of the mapped area (if applicable).

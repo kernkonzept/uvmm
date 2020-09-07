@@ -139,14 +139,12 @@ l4_size_t
 Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, Vmm::Guest_addr baseaddr,
                                l4_addr_t ds_offset, l4_size_t size, Vm_mem *memmap)
 {
-  Ram_ds r(ds, size, ds_offset);
+  cxx::Ref_ptr<Ram_ds> r = cxx::make_ref_obj<Ram_ds>(ds, size, ds_offset);
 
-  if (r.setup(baseaddr) < 0)
+  if (r->setup(baseaddr) < 0)
     return -1;
-
-  auto dsdev = Vdev::make_device<Ds_handler>(ds, r.local_start(), r.size(),
-                                             ds_offset);
-  memmap->add_mmio_device(Region::ss(r.vm_start(), r.size(), Region_type::Ram), std::move(dsdev));
+  auto dsdev = Vdev::make_device<Ds_handler>(r);
+  memmap->add_mmio_device(Region::ss(r->vm_start(), r->size(), Region_type::Ram), std::move(dsdev));
 
   _regions.push_back(std::move(r));
 
@@ -198,14 +196,14 @@ Vmm::Vm_ram::setup_from_device_tree(Vdev::Host_dt const &dt, Vm_mem *memmap,
                  "Memory configuration in device tree provides no valid RAM");
 
   Ram_free_list list;
-  L4::Cap<L4Re::Dataspace> main_ds = _regions[0].ds();
+  L4::Cap<L4Re::Dataspace> main_ds = _regions[0]->ds();
 
   for (auto const &r : _regions)
     {
-      if (r.ds() != main_ds)
+      if (r->ds() != main_ds)
         break;
 
-      list.add_free_region(r.vm_start(), r.size());
+      list.add_free_region(r->vm_start(), r->size());
     }
 
   return list;
@@ -307,7 +305,7 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &
       remain -= map_size;
       offset += map_size;
 
-      if (!_regions[ridx].has_phys_addr())
+      if (!_regions[ridx]->has_phys_addr())
         add_dma_ranges = false;
     }
 
@@ -318,11 +316,11 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &
   bool append = false;
   for (l4_size_t i = first_region; i < _regions.size(); ++i)
     {
-      node.set_reg_val(_regions[i].vm_start().get(), _regions[i].size(), append);
+      node.set_reg_val(_regions[i]->vm_start().get(), _regions[i]->size(), append);
       append = true;
 
       if (add_dma_ranges)
-        _regions[i].dt_append_dmaprop(node);
+        _regions[i]->dt_append_dmaprop(node);
     }
 
   if (!add_dma_ranges)
@@ -347,13 +345,13 @@ Vmm::Vm_ram::setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,
       auto const &r = _regions[ridx];
       // "memory@" + 64bit hex address + '\0'
       char buf[7 + 16 + 1];
-      std::snprintf(buf, sizeof(buf), "memory@%lx", r.vm_start().get());
+      std::snprintf(buf, sizeof(buf), "memory@%lx", r->vm_start().get());
 
       auto node = dt.get().first_node().add_subnode(buf);
       node.setprop_string("device_type", "memory");
-      node.set_reg_val(r.vm_start().get(), r.size());
+      node.set_reg_val(r->vm_start().get(), r->size());
 
-      if (r.has_phys_addr())
-        r.dt_append_dmaprop(node);
+      if (r->has_phys_addr())
+        r->dt_append_dmaprop(node);
     }
 }

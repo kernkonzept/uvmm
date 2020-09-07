@@ -11,11 +11,12 @@
 
 #include <l4/sys/types.h>
 #include <l4/util/rdtsc.h>
+#include <l4/cxx/ref_ptr>
 
 #include "debug.h"
 #include "mem_types.h"
 #include "msr_device.h"
-#include "vm_memmap.h"
+#include "vm_ram.h"
 #include "ds_mmio_mapper.h"
 #include "cpu_dev.h"
 #include "guest.h"
@@ -98,10 +99,11 @@ class Kvm_clock_ctrl : public Vmm::Msr_device, public Device
   };
 
 public:
-  Kvm_clock_ctrl(Vdev::Device_lookup *devs)
+  Kvm_clock_ctrl(cxx::Ref_ptr<Vmm::Vm_ram> const &memmap,
+                 Vmm::Guest *vmm)
   : _boottime(l4_rdtsc()),
-    _memmap(devs->vmm()->memmap()),
-    _vmm(devs->vmm())
+    _memmap(memmap),
+    _vmm(vmm)
   {
     l4_calibrate_tsc(l4re_kip());
   }
@@ -188,29 +190,7 @@ private:
 
   void *host_addr(Vmm::Guest_addr addr) const
   {
-    Vmm::Vm_mem::const_iterator f = _memmap->find(Vmm::Region(addr));
-    if (f == _memmap->end())
-      {
-        Dbg().printf("Fail: 0x%lx memory not found.\n", addr.get());
-        L4Re::chksys(-L4_EINVAL,
-                     "Guest passes a valid RAM address.");
-      }
-
-    if (f->first.type != Vmm::Region_type::Ram)
-      {
-        Dbg().printf("Fail: 0x%lx region has invalid type %d.\n", addr.get(),
-                     static_cast<int>(f->first.type));
-        L4Re::chksys(-L4_EINVAL,
-                     "Guest passes an address, that is backed by RAM.");
-      }
-
-    Ds_handler const *ds = dynamic_cast<Ds_handler *>(f->second.get());
-    if (!ds)
-      L4Re::chksys(-L4_EINVAL,
-                   "Dataspace handler for guest RAM registered\n");
-
-    return reinterpret_cast<void *>(
-      (ds->local_start() + (addr.get() - f->first.start)).get());
+    return _memmap->guest2host<void *>(addr);
   }
 
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "KVMclock"); }
@@ -218,7 +198,7 @@ private:
 
   l4_cpu_time_t _boottime;
   cxx::Ref_ptr<Kvm_clock> _clocks[Max_cpus];
-  Vmm::Vm_mem const *_memmap;
+  cxx::Ref_ptr<Vmm::Vm_ram> _memmap;
   Vmm::Guest *_vmm;
 };
 
