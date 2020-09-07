@@ -499,7 +499,7 @@ public:
   { handle_eois<CPU_IF>(); }
 
   /// Find a pending SGI (not on GICv2) or PPI
-  unsigned find_pending_irq(unsigned char min_prio, Irq *irq)
+  int find_pending_irq(unsigned char min_prio, Irq *irq)
   {
     return _local_irq.find_pending_irq(min_prio, irq,
                                        [](void const *){return true;});
