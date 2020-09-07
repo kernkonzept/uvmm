@@ -30,11 +30,32 @@
  */
 class Ds_handler final : public Vmm::Mmio_device
 {
+public:
+  enum Flags
+  {
+    None = 0x0,
+    Map_eager = 0x1
+  };
+
+  explicit Ds_handler(cxx::Ref_ptr<Vmm::Ds_manager> ds,
+                      l4_addr_t offset = 0, Flags flags = Map_eager)
+  : _ds(ds), _offset(offset), _flags(flags)
+  {
+    l4_addr_t page_offs = offset & ~L4_PAGEMASK;
+    if (page_offs)
+      Dbg(Dbg::Mmio, Dbg::Warn)
+        .printf("Region not page aligned\n");
+  }
+
+private:
   /// manager for a portion of a dataspace + local mapping
   cxx::Ref_ptr<Vmm::Ds_manager> _ds;
 
   /// Stores the offset relative to the offset in the Ds_manager
   l4_addr_t _offset;
+
+  /// Special properties of the dataspace
+  Flags _flags;
 
   /**
    * Get the full offset from the start of the dataspace.
@@ -72,8 +93,9 @@ class Ds_handler final : public Vmm::Mmio_device
   void map_eager(L4::Cap<L4::Vm> vm_task, Vmm::Guest_addr start,
                  Vmm::Guest_addr end) override
   {
-    map_guest_range(vm_task, start, local_start(), end - start + 1,
-                    L4_FPAGE_RWX);
+    if (_flags & Map_eager)
+      map_guest_range(vm_task, start, local_start(), end - start + 1,
+                      L4_FPAGE_RWX);
   }
 
   int access(l4_addr_t pfa, l4_addr_t offset, Vmm::Vcpu_ptr vcpu,
@@ -116,16 +138,6 @@ class Ds_handler final : public Vmm::Mmio_device
     return buf;
   }
 
-public:
-  explicit Ds_handler(cxx::Ref_ptr<Vmm::Ds_manager> ds,
-                      l4_addr_t offset = 0)
-  : _ds(ds), _offset(offset)
-  {
-    l4_addr_t page_offs = offset & ~L4_PAGEMASK;
-    if (page_offs)
-      Dbg(Dbg::Mmio, Dbg::Warn)
-        .printf("Region not page aligned\n");
-  }
 };
 
 #else /* MAP_OTHER */
@@ -140,6 +152,21 @@ public:
  */
 class Ds_handler final : public Vmm::Mmio_device
 {
+public:
+  enum Flags
+  {
+    None = 0x0,
+    Map_eager = 0x1
+  };
+
+  explicit Ds_handler(cxx::Ref_ptr<Vmm::Ds_manager> const &ds,
+                      l4_addr_t offset = 0, Flags flags = Map_eager)
+  : _ds(ds->dataspace()), _offset(ds->offset() + offset)
+  {
+    (void)flags;
+  }
+
+private:
   /// just keep the dataspace cap (no local region is needed)
   L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap _ds;
 
@@ -191,10 +218,5 @@ class Ds_handler final : public Vmm::Mmio_device
     return buf;
   }
 
-public:
-  explicit Ds_handler(cxx::Ref_ptr<Vmm::Ds_manager> const &ds,
-                      l4_addr_t offset = 0)
-  : _ds(ds->dataspace()), _offset(ds->offset() + offset)
-  {}
 };
 #endif /* MAP_OTHER */
