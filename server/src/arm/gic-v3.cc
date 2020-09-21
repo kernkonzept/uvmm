@@ -68,7 +68,7 @@ struct Cpu_if_v3
   }
 };
 
-class Dist_v3 final : public Dist_mixin<Dist_v3>
+class Dist_v3 : public Dist_mixin<Dist_v3>
 {
 private:
   using Dist = Dist_mixin<Dist_v3>;

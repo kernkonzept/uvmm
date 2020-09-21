@@ -16,7 +16,7 @@ namespace Vmm {
 
 class Pt_walker;
 
-class Vcpu_ptr final : public Generic_vcpu_ptr
+class Vcpu_ptr : public Generic_vcpu_ptr
 {
 public:
   enum User_data_regs_arch

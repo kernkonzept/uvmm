@@ -26,7 +26,7 @@ namespace Vdev { namespace Msix {
  * Translates the L4Re interrupt to the MSIx Table entry and send it to
  * the Msix_controller.
  */
-class Msi_src final
+class Msi_src
 : public L4::Irqep_t<Msi_src>,
   public virtual Vdev::Dev_ref
 {
@@ -57,7 +57,7 @@ private:
  * emulation configures the MSI routing from the device to the VMM and to
  * the guest.
  */
-class Virt_msix_table final : public Vmm::Mmio_device_t<Virt_msix_table>
+class Virt_msix_table : public Vmm::Mmio_device_t<Virt_msix_table>
 {
 public:
   /**

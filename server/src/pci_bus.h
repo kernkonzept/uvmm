@@ -99,7 +99,7 @@ struct Hw_pci_device
  * If hardware devices are supplied via Vbus, the virtio devices are merged
  * into Vbus' PCI root bus.
  */
-class Pci_bus_bridge final : public Pci_dev, public Device
+class Pci_bus_bridge : public Pci_dev, public Device
 {
   Pci_header::Type1 *header()
   { return get_header<Pci_header::Type1>(); }
@@ -633,7 +633,7 @@ private:
  * Interface to handle IO port access to the PCI configuration space and
  * translate it to an internal protocol.
  */
-class Pci_bus_cfg_io final : public Vmm::Io_device
+class Pci_bus_cfg_io : public Vmm::Io_device
 {
   struct Config_address
   {

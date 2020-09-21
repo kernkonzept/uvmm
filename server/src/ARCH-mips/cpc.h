@@ -15,7 +15,7 @@
 
 namespace Vdev {
 
-class Mips_cpc final :  public Vmm::Mmio_device_t<Mips_cpc>
+class Mips_cpc :  public Vmm::Mmio_device_t<Mips_cpc>
 {
 private:
   enum { Max_cpus = Vmm::Cpu_dev::Max_cpus };

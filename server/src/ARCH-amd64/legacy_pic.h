@@ -34,7 +34,7 @@ namespace Vdev {
  * The emulation reacts to IO-ports 0x20/0x21 and 0xA0/0xA1 as Command/Data
  * port combination for the master and salve chips.
  */
-class Legacy_pic final : public Gic::Ic
+class Legacy_pic : public Gic::Ic
 {
   enum Ports
   {
@@ -63,7 +63,7 @@ class Legacy_pic final : public Gic::Ic
   /**
    * Single PIC-chip emulation handling IO-port access and interrupt offsets.
    */
-  class Chip final : public Vmm::Io_device
+  class Chip : public Vmm::Io_device
   {
     l4_uint8_t _cmd = Command::None;
     l4_uint8_t _mask = 0;

@@ -63,7 +63,7 @@ private:
 /**
  * The memory device which manages the RAM available to the guest.
  */
-class Vm_ram final
+class Vm_ram
 : public Vdev::Device,
   public Monitor::Vm_ram_cmd_handler<Monitor::Enabled, Vm_ram>
 {

@@ -51,7 +51,7 @@ namespace Vdev
    *                       property will be overwritten with the appropriate
    *                       region. `dma-ranges` must not be set at the same time.
    */
-  struct Mmio_proxy final : public Device
+  struct Mmio_proxy : public Device
   {
     friend class F;
 

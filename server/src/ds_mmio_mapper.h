@@ -28,7 +28,7 @@
  * Ds_manager. The VMM local mapping is created lazily, either on first
  * access() or map_eager() calls.
  */
-class Ds_handler final : public Vmm::Mmio_device
+class Ds_handler : public Vmm::Mmio_device
 {
 public:
   enum Flags
@@ -150,7 +150,7 @@ private:
  * without creating VMM local mappings. If such mappings are needed the
  * Ds_manager interface must be used.
  */
-class Ds_handler final : public Vmm::Mmio_device
+class Ds_handler : public Vmm::Mmio_device
 {
 public:
   enum Flags

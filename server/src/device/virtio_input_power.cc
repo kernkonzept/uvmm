@@ -28,7 +28,7 @@ namespace Vdev {
 
 l4_uint16_t translate_char(unsigned char c);
 
-class Virtio_input_power_mmio final
+class Virtio_input_power_mmio
 : public Virtio_input<Virtio_input_power_mmio>,
   public Vmm::Ro_ds_mapper_t<Virtio_input_power_mmio>,
   public Virtio::Mmio_connector<Virtio_input_power_mmio>,

@@ -75,7 +75,7 @@ namespace {
  *
  * And add "earlycon" to your Linux command line.
  */
-class Pl011_mmio final
+class Pl011_mmio
 : public Vmm::Mmio_device_t<Pl011_mmio>,
   public Vdev::Device,
   public L4::Irqep_t<Pl011_mmio>

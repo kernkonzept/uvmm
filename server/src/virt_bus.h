@@ -25,7 +25,7 @@
 
 namespace Vmm {
 
-class Virt_bus final : public virtual Vdev::Dev_ref, public Vdev::Msi::Allocator
+class Virt_bus : public virtual Vdev::Dev_ref, public Vdev::Msi::Allocator
 {
 public:
   class Devinfo

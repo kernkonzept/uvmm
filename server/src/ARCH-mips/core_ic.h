@@ -28,7 +28,7 @@ namespace Gic {
  *
  * Only handles the hardware interrupts 2 - 7.
  */
-class Vcpu_ic final : public Ic
+class Vcpu_ic : public Ic
 {
   enum
   {

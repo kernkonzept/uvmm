@@ -35,7 +35,7 @@ using L4Re::Rm;
 
 namespace Gic {
 
-class Virt_lapic final : public Vdev::Timer, public Ic
+class Virt_lapic : public Vdev::Timer, public Ic
 {
   class Irq_register
   {

@@ -42,7 +42,7 @@ namespace {
  * Instead of specyfing an actual clock, a "clock-frequency" property with an
  * arbitrary value also suffices.
  */
-class Uart_8250_mmio final
+class Uart_8250_mmio
 : public Vmm::Mmio_device_t<Uart_8250_mmio>,
   public Vdev::Device,
   public L4::Irqep_t<Uart_8250_mmio>

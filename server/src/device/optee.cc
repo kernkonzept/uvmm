@@ -50,7 +50,7 @@ Dbg trace(Dbg::Dev, Dbg::Warn, "optee");
  * capability provided by Fiasco and point `l4vmm,dscap` to an appropriately
  * configured IO. When using a proxy, set `l4vmm,cap` only.
  */
-class Optee final : public Vdev::Device, public Vmm::Smccc_device
+class Optee : public Vdev::Device, public Vmm::Smccc_device
 {
   enum
   {
