@@ -659,8 +659,8 @@ Guest::run_vmx(Vcpu_ptr vcpu)
 
   while (1)
     {
-      // XXX: We do not save/restore the AVX state in the assumption that gcc
-      // does not generate such code (yet).
+      // We do not save/restore the AVX state in the assumption that gcc does
+      // not generate such code (yet).
       fxrstor64(fpu_state);
       l4_msgtag_t tag = myself->vcpu_resume_commit(myself->vcpu_resume_start());
       fxsave64(fpu_state);
