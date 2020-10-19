@@ -1,0 +1,199 @@
+menu "uvmm virtual machine monitor"
+
+config UVMM_MONITOR
+	bool "Monitor interface"
+	depends on !RELEASE_MODE
+	default y
+	help
+	  Enables the monitoring interface that can be used to query and manipulate
+	  the guest state at runtime. When enabled the interface must also be switched
+	  on at runtime using the `mon` command line option.
+
+config UVMM_LOADER_GZIP
+	bool "GZIP/ZLIB loading"
+	depends on BUILD_ARCH_arm64 || BUILD_ARCH_arm
+	default y
+	help
+	  Allows to load gzip or zlib compressed kernel images.
+
+config UVMM_LOADER_ROM
+	bool "ROM loading"
+	default y
+	help
+	  Binary loader which starts binary out of an guest memory location.
+	
+	  For details on the configuration see binary_loader_rom.cc
+
+config UVMM_QEMU_FW_IF
+	bool "Qemu firmware configuration device"
+	help
+	  The device allows guests to gain access to the configuration of the
+	  hypervisor or any kind of data like boot/kernel images in a defined way.
+	  Some bootloaders make use of this to setup the platform and start the guest
+	  OS.
+	
+	  For details on the configuration see device/qemu_fw_cfg.cc.
+
+config UVMM_FAULT_INJECT
+	bool "Fault injection"
+	depends on BUILD_ARCH_arm64 || BUILD_ARCH_arm
+
+comment "Interfacing with L4 applications or physical hardware"
+
+config UVMM_VDEV_PSCI
+	bool "PSCI interface support"
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	default y
+	help
+	  Emulates a PSCI interface for the guest.
+
+config UVMM_VDEV_OPTEE
+	bool "OPTEE SMC call forwarding"
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	default y
+	help
+	  Allows forwarding of OP-TEE SMC calls either to a running OP-TEE instance
+	  or to a native L4 application implementing the protocol.
+	
+	  For details on the configuration see device/optee.cc.
+
+config UVMM_VDEV_VIRTIO_POWER
+	bool "Virtio-input based power events"
+	default y
+	help
+	  Support sending power events via Virtio-input.
+
+config UVMM_VDEV_VIRQ
+	bool "Forward L4 interrupts"
+	default y
+	help
+	  Add a device for relaying L4 IRQs into the guest.
+	
+	  For details on the configuration see device/virq.cc
+
+config UVMM_VDEV_MMIO_PROXY
+	bool "Proxy dataspaces and MMIO protocol"
+	default y
+	help
+	  Emulate a device that proxies memory accesses to an external dataspace or
+	  MMIO space.
+	
+	  For details on the configuration see device/mmio_proxy.cc
+
+config UVMM_VDEV_SYSCTL
+	bool "System control device"
+	default y
+	help
+	  Mmio-based device for triggering system events (shutdown, reboot).
+	  The device can be used with the generic syscon device from Linux.
+	
+	  For details on the configuration see device/sysctl.cc
+
+config UVMM_VDEV_DEVICE_PROXY
+	bool "Virtio device proxy"
+	default y
+	help
+	  Proxy for virtio devices implemented in the guest. Can be used to export
+	  devices driven by a guest using the virtio protocol.
+	
+	  For details on the configuration see device/virtio_device_proxy.cc
+
+config UVMM_VDEV_ROM
+	bool "Read-only dataspace based devices"
+	default y
+	help
+	  A device for adding L4 dataspaces read-only to the guest.
+	
+	  For details on the configuration see device/rom.cc
+
+config UVMM_EXTERNAL_RTC
+	bool "l4rtc time source"
+	help
+	  A driver to retrieve wallclock time from an L4Re rtc server.
+	
+	  For details on the configuration see device/l4rtc.cc
+
+comment "Device Emulation"
+
+config UVMM_VDEV_8250
+	bool "8250-compatible UART"
+	default y
+	help
+	  Emulate an 8250 compatible UART for the guest.
+	
+	  For details on the configuration see device/uart_8250.cc
+
+config UVMM_VDEV_PL011
+	bool "PL011 UART"
+	default y
+	help
+	  Emulate a PrimeCell pl011-compatible UART for the guest.
+	
+	  For details on the configuration see device/pl011.cc
+
+config UVMM_VDEV_PL031
+	bool "PL031 RTC"
+	default y
+	depends on BUILD_ARCH_arm64 || BUILD_ARCH_arm
+	help
+	  Emluate a simple PL0311 RTC for the guest. This is not a complete device
+	  model and does not come with write support.
+	
+	  For details on the configuration see device/arm/pl031.cc
+
+config UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC
+	bool "ECAM PCIe host bridge support"
+	default y
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	help
+	  Emulates a generic PCIe host bridge for ARM platforms.
+
+config UVMM_VDEV_DEVICE_FRAMEBUFFER
+	bool "Generic framebuffer device"
+	default y
+	help
+	 Emulate a simple generic framebuffer device
+
+config UVMM_VDEV_CFI_FLASH
+	bool "CFI flash device"
+	default y
+	help
+	  Emulate a simple CFI compliant flash device with the Intel command set.
+	
+	  For details on the configuration see device/cfi.cc
+
+config UVMM_VDEV_ISA_DEBUG_PORT
+	bool "Bochs debug port"
+	default y
+	depends on BUILD_ARCH_amd64
+	help
+	  Emulate the BOCHS debug IO-port (0x402) to enable guests to print on the
+	  vcon device.
+	
+	  For details on the configuration see ARCH-amd64/isa_debugport.cc
+
+config UVMM_VDEV_GIC_V2
+	def_bool UVMM_VDEV_SEL_GIC_V2 || UVMM_VDEV_SEL_GIC_BOTH
+
+config UVMM_VDEV_GIC_V3
+	def_bool UVMM_VDEV_SEL_GIC_V3 || UVMM_VDEV_SEL_GIC_BOTH
+
+choice
+	prompt "GIC Support"
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	help
+	  Select which GIC emulations uvmm should support for the virtual interrupt
+	  controller.
+
+config UVMM_VDEV_SEL_GIC_BOTH
+	bool "GICv2 + GICv3"
+
+config UVMM_VDEV_SEL_GIC_V2
+	bool "GICv2"
+
+config UVMM_VDEV_SEL_GIC_V3
+	bool "GICv3"
+
+endchoice
+
+endmenu

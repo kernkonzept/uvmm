@@ -9,7 +9,7 @@
 #pragma once
 
 #include <l4/sys/cxx/ipc_epiface>
-
+#include <l4/bid_config.h>
 #include "monitor/monitor_args.h"
 
 namespace Vmm {
@@ -21,17 +21,16 @@ namespace Monitor {
 /// Monitor console state indicator
 enum : bool {
   /// `True` if monitor console support has been enabled during compilation
-#ifdef CONFIG_MONITOR
+#ifdef CONFIG_UVMM_MONITOR
   Enabled = true,
+  /// `True` if guest debugger support has been enabled during compilation
+  #if defined(CONFIG_BUILD_ARCH_amd64) && !defined(CONFIG_RELEASE_MODE)
+    Guest_debugger_support = true
+  #else
+    Guest_debugger_support = false
+  #endif
 #else
   Enabled = false,
-#endif
-
-  /// `True` if guest debugger support has been enabled during compilation
-#ifdef GUEST_DEBUGGER_SUPPORT
-  Guest_debugger_support = true
-#else
-  Guest_debugger_support = false
 #endif
 };
 
@@ -123,7 +122,7 @@ public:
   virtual ~Cmd();
 };
 
-#ifdef CONFIG_MONITOR
+#ifdef CONFIG_UVMM_MONITOR
 /**
  * Enable the monitor console.
  *

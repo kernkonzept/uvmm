@@ -3,12 +3,6 @@ L4DIR  ?= $(PKGDIR)/../..
 
 include $(L4DIR)/mk/Makeconf
 
-include $(PKGDIR)/server/src/Makefile.config
--include $(PKGDIR)/server/src/Makefile.config.local
-
-$(GENERAL_D_LOC): $(PKGDIR)/server/src/Makefile.config \
-                  $(wildcard $(PKGDIR)/server/src/Makefile.config.local)
-
 SYSTEMS         = arm-l4f mips-l4f arm64-l4f amd64-l4f
 TARGET          = uvmm
 
@@ -27,21 +21,20 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   address_space_manager.cc pci_device.cc \
                   device/rtc-hub.cc
 
-ifneq ($(CONFIG_RELEASE_MODE),y)
-SRC_CC-$(CONFIG_UVMM_MONITOR)       += monitor/monitor.cc
+SRC_CC-$(CONFIG_RELEASE_MODE)y          += debug.cc
+SRC_CC-$(CONFIG_UVMM_MONITOR)           += monitor/monitor.cc
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_MONITOR) += debugger/generic_guest_debugger.cc
-SRC_CC                         += debug.cc
 
-CXXFLAGS-$(CONFIG_UVMM_EXTERNAL_RTC)  += -DEXTERNAL_RTC
-CXXFLAGS-$(CONFIG_UVMM_MONITOR)       += -DCONFIG_MONITOR
-CXXFLAGS-amd64-l4f-$(CONFIG_UVMM_MONITOR) += -DGUEST_DEBUGGER_SUPPORT
-endif
-SRC_CC_arm-common = arm/gic.cc arm/gic-v2.cc arm/gic-v3.cc \
-                    arm/guest_arm.cc arm/cpu_dev_arm.cc \
+SRC_CC_arm-common-$(CONFIG_UVMM_VDEV_GIC_V2) += arm/gic-v2.cc
+SRC_CC_arm-common-$(CONFIG_UVMM_VDEV_GIC_V3) += arm/gic-v3.cc
+SRC_CC_arm-common-$(CONFIG_UVMM_FAULT_INJECT)  += ARCH-$(ARCH)/guest_arm_exc.cc
+SRC_CC_arm-common-$(CONFIG_UVMM_FAULT_INJECT)y += arm/guest_arm_noexc.cc
+
+SRC_CC_arm-common = arm/gic.cc arm/guest_arm.cc arm/cpu_dev_arm.cc \
                     io_port_handler_noop.cc ARCH-$(ARCH)/guest_subarch.cc
 
-SRC_CC_arm-l4f   = $(SRC_CC_arm-common)
-SRC_CC_arm64-l4f = $(SRC_CC_arm-common)
+SRC_CC_arm-l4f   = $(SRC_CC_arm-common) $(SRC_CC_arm-common-y)
+SRC_CC_arm64-l4f = $(SRC_CC_arm-common) $(SRC_CC_arm-common-y)
 SRC_CC_mips-l4f  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc \
                    io_port_handler_noop.cc
 SRC_CC_amd64-l4f = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
@@ -58,27 +51,23 @@ SRC_CC_amd64-l4f = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                    ARCH-amd64/guest-vmx.cc ARCH-amd64/guest-svm.cc
 
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_DEVICE_FRAMEBUFFER) += ARCH-amd64/framebuffer.cc
-SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_ISA_DEBUG_PORT) += ARCH-amd64/isa_debugport.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_ISA_DEBUG_PORT) += ARCH-amd64/isa_debugport.cc
 
 SRC_CC_arm-l4f-$(CONFIG_UVMM_VDEV_PSCI)   += device/arm/psci.cc
 SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_PSCI) += device/arm/psci.cc
 
-SRC_CC-$(CONFIG_UVMM_VDEV_8250) += device/uart_8250.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_8250)  += device/uart_8250.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_PL011) += device/pl011.cc
-SRC_CC_arm-l4f-$(CONFIG_UVMM_VDEV_OPTEE)   += device/optee.cc
-SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_OPTEE) += device/optee.cc
-SRC_CC_arm-l4f-$(CONFIG_UVMM_VDEV_PL031)   += device/arm/pl031.cc
-SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_PL031) += device/arm/pl031.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_OPTEE) += device/optee.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_PL031) += device/arm/pl031.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_POWER)   += device/virtio_input_power.cc
 SRC_CC-amd64-$(CONFIG_UVMM_VDEV_VIRTIO_POWER) += device/virtio_input_power_pci.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_VIRQ) += device/virq.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_MMIO_PROXY) += device/mmio_proxy.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_SYSCTL) += device/sysctl.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_PROXY) += device/virtio_device_proxy.cc
-SRC_CC_arm-l4f-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
-                                                                   device/pci_host_ecam_generic.cc
-SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
-                                                                     device/pci_host_ecam_generic.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
+                                                           device/pci_host_ecam_generic.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_CFI_FLASH) +=  device/cfi.cc
 SRC_CC-$(CONFIG_UVMM_EXTERNAL_RTC) += device/l4rtc.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_FRAMEBUFFER) += device/framebuffer.cc
@@ -89,20 +78,12 @@ SRC_CC_amd64-l4f-$(CONFIG_UVMM_QEMU_FW_IF) += \
 	ARCH-amd64/qemu_fw_cfg_acpi.cc \
 	ARCH-amd64/qemu_fw_cfg_boot.cc
 
-ifeq ($(CONFIG_UVMM_FAULT_INJECT),y)
-SRC_CC_arm-common += ARCH-$(ARCH)/guest_arm_exc.cc
-else
-SRC_CC_arm-common += arm/guest_arm_noexc.cc
-endif
-
 SRC_CC += binary_loader.cc binary_loader_raw.cc binary_loader_elf.cc binary_loader_pe.cc
 SRC_CC-$(CONFIG_UVMM_LOADER_ROM) += binary_loader_rom.cc
 SRC_CC_amd64-l4f += ARCH-amd64/binary_loader_linux.cc
 SRC_CC_arm-common += arm/binary_loader_linux.cc
-SRC_CC_arm-l4f-$(CONFIG_UVMM_LOADER_GZIP) += arm/binary_loader_linux_compressed.cc
-SRC_CC_arm64-l4f-$(CONFIG_UVMM_LOADER_GZIP) += arm/binary_loader_linux_compressed.cc
-REQUIRES_LIBS_arm-l4f-$(CONFIG_UVMM_LOADER_GZIP) += zlib
-REQUIRES_LIBS_arm64-l4f-$(CONFIG_UVMM_LOADER_GZIP) += zlib
+SRC_CC-$(CONFIG_UVMM_LOADER_GZIP) += arm/binary_loader_linux_compressed.cc
+REQUIRES_LIBS-$(CONFIG_UVMM_LOADER_GZIP) += zlib
 
 include $(wildcard $(PKGDIR)/server/src/Makefile.devs.*)
 

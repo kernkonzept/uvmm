@@ -41,6 +41,8 @@
 #include <time.h>
 #include <errno.h>
 
+#include <l4/bid_config.h>
+
 namespace Vdev {
 
 class Rtc :
@@ -395,7 +397,7 @@ public:
  : _alarm_timeout(this), _sink(ic, irq), _previous_alarm_second(0)
   {
     info().printf("Hello from RTC. Irq=%d\n", irq);
-#ifndef EXTERNAL_RTC
+#if !defined(CONFIG_UVMM_EXTERNAL_RTC) and !(CONFIG_RELEASE_MODE)
     warn().printf(
       "No external clock source. Rtc time will not represent wallclock time.\n"
       "Set CONFIG_UVMM_EXTERNAL_CLOCK = y if you have an external clock "
