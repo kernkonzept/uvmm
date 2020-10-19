@@ -72,7 +72,6 @@ endif
 
 SRC_CC        += $(SRC_CC-$(ARCH))
 SRC_CC        += $(SRC_CC-$(ARCH)-y)
-SRC_CC        += $(SRC_CC-y)
 
 PRIVATE_INCDIR  = $(SRC_DIR)/../include $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)
 PRIVATE_INCDIR-arm   += $(SRC_DIR)/arm $(SRC_DIR)/device/arm
