@@ -1,0 +1,86 @@
+# All help TBD
+
+menu "uvmm virtual machine monitor"
+
+config UVMM_MONITOR
+	bool "Enable the monitor interface"
+	default y
+
+config UVMM_VDEV_PSCI
+	bool "Support PSCI interface"
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	default y
+
+config UVMM_VDEV_8250
+	bool "Emulate a 8250-compatible UART"
+	default y
+
+config UVMM_VDEV_PL011
+	bool "Emulate a PrimeCell pl011-compatible UART"
+	default y
+
+config UVMM_VDEV_PL031
+	bool "Emulate a pl031 RTC"
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	default y
+
+config UVMM_VDEV_OPTEE
+	bool "Provide forwarding of OPTEE SMC calls"
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	default y
+
+config UVMM_VDEV_VIRTIO_POWER
+	bool "Support sending power events via Virtio-input"
+	default y
+
+config UVMM_VDEV_VIRQ
+	bool "Forward L4 interrupts"
+	default y
+
+config UVMM_VDEV_MMIO_PROXY
+	bool "Proxy dataspaces and mmio protocol"
+	default y
+
+config UVMM_VDEV_SYSCTL
+	bool "Mmio-based device for triggering system events"
+	default y
+	help
+	 Mmio-based device for triggering system events (shutdown, reboot)
+
+config UVMM_VDEV_DEVICE_PROXY
+	bool "Proxy for virtio devices implemented in the guest"
+	default y
+
+config UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC
+	bool "Emulate generic PCIe host bridge (ARM only)"
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	default y
+
+config UVMM_VDEV_DEVICE_FRAMEBUFFER
+	bool "Support simple framebuffer device (AMD64 only)"
+	depends on BUILD_ARCH_amd64
+
+config UVMM_VDEV_CFI_FLASH
+	bool "CFI flash backed by a file"
+	default y
+
+config UVMM_VDEV_ISA_DEBUG_PORT
+	bool "Simple BOCHS debug IO-port (0x402) to print from guest on vcon device"
+	depends on BUILD_ARCH_amd64
+
+config UVMM_GZIP_IMAGES
+	bool "Support gzip/zlib compressed kernel images (ARM only)"
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	default y
+	help
+	  requires zlib to be available
+
+config UVMM_EXTERNAL_RTC
+	bool "Enable l4rtc backend"
+
+config UVMM_FAULT_INJECT
+	bool "Support injecting exceptions for unhandled faults (ARM only)"
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	default y
+
+endmenu

@@ -3,12 +3,6 @@ L4DIR  ?= $(PKGDIR)/../..
 
 include $(L4DIR)/mk/Makeconf
 
-include $(PKGDIR)/server/src/Makefile.config
--include $(PKGDIR)/server/src/Makefile.config.local
-
-$(GENERAL_D_LOC): $(PKGDIR)/server/src/Makefile.config \
-                  $(wildcard $(PKGDIR)/server/src/Makefile.config.local)
-
 SYSTEMS         = arm-l4f mips-l4f arm64-l4f amd64-l4f
 TARGET          = uvmm
 
