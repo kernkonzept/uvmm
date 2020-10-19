@@ -401,7 +401,8 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
       = L4Re::chkcap(L4Re::Util::make_ref_cap<L4Re::Dataspace>());
 
     L4Re::chksys(e->mem_alloc()->alloc(size, ds.get()));
-    _mgr = cxx::make_unique<Ds_manager>(ds, 0, size, rm_flags.region_flags());
+    _mgr = cxx::make_unique<Ds_manager>(ds, 0, size, rm_flags.region_flags()
+                                                     | L4Re::Rm::F::RW);
     _mgr->local_addr<void *>();
   }
 
