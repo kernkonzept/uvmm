@@ -117,7 +117,7 @@
               // The upper 8-bits of the first cell encodes information as
               // described at the ranges property above.
               reg = <0x02000000 0x0 0xaaaa0000 0x0 0x2000
-                     0x01000000 0x0 0x800 0x0 0x100>;
+                     0x01000000 0x0 0x800 0x0 0x80>;
               msi-parent = <&msi_ctrl>;
               l4vmm,vdev = "console";
             };
@@ -126,7 +126,7 @@
                 compatible = "virtio,pci";
                 // The reg property requirements are described in virtio_uart.
                 reg = <0x2000000 0x0 0xaaaa2000 0x0 0x2000
-                       0x1000000 0x0 0x700 0x0 0x100>;
+                       0x1000000 0x0 0x700 0x0 0x80>;
                 msi-parent = <&msi_ctrl>;
                 l4vmm,virtiocap = "net";
                 l4vmm,vdev = "proxy";
