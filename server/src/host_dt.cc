@@ -44,7 +44,7 @@ namespace {
         }
       _size = buf.st_size;
 
-      _addr = mmap(&_addr, _size, PROT_WRITE | PROT_READ, MAP_PRIVATE, fd, 0);
+      _addr = mmap(nullptr, _size, PROT_WRITE | PROT_READ, MAP_PRIVATE, fd, 0);
       if (_addr == MAP_FAILED)
         warn.printf("Unable to mmap file '%s': %s\n", name, strerror(errno));
 
