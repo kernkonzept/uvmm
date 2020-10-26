@@ -144,7 +144,10 @@ struct F : Factory
       }
 
     proxy->register_irq(vmm->registry());
-    int const num_msix = 10;
+
+    // Only two MSIs (config & VQ). l4virtio supports only shared IRQs for all
+    // VQs.
+    int const num_msix = 2;
     proxy->configure(regs, num_msix, cfgsz);
     pci->register_device(proxy);
 
