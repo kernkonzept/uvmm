@@ -53,38 +53,12 @@ struct F : Factory
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "VIO proxy"); }
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "VIO proxy"); }
 
-  static L4::Cap<L4virtio::Device> device_cap(Dt_node const &node)
-  {
-    int cap_name_len;
-    char const *cap_name = node.get_prop<char>("l4vmm,virtiocap", &cap_name_len);
-    if (!cap_name)
-      {
-        warn().printf(
-          "'l4vmm,virtiocap' property missing for virtio proxy device.\n");
-        return L4::Cap<void>::Invalid;
-      }
-
-    cap_name_len = strnlen(cap_name, cap_name_len);
-
-    auto cap =
-      L4Re::Env::env()->get_cap<L4virtio::Device>(cap_name, cap_name_len);
-    if (!cap)
-      {
-        warn()
-          .printf("'l4vmm,virtiocap' property: capability %.*s is invalid.\n",
-                  cap_name_len, cap_name);
-        return L4::Cap<void>::Invalid;
-      }
-
-    return cap;
-  }
-
   cxx::Ref_ptr<Device> create(Device_lookup *devs, Dt_node const &node) override
   {
     info().printf("Creating proxy\n");
 
-    auto cap = device_cap(node);
-    if (!cap.is_valid())
+    auto cap = Vdev::get_cap<L4virtio::Device>(node, "l4vmm,virtiocap");
+    if (!cap)
       return nullptr;
 
     l4_uint64_t dt_msi_base = 0, dt_msi_size = 0;
