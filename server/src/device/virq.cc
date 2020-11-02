@@ -20,7 +20,7 @@ namespace {
 using namespace Vdev;
 
 /**
- * Device for relaying L4 interupts into the guest.
+ * Device for relaying L4 interrupts into the guest.
  *
  * A device tree entry needs to look like this:
  *
@@ -93,7 +93,7 @@ static F_rcv f_rcv;
 static Device_type t_rcv = { "l4vmm,virq-rcv", nullptr, &f_rcv };
 
 /**
- * Device for triggering L4 interupts from the guest.
+ * Device for triggering L4 interrupts from the guest.
  *
  * A device tree entry needs to look like this:
  *

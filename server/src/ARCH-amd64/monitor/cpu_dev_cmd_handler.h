@@ -144,7 +144,7 @@ public:
             vmx->vmx_read(L4VCPU_VMCS_VM_ENTRY_EXCEPTION_ERROR));
     fprintf(f, "(C) Entry MSR load cnt: 0x%llx\n",
             vmx->vmx_read(L4VCPU_VMCS_VM_ENTRY_MSR_LOAD_COUNT));
-    fprintf(f, "(C) Entry interupt info: 0x%llx\n",
+    fprintf(f, "(C) Entry interrupt info: 0x%llx\n",
             vmx->vmx_read(L4VCPU_VMCS_VM_ENTRY_INTERRUPT_INFO));
     fprintf(f, "(C) VM-instruction error: 0x%llx\n",
             vmx->vmx_read(L4VCPU_VMCS_VM_INSN_ERROR));
@@ -152,9 +152,9 @@ public:
             vmx->vmx_read(L4VCPU_VMCS_VM_EXIT_CTLS));
     fprintf(f, "(C) Exit reason: 0x%llx\n",
             vmx->vmx_read(L4VCPU_VMCS_EXIT_REASON));
-    fprintf(f, "(C) Exit interupt info: 0x%llx\n",
+    fprintf(f, "(C) Exit interrupt info: 0x%llx\n",
             vmx->vmx_read(L4VCPU_VMCS_VM_EXIT_INTERRUPT_INFO));
-    fprintf(f, "(C) Exit interupt error: 0x%llx\n",
+    fprintf(f, "(C) Exit interrupt error: 0x%llx\n",
             vmx->vmx_read(L4VCPU_VMCS_VM_EXIT_INTERRUPT_ERROR));
     fprintf(f, "(C) Guest interruptability: 0x%llx\n",
             vmx->vmx_read(L4VCPU_VMCS_GUEST_INTERRUPTIBILITY_STATE));

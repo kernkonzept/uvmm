@@ -320,7 +320,7 @@ struct F : Factory
 
             if (resid >= todo_irqs)
               {
-                Err().printf("%s: VBUS interupts resource '%.4s' has no matching device tree entry.\n",
+                Err().printf("%s: VBUS interrupts resource '%.4s' has no matching device tree entry.\n",
                              node.get_name(), resname);
                 L4Re::chksys(-L4_ENOMEM,
                              "Matching VBUS interrupt resources against device tree.");

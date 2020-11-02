@@ -51,7 +51,7 @@ static Dbg info(Dbg::Dev, Dbg::Info, "VioDrv");
  * of the L4virtio protocol.
  *
  * Kicks by the driver are forwarded as notification interrupts to the guest.
- * The guest must acknowledge all interupts by writing 0 to the cmd field
+ * The guest must acknowledge all interrupts by writing 0 to the cmd field
  * in the config page.
  *
  * The guest device may notify the driver about queue changes by writing

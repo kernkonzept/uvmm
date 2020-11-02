@@ -146,7 +146,7 @@ public:
 
   /**
    * Return the device of the virtual interrupt parent responsible for
-   * handling the interupt the iterator currently points to.
+   * handling the interrupt the iterator currently points to.
    *
    * \return Reference to the interrupt parent or nullptr if the interrupt
    *         parent is not managed by uvmm.
