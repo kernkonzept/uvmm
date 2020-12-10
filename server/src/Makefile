@@ -39,7 +39,7 @@ SRC_CC_arm-common = arm/gic.cc arm/gic-v2.cc arm/gic-v3.cc \
                     arm/guest_arm.cc arm/cpu_dev_arm.cc \
                     io_port_handler_noop.cc
 
-SRC_CC_arm-l4f   = $(SRC_CC_arm-common)
+SRC_CC_arm-l4f   = $(SRC_CC_arm-common) ARCH-arm/vcpu_ptr.cc
 SRC_CC_arm64-l4f = $(SRC_CC_arm-common)
 SRC_CC_mips-l4f  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc \
                    io_port_handler_noop.cc

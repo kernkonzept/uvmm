@@ -17,6 +17,8 @@ namespace Vmm {
 
 class Vcpu_ptr : public Generic_vcpu_ptr
 {
+   Arm::Hsr decode_mmio_slowpath() const;
+
 public:
   explicit Vcpu_ptr(l4_vcpu_state_t *s) : Generic_vcpu_ptr(s) {}
 
@@ -236,6 +238,10 @@ public:
   {
     Mem_access m;
 
+    // might be an "extra load/store" instruction that is not decoded in HSR
+    if (!hsr().pf_isv())
+      _s->r.err = decode_mmio_slowpath().raw();
+
     if (!hsr().pf_isv() || hsr().pf_srt() > 14)
       {
         m.access = Mem_access::Other;
@@ -246,7 +252,11 @@ public:
     m.access = hsr().pf_write() ? Mem_access::Store : Mem_access::Load;
 
     if (m.access == Mem_access::Store)
-      m.value = get_gpr(hsr().pf_srt());
+      {
+        m.value = get_gpr(hsr().pf_srt());
+        if (m.width == Mem_access::Wd64)
+          m.value |= (l4_uint64_t)get_gpr(hsr().pf_uvmm_srt2()) << 32;
+      }
 
     return m;
   }
@@ -255,8 +265,10 @@ public:
   {
     assert(m.access == Mem_access::Load);
 
-    l4_umword_t v = reg_extend_width(m.value, hsr().pf_sas(), hsr().pf_sse());
+    l4_uint64_t v = reg_extend_width(m.value, hsr().pf_sas(), hsr().pf_sse());
     set_gpr(hsr().pf_srt(), v);
+    if (m.width == Mem_access::Wd64)
+      set_gpr(hsr().pf_uvmm_srt2(), v >> 32);
   }
 };
 

@@ -98,6 +98,7 @@ public:
   CXX_BITFIELD_MEMBER(16, 20, pf_srt, _raw);
   CXX_BITFIELD_MEMBER(15, 15, pf_sf, _raw);
   CXX_BITFIELD_MEMBER(14, 14, pf_ar, _raw);
+  CXX_BITFIELD_MEMBER(10, 13, pf_uvmm_srt2, _raw); // original: AET+RES0
   CXX_BITFIELD_MEMBER( 9,  9, pf_ea, _raw);
   CXX_BITFIELD_MEMBER( 8,  8, pf_cache_maint, _raw);
   CXX_BITFIELD_MEMBER( 7,  7, pf_s1ptw, _raw);

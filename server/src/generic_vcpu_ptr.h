@@ -84,24 +84,24 @@ protected:
 
   explicit Generic_vcpu_ptr(l4_vcpu_state_t *s) : _s(s) {}
 
-  static l4_umword_t reg_extend_width(l4_umword_t value, char size, bool signext)
+  static l4_uint64_t reg_extend_width(l4_uint64_t value, char size, bool signext)
   {
     if (signext)
       {
         switch (size)
           {
-          case 0: return (l4_mword_t)((l4_int8_t)value);
-          case 1: return (l4_mword_t)((l4_int16_t)value);
-          case 2: return (l4_mword_t)((l4_int32_t)value);
+          case 0: return (l4_int64_t)((l4_int8_t)value);
+          case 1: return (l4_int64_t)((l4_int16_t)value);
+          case 2: return (l4_int64_t)((l4_int32_t)value);
           default: return value;
           }
       }
 
     switch (size)
       {
-      case 0: return (l4_umword_t)((l4_uint8_t)value);
-      case 1: return (l4_umword_t)((l4_uint16_t)value);
-      case 2: return (l4_umword_t)((l4_uint32_t)value);
+      case 0: return (l4_uint64_t)((l4_uint8_t)value);
+      case 1: return (l4_uint64_t)((l4_uint16_t)value);
+      case 2: return (l4_uint64_t)((l4_uint32_t)value);
       default: return value;
       }
   }
