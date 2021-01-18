@@ -29,7 +29,7 @@ void Vmm::Mmio_device::map_guest_range(L4::Cap<L4::Vm> vm_task,
                                        l4_fpage(src + offs, ps, attr),
                                        doffs));
       if (res < 0)
-        Err().printf("Could not map (%lx, %c) to (%lx, %c)\n", src + offs, ps,
+        Err().printf("Could not map (%lx, %d) to (%lx, %d)\n", src + offs, ps,
                      doffs, ps);
       offs += 1 << ps;
     }
