@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <terminate_handler-l4>
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -136,7 +137,7 @@ static struct option const loptions[] =
     { 0, 0, 0, 0}
 };
 
-static int run(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
   unsigned long verbosity = Dbg::Warn;
 
@@ -238,20 +239,4 @@ static int run(int argc, char *argv[])
 
   Err().printf("ERROR: we must never reach this....\n");
   return 0;
-}
-
-int main(int argc, char *argv[])
-{
-  try
-    {
-      return run(argc, argv);
-    }
-  catch (L4::Runtime_error &e)
-    {
-      if (e.extra_str() && e.extra_str()[0] != '\0')
-        Err().printf("%s: %s\n", e.extra_str(), e.str());
-      else
-        Err().printf("%s\n", e.str());
-    }
-  return 1;
 }
