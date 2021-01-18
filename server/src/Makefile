@@ -78,6 +78,8 @@ SRC_CC-$(CONFIG_UVMM_VDEV_CFI_FLASH) +=  device/cfi.cc
 SRC_CC-$(CONFIG_UVMM_EXTERNAL_RTC) += device/l4rtc.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_FRAMEBUFFER) += device/framebuffer.cc
 
+SRC_CC-$(CONFIG_UVMM_QEMU_FW_IF) += device/qemu_fw_cfg.cc
+
 ifeq ($(CONFIG_UVMM_FAULT_INJECT),y)
 SRC_CC_arm-common += ARCH-$(ARCH)/guest_arm_exc.cc
 else

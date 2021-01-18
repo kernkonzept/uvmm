@@ -138,6 +138,11 @@
                 reg = <0x1 0x402 0x1>;
                 l4vmm,vcon_cap = "debug";
             };
+
+            qemu_fw_if {
+                compatible = "l4vmm,qemu-fw-cfg";
+                reg = <0x1 0x510 0x0c>;
+            };
         };
 
         pci0: pci@aa000000 {
