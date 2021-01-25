@@ -20,8 +20,13 @@ asm
  "  mcr    p15, 0, r2, c13, c0, 2 \n"
  "  lsr    r3, r3, #24            \n"
  "  bic    r3, r3, #3             \n"
+#ifdef __PIC__
+ "  ldr    r12, 2f                \n" // load offset to vcpu_entries
+ "1:add    r12, pc, r12           \n" // convert to absolute address
+#else
  "  movw   r12, #:lower16:vcpu_entries      \n"
  "  movt   r12, #:upper16:vcpu_entries      \n"
+#endif
  "  add    r12, r12, r3           \n"
  "  ldr    r12, [r12]             \n"
  "  blx    r12                    \n"
@@ -33,5 +38,9 @@ asm
  "  mcr    p15, 0, r5, c13, c0, 2 \n"  // restore TPIDRURW from r5
  "  mov    r5, #" L4_stringify(L4_SYSCALL_INVOKE) " \n"
  "  hvc    #0                     \n"
+ "                                \n"
+#ifdef __PIC__
+ "2: .word vcpu_entries - (1b + 8)\n"
+#endif
 );
 
