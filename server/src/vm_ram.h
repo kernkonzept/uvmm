@@ -18,8 +18,6 @@
 #include <cassert>
 #include <vector>
 
-#include <l4/l4virtio/virtqueue>
-
 #include "device.h"
 #include "ds_mmio_mapper.h"
 #include "host_dt.h"

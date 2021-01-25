@@ -11,7 +11,6 @@
 #include <cstring>
 
 #include <l4/cxx/unique_ptr>
-#include <l4/l4virtio/virtqueue>
 
 #include "device.h"
 #include "mem_types.h"
