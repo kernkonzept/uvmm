@@ -13,8 +13,6 @@
 #include <l4/re/util/unique_cap>
 #include <l4/util/util.h>
 
-#include <l4/l4virtio/virtqueue>
-
 #include <cstdio>
 
 #include "device.h"
