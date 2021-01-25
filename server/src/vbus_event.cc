@@ -17,7 +17,10 @@ Vbus_event::Vbus_event(L4::Cap<L4Re::Event> vbus, L4::Registry_iface *registry)
     return;
 
   if (_vbus_event.init<L4::Irq>(vbus))
-    warn.printf("Failed to initialize vbus events.\n");
+    {
+      warn.printf("Failed to initialize vbus events.\n");
+      return;
+    }
 
   L4Re::chkcap(registry->register_obj(this,
                                       L4::cap_cast<L4::Irq>(_vbus_event.irq())),
