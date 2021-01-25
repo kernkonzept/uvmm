@@ -24,8 +24,15 @@ asm
  "  vmrs   r8, fpexc              \n"  // r8: save FPEXC
  "  orr    r9, r8, #(1<<30)       \n"  // enable SIMD+FP
  "  vmsr   fpexc, r9              \n"
+#ifdef __PIC__
+ "  ldr    r12, 3f                \n" // load offset to GOT
+ "  ldr    r9, 3f+4               \n" // load save_32r index into GOT
+ "2:add    r12, pc, r12           \n" // make absolute address of GOT
+ "  ldr    r9, [r12, r9]          \n" // load save_32r address from GOT
+#else
  "  movw   r9, #:lower16:save_32r \n"
  "  movt   r9, #:upper16:save_32r \n"
+#endif
  "  ldr    r9, [r9]               \n"  // r9: 0: don't save; 1: save d16-d31
  "  add    r10, sp, #(16 + 0*8)   \n"  // r10: address of d0-d15
  "  vstm   r10, {d0-d15}          \n"
@@ -41,8 +48,13 @@ asm
  "  mcr    p15, 0, r2, c13, c0, 2 \n"
  "  lsr    r3, r3, #24            \n"
  "  bic    r3, r3, #3             \n"
+#ifdef __PIC__
+ "  ldr    r1, 3f+8               \n" // load vcpu_entries index into GOT
+ "  ldr    r12, [r12, r1]         \n" // load vcpu_entries address from GOT
+#else
  "  movw   r12, #:lower16:vcpu_entries      \n"
  "  movt   r12, #:upper16:vcpu_entries      \n"
+#endif
  "  add    r12, r12, r3           \n"
  "  ldr    r12, [r12]             \n"
  "  blx    r12                    \n"
@@ -63,8 +75,11 @@ asm
  "  mov    r7, #" L4_stringify(L4_SYSCALL_INVOKE) " \n"
  "  hvc    #0                     \n"
  "                                \n"
- ".Lsave_32r:                     \n"
- "  .long save_32r                \n"
+#ifdef __PIC__
+ "3: .word _GLOBAL_OFFSET_TABLE_-(2b+8) \n"
+ "   .word save_32r(GOT)                \n"
+ "   .word vcpu_entries(GOT)            \n"
+#endif
 );
 
 /**
