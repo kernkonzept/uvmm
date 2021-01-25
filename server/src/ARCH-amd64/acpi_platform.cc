@@ -161,7 +161,7 @@ public:
       if ((value & (7 << 10)) >> 10 == Acpi_shutdown)
         {
           trace().printf("Guest requested power off. Bye\n");
-          _vmm->shutdown(0);
+          _vmm->shutdown(Vmm::Guest::Shutdown);
         }
   }
 
