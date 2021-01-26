@@ -13,13 +13,17 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   cpu_dev_array.cc generic_cpu_dev.cc \
                   ARCH-$(ARCH)/cpu_dev.cc \
                   host_dt.cc device_factory.cc \
-                  virtio_console.cc \
-                  virtio_proxy.cc \
                   virt_bus.cc io_proxy.cc \
                   mmio_device.cc \
-                  pm.cc vbus_event.cc vm_memmap.cc vm_ram.cc vm.cc \
+                  vbus_event.cc vm_memmap.cc vm_ram.cc vm.cc \
                   address_space_manager.cc pci_device.cc \
                   device/rtc-hub.cc
+
+ifeq ($(CONFIG_UVMM_PM),y)
+SRC_CC += pm.cc
+else
+SRC_CC += pm-stub.cc
+endif
 
 ifneq ($(CONFIG_RELEASE_MODE),y)
 SRC_CC-$(CONFIG_UVMM_MONITOR)       += monitor/monitor.cc
@@ -40,7 +44,6 @@ SRC_CC_mips-l4f  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc \
 SRC_CC_amd64-l4f = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                    ARCH-amd64/rtc.cc ARCH-amd64/virt_lapic.cc \
                    ARCH-amd64/vcpu_ptr.cc ARCH-amd64/vm_state_vmx.cc \
-                   virtio_console_pci.cc virtio_proxy_pci.cc \
                    device/pci_host_bridge.cc device/pci_host_generic.cc \
                    ARCH-amd64/kvm_clock.cc \
                    ARCH-amd64/legacy_pic.cc ARCH-amd64/acpi_platform.cc \
@@ -49,10 +52,14 @@ SRC_CC_amd64-l4f = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
 
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_DEVICE_FRAMEBUFFER) += ARCH-amd64/framebuffer.cc
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_ISA_DEBUG_PORT) += ARCH-amd64/isa_debugport.cc
+SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_VIRTIO_CONSOLE) += virtio_console_pci.cc
+SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_VIRTIO_PROXY) += virtio_proxy_pci.cc
 
 SRC_CC_arm-l4f-$(CONFIG_UVMM_VDEV_PSCI)   += device/arm/psci.cc
 SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_PSCI) += device/arm/psci.cc
 
+SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_CONSOLE) += virtio_console.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_PROXY) += virtio_proxy.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_8250) += device/uart_8250.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_PL011) += device/pl011.cc
 SRC_CC_arm-l4f-$(CONFIG_UVMM_VDEV_OPTEE)   += device/optee.cc

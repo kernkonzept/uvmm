@@ -29,10 +29,6 @@ config UVMM_VDEV_OPTEE
 	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
 	default y
 
-config UVMM_VDEV_VIRTIO_POWER
-	bool "Support sending power events via Virtio-input"
-	default y
-
 config UVMM_VDEV_VIRQ
 	bool "Forward L4 interrupts"
 	default y
@@ -46,10 +42,6 @@ config UVMM_VDEV_SYSCTL
 	default y
 	help
 	 Mmio-based device for triggering system events (shutdown, reboot)
-
-config UVMM_VDEV_DEVICE_PROXY
-	bool "Proxy for virtio devices implemented in the guest"
-	default y
 
 config UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC
 	bool "Emulate generic PCIe host bridge (ARM only)"
@@ -82,5 +74,37 @@ config UVMM_FAULT_INJECT
 	bool "Support injecting exceptions for unhandled faults (ARM only)"
 	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
 	default y
+
+menuconfig UVMM_VDEV_VIRTIO
+	bool "Virtio driver/device support"
+	default y
+
+if UVMM_VDEV_VIRTIO
+
+config UVMM_VDEV_VIRTIO_CONSOLE
+	bool "Support forwarding vcon as virtio-console to the guest"
+	default y
+
+config UVMM_VDEV_VIRTIO_POWER
+	bool "Support sending power events via Virtio-input"
+	default y
+
+config UVMM_VDEV_VIRTIO_PROXY
+	bool "Support forwarding L4virtio devices to the guest"
+	default y
+
+config UVMM_VDEV_DEVICE_PROXY
+	bool "Proxy for virtio devices implemented in the guest"
+	default y
+
+endif
+
+config UVMM_PM
+	bool "System platform power management integration"
+	default y
+	help
+	  Integrate VM suspend/resume with the rest of the system.
+
+	  Say Y if your platform supports suspend/resume.
 
 endmenu
