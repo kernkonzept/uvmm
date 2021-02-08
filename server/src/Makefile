@@ -52,7 +52,9 @@ SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
 SRC_CC-arm-$(CONFIG_VDEV_PSCI)   += device/arm/psci.cc
 SRC_CC-arm64-$(CONFIG_VDEV_PSCI) += device/arm/psci.cc
 
-SRC_CC-$(CONFIG_VDEV_8250) += device/uart_8250.cc
+SRC_CC-amd64-$(CONFIG_VDEV_8250) += device/uart_8250_ioports.cc
+SRC_CC-arm-$(CONFIG_VDEV_8250) += device/uart_8250.cc
+SRC_CC-arm64-$(CONFIG_VDEV_8250) += device/uart_8250.cc
 SRC_CC-$(CONFIG_VDEV_PL011) += device/pl011.cc
 SRC_CC-arm-$(CONFIG_VDEV_OPTEE)   += device/optee.cc
 SRC_CC-arm64-$(CONFIG_VDEV_OPTEE) += device/optee.cc

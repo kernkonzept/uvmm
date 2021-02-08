@@ -87,6 +87,14 @@
             reg = <0x0 0x0 0x0 0x0>;
         };
 
+        uart8250 {
+          compatible = "ns8250", "uart,8250";
+          reg = <0x0 0x0 0x0 0x0>;
+          interrupt-parent = <&PIC>;
+          interrupts = <4>;
+          l4vmm,vcon_cap = "uart";
+        };
+
         kvm_clock {
             compatible = "kvm-clock";
             reg = <0x0 0x0 0x0 0x0>;
