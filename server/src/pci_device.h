@@ -373,7 +373,7 @@ public:
   Pci_dev()
   {
     for (auto &b : _bar_size)
-      b = 1; // Default to an IO-space BAR.
+      b = 0;
 
     memset(&_hdr, 0, sizeof(_hdr));
     _last_caps_next_ptr = &get_header<Pci_header::Type0>()->cap_ptr;
@@ -429,10 +429,27 @@ public:
         && ((8U << width)) == Pci_hdr_status_length)
       return;
 
-    // If the BAR is sized, write the size value to the cfg space. The driver
-    // will write the old value back afterwards.
-    if (value == 0xFFFFFFFF && reg >= 0x10 && reg <= 0x24)
-      value = _bar_size[(reg - 0x10) / 0x4];
+    if (reg >= 0x10 && reg <= 0x24) // PCI BAR
+      {
+        // According to PCI Spec. 3.0, Chapter 3.2.2.3..2
+        // A bridge must implement configuration access only via full dword.
+        if (width != Mem_access::Wd32)
+          {
+            dbg().printf("BAR[%u] write width = %d, value = %08x. Ignoring.\n",
+                         (reg - 0x10) / 4, width, value);
+            return;
+          }
+
+        // The BAR size (power of 2!) defines which bits are writable.
+        l4_uint32_t size = _bar_size[(reg - 0x10) / 4];
+        l4_uint32_t bar  = _hdr.dword[reg / 4];
+        l4_uint32_t mask = ~size + 1;
+
+        // TODO: Needs adaption for 64-bit BARs!
+        value &= mask;
+        bar   &= ~mask;
+        value |= bar;
+      }
 
     reg >>= width;
     switch (width)
@@ -607,7 +624,7 @@ protected:
 
     get_header<TYPE>()->base_addr_regs[bar] =
       ((addr & ~Bar_io_attr_mask) | Bar_io_space_bit);
-    _bar_size[bar] = size;
+    set_bar_size(bar, size);
   }
 
   /**
@@ -626,6 +643,23 @@ protected:
     // [2:1] type: 00 = 32bit, 10 = 64bit;
     // [3] prefetch;
     get_header<TYPE>()->base_addr_regs[bar] = (addr & ~Bar_mem_attr_mask);
+    set_bar_size(bar, size);
+  }
+
+  /**
+   * Set the size of a BAR. According to the PCI spec, this value is rounded up
+   * to the nearest power of two >= 16.
+   *
+   * \param bar   BAR number.
+   * \param size  BAR size.
+   */
+  void set_bar_size(unsigned bar, l4_size_t size)
+  {
+    // Keep in mind that __builtin_clzl(0) is undefined.
+    if (size < 16)
+      size = 16;
+    else
+      size = 1UL << (8 * sizeof(unsigned long) - __builtin_clzl(size - 1));
     _bar_size[bar] = size;
   }
 };
