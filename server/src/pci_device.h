@@ -723,7 +723,12 @@ public:
         && ((8U << width)) == Pci_hdr_status_length)
       return;
 
-    if (reg >= 0x10 && reg <= 0x24) // PCI BAR
+    unsigned const max_bar_offset =
+      get_header_type() == Pci_header_type::Type0
+      ? Pci_hdr_base_addr5_offset
+      : Pci_hdr_base_addr1_offset;
+
+    if (reg >= Pci_hdr_base_addr0_offset && reg <= max_bar_offset) // PCI BAR
       {
         // According to PCI Spec. 3.0, Chapter 3.2.2.3..2
         // A bridge must implement configuration access only via full dword.
