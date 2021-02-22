@@ -13,6 +13,8 @@
 #include "msi_arch.h"
 #include "msi_controller.h"
 
+#include <l4/cxx/bitfield>
+
 namespace Vdev {
 
 /**
@@ -45,19 +47,16 @@ class Legacy_pic : public Gic::Ic
   enum Command : l4_uint8_t
   {
     None = 0,
-    Eoi = 0x20,
-    Eoi_lvl0 = 0x60,
-    Init = 0x11,
-    Read_irr = 0x0a,
-    Read_isr = 0x0b,
+    Read_irr,
+    Read_isr,
   };
 
   enum class Init_words
   {
-    None,
-    Vector_offset,
-    Wiring,
-    Env_info,
+    ICW1 = 0,
+    ICW2,
+    ICW3,
+    ICW4,
   };
 
   /**
@@ -65,22 +64,84 @@ class Legacy_pic : public Gic::Ic
    */
   class Chip : public Vmm::Io_device
   {
-    l4_uint8_t _cmd = Command::None;
-    l4_uint8_t _mask = 0;
-    l4_uint8_t _isr = 0;
-    l4_uint8_t _irr = 0;
+    // Register set
+    // We only support ICW1 == 0x11. (ICW4 | INIT).
+    struct ICW1
+    {
+      l4_uint8_t raw;
 
-    Init_words _expect = Init_words::Vector_offset;
+      CXX_BITFIELD_MEMBER(0, 0, icw4, raw);
+      CXX_BITFIELD_MEMBER(1, 1, single, raw);           // only support 0
+      CXX_BITFIELD_MEMBER(2, 2, address_interval, raw); // only support 0
+      CXX_BITFIELD_MEMBER(3, 3, level_triggered_mode, raw); // ignore
+      CXX_BITFIELD_MEMBER(4, 4, init, raw);
+    };
+
+    struct ICW4
+    {
+      l4_uint8_t raw;
+
+      CXX_BITFIELD_MEMBER(0, 0, upm, raw); // 8086 mode, only one supported
+      /**
+       * Note from 8259a manual:
+       * 8259As with a copyright date of 1985 or later will operate in the AEOI
+       * mode as a master or a slave.
+       * In AEOI mode interrupts are acked on delivery.
+       */
+      CXX_BITFIELD_MEMBER(1, 1, aeoi, raw);
+      CXX_BITFIELD_MEMBER(2, 2, buffer_master, raw);
+      CXX_BITFIELD_MEMBER(3, 3, buffer_mode, raw);
+      CXX_BITFIELD_MEMBER(3, 3, sfnm, raw); // One iff special fully nested mode.
+    };
+
+    struct OCW2
+    {
+      l4_uint8_t raw;
+
+      CXX_BITFIELD_MEMBER(0, 2, irq, raw);
+      CXX_BITFIELD_MEMBER(5, 5, eoi, raw);
+      CXX_BITFIELD_MEMBER(6, 6, sl, raw);
+    };
+
+    struct OCW3
+    {
+      l4_uint8_t raw;
+
+      CXX_BITFIELD_MEMBER(0, 0, ris, raw);
+      CXX_BITFIELD_MEMBER(1, 1, rr, raw);
+      CXX_BITFIELD_MEMBER(2, 2, poll, raw);
+      CXX_BITFIELD_MEMBER(5, 5, smm, raw);
+      CXX_BITFIELD_MEMBER(6, 6, esmm, raw);
+    };
+
+    // Command register.
+    l4_uint8_t _cmd = Command::None;
+    // Interrupt service register. Stores the Irq currently being serviced.
+    l4_uint8_t _isr = 0;
+    // Interrupt request register. Stores incoming Irq requesting to be
+    // serviced.
+    l4_uint8_t _irr = 0;
+    // Interrupt mask register. Masks out interrupts.
+    l4_uint8_t _imr = 0;
+
+    // Needed to keep track of initialization sequence
+    Init_words _expect = Init_words::ICW1;
+
+    // Offset of interrupts
     l4_uint8_t _offset = 0;
     l4_uint8_t _slave_at = 0;
-    l4_uint8_t _env = 0;
+
+    struct ICW1 _icw1; // store to keep track of single mode and icw4
+    struct ICW4 _icw4; // store to keep track of aeoi mode
 
     bool _is_master;
     Legacy_pic *_pic;
 
   public:
     Chip(bool master, Legacy_pic *pic) : _is_master(master), _pic(pic)
-    {}
+    {
+      _icw4.aeoi() = 1;
+    }
 
     /// Check interrupt mask/in-service and return the IRQ number with offset.
     int trigger(unsigned irq)
@@ -90,39 +151,21 @@ class Legacy_pic : public Gic::Ic
 
       unsigned irq_bit = 1U << irq;
 
-      if (_isr || _mask & irq_bit)
+      if (_isr || _imr & irq_bit)
         {
           _irr |= irq_bit;
           return -1;
         }
       else
         {
-          _isr |= irq_bit;
+          if (!_icw4.aeoi())
+            _isr |= irq_bit;
+          _irr &= ~irq_bit;
           return _offset + irq;
         }
     }
 
-    /// Return the number of the first pending interrupt or -1.
-    int check_pending()
-    {
-      if (_isr || ~(_irr & ~_mask))
-        return -1;
-
-      for (int i = 0; _irr >> i; ++i)
-        {
-          l4_uint8_t bit = 1U << i;
-
-          if (_irr & bit)
-          {
-            _irr &= ~bit;
-            _isr |= bit;
-            return i;
-          }
-        }
-
-      return -1;
-    }
-
+  public:
     /// Handle read accesses on the PICs command and data ports.
     void io_in(unsigned port, Vmm::Mem_access::Width width, l4_uint32_t *value)
     {
@@ -139,16 +182,20 @@ class Legacy_pic : public Gic::Ic
             case Command::Read_irr: *value = _irr; break;
             case Command::Read_isr: *value = _isr; break;
             }
+          _cmd = Command::None;
           break;
 
         case Data_port:
           if (_cmd == Command::None)
             {
-              *value = _mask;
+              *value = _imr;
               trace().printf("%s read mask 0x%x\n",
-                             _is_master ? "Master:" : "Slave:", _mask);
+                             _is_master ? "Master:" : "Slave:", _imr);
               break;
             }
+          else
+            warn().printf("%s read unsupported cmd\n",
+                          _is_master ? "Master:" : "Slave:");
           break;
         }
 
@@ -170,65 +217,188 @@ class Legacy_pic : public Gic::Ic
       switch (port)
         {
         case Cmd_port:
-          switch (value)
-            {
-            case Command::Eoi:
-            case Command::Eoi_lvl0:
-              {
-                _isr = 0;
-                int irq = check_pending();
-                if (irq != -1)
-                  _pic->set(irq);
-                break;
-              }
-            case Command::None:
-              _cmd = Command::None;
-              break;
-            case Command::Init:
-              _cmd = Command::Init;
-              _expect = Init_words::Vector_offset;
-              break;
-            case Command::Read_irr:
-              _cmd = Command::Read_irr;
-              break;
-            case Command::Read_isr:
-              _cmd = Command::Read_isr;
-              break;
-            }
+          handle_command_write(value);
           break;
 
         case Data_port:
-          if (_cmd == Command::None)
-            {
-              _mask = value;
-              trace().printf("%s write mask 0x%x\n",
-                             _is_master ? "Master:" : "Slave:", _mask);
-            }
-
-          if (_cmd == Command::Init)
-            {
-              switch (_expect)
-                {
-                case Init_words::None: break;
-                case Init_words::Vector_offset:
-                  _offset = value;
-                  _expect = Init_words::Wiring;
-                  warn().printf("%s: Vector offset %u\n",
-                                _is_master ? "MASTER" : "SLAVE", _offset);
-                  break;
-                case Init_words::Wiring:
-                  _slave_at = value;
-                  _expect = Init_words::Env_info;
-                  break;
-                case Init_words::Env_info:
-                  _env = value;
-                  _expect = Init_words::None;
-                  _cmd = Command::None;
-                  break;
-                }
-            }
+          handle_data_write(value);
+          break;
         }
     }
+
+  private:
+    /// Return the number of the first pending interrupt or -1.
+    int check_pending()
+    {
+      if (_isr || !(_irr & ~_imr))
+        // we cannot issue new interrupts
+        // if an interrupt is currently in service
+        // or if all pending interrupts (in irr) are masked
+        return -1;
+
+      for (int i = 0; _irr >> i; ++i)
+        {
+          l4_uint8_t bit = 1U << i;
+
+          if (_irr & bit)
+          {
+            _irr &= ~bit;
+            _isr |= bit;
+            return i;
+          }
+        }
+
+      return -1;
+    }
+
+    /**
+     * EOI of last issued interrupt
+     */
+    void eoi(unsigned irq = 0)
+    {
+      if (!irq)
+        _isr = 0;
+      else
+        _isr &= ~(1U << irq);
+      issue_next_interrupt();
+    }
+
+    void issue_next_interrupt()
+    {
+      int next_irq = check_pending();
+      if (next_irq != -1)
+        _pic->send_interrupt(next_irq + _offset);
+    }
+
+
+    /**
+     * Reset to initial configuration
+     */
+    void reset()
+    {
+      _irr = _imr = _isr = 0;
+      _expect = Init_words::ICW1;
+      _offset = 0;
+      _slave_at = 0;
+      _icw1 = {0U};
+      _icw4 = {0U};
+      _icw4.aeoi() = 1;
+    }
+
+    void handle_command_write(l4_uint32_t command)
+    {
+      l4_uint8_t cmd = command;
+      if (cmd & 0x10) // ICW1
+        {
+          // start initialization sequence
+          reset();
+
+          _icw1 = {cmd};
+          if (_icw1.address_interval() || _icw1.single())
+            warn().printf("Unsupported initialization value.\n");
+
+          _expect = Init_words::ICW2;
+          return;
+        }
+
+      if (_expect != Init_words::ICW1) // are we still in initialization?
+        {
+          warn().printf("%s: PIC is in initialization and guest wrote OCW (%x). Ignoring.\n",
+                        _is_master ? "Master" : "Slave", cmd);
+          return;
+        }
+
+      // handle OCWs
+      if (cmd & 0x8)
+        {
+          struct OCW3 o{cmd};
+
+          if (o.ris() && o.rr())
+            {
+              _cmd = Command::Read_isr;
+              return;
+            }
+
+          if (o.rr())
+            {
+              _cmd = Command::Read_irr;
+              return;
+            }
+
+          // ignore the rest
+        }
+      else // OCW2
+        {
+          struct OCW2 o{cmd};
+
+          if (o.eoi())
+            {
+              if (o.sl())
+                eoi(o.irq());
+              else
+                eoi();
+            }
+
+          // ignore the rest for now
+        }
+    }
+
+    void handle_data_write(l4_uint32_t value)
+    {
+      if (_expect != Init_words::ICW1) // we are in initialization
+        {
+          switch (_expect)
+            {
+            case Init_words::ICW1: break; // avoid compiler warning
+
+            case Init_words::ICW2:
+              _offset = value;
+              if (_icw1.single())
+                {
+                  if (_icw1.icw4())
+                    _expect = Init_words::ICW4;
+                  else
+                    _expect = Init_words::ICW1; // initialization complete
+                }
+              else
+                _expect = Init_words::ICW3;
+              warn().printf("%s: Vector offset %u\n",
+                            _is_master ? "MASTER" : "SLAVE", _offset);
+              break;
+
+            case Init_words::ICW3:
+              _slave_at = value;
+              if (_icw1.icw4())
+                _expect = Init_words::ICW4;
+              else
+                _expect = Init_words::ICW1; // initialization complete
+              break;
+
+            case Init_words::ICW4:
+              _icw4.raw = value;
+              if (!_icw4.upm())
+                warn().printf("Guest tries to set MCS-80 mode. Unsupported.\n");
+              _expect = Init_words::ICW1; // initialization complete
+              _cmd = Command::None;
+              break;
+            }
+          return;
+        }
+
+      switch (_cmd)
+        {
+        case Command::None:
+          _imr = value;
+          // immediately inject pending irqs
+          issue_next_interrupt();
+          break;
+        default:
+          warn().printf("%s data port write unsupported cmd %x\n",
+                        _is_master ? "Master:" : "Slave:", _cmd);
+          break;
+        }
+    }
+
   };
 
 public:
@@ -253,6 +423,12 @@ public:
     int num = irq < 8 ? _master->trigger(irq) : _slave->trigger(irq - 8);
     // Do we need to set the _master line where the slave is wired to?
     if (num >= 32)
+      send_interrupt(num);
+  };
+
+  void send_interrupt(int irq)
+  {
+    if (irq >= 32)
       {
         using namespace Vdev::Msix;
 
@@ -261,12 +437,12 @@ public:
         addr.fixed() = Address_interrupt_prefix;
 
         Data_register_format data(0U);
-        data.vector() = num;
+        data.vector() = irq;
         data.delivery_mode() = Dm_extint;
 
         _distr->send(addr.raw, data.raw);
       }
-  };
+  }
 
   void clear(unsigned) override {}
 
