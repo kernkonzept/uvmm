@@ -32,7 +32,7 @@ namespace Vdev {
  * interrupts of the master and slave PIC to a software defined range of two
  * times eight consecutive interrupt numbers.
  * The emulation reacts to IO-ports 0x20/0x21 and 0xA0/0xA1 as Command/Data
- * port combination for the master and salve chips.
+ * port combination for the master and slave chips.
  */
 class Legacy_pic : public Gic::Ic
 {
@@ -56,7 +56,7 @@ class Legacy_pic : public Gic::Ic
   {
     None,
     Vector_offset,
-    Wirring,
+    Wiring,
     Env_info,
   };
 
@@ -212,11 +212,11 @@ class Legacy_pic : public Gic::Ic
                 case Init_words::None: break;
                 case Init_words::Vector_offset:
                   _offset = value;
-                  _expect = Init_words::Wirring;
+                  _expect = Init_words::Wiring;
                   warn().printf("%s: Vector offset %u\n",
                                 _is_master ? "MASTER" : "SLAVE", _offset);
                   break;
-                case Init_words::Wirring:
+                case Init_words::Wiring:
                   _slave_at = value;
                   _expect = Init_words::Env_info;
                   break;
