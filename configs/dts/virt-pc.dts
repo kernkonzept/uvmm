@@ -78,6 +78,10 @@
           interrupts = <9>;
         };
 
+        acpi_timer {
+           compatible = "acpi-timer";
+        };
+
         rtc {
             compatible = "virt-rtc";
             reg = <0x0 0x0 0x0 0x0>;
