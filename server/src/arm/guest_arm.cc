@@ -9,6 +9,7 @@
 #include <l4/cxx/ref_ptr>
 #include <l4/re/error_helper>
 #include <l4/vbus/vbus>
+#include <l4/sys/debugger.h>
 
 #include "binary_loader.h"
 #include "device_factory.h"
@@ -286,6 +287,9 @@ Guest::load_binary(Vm_ram *ram, char const *binary, Ram_free_list *free_list)
   _guest_64bit = bf.is_64bit();
 
   check_guest_constraints(ram_base.get());
+
+  char const *n = strrchr(binary, '/');
+  l4_debugger_set_object_name(_task.get().cap(), n ? n+1 : binary);
 
   return entry;
 }
