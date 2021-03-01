@@ -127,42 +127,34 @@ public:
     l4_umword_t res;
     if ((_s->r.flags & 0x1f) == 0x11) // FIQ
       {
-        // assembly implementation of
-        // switch(x - 8) {
-        //    case n:
-        //        read banked fiq register (n + 8)
-        //        break;
-        asm ("add pc, pc, %[r]\n"
-             "nop\n"
-             "mrs %[res], R8_fiq \n b 2f\n"
-             "mrs %[res], R9_fiq \n b 2f\n"
-             "mrs %[res], R10_fiq\n b 2f\n"
-             "mrs %[res], R11_fiq\n b 2f\n"
-             "mrs %[res], R12_fiq\n b 2f\n"
-             "mrs %[res], SP_fiq \n b 2f\n"
-             "mrs %[res], LR_fiq \n"
-             "2:\n" : [res]"=r"(res) : [r]"r"((x - 8) * 8));
+        switch (x - 8)
+          {
+          case 0: asm ("mrs %[res], R8_fiq " : [res]"=r"(res)); break;
+          case 1: asm ("mrs %[res], R9_fiq " : [res]"=r"(res)); break;
+          case 2: asm ("mrs %[res], R10_fiq" : [res]"=r"(res)); break;
+          case 3: asm ("mrs %[res], R11_fiq" : [res]"=r"(res)); break;
+          case 4: asm ("mrs %[res], R12_fiq" : [res]"=r"(res)); break;
+          case 5: asm ("mrs %[res], SP_fiq " : [res]"=r"(res)); break;
+          case 6: asm ("mrs %[res], LR_fiq " : [res]"=r"(res)); break;
+          default: __builtin_unreachable();
+          }
         return res;
       }
 
     // Should we check whether we have a valid mode (irq, svc, abt, und) here?
-    //
-    // assembly implementation of
-    // switch(f(mode, x-13)) {
-    //    case x:
-    //        read banked lr/sp register for mode
-    //        break;
-    asm ("add pc, pc, %[r]\n"
-         "nop\n"
-         "mrs %[res], SP_irq \n b 2f\n"
-         "mrs %[res], LR_irq \n b 2f\n"
-         "mrs %[res], SP_svc\n b 2f\n"
-         "mrs %[res], LR_svc\n b 2f\n"
-         "mrs %[res], SP_abt\n b 2f\n"
-         "mrs %[res], LR_abt \n b 2f\n"
-         "mrs %[res], SP_und \n b 2f\n"
-         "mrs %[res], LR_und \n"
-         "2:\n" : [res]"=r"(res) : [r]"r"((x - 13 + mode_offs()) * 8));
+    switch (x - 13 + mode_offs())
+      {
+      case 0: asm ("mrs %[res], SP_irq" : [res]"=r"(res)); break;
+      case 1: asm ("mrs %[res], LR_irq" : [res]"=r"(res)); break;
+      case 2: asm ("mrs %[res], SP_svc" : [res]"=r"(res)); break;
+      case 3: asm ("mrs %[res], LR_svc" : [res]"=r"(res)); break;
+      case 4: asm ("mrs %[res], SP_abt" : [res]"=r"(res)); break;
+      case 5: asm ("mrs %[res], LR_abt" : [res]"=r"(res)); break;
+      case 6: asm ("mrs %[res], SP_und" : [res]"=r"(res)); break;
+      case 7: asm ("mrs %[res], LR_und" : [res]"=r"(res)); break;
+      default: __builtin_unreachable();
+      }
+
     return res;
   }
 
@@ -184,42 +176,33 @@ public:
 
     if ((_s->r.flags & 0x1f) == 0x11) // FIQ
       {
-        // assembly implementation of
-        // switch(x - 8) {
-        //    case n:
-        //        write banked fiq register (n + 8)
-        //        break;
-        asm ("add pc, pc, %[r]\n"
-             "nop\n"
-             "msr R8_fiq,  %[v] \n b 2f\n"
-             "msr R9_fiq,  %[v] \n b 2f\n"
-             "msr R10_fiq, %[v] \n b 2f\n"
-             "msr R11_fiq, %[v] \n b 2f\n"
-             "msr R12_fiq, %[v] \n b 2f\n"
-             "msr SP_fiq,  %[v] \n b 2f\n"
-             "msr LR_fiq,  %[v] \n"
-             "2:\n" : : [v]"r"(value), [r]"r"((x - 8) * 8));
+        switch (x - 8)
+          {
+          case 0: asm ("msr R8_fiq,  %[v]" : : [v]"r"(value)); break;
+          case 1: asm ("msr R9_fiq,  %[v]" : : [v]"r"(value)); break;
+          case 2: asm ("msr R10_fiq, %[v]" : : [v]"r"(value)); break;
+          case 3: asm ("msr R11_fiq, %[v]" : : [v]"r"(value)); break;
+          case 4: asm ("msr R12_fiq, %[v]" : : [v]"r"(value)); break;
+          case 5: asm ("msr SP_fiq,  %[v]" : : [v]"r"(value)); break;
+          case 6: asm ("msr LR_fiq,  %[v]" : : [v]"r"(value)); break;
+          default: __builtin_unreachable();
+          }
         return;
       }
 
     // Should we check whether we have a valid mode (irq, svc, abt, und) here?
-    //
-    // assembly implementation of
-    // switch(f(mode, x-13)) {
-    //    case x:
-    //        write banked lr/sp register for mode
-    //        break;
-    asm ("add pc, pc, %[r]\n"
-         "nop\n"
-         "msr SP_irq, %[v] \n b 2f\n"
-         "msr LR_irq, %[v] \n b 2f\n"
-         "msr SP_svc, %[v] \n b 2f\n"
-         "msr LR_svc, %[v] \n b 2f\n"
-         "msr SP_abt, %[v] \n b 2f\n"
-         "msr LR_abt, %[v] \n b 2f\n"
-         "msr SP_und, %[v] \n b 2f\n"
-         "msr LR_und, %[v] \n"
-         "2:\n" : : [v]"r"(value), [r]"r"((x - 13 + mode_offs()) * 8));
+    switch (x - 13 + mode_offs())
+      {
+      case 0: asm ("msr SP_irq, %[v]" : : [v]"r"(value)); break;
+      case 1: asm ("msr LR_irq, %[v]" : : [v]"r"(value)); break;
+      case 2: asm ("msr SP_svc, %[v]" : : [v]"r"(value)); break;
+      case 3: asm ("msr LR_svc, %[v]" : : [v]"r"(value)); break;
+      case 4: asm ("msr SP_abt, %[v]" : : [v]"r"(value)); break;
+      case 5: asm ("msr LR_abt, %[v]" : : [v]"r"(value)); break;
+      case 6: asm ("msr SP_und, %[v]" : : [v]"r"(value)); break;
+      case 7: asm ("msr LR_und, %[v]" : : [v]"r"(value)); break;
+      default: __builtin_unreachable();
+      }
   }
 
   l4_umword_t get_sp() const
