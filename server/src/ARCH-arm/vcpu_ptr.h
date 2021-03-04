@@ -110,7 +110,7 @@ public:
     return ((_s->r.flags + 1) >> 1) & 0x6;
   }
 
-  l4_umword_t get_gpr(unsigned x) const
+  __attribute__((target("arm"),noinline)) l4_umword_t get_gpr(unsigned x) const
   {
     if (L4_UNLIKELY(x > 14))
       return 0;
@@ -168,7 +168,7 @@ public:
     return res;
   }
 
-  void set_gpr(unsigned x, l4_umword_t value) const
+  __attribute__((target("arm"),noinline)) void set_gpr(unsigned x, l4_umword_t value) const
   {
     if (L4_UNLIKELY(x > 14))
       return;
