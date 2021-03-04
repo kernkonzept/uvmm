@@ -9,6 +9,7 @@
 #include <l4/cxx/ref_ptr>
 #include <l4/re/error_helper>
 #include <l4/vbus/vbus>
+#include <l4/sys/debugger.h>
 
 #ifdef SUPPORT_GZIP_IMAGES
 #include <l4/sys/factory>
@@ -479,6 +480,9 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_li
     }
 
   check_guest_constraints(ram_base.get());
+
+  char const *n = strchr(kernel, '/');
+  l4_debugger_set_object_name(_task.get().cap(), n ? n+1 : kernel);
 
   return entry;
 }
