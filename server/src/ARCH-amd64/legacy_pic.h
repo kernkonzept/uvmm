@@ -182,7 +182,6 @@ class Legacy_pic : public Gic::Ic
             case Command::Read_irr: *value = _irr; break;
             case Command::Read_isr: *value = _isr; break;
             }
-          _cmd = Command::None;
           break;
 
         case Data_port:
@@ -194,11 +193,12 @@ class Legacy_pic : public Gic::Ic
               break;
             }
           else
-            warn().printf("%s read unsupported cmd\n",
-                          _is_master ? "Master:" : "Slave:");
+            warn().printf("%s read unsupported cmd %d\n",
+                          _is_master ? "Master:" : "Slave:", _cmd);
           break;
         }
 
+      _cmd = Command::None;
       trace().printf("%s port in: %s - 0x%x\n",
                      _is_master ? "Master:" : "Slave:",
                      port == 0 ? "cmd" : "data", *value);
