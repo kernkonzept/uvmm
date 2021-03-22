@@ -540,6 +540,13 @@ public:
     return Misr(l4_vcpu_e_read_32(*_vcpu, L4_VCPU_E_GIC_MISR));
   }
 
+  /// read GICH_VTR / ICH_VTR_EL2
+  Vmm::Arm::Gic_h::Vtr vtr() const
+  {
+    using Vmm::Arm::Gic_h::Vtr;
+    return Vtr(l4_vcpu_e_read_32(*_vcpu, L4_VCPU_E_GIC_VTR));
+  }
+
   /**
    * Get the affinity from the vCPU MPIDR.
    * \pre the CPU interface must be initialized (see initialize()).
