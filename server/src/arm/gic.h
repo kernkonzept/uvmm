@@ -881,6 +881,7 @@ public:
     gicd_trace.printf("set CPU interface for CPU %02d (%p) to %p\n",
                       cpu, &_cpu[cpu], *vcpu);
     _cpu.set_at(cpu, cxx::make_unique<Cpu>(vcpu, &_spis, thread));
+    _prio_mask = ~((1U << (7 - _cpu[cpu]->vtr().pri_bits())) - 1U);
     return _cpu[cpu].get();
   }
 
@@ -977,7 +978,7 @@ private:
       case R_icpend:   if (value) irq.pending(false);  return;
       case R_isactive: if (value) irq.active(true);    return;
       case R_icactive: if (value) irq.active(false);   return;
-      case R_prio:     irq.prio(value & 0xf8);  return;
+      case R_prio:     irq.prio(value & _prio_mask);   return;
       case R_target:   irq.target(value);              return;
       case R_cfg:      irq.config(value);              return;
       default:         assert (false);                 return;
@@ -1198,6 +1199,7 @@ protected:
 protected:
   Cpu_vector _cpu;
   Irq_array _spis;
+  l4_uint8_t _prio_mask;
 };
 
 template<typename GIC_IMPL>

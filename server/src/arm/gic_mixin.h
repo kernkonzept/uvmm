@@ -44,9 +44,7 @@ public:
     c->handle_eois<Cpu_if>();
     c->handle_ipis<GIC_IMPL>();
 
-    // Unimplemented priority LSBs are RAZ/WI
-    enum { Idle_priority = 0xff };
-    unsigned pmask = Idle_priority & ~((1U << (7 - c->vtr().pri_bits())) - 1U);
+    unsigned pmask = _prio_mask;
 
     for (;;)
       {
