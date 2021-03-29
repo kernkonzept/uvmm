@@ -881,7 +881,8 @@ public:
     gicd_trace.printf("set CPU interface for CPU %02d (%p) to %p\n",
                       cpu, &_cpu[cpu], *vcpu);
     _cpu.set_at(cpu, cxx::make_unique<Cpu>(vcpu, &_spis, thread));
-    _prio_mask = ~((1U << (7 - _cpu[cpu]->vtr().pri_bits())) - 1U);
+    if (cpu == 0)
+      _prio_mask = ~((1U << (7 - _cpu[cpu]->vtr().pri_bits())) - 1U);
     return _cpu[cpu].get();
   }
 
