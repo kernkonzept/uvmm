@@ -1019,7 +1019,7 @@ private:
 
     if (irq_s < Num_local)
       _demux_irq_reg<SHIFT>(_cpu[cpu_id]->local_irqs(), irq_s, nirq, reg, op);
-    else if (irq_s - Num_local <= _spis.size())
+    else if (irq_s - Num_local < _spis.size())
       _demux_irq_reg<SHIFT>(_spis, irq_s - Num_local, nirq, reg, op);
   }
 
