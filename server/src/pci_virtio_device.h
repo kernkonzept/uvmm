@@ -81,6 +81,23 @@ private:
     hdr->status = Interrupt_status_bit | Capability_list_bit;
     hdr->header_type = Multi_func_bit;
 
+    switch (dev_cfg->device)
+      {
+      case L4VIRTIO_ID_NET:
+        hdr->classcode[2] = 0x02;
+        break;
+      case L4VIRTIO_ID_BLOCK:
+        hdr->classcode[2] = 0x01;
+        break;
+      case L4VIRTIO_ID_CONSOLE:
+        // same as used by qemu (communication controller, other)
+        hdr->classcode[2] = 0x07;
+        hdr->classcode[1] = 0x80;
+        break;
+      default:
+        break;
+      }
+
     unsigned io_bar = -1U;
     for (unsigned i = 0; i < regs.size(); ++i)
       {
