@@ -11,7 +11,7 @@
 #include "event_connector_pci.h"
 #include "pci_virtio_device.h"
 #include "virtio_proxy.h"
-#include "pci_bus.h"
+#include "device/pci_host_bridge.h"
 
 
 class Virtio_proxy_pci
@@ -65,7 +65,7 @@ struct F : Factory
     node.get_reg_val(0, &dt_msi_base, &dt_msi_size);
 
     l4_uint64_t dt_base = 0, dt_size = 0;
-    Pci_device::dt_get_untranslated_reg_val(node, 1, &dt_base, &dt_size);
+    Virt_pci_device::dt_get_untranslated_reg_val(node, 1, &dt_base, &dt_size);
 
     info().printf("Proxy base & size 0x%llx, 0x%llx\nMSI-X memory address & "
                   "size: 0x%llx, 0x%llx\n",
@@ -77,12 +77,12 @@ struct F : Factory
     warn().printf("cfgsize is 0x%lx\n", cfgsz);
 
     Device_register_entry regs[] =
-      {{dt_msi_base, dt_msi_size, Pci_device::dt_get_reg_flags(node, 0)},
-       {dt_base, dt_size, Pci_device::dt_get_reg_flags(node, 1)}};
+      {{dt_msi_base, dt_msi_size, Virt_pci_device::dt_get_reg_flags(node, 0)},
+       {dt_base, dt_size, Virt_pci_device::dt_get_reg_flags(node, 1)}};
 
     check_dt_regs_flag(regs);
 
-    auto *pci = dynamic_cast<Pci_bus_bridge *>(
+    auto *pci = dynamic_cast<Pci_host_bridge *>(
       devs->device_from_node(node.parent_node()).get());
 
     if (!pci)

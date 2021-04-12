@@ -11,12 +11,12 @@
 #include "debug.h"
 #include "device_factory.h"
 #include "guest.h"
-#include "pci_bus.h"
 #include "ds_mmio_mapper.h"
 #include "pci_virtio_device.h"
 #include "virtio_pci_connector.h"
 #include "virtio_console.h"
 #include "event_connector_pci.h"
+#include "device/pci_host_bridge.h"
 
 class Virtio_console_pci
 : public Vdev::Virtio_console<Virtio_console_pci>,
@@ -57,7 +57,7 @@ struct F : Factory
 
     l4_uint64_t dt_base = 0;
     l4_uint64_t dt_size = 0;
-    Pci_device::dt_get_untranslated_reg_val(node, 1, &dt_base, &dt_size);
+    Virt_pci_device::dt_get_untranslated_reg_val(node, 1, &dt_base, &dt_size);
 
     info().printf("Console base & size: 0x%llx, 0x%llx\nMSI-X memory address & "
                   "size: 0x%llx, 0x%llx\n",
@@ -66,12 +66,12 @@ struct F : Factory
     check_dt_io_mmio_constraints(dt_msi_base, dt_msi_size, dt_base, dt_size);
 
     Device_register_entry regs[] =
-      {{dt_msi_base, dt_msi_size, Pci_device::dt_get_reg_flags(node, 0)},
-       {dt_base, dt_size, Pci_device::dt_get_reg_flags(node, 1)}};
+      {{dt_msi_base, dt_msi_size, Virt_pci_device::dt_get_reg_flags(node, 0)},
+       {dt_base, dt_size, Virt_pci_device::dt_get_reg_flags(node, 1)}};
 
     check_dt_regs_flag(regs);
 
-    auto *pci = dynamic_cast<Pci_bus_bridge *>(
+    auto *pci = dynamic_cast<Pci_host_bridge *>(
       devs->device_from_node(node.parent_node()).get());
 
     if (!pci)

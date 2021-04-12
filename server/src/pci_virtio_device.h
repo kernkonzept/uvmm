@@ -26,12 +26,32 @@
 
 namespace Vdev { namespace Pci {
 
+enum
+{
+  Dt_pci_flags_io = 1 << 24,
+  Dt_pci_flags_mmio32 = 1 << 25,
+  Dt_pci_flags_mmio64 = 3 << 25,
+  Dt_pci_flags_prefetch = 1 << 30,
+};
+
+struct Device_register_entry
+{
+  l4_uint64_t base;
+  l4_uint64_t size;
+  l4_uint32_t flags;
+
+  void print() const
+  {
+    Dbg().printf("base 0x%llx, size 0x%llx, flags 0x%x\n", base, size, flags);
+  }
+};
+
 /**
  * Virtio device using the Virtio PCI transport employing MSI-X.
  */
 template<typename DEV>
 class Virtio_device_pci
-: public Pci_dev
+: public Virt_pci_device
 {
 public:
   /**
@@ -52,8 +72,8 @@ public:
 
   bool msix_enabled()
   {
-    auto *cap = get_cap<Pci_msix_cap>();
-    return cap ? cap->ctrl.enabled() : false;
+    parse_msix_cap();
+    return has_msix? msix_cap.ctrl.enabled() : false;
   }
 
 private:

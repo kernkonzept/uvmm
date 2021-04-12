@@ -58,6 +58,41 @@ enum Pci_config_consts
   Bar_num_max_type1 = 2,
 };
 
+/**
+ * PCI BAR configuration.
+ *
+ * Internal representation of a PCI base address register (BAR) configuration.
+ */
+struct Pci_cfg_bar
+{
+  enum Type
+  {
+    Unused, /// Not used
+    MMIO32, /// 32bit MMIO
+    MMIO64, /// 64bit MMIO
+    IO      /// IO space
+  };
+
+  l4_uint64_t io_addr = 0;  /// Address used by IO
+  l4_uint64_t map_addr = 0; /// Address to use for the guest mapping
+  l4_uint64_t size = 0;       /// Size of the region
+  Type type = Unused;       /// Type of the BAR
+
+  static const char *to_string(Type t)
+  {
+    switch(t)
+    {
+      case IO: return "io";
+      case MMIO32: return "mmio32";
+      case MMIO64: return "mmio64";
+      default: return "unused";
+    }
+  }
+  // for user: get address type dependent
+  // auto addr =
+  //  (type == MMIO64) ? addr : (l4_uint32_t)(addr && 0xffffffff);
+};
+
 enum Cap_ident : l4_uint8_t
 {
   // see PCI Local Bus Specification V.3 (2004) Appendix H.
@@ -271,7 +306,6 @@ static_assert(   sizeof(Pci_header::Type0) == sizeof(Pci_header)
               && sizeof(Pci_header::Type1) == sizeof(Pci_header),
               "Pci_header and Pci_header::Type sizes differ.");
 
-
 struct Pci_device : public virtual Vdev::Dev_ref
 {
   virtual ~Pci_device() = default;
@@ -281,6 +315,129 @@ struct Pci_device : public virtual Vdev::Dev_ref
   virtual void cfg_read(unsigned reg,
                         l4_uint32_t *value, Vmm::Mem_access::Width width) = 0;
 
+
+  /*
+   * Get source ID.
+   *
+   * Return a source_id compatible with IO.
+   */
+  virtual l4_uint64_t src_id() const
+  { return 0U; }
+
+  /*
+   * Enable access to the PCI device.
+   *
+   * \param access  The MMIO/IO space configuration bits to enable
+   */
+  void enable_access(l4_uint32_t access)
+  {
+    l4_uint32_t cmd_reg = 0;
+    cfg_read(Pci_hdr_command_offset, &cmd_reg, Vmm::Mem_access::Wd16);
+    // Reenable bar access
+    cfg_write(Pci_hdr_command_offset, cmd_reg | (access & Access_mask),
+              Vmm::Mem_access::Wd16);
+  }
+
+  /*
+   * Disable access to the PCI device.
+   *
+   * The current configuration will be returned and has to be passed to the
+   * enabled_access function to restore the correct configuration when
+   * enabling the device again.
+   *
+   * \return The current MMIO/IO space configuration bits
+   */
+  l4_uint32_t disable_access()
+  {
+    // Disable any bar access
+    l4_uint32_t cmd_reg = 0;
+    cfg_read(Pci_hdr_command_offset, &cmd_reg, Vmm::Mem_access::Wd16);
+    cfg_write(Pci_hdr_command_offset, cmd_reg & ~Access_mask,
+              Vmm::Mem_access::Wd16);
+
+    return cmd_reg & Access_mask;
+  }
+
+  /**
+   * Queries the size of a bar.
+   */
+  unsigned read_bar_size(unsigned bar_offs, l4_uint32_t bar,
+                         l4_uint32_t *bar_size)
+  {
+    cfg_write(bar_offs, 0xffffffffUL, Vmm::Mem_access::Wd32);
+    cfg_read(bar_offs, bar_size, Vmm::Mem_access::Wd32);
+    cfg_write(bar_offs, bar, Vmm::Mem_access::Wd32);
+    return bar_offs + 4;
+  }
+
+  /**
+   * Parses one bar configuration for a specific device.
+   *
+   * \pre  Because this modifies the base address register the PCI device
+   *       access must be disabled before calling this method.
+   *
+   * \post This may advance the bar offset in case of an 64 bit mmio bar. 64
+   *       bit addresses take up two bars.
+   */
+  unsigned read_bar(unsigned bar_offs,
+                    l4_uint64_t *addr, l4_uint64_t *size,
+                    Pci_cfg_bar::Type *type)
+  {
+    // Read the base address reg
+    l4_uint32_t bar = 0;
+    l4_uint32_t bar_size = 0;
+    cfg_read(bar_offs, &bar, Vmm::Mem_access::Wd32);
+    if ((bar & Bar_type_mask) == Bar_io_space_bit) // IO bar
+      {
+        bar_offs = read_bar_size(bar_offs, bar, &bar_size);
+        if (bar_size == ~0U)
+          return bar_offs;
+
+        bar_size &= ~Bar_io_attr_mask; // clear decoding
+
+        *type = Pci_cfg_bar::IO;
+        *addr = bar & ~Bar_io_attr_mask;
+        *size = (~bar_size & 0xffff) + 1;
+      }
+    else if ((bar & Bar_mem_type_mask) == Bar_mem_type_32bit) // 32Bit MMIO bar
+      {
+        bar_offs = read_bar_size(bar_offs, bar, &bar_size);
+        if (bar_size == 0)
+          return bar_offs;
+
+        bar_size &= ~Bar_mem_attr_mask; // clear decoding
+
+        *type = Pci_cfg_bar::MMIO32;
+        *addr = bar & ~Bar_mem_attr_mask;
+        *size = ~bar_size + 1;
+      }
+    else if ((bar & Bar_mem_type_mask) == Bar_mem_type_64bit) // 64Bit MMIO bar
+      {
+        // Process the first 32bit
+        l4_uint64_t addr64 = bar & ~Bar_mem_attr_mask;
+        l4_uint64_t size64 = 0;
+        bar_offs = read_bar_size(bar_offs, bar, &bar_size);
+        if (bar_size == 0)
+          return bar_offs;
+
+        size64 = bar_size;
+
+        // Process the second 32bit
+        cfg_read(bar_offs, &bar, Vmm::Mem_access::Wd32);
+        addr64 |= (l4_uint64_t)bar << 32; // shift to upper part
+        bar_offs = read_bar_size(bar_offs, bar, &bar_size);
+
+        size64 |= (l4_uint64_t)bar_size << 32; // shift to upper part
+        size64 &= ~Bar_mem_attr_mask; // clear decoding
+
+        *type = Pci_cfg_bar::MMIO64;
+        *addr = addr64;
+        *size = ~size64 + 1;
+      }
+
+    return bar_offs;
+  }
+
   bool is_multi_function_device()
   {
     l4_uint32_t val = 0;
@@ -288,93 +445,128 @@ struct Pci_device : public virtual Vdev::Dev_ref
     return val & Multi_func_bit;
   }
 
-  /**
-   * Get PCI flags value of a register in the DT-PCI node.
-   *
-   * \param node     DT node to get the register flags of.
-   * \param reg_num  Index of the 'reg' entry.
-   *
-   * \return PCI flags specified in the DT for the specified reg entry.
-   */
-  static l4_uint32_t dt_get_reg_flags(Vdev::Dt_node const &node, int reg_num)
+  //
+  // *** PCI cap ************************************************************
+  //
+
+  void parse_msix_cap()
   {
-    auto parent = node.parent_node();
-    size_t addr_cells = node.get_address_cells(parent);
-    size_t size_cells = node.get_size_cells(parent);
+    unsigned msix_cap_addr = get_capability(Cap_ident::Msi_x);
+    if (!msix_cap_addr)
+      return;
 
-    if (addr_cells != 3 || size_cells != 2)
-      L4Re::chksys(-L4_EINVAL,
-                   "PCI device register lengths are three (address) "
-                   "and two (size).");
+    l4_uint32_t ctrl = 0;
+    cfg_read(msix_cap_addr + 2, &ctrl, Vmm::Mem_access::Wd16);
+    msix_cap.ctrl.raw = (l4_uint16_t)ctrl;
+    cfg_read(msix_cap_addr + 4, &msix_cap.tbl.raw, Vmm::Mem_access::Wd32);
+    cfg_read(msix_cap_addr + 8, &msix_cap.pba.raw, Vmm::Mem_access::Wd32);
 
-    int const reg_len = addr_cells + size_cells;
-    int dt_regs_size = 0;
-    auto dt_regs = node.get_prop<fdt32_t>("reg", &dt_regs_size);
-    assert(reg_num < (dt_regs_size / reg_len));
-
-    for (int i = 0; i < 2; ++i)
-      Dbg().printf("dt_regs[%i]: 0x%x\n", i, fdt32_to_cpu(dt_regs[i * reg_len]));
-
-    return fdt32_to_cpu(dt_regs[reg_num * reg_len]);
+    has_msix = true;
   }
 
-  /**
-   * Get IO-Reg values of the PCI-DT node, without translation through the
-   * parent.
+  /*
+   * Walk capabilities list and return the first capability of cap_type (see
+   * PCI Spec. Version 3, Chapter 6.7). If none is found return 0.
    *
-   * The IO regs entry defines absolute reset values for the IO area of the
-   * device, which are not translated through the PCI host bridge ranges
-   * property. Attempts to do so result in a translation error.
+   * \param devfn     Device function to query
+   * \param cap_type  Capability type to retrieve
    *
-   * It is slightly modified copy of Dtb::Node::get_reg_val().
-   *
-   * \see Dtb::Node::get_reg_val()
+   * \returns 0       If no capability was found.
+   *          >0      Pointer to the capability.
    */
-  static int dt_get_untranslated_reg_val(Vdev::Dt_node node, int index,
-                                         l4_uint64_t *address,
-                                         l4_uint64_t *size)
+  unsigned get_capability(l4_uint8_t cap_type)
   {
-    auto parent = node.parent_node();
-    size_t addr_cells = node.get_address_cells(parent);
-    size_t size_cells = node.get_size_cells(parent);
-    int rsize = addr_cells + size_cells;
+    l4_uint32_t val = 0;
+    cfg_read(Pci_hdr_status_offset, &val, Vmm::Mem_access::Wd16);
+    if (!(val & Pci_header_status_capability_bit))
+      {
+        trace().printf("Pci_header_status_capability_bit is not set.\n");
+        return 0;
+      }
 
-    int prop_size;
-    auto *prop = node.get_prop<fdt32_t>("reg", &prop_size);
-    if (!prop && prop_size < 0)
-      return prop_size;
+    cfg_read(Pci_hdr_capability_offset, &val, Vmm::Mem_access::Wd8);
 
-    if (!prop)
-      return FDT_ERR_INTERNAL;
+    l4_uint8_t next_cap = val & Pci_cap_mask::Next_cap;
 
-    if (prop_size < rsize * (index + 1))
-      return Dt_node::ERR_BAD_INDEX;
+    if (next_cap == 0)
+      {
+        trace().printf("get_capability: Capability pointer is zero.\n");
+        return 0;
+      }
 
-    prop += rsize * index;
+    while (true)
+      {
+        cfg_read(next_cap, &val, Vmm::Mem_access::Wd16);
+        l4_uint8_t cap_id = val & Pci_cap_mask::Cap_id;
+        trace().printf("get_capability: found cap id 0x%x (cap addr 0x%x)\n",
+                       cap_id, next_cap);
 
-    // ignore flags
-    prop += 1;
-    addr_cells -= 1;
-    Dtb::Reg reg{Dtb::Cell{prop, addr_cells},
-                 Dtb::Cell(prop + addr_cells, size_cells)};
+        if (cap_id == cap_type)
+          return next_cap;
 
-    if (address)
-      *address = reg.address.get_uint64();
-    if(size)
-      *size = reg.size.get_uint64();
+        next_cap = (val >> 8) & Pci_cap_mask::Next_cap;
+        if (!next_cap) // next pointer is zero -> end of list
+          break;
+      }
+
+    trace().printf("get_capability: Did not find capability of type 0x%x\n",
+                   cap_type);
 
     return 0;
   }
+
+  /**
+   * Parses all bars for a specific device.
+   */
+  void parse_device_bars()
+  {
+    // Disable any bar access
+    l4_uint32_t access = disable_access();
+
+    for (unsigned bar_offs = Pci_hdr_base_addr0_offset, i = 0;
+         bar_offs <= Pci_hdr_base_addr5_offset; ++i)
+      {
+        Pci_cfg_bar &bar = bars[i];
+
+        // Read one bar configuration
+        bar_offs = read_bar(bar_offs, &bar.io_addr, &bar.size, &bar.type);
+
+        if (bar.type == Pci_cfg_bar::Unused)
+          continue;
+
+        // Initial map address is equal to io address
+        bar.map_addr = bar.io_addr;
+
+
+        info().printf("  bar[%u] addr=0x%llx size=0x%llx type=%s\n", i,
+                      bar.io_addr, bar.size, Pci_cfg_bar::to_string(bar.type));
+      }
+
+    // Reenable bar access
+    enable_access(access);
+  }
+
+  // These registers keep track of the BARs that are actually mapped.
+  // We expect the guest to reprogram PCI BARs. These writes will modify the
+  // in-memory header BARs, but only when the IO/MMIO decode bits are set in
+  // the control register, we actually commit the configuration (program the
+  // mappings and save the configuration into the shadow registers).
+  Pci_cfg_bar bars[Bar_num_max_type0];
+  Pci_msix_cap msix_cap;               /// MSI-X capability
+  bool has_msix = false;               /// indicates MSI-X support
+
+private:
+  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI dev"); }
+  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI dev"); }
+  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI dev"); }
 };
 
-class Pci_dev : public Pci_device
+class Virt_pci_device:
+  public Pci_device
 {
 public:
-  Pci_dev()
+  Virt_pci_device()
   {
-    for (auto &b : _bar_size)
-      b = 0;
-
     memset(&_hdr, 0, sizeof(_hdr));
     _last_caps_next_ptr = &get_header<Pci_header::Type0>()->cap_ptr;
     _next_free_idx = 0x40; // first byte after the PCI header;
@@ -441,7 +633,7 @@ public:
           }
 
         // The BAR size (power of 2!) defines which bits are writable.
-        l4_uint32_t size = _bar_size[(reg - 0x10) / 4];
+        l4_uint32_t size = bars[(reg - 0x10) / 4].size;
         l4_uint32_t bar  = _hdr.dword[reg / 4];
         l4_uint32_t mask = ~size + 1;
 
@@ -461,32 +653,6 @@ public:
       }
 
     trace().printf("write config 0x%x(%d) = 0x%x\n", reg, width, value);
-  }
-
-  /**
-   * Search for the PCI capability of type `CAP`.
-   *
-   * \tparam CAP  Capability type structure.
-   *
-   * \return Pointer to the capability in this PCI devices config space.
-   */
-  template <typename CAP>
-  CAP *get_cap()
-  {
-    // cap_ptr is the same for both header types.
-    l4_uint8_t nxt = get_header<Pci_header::Type0>()->cap_ptr;
-    while (nxt != 0)
-      {
-        auto *pci_cap = reinterpret_cast<CAP *>(&_hdr.byte[nxt]);
-        auto *c = CAP::template cast_type<CAP>(pci_cap);
-
-        if (c)
-          return c;
-
-        nxt = pci_cap->cap_next;
-      }
-
-    return nullptr;
   }
 
   /**
@@ -514,7 +680,8 @@ public:
     assert((unsigned)cap_offset + sizeof(T) < 0x100);
 
     T *ret = new (&_hdr.byte[cap_offset]) T();
-    info().printf("cap offset 0x%x, cap size 0x%zx\n", cap_offset, sizeof(*ret));
+    info().printf("cap offset 0x%x, cap size 0x%zx\n", cap_offset,
+                  sizeof(*ret));
 
     *_last_caps_next_ptr = cap_offset;
     _last_caps_next_ptr = &ret->cap_next;
@@ -529,13 +696,89 @@ public:
     return ret;
   }
 
+  /**
+   * Get PCI flags value of a register in the DT-PCI node.
+   *
+   * \param node     DT node to get the register flags of.
+   * \param reg_num  Index of the 'reg' entry.
+   *
+   * \return PCI flags specified in the DT for the specified reg entry.
+   */
+  static l4_uint32_t dt_get_reg_flags(Vdev::Dt_node const &node, int reg_num)
+  {
+    auto parent = node.parent_node();
+    size_t addr_cells = node.get_address_cells(parent);
+    size_t size_cells = node.get_size_cells(parent);
+
+    if (addr_cells != 3 || size_cells != 2)
+      L4Re::chksys(-L4_EINVAL,
+                   "PCI device register lengths are three (address) "
+                   "and two (size).");
+
+    int const reg_len = addr_cells + size_cells;
+    int dt_regs_size = 0;
+    auto dt_regs = node.get_prop<fdt32_t>("reg", &dt_regs_size);
+    assert(reg_num < (dt_regs_size / reg_len));
+
+    for (int i = 0; i < 2; ++i)
+      Dbg().printf("dt_regs[%i]: 0x%x\n", i, fdt32_to_cpu(dt_regs[i*reg_len]));
+
+    return fdt32_to_cpu(dt_regs[reg_num * reg_len]);
+  }
+
+  /**
+   * Get IO-Reg values of the PCI-DT node, without translation through the
+   * parent.
+   *
+   * The IO regs entry defines absolute reset values for the IO area of the
+   * device, which are not translated through the PCI host bridge ranges
+   * property. Attempts to do so result in a translation error.
+   *
+   * It is slightly modified copy of Dtb::Node::get_reg_val().
+   *
+   * \see Dtb::Node::get_reg_val()
+   */
+  static int dt_get_untranslated_reg_val(Vdev::Dt_node node, int index,
+                                         l4_uint64_t *address,
+                                         l4_uint64_t *size)
+  {
+    auto parent = node.parent_node();
+    size_t addr_cells = node.get_address_cells(parent);
+    size_t size_cells = node.get_size_cells(parent);
+    int rsize = addr_cells + size_cells;
+
+    int prop_size;
+    auto *prop = node.get_prop<fdt32_t>("reg", &prop_size);
+    if (!prop && prop_size < 0)
+      return prop_size;
+
+    if (!prop)
+      return FDT_ERR_INTERNAL;
+
+    if (prop_size < rsize * (index + 1))
+      return Dt_node::ERR_BAD_INDEX;
+
+    prop += rsize * index;
+
+    // ignore flags
+    prop += 1;
+    addr_cells -= 1;
+    Dtb::Reg reg{Dtb::Cell{prop, addr_cells},
+                 Dtb::Cell(prop + addr_cells, size_cells)};
+
+    if (address)
+      *address = reg.address.get_uint64();
+    if(size)
+      *size = reg.size.get_uint64();
+
+    return 0;
+  }
 private:
   Pci_header _hdr;
   /// Index into _hdr.byte array
   l4_uint8_t _next_free_idx;
   /// Index into _hdr.byte array
   l4_uint8_t *_last_caps_next_ptr;
-  l4_uint32_t _bar_size[Bar_num_max_type0];
 
   template <typename TYPE>
   static void assert_header_type()
@@ -622,8 +865,10 @@ protected:
   {
     assert_bar_type_size<TYPE>(bar);
 
+    bars[bar].map_addr = addr & ~Bar_io_attr_mask;
+    bars[bar].type = Pci_cfg_bar::Type::IO;
     get_header<TYPE>()->base_addr_regs[bar] =
-      ((addr & ~Bar_io_attr_mask) | Bar_io_space_bit);
+      bars[bar].map_addr | Bar_io_space_bit;
     set_bar_size(bar, size);
   }
 
@@ -642,6 +887,9 @@ protected:
     // memory space: [0] mem space indicator := 0;
     // [2:1] type: 00 = 32bit, 10 = 64bit;
     // [3] prefetch;
+    bars[bar].map_addr = addr & ~Bar_mem_attr_mask;
+    bars[bar].type = Pci_cfg_bar::Type::MMIO32;
+    // TODO support mmio64 as well
     get_header<TYPE>()->base_addr_regs[bar] = (addr & ~Bar_mem_attr_mask);
     set_bar_size(bar, size);
   }
@@ -660,27 +908,7 @@ protected:
       size = 16;
     else
       size = 1UL << (8 * sizeof(unsigned long) - __builtin_clzl(size - 1));
-    _bar_size[bar] = size;
-  }
-};
-
-enum
-{
-  Dt_pci_flags_io = 1 << 24,
-  Dt_pci_flags_mmio32 = 1 << 25,
-  Dt_pci_flags_mmio64 = 3 << 25,
-  Dt_pci_flags_prefetch = 1 << 30,
-};
-
-struct Device_register_entry
-{
-  l4_uint64_t base;
-  l4_uint64_t size;
-  l4_uint32_t flags;
-
-  void print() const
-  {
-    Dbg().printf("base 0x%llx, size 0x%llx, flags 0x%x\n", base, size, flags);
+    bars[bar].size = size;
   }
 };
 

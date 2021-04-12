@@ -57,16 +57,16 @@
 #include "debug.h"
 #include "device.h"
 #include "device_factory.h"
-#include "guest.h"
 #include "ds_mmio_mapper.h"
 #include "irq.h"
 #include "irq_dt.h"
-#include "irq_svr.h"
+#include "mem_types.h"
 #include "pci_device.h"
-#include "virt_bus.h"
+#include "pci_host_bridge.h"
 
 namespace {
 
+using namespace Vmm;
 using namespace Vdev;
 using namespace Vdev::Pci;
 
@@ -99,7 +99,8 @@ struct Interrupt_map
 };
 
 class Pci_host_ecam_generic
-: public Pci_dev,
+: public Pci_host_bridge,
+  public Virt_pci_device,
   public Device,
   public Vmm::Mmio_device_t<Pci_host_ecam_generic>
 {
@@ -122,16 +123,18 @@ public:
   };
 
   explicit Pci_host_ecam_generic(Interrupt_map const &irq_map, Device_lookup *devs)
-  : _vmm(devs->vmm())
+  : Pci_host_bridge(devs),
+    _irq_map(irq_map)
   {
+    register_device(cxx::Ref_ptr<Pci_device>(this));
+    iterate_pci_root_bus();
+
     header()->vendor_id = 0x1b36;        // PCI vendor id Redhat
     header()->device_id = 0x0008;        // PCI device id Redhat PCIe host
     header()->subsystem_vendor = 0x1af4; // PCI sub vendor id Redhat Qumranet (QEMU)
     header()->subsystem_id = 0x1100;     // PCI sub device id QEMU
     header()->classcode[1] = Pci_subclass_code_host;
     header()->classcode[2] = Pci_class_code_bridge_device;
-
-    iterate_pci_root_bus(devs->vbus(), irq_map);
   }
 
   /**
@@ -143,22 +146,9 @@ public:
   l4_uint32_t read(unsigned reg, char width, unsigned)
   {
     Cfg_addr cfg(reg);
-    if (cfg.bus() > 0 || cfg.dev() > _devices.size() || cfg.func() > 0)
-      return -1u;
-
-    l4_uint32_t val = 0;
-    if (cfg.dev() == 0)
-      // Virtual bridge
-      cfg_read(cfg.reg(), &val, (Vmm::Mem_access::Width)width);
-    else
-      // Pass-through to device
-      device(cfg).cfg_read(cfg.reg(), &val, 8 << width);
-
-    if (0)
-      trace().printf("read cfg dev=%u reg=0x%x width=%d raw=0x%x val=0x%x\n",
-                     cfg.dev().get(), cfg.reg().get(), (int)width, reg, val);
-
-    return val;
+    if (cfg.bus().get() > 0 || cfg.func().get() > 0)
+      return -1U;
+    return cfg_space_read(cfg.dev().get(), cfg.reg().get(), (Vmm::Mem_access::Width)width);
   }
 
   /**
@@ -170,399 +160,37 @@ public:
   void write(unsigned reg, char width, l4_uint32_t val, unsigned)
   {
     Cfg_addr cfg(reg);
-    if (cfg.bus() > 0 || cfg.dev() > _devices.size() || cfg.func() > 0)
+    if (cfg.bus().get() > 0 || cfg.func().get() > 0)
       return;
-
-    if (cfg.dev() == 0)
-      {
-        // Virtual bridge
-        // - no bar support
-        // - no expansion ROM support
-        if ((   cfg.reg() >= Pci_hdr_base_addr0_offset
-             && cfg.reg() <= Pci_hdr_base_addr5_offset)
-            || cfg.reg() == Pci_hdr_expansion_rom_offset)
-          return;
-        cfg_write(cfg.reg(), val, (Vmm::Mem_access::Width)width);
-      }
-    else
-      {
-        // When memory reads get enabled for a device we need to check if some
-        // of the bar base addresses have changed and in this case need to do a
-        // remap of them.
-        if (cfg.reg() == Pci_hdr_command_offset && val & Memory_space_bit)
-          remap_bars(&hw_device(cfg));
-        // Pass-through to device
-        device(cfg).cfg_write(cfg.reg(), val, 8 << width);
-      }
-
-    if (0)
-      trace().printf("write cfg id=%u offs=0x%x width=%d val=0x%x raw=0x%x\n",
-                     cfg.dev().get(), cfg.reg().get(), (int)width, val, reg);
+    cfg_space_write(cfg.dev().get(), cfg.reg().get(), (Vmm::Mem_access::Width)width, val);
   }
 
 private:
-  /**
-   * PCI bar configuration.
-   *
-   * Internal representation of a bar configuration.
-   */
-  struct Pci_cfg_bar
-  {
-    enum Type
-    {
-      Unused, /// Not used
-      MMIO32, /// 32bit MMIO
-      MMIO64, /// 64bit MMIO
-      IO      /// IO space
-    };
-
-    l4_uint64_t io_addr = 0;  /// Address used by IO
-    l4_uint64_t map_addr = 0; /// Address to use for the guest mapping
-    l4_uint64_t size = 0;     /// Size of the region
-    Type type = Unused;       /// Type of the bar
-
-    static const char *to_string(Type t)
-    {
-      switch(t)
-        {
-          case IO: return "io";
-          case MMIO32: return "mmio32";
-          case MMIO64: return "mmio64";
-          default: return "unused";
-        }
-    }
-  };
-
-  /**
-   * Internal PCI device.
-   */
-  struct Hw_pci_device
-  {
-    explicit Hw_pci_device(L4vbus::Pci_dev d, unsigned dev_id)
-    : dev_id(dev_id),
-      dev(d)
-    {}
-
-    /*
-     * Disable access to the PCI device.
-     *
-     * The current configuration will be returned and has to be passed to the
-     * enabled_access function to restore the correct configuration when
-     * enabling the device again.
-     *
-     * \return The current MMIO/IO space configuration bits
-     */
-    l4_uint32_t disable_access()
-    {
-      // Disable any bar access
-      l4_uint32_t cmd_reg = 0;
-      L4Re::chksys(dev.cfg_read(Pci_hdr_command_offset, &cmd_reg, 16),
-                   "Read Command register of PCI device header.");
-      L4Re::chksys(dev.cfg_write(Pci_hdr_command_offset,
-                                 cmd_reg & ~Access_mask, 16),
-                   "Write Command register of PCI device header (disable "
-                   "decode).");
-
-      return cmd_reg & Access_mask;
-    }
-
-    /*
-     * Enable access to the PCI device.
-     *
-     * \param access  The MMIO/IO space configuration bits to enable
-     */
-    void enable_access(l4_uint32_t access)
-    {
-      l4_uint32_t cmd_reg = 0;
-      L4Re::chksys(dev.cfg_read(Pci_hdr_command_offset, &cmd_reg, 16),
-                   "Read Command register of PCI device header.");
-      // Reenable bar access
-      L4Re::chksys(dev.cfg_write(Pci_hdr_command_offset,
-                                 cmd_reg | (access & Access_mask), 16),
-                   "Write Command register of PCI device header (enable "
-                   "decode).");
-    }
-
-    /**
-     * Parses one bar configuration for a specific device.
-     *
-     * \pre  Because this modifies the base address register the PCI device
-     *       access must be disabled before calling this method.
-     *
-     * \post This may advance the bar offset in case of an 64 bit mmio bar. 64
-     *       bit addresses take up two bars.
-     */
-    unsigned read_bar(unsigned bar_offs,
-                      l4_uint64_t *addr, l4_uint64_t *size,
-                      Pci_cfg_bar::Type *type) const
-    {
-      // Read the base address reg
-      l4_uint32_t bar = 0;
-      l4_uint32_t bar_size = 0;
-      L4Re::chksys(dev.cfg_read(bar_offs, &bar, 32),
-                   "Read BAR register of PCI device header.");
-      if ((bar & Bar_type_mask) == Bar_io_space_bit) // IO bar
-        {
-          bar_offs = read_bar_size(bar_offs, bar, &bar_size);
-          if (bar_size == 0)
-            return bar_offs;
-
-          bar_size &= ~Bar_io_attr_mask; // clear decoding
-
-          *type = Pci_cfg_bar::IO;
-          *addr = bar & ~Bar_io_attr_mask;
-          *size = (~bar_size & 0xffff) + 1;
-        }
-      else if ((bar & Bar_mem_type_mask) == Bar_mem_type_32bit) // 32Bit MMIO bar
-        {
-          bar_offs = read_bar_size(bar_offs, bar, &bar_size);
-          if (bar_size == 0)
-            return bar_offs;
-
-          bar_size &= ~Bar_mem_attr_mask; // clear decoding
-
-          *type = Pci_cfg_bar::MMIO32;
-          *addr = bar & ~Bar_mem_attr_mask;
-          *size = ~bar_size + 1;
-        }
-      else if ((bar & Bar_mem_type_mask) == Bar_mem_type_64bit) // 64Bit MMIO bar
-        {
-          // Process the first 32bit
-          l4_uint64_t addr64 = bar & ~Bar_mem_attr_mask;
-          l4_uint64_t size64 = 0;
-          bar_offs = read_bar_size(bar_offs, bar, &bar_size);
-          if (bar_size == 0)
-            return bar_offs;
-
-          size64 = bar_size;
-
-          // Process the second 32bit
-          L4Re::chksys(dev.cfg_read(bar_offs, &bar, 32),
-                       "Read BAR register of PCI device header.");
-          addr64 |= (l4_uint64_t)bar << 32; // shift to upper part
-          bar_offs = read_bar_size(bar_offs, bar, &bar_size);
-
-          size64 |= (l4_uint64_t)bar_size << 32; // shift to upper part
-          size64 &= ~Bar_mem_attr_mask; // clear decoding
-
-          *type = Pci_cfg_bar::MMIO64;
-          *addr = addr64;
-          *size = ~size64 + 1;
-        }
-
-      return bar_offs;
-    }
-
-    /**
-     * Queries the size of a bar.
-     */
-    unsigned read_bar_size(unsigned bar_offs, l4_uint32_t bar,
-                           l4_uint32_t *bar_size) const
-    {
-      L4Re::chksys(dev.cfg_write(bar_offs, 0xffffffffUL, 32),
-                   "Write BAR register of PCI device header (sizing).");
-      L4Re::chksys(dev.cfg_read(bar_offs, bar_size, 32),
-                   "Read BAR register of PCI device header (size).");
-      L4Re::chksys(dev.cfg_write(bar_offs, bar, 32),
-                   "Write BAR register of PCI device header (write back).");
-      return bar_offs + 4;
-    }
-
-    unsigned dev_id;                     /// Virtual device id
-    L4vbus::Pci_dev dev;                 /// Reference to vbus PCI device
-    Pci_cfg_bar bars[Bar_num_max_type0]; /// Bar configurations
-    cxx::Ref_ptr<Vdev::Irq_svr> irq;
-  };
-
   /**
    * Return type 0 PCI header for the virtual PCIe host controller.
    */
   Pci_header::Type0 *header()
   { return get_header<Pci_header::Type0>(); }
 
-  /**
-   * Return the hw device referred to in the configuration address.
-   */
-  Hw_pci_device &hw_device(Cfg_addr const &cfg)
-  { return _devices[cfg.dev() - 1]; }
-
-  /**
-   * Return the device referred to in the configuration address.
-   */
-  L4vbus::Pci_dev &device(Cfg_addr const &cfg)
-  { return hw_device(cfg).dev; }
-
-  /**
-   * Iterate the root bus and setup any PCI devices found.
-   */
-  void iterate_pci_root_bus(cxx::Ref_ptr<Vmm::Virt_bus> const &vbus,
-                            Interrupt_map const &irq_map)
+  void setup_device_irq(Hw_pci_device *hw_dev)
   {
-    auto root = vbus->bus()->root();
-    L4vbus::Pci_dev pdev;
-    l4vbus_device_t dinfo;
-    info().printf("Scanning PCI devices...\n");
-    while (root.next_device(&pdev, L4VBUS_MAX_DEPTH, &dinfo) == L4_EOK)
-      {
-        if (!l4vbus_subinterface_supported(dinfo.type, L4VBUS_INTERFACE_PCIDEV))
-          continue;
-
-        l4_uint32_t vendor_device = 0;
-        if (pdev.cfg_read(Pci_hdr_vendor_id_offset, &vendor_device, 32) != L4_EOK)
-          continue;
-
-        if (vendor_device == Pci_invalid_vendor_id)
-          continue;
-
-        Hw_pci_device hw_dev(pdev, _devices.size() + 1);
-        info().printf("Found PCI device: name='%s', vendor/device=%04x:%04x\n",
-                      dinfo.name, vendor_device & 0xffff, vendor_device >> 16);
-
-        setup_device_bars(vbus, &hw_dev);
-        setup_device_irq(vbus, irq_map, &hw_dev, dinfo);
-
-        _devices.emplace_back(std::move(hw_dev));
-      }
-  }
-
-  /**
-   * Parses and setup all bars for a specific device.
-   */
-  void setup_device_bars(cxx::Ref_ptr<Vmm::Virt_bus> const &vbus,
-                         Hw_pci_device *hw_dev) const
-  {
-    // Disable any bar access
-    l4_uint32_t access = hw_dev->disable_access();
-
-    for (unsigned bar_offs = Pci_hdr_base_addr0_offset, i = 0;
-         bar_offs <= Pci_hdr_base_addr5_offset; ++i)
-      {
-        Pci_cfg_bar &bar = hw_dev->bars[i];
-
-        // Read one bar configuration
-        bar_offs = hw_dev->read_bar(bar_offs, &bar.io_addr, &bar.size,
-                                    &bar.type);
-
-        if (bar.type == Pci_cfg_bar::Unused)
-          continue;
-
-        // Initial map address is equal to io address
-        bar.map_addr = bar.io_addr;
-
-
-        info().printf("  bar[%u] addr=0x%llx size=0x%llx type=%s\n", i,
-                      bar.io_addr, bar.size, Pci_cfg_bar::to_string(bar.type));
-
-        // Now create the mmio mapping
-        if (bar.type == Pci_cfg_bar::MMIO32 ||
-            bar.type == Pci_cfg_bar::MMIO64)
-          {
-            trace().printf("command map [%u] io_addr=0x%llx -> map_addr=0x%llx "
-                           "size=0x%llx type=%s\n", i, bar.io_addr, bar.map_addr,
-                           bar.size, Pci_cfg_bar::to_string(bar.type));
-            // Mark region as moveable so it can't be merged
-            auto region = Vmm::Region::ss(Vmm::Guest_addr(bar.map_addr),
-                                          bar.size,
-                                          Vmm::Region_type::Vbus,
-                                          Vmm::Region_flags::Moveable);
-            // Disable eager mapping, because this gets most likely remapped anyway
-            cxx::Ref_ptr<Ds_handler> ds_handler =
-              Vdev::make_device<Ds_handler>(
-                  cxx::make_ref_obj<Vmm::Ds_manager>(vbus->io_ds(),
-                                                     bar.io_addr, bar.size),
-                  0, Ds_handler::None);
-            _vmm->add_mmio_device(region, ds_handler);
-          }
-      }
-
-    // Reenable bar access
-    hw_dev->enable_access(access);
-  }
-
-  /**
-   * Remap all bars if necessary.
-   *
-   * Checks for all bars if the base address has changed and remap the mmio
-   * handler to the new address if necessary.
-   *
-   * Note: This also unmaps any previous child mappings of the previous used
-   * region in the vm_task.
-   */
-  void remap_bars(Hw_pci_device *hw_dev) const
-  {
-    // Disable any bar access
-    l4_uint32_t access = hw_dev->disable_access();
-
-    for (unsigned bar_offs = Pci_hdr_base_addr0_offset, i = 0;
-         bar_offs <= Pci_hdr_base_addr5_offset; ++i)
-      {
-        Pci_cfg_bar &bar = hw_dev->bars[i];
-        // We are only interested in mmio regions
-        if (bar.type == Pci_cfg_bar::IO)
-          {
-            bar_offs += 4;
-            continue;
-          }
-
-        l4_uint64_t addr = 0, size = 0;
-        Pci_cfg_bar::Type type = Pci_cfg_bar::Unused;
-        // Read the current device bar configuration
-        bar_offs = hw_dev->read_bar(bar_offs, &addr, &size, &type);
-        // If the address has changed we need to do a remap
-        if (bar.map_addr != addr)
-          {
-            trace().printf("command remap [%u] io_addr=0x%llx -> "
-                           "map_addr=0x%llx (from: map_addr=0x%llx) "
-                           "size=0x%llx type=%s\n", i, bar.io_addr, addr,
-                           bar.map_addr, bar.size,
-                           Pci_cfg_bar::to_string(bar.type));
-            auto old_region = Vmm::Region::ss(Vmm::Guest_addr(bar.map_addr),
-                                              bar.size,
-                                              Vmm::Region_type::Vbus,
-                                              Vmm::Region_flags::Moveable);
-            // Instruct the vm map to use the new start address
-            _vmm->remap_mmio_device(old_region, Vmm::Guest_addr(addr));
-            // Unmap any child mappings which may be happened in the meantime
-            auto vm_task = _vmm->vm_task();
-            l4_addr_t src = bar.map_addr;
-            while (src < bar.map_addr + bar.size - 1)
-              {
-                vm_task->unmap(l4_fpage(src, L4_PAGESHIFT, 0), L4_FP_ALL_SPACES);
-                src += L4_PAGESIZE;
-              }
-            // Update our internal mapping address
-            bar.map_addr = addr;
-          }
-      }
-
-    // Reenable bar access
-    hw_dev->enable_access(access);
-  }
-
-  /**
-   * Parses and setup the interrupt for a specific device.
-   */
-  void setup_device_irq(cxx::Ref_ptr<Vmm::Virt_bus> const &vbus,
-                        Interrupt_map const &irq_map, Hw_pci_device *hw_dev,
-                        l4vbus_device_t const &dinfo)
-  {
+    l4vbus_device_t dinfo = hw_dev->dinfo;
     unsigned pin = 0;
-    L4Re::chksys(hw_dev->dev.cfg_read(Pci_hdr_interrupt_pin_offset, &pin, 8),
-                 "Read interrupt pin register of PCI device header.");
+    hw_dev->cfg_read(Pci_hdr_interrupt_pin_offset, &pin, Vmm::Mem_access::Width::Wd8);
     if (pin == 0) // No legacy interrupt messages enabled
       return;
 
     // Apply interrupt pin mask
-    pin &= irq_map.pin_mask;
+    pin &= _irq_map.pin_mask;
 
     // Apply device id mask
-    unsigned dev_id = (hw_dev->dev_id << 11) & irq_map.dev_id_mask;
-    if (!irq_map.map.count(dev_id))
+    unsigned dev_id = (hw_dev->dev_id << 11) & _irq_map.dev_id_mask;
+    if (!_irq_map.map.count(dev_id))
       L4Re::chksys(-L4_EINVAL, "PCI device not found in interrupt map.");
 
     // Query the corresponding irq/ic entry based on the device id and irq pin
-    int map_irq = irq_map.map.at(dev_id).targets[pin - 1].irq;
-    cxx::Ref_ptr<Gic::Ic> ic = irq_map.map.at(dev_id).targets[pin - 1].ic;
+    int map_irq = _irq_map.map.at(dev_id).targets[pin - 1].irq;
+    cxx::Ref_ptr<Gic::Ic> ic = _irq_map.map.at(dev_id).targets[pin - 1].ic;
 
     // If the ic is empty this means it is unmanaged and we just skip the
     // setup.
@@ -586,18 +214,52 @@ private:
     assert(io_irq != -1);
 
     // Create the io->guest irq mapping
-    hw_dev->irq = cxx::make_ref_obj<Vdev::Irq_svr>(_vmm->registry(), vbus->icu(),
-                                            io_irq, ic, map_irq);
+    hw_dev->irq = cxx::make_ref_obj<Vdev::Irq_svr>(_vmm->registry(), _vbus->icu(),
+                                                   io_irq, ic, map_irq);
     hw_dev->irq->eoi();
     info().printf("  IRQ mapping: %d -> %d\n", io_irq, map_irq);
+  }
+
+  void init_dev_resources(Hw_pci_device *hwdev) override
+  {
+    // Go through all resources of the PCI device and register them with the
+    // memmap
+    for (int i = 0; i < Pci_config_consts::Bar_num_max_type0; ++i)
+      {
+        if (hwdev->bars[i].type == Pci_cfg_bar::Type::Unused
+            || hwdev->bars[i].type == Pci_cfg_bar::Type::IO)
+          continue;
+
+        Guest_addr addr(hwdev->bars[i].map_addr);
+        l4_size_t size = hwdev->bars[i].size;
+        switch (hwdev->bars[i].type)
+          {
+          case Pci_cfg_bar::Type::MMIO32:
+          case Pci_cfg_bar::Type::MMIO64:
+            {
+              auto region = Region::ss(addr, size, Vmm::Region_type::Vbus,
+                                       Vmm::Region_flags::Moveable);
+              // Mark region as moveable so it can't be merged
+              warn().printf("Register MMIO region: [0x%lx, 0x%lx]\n",
+                            region.start.get(), region.end.get());
+              auto m = cxx::make_ref_obj<Ds_manager>(_vbus->io_ds(),
+                                                     hwdev->bars[i].map_addr, size);
+              _vmm->add_mmio_device(region, make_device<Ds_handler>(m));
+              break;
+            }
+
+          default: break;
+          }
+      }
+
+    setup_device_irq(hwdev);
   }
 
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCIe ctl"); }
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCIe ctl"); }
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCIe ctl"); }
-
-  Vmm::Guest *_vmm;
-  std::vector<Hw_pci_device> _devices;
+private:
+  Interrupt_map const _irq_map;
 };
 
 struct F : Factory

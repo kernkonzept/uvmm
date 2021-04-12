@@ -73,7 +73,7 @@ public:
   Virt_msix_table(cxx::Ref_ptr<Vdev::Mmio_ds_converter> &&con,
                   cxx::Ref_ptr<Vdev::Msi::Allocator> msi_alloc,
                   L4Re::Util::Object_registry *registry,
-                  unsigned src_id,
+                  l4_uint64_t src_id,
                   unsigned num_entries,
                   cxx::Ref_ptr<Gic::Msix_controller> const &msix_ctrl)
   : _con(std::move(con)),
@@ -275,7 +275,7 @@ private:
     write_dev_msix_entry(idx, msiinfo);
 
     // unmask the MSI-IRQ
-    L4Re::chkipc(msi_src->obj_cap()->unmask(), "Unmaks MSI-IRQ.");
+    L4Re::chkipc(msi_src->obj_cap()->unmask(), "Unmask MSI-IRQ.");
     _msi_irqs[idx] = msi_src;
   }
 
@@ -283,7 +283,7 @@ private:
   L4Re::Util::Object_registry *_registry;
   cxx::Ref_ptr<Vdev::Msi::Allocator> _msi_alloc;
   std::vector<cxx::Ref_ptr<Msi_src>> _msi_irqs;
-  unsigned const _src_id;
+  l4_uint64_t const _src_id;
   cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;
   cxx::unique_ptr<Table_entry[]> _virt_table;
   std::mutex _mutex;
