@@ -11,14 +11,27 @@
 #include <pthread.h>
 #include <pthread-l4.h>
 
+#include <l4/cxx/unique_ptr>
 #include <l4/re/error_helper>
 #include <l4/re/util/kumem_alloc>
+#include <l4/re/util/br_manager>
+#include <l4/re/util/object_registry>
 
 #include <debug.h>
 #include <device.h>
 #include <vcpu_ptr.h>
 
 namespace Vmm {
+
+class Generic_cpu_dev_registry : public L4Re::Util::Object_registry
+{
+public:
+  explicit Generic_cpu_dev_registry(L4::Ipc_svr::Server_iface *sif)
+  : L4Re::Util::Object_registry(sif) {}
+
+  void set_server(L4::Cap<L4::Thread> server)
+  { _server = server; }
+};
 
 class Generic_cpu_dev : public Vdev::Device
 {
@@ -37,7 +50,7 @@ private:
 
 public:
   Generic_cpu_dev(unsigned idx, unsigned phys_id)
-  : _vcpu(nullptr), _phys_cpu_id(phys_id)
+  : _vcpu(nullptr), _phys_cpu_id(phys_id), _registry(&_bm)
   {
     // The CPU 0 (boot CPU) vCPU is allocated in main
     if (_main_vcpu_used || (idx != 0))
@@ -81,8 +94,10 @@ public:
     if (*_main_vcpu)
       L4Re::throw_error(-L4_EEXIST, "cannot allocate mutiple main CPUs");
 
+    _main_bm.setup_wait(l4_utcb(), L4::Ipc_svr::Reply_separate);
     _main_vcpu = alloc_vcpu(0);
     _main_vcpu.thread_attach();
+    _main_vcpu.set_ipc_registry(&_main_registry);
   }
 
 protected:
@@ -90,10 +105,14 @@ protected:
   /// physical CPU to run on (offset into scheduling mask)
   unsigned _phys_cpu_id;
   pthread_t _thread;
+  L4Re::Util::Br_manager _bm;
+  Generic_cpu_dev_registry _registry;
   bool _attached = false;
 
 private:
   static Vcpu_ptr _main_vcpu;
+  static L4Re::Util::Br_manager _main_bm;
+  static L4Re::Util::Object_registry _main_registry;
   static bool _main_vcpu_used;
 };
 

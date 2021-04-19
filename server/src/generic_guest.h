@@ -25,6 +25,7 @@
 #include "consts.h"
 #include "monitor/monitor.h"
 #include "io_device.h"
+#include "generic_cpu_dev.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -69,7 +70,8 @@ public:
   void prepare_generic_platform(Vdev::Device_lookup *devs)
   { _pm = devs->pm(); }
 
-  L4Re::Util::Object_registry *registry() { return &_registry; }
+  L4Re::Util::Object_registry *registry()
+  { return Generic_cpu_dev::main_vcpu().get_ipc_registry(); }
 
   void register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
                             Region_type type,
@@ -93,7 +95,7 @@ public:
   Vm_mem *memmap()
   { return &_memmap; }
 
-  void L4_NORETURN halt_vm()
+  void L4_NORETURN halt_vm(Vcpu_ptr current_vcpu)
   {
     Err().printf("VM entered a fatal state. Halting.\n");
 
@@ -103,26 +105,13 @@ public:
       exit(EXIT_FAILURE);
 
     for (;;)
-      wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+      current_vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
   }
 
   void L4_NORETURN shutdown(int val)
   {
     _pm->shutdown(val == Reboot);
     exit(val);
-  }
-
-  void handle_ipc(l4_msgtag_t tag, l4_umword_t label, l4_utcb_t *utcb)
-  {
-    // IPIs between CPUs have IRQs with zero label and are currently
-    // not handled by the registery. Return immediately on these IPCs.
-    if ((label & ~3UL) == 0)
-      return;
-
-    l4_msgtag_t r = _registry.dispatch(tag, label, utcb);
-    if (r.label() != -L4_ENOREPLY)
-      l4_ipc_send(L4_INVALID_CAP | L4_SYSF_REPLY, utcb, r,
-                  L4_IPC_SEND_TIMEOUT_0);
   }
 
   int handle_mmio(l4_addr_t pfa, Vcpu_ptr vcpu)
@@ -192,15 +181,6 @@ public:
       it.second->map_eager(_task.get(), it.first.start, it.first.end);
   }
 
-  void wait_for_ipc(l4_utcb_t *utcb, l4_timeout_t to)
-  {
-    l4_umword_t src;
-    _bm.setup_wait(utcb, L4::Ipc_svr::Reply_separate);
-    l4_msgtag_t tag = l4_ipc_wait(utcb, &src, to);
-    if (!tag.has_error())
-      handle_ipc(tag, src, utcb);
-  }
-
   void add_mmio_device(Region const &region,
                        cxx::Ref_ptr<Vmm::Mmio_device> const &dev)
   {
@@ -241,12 +221,6 @@ public:
   { return _task.get(); }
 
 protected:
-  void process_pending_ipc(Vcpu_ptr vcpu, l4_utcb_t *utcb)
-  {
-    while (vcpu->sticky_flags & L4_VCPU_SF_IRQ_PENDING)
-      wait_for_ipc(utcb, L4_IPC_BOTH_TIMEOUT_0);
-  }
-
   static Dbg warn()
   { return Dbg(Dbg::Core, Dbg::Warn, "guest"); }
 
@@ -259,8 +233,6 @@ protected:
   virtual bool inject_abort(l4_addr_t /*pfa*/, Vcpu_ptr /*vcpu*/)
   { return false; }
 
-  L4Re::Util::Br_manager _bm;
-  L4Re::Util::Object_registry _registry;
   std::mutex _memmap_lock;
   Vm_mem _memmap;
   L4Re::Util::Unique_cap<L4::Vm> _task;

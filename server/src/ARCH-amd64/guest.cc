@@ -580,7 +580,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
         {
           if (tag.has_error())
             Dbg().printf("tag has error, but used as ack\n");
-          process_pending_ipc(vcpu, l4_utcb());
+          vcpu.process_pending_ipc(l4_utcb());
           // Handle Fiasco emulated VM-exit during event delivery.
           vm->reinject_event_after_vmexit();
         }
@@ -588,7 +588,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
         {
           Err().printf("Resume failed with error %ld\n", e);
           enter_kdebug("FAILURE IN VMM RESUME");
-          halt_vm();
+          halt_vm(vcpu);
         }
       else
         {
@@ -600,7 +600,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
                              "DI 0x%lx, IP 0x%lx\n",
                              vcpu->r.ax, vcpu->r.bx, vcpu->r.cx, vcpu->r.dx,
                              vcpu->r.si, vcpu->r.di, vm->ip());
-              halt_vm();
+              halt_vm(vcpu);
             }
           else if (ret == Jump_instr)
             {
@@ -629,7 +629,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
               if (cpu->get_cpu_state() == Vmm::Cpu_dev::Cpu_state::Init)
                 {
                   while (cpu->get_cpu_state() != Vmm::Cpu_dev::Cpu_state::Running)
-                    wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+                    vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
 
                   // The CPU is not supposed to accept interrupts while in
                   // INIT mode. We emulate that by clearing all interrupts
@@ -649,7 +649,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
                 }
 
               // give up CPU for other tasks
-              wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+              vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
             }
           while (1);
         }

@@ -57,10 +57,10 @@ public:
                           l4_addr_t dt_boot_addr);
   void run(cxx::Ref_ptr<Cpu_dev_array> cpus);
 
-  void L4_NORETURN halt_vm()
+  void L4_NORETURN halt_vm(Vcpu_ptr current_vcpu)
   {
     stop_cpus();
-    Generic_guest::halt_vm();
+    Generic_guest::halt_vm(current_vcpu);
   }
 
   void L4_NORETURN shutdown(int val)

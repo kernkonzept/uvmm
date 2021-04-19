@@ -139,14 +139,14 @@ restore_fpu(Vmm::Fpu_state const *s)
 void
 c_vcpu_entry(l4_vcpu_state_t *vcpu)
 {
+  Vmm::Vcpu_ptr c(vcpu);
   if (!(vcpu->r.status & (1UL << 3)))
     {
       Err().printf("Exception in entry handler. Halting. IP = 0x%lx\n",
                    vcpu->r.ip);
-      guest->halt_vm();
+      guest->halt_vm(c);
     }
 
-  Vmm::Vcpu_ptr c(vcpu);
   save_fpu(c.fpu_state());
 
   guest->handle_entry(c);
@@ -157,7 +157,7 @@ c_vcpu_entry(l4_vcpu_state_t *vcpu)
   auto e = l4_error(myself->vcpu_resume_commit(myself->vcpu_resume_start()));
 
   Err().printf("VM restart failed with %ld\n", e);
-  guest->halt_vm();
+  guest->halt_vm(c);
 }
 
 Vmm::Guest *

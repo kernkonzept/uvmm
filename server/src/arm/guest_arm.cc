@@ -450,7 +450,7 @@ Guest::handle_entry(Vcpu_ptr vcpu)
 {
   auto *utcb = l4_utcb();
 
-  process_pending_ipc(vcpu, utcb);
+  vcpu.process_pending_ipc(utcb);
   _gic->schedule_irqs(vmm_current_cpu_id);
 
   L4::Cap<L4::Thread> myself;
@@ -476,7 +476,7 @@ guest_unknown_fault(Vcpu_ptr vcpu)
                vcpu->r.err, (int)vcpu.hsr().ec(), vcpu->r.ip & mask,
                vcpu.get_lr() & mask);
   if (!guest->inject_undef(vcpu))
-    guest->halt_vm();
+    guest->halt_vm(vcpu);
 }
 
 static void
@@ -492,7 +492,7 @@ guest_memory_fault(Vcpu_ptr vcpu)
         l4_umword_t mask = (vcpu->r.flags & 0x10) ? ~0U : ~0UL;
         Err().printf("cannot handle VM memory access @ %lx ip=%lx lr=%lx\n",
                      vcpu->r.pfa & mask, vcpu->r.ip & mask, vcpu.get_lr() & mask);
-        guest->halt_vm();
+        guest->halt_vm(vcpu);
         break;
       }
     }
@@ -531,7 +531,7 @@ Vmm::Guest::wait_for_timer_or_irq(Vcpu_ptr vcpu)
       l4_rcv_timeout(l4_timeout_abs_u(l4_kip_clock(l4re_kip()) + diff, 8, utcb), &to);
     }
 
-  wait_for_ipc(utcb, to);
+  vcpu.wait_for_ipc(utcb, to);
 }
 
 void
@@ -573,7 +573,7 @@ guest_ppi(Vcpu_ptr vcpu)
 
 static void guest_irq(Vcpu_ptr vcpu)
 {
-  guest->handle_ipc(vcpu->i.tag, vcpu->i.label, l4_utcb());
+  vcpu.handle_ipc(vcpu->i.tag, vcpu->i.label, l4_utcb());
 }
 
 template<unsigned CP>
