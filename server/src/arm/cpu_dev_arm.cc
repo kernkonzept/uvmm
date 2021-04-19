@@ -10,6 +10,7 @@
 #include "cpu_dev.h"
 #include "cpu_dev_subarch.h"
 #include "arm_hyp.h"
+#include "guest.h"
 
 #include <l4/sys/ipc.h>
 #include <l4/util/util.h>
@@ -129,6 +130,7 @@ Cpu_dev::reset()
                vmpidr);
 
   mark_on();
+  Vmm::Guest::instance()->cpu_online(this);
 
   L4::Cap<L4::Thread> myself;
   auto res = myself->vcpu_resume_commit(myself->vcpu_resume_start());
@@ -160,6 +162,8 @@ void
 Cpu_dev::stop()
 {
   mark_off();
+  Vmm::Guest::instance()->cpu_offline(this);
+
   while (online_state() != Cpu_state::On_prepared)
     _vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
 

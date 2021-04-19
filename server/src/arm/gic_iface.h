@@ -86,8 +86,22 @@ public:
   virtual cxx::Ref_ptr<Vdev::Device>
   setup_gic(Vdev::Device_lookup *devs, Vdev::Dt_node const &node) = 0;
 
-  /// Setup the CPU interface for the given `vcpu` running on `thread`.
-  virtual void setup_cpu(Vmm::Vcpu_ptr vcpu, L4::Cap<L4::Thread> thread) = 0;
+  /// Setup the CPU interface for the given `vcpu`.
+  virtual void setup_cpu(Vmm::Vcpu_ptr vcpu) = 0;
+
+  /**
+   * Signal that CPU came online and is ready to receive IRQs.
+   *
+   * *Must* be called from target CPU!
+   */
+  virtual void cpu_online(Vmm::Vcpu_ptr vcpu) = 0;
+
+  /**
+   * Signal that CPU goes offline.
+   *
+   * *Must* be called from target CPU!
+   */
+  virtual void cpu_offline(Vmm::Vcpu_ptr vcpu) = 0;
 
   virtual ~Dist_if() = 0;
 };

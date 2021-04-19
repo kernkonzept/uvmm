@@ -160,6 +160,12 @@ Guest::create_instance()
   return guest.get();
 }
 
+Guest *
+Guest::instance()
+{
+  return guest.get();
+}
+
 namespace {
 
 using namespace Vdev;
@@ -428,10 +434,22 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
       info().printf("Powered up cpu%d [%p]\n", vcpu.get_vcpu_id(),
                     cpu.get());
 
-      _gic->setup_cpu(vcpu, cpu->thread_cap());
+      _gic->setup_cpu(vcpu);
     }
   cpus->cpu(0)->mark_on_pending();
   cpus->cpu(0)->startup();
+}
+
+void
+Guest::cpu_online(Cpu_dev *cpu)
+{
+  _gic->cpu_online(cpu->vcpu());
+}
+
+void
+Guest::cpu_offline(Cpu_dev *cpu)
+{
+  _gic->cpu_offline(cpu->vcpu());
 }
 
 void Guest::stop_cpus()

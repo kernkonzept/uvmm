@@ -16,12 +16,10 @@ using namespace Gic;
 /**
  * GICv2 Distributor implementation.
  */
-class Dist_v2 : public Dist_mixin<Dist_v2>
+class Dist_v2 : public Dist_mixin<Dist_v2, false>
 {
 private:
-  using Dist = Dist_mixin<Dist_v2>;
-  unsigned char _active_grp0_cpus = 0;
-  unsigned char _active_grp1_cpus = 0;
+  using Dist = Dist_mixin<Dist_v2, false>;
 
 public:
 
@@ -66,15 +64,15 @@ public:
   /// create a GICv2 instance
   Dist_v2(unsigned tnlines) : Dist(tnlines, 8) {}
 
-  void setup_cpu(Vmm::Vcpu_ptr vcpu, L4::Cap<L4::Thread> thread) override
+  void setup_cpu(Vmm::Vcpu_ptr vcpu) override
   {
-    auto *c = Dist::add_cpu(vcpu, thread);
+    auto *c = Dist::add_cpu(vcpu);
     if (!c)
       return;
 
     unsigned id = vcpu.get_vcpu_id();
     for (unsigned i = 0; i < 32; ++i)
-      c->local_irq(i).target(1u << id);
+      c->local_irq(i).target(1u << id, c);
   }
 
   /// setup the mappings for a GICv2 distributor and CPU interface in the VM
@@ -89,103 +87,6 @@ public:
 
     node.setprop_string("compatible", "arm,gic-400");
     return self;
-  }
-
-  /// keep active group CPUs up to date (if guest disables IRQs on a CPU interface)
-  void update_gicc_state(Vmm::Arm::Gic_h::Misr misr, unsigned current_cpu)
-  {
-    if (misr.grp0_e())
-      __atomic_or_fetch(&_active_grp0_cpus, (1UL << current_cpu), __ATOMIC_SEQ_CST);
-
-    if (misr.grp0_d())
-      __atomic_and_fetch(&_active_grp0_cpus, ~(1UL << current_cpu), __ATOMIC_SEQ_CST);
-
-    if (misr.grp1_e())
-      __atomic_or_fetch(&_active_grp1_cpus, (1UL << current_cpu), __ATOMIC_SEQ_CST);
-
-    if (misr.grp1_d())
-      __atomic_and_fetch(&_active_grp1_cpus, ~(1UL << current_cpu), __ATOMIC_SEQ_CST);
-  }
-
-  /// helper to send a notification to a group of CPUs
-  void notify_cpus(unsigned targets) const
-  {
-    unsigned const cpus = _cpu.size();
-    for (unsigned cpu = 0; cpu < cpus && targets; ++cpu, targets >>= 1)
-      if ((targets & 1) && (cpu != vmm_current_cpu_id))
-        _cpu[cpu]->notify();
-  }
-
-  /**
-   * Inject a CPU local IRQ.
-   * \pre `id` < 32
-   */
-  void inject_local(unsigned id, unsigned current_cpu)
-  {
-    Cpu *cpu = _cpu[current_cpu].get();
-    Irq const &irq = cpu->local_irq(id);
-    if (irq.pending(true))
-      {
-        // need to take some action to pass IRQ to a CPU
-        unsigned char current = 1 << current_cpu;
-        unsigned char active_mask = irq.group()
-                                  ? cxx::access_once(&_active_grp1_cpus)
-                                  : cxx::access_once(&_active_grp0_cpus);
-        if ((current & active_mask) && cpu->inject<Cpu_if>(irq, id))
-          return;
-      }
-  }
-
-  /**
-   * Inject an SPI.
-   * \pre `id` >= 32
-   */
-  void inject_irq(Irq const &irq, unsigned id, unsigned current_cpu)
-  {
-    if (irq.pending(true))
-      {
-        // need to take some action to pass IRQ to a CPU
-        unsigned char current = 1 << current_cpu;
-        unsigned char active_mask = irq.group()
-                                  ? cxx::access_once(&_active_grp1_cpus)
-                                  : cxx::access_once(&_active_grp0_cpus);
-        if ((irq.target() & current & active_mask))
-          {
-            if (_cpu[current_cpu]->inject<Cpu_if>(irq, id))
-              return;
-          }
-        else
-          {
-            if (0)
-              printf("Cpu%d - %s:Warn: IRQ %d for different CPU: %x & %x & %x\n"
-                     "\tirq.group() = %x ? %d : %d\n",
-                     vmm_current_cpu_id, __PRETTY_FUNCTION__, id,
-                     irq.target(), current, active_mask,
-                     irq.group(), _active_grp1_cpus, _active_grp0_cpus);
-          }
-        if (unsigned char map = (irq.target() & ~current & active_mask))
-          notify_cpus(map);
-      }
-  }
-
-  /**
-   * Set `irq` pending.
-   */
-  void set(unsigned irq) override
-  {
-    if (irq < Cpu::Num_local)
-      inject_local(irq, vmm_current_cpu_id);
-    else
-      inject_irq(this->spi(irq - Cpu::Num_local), irq, vmm_current_cpu_id); // SPI
-  }
-
-  /// find a pending SPI with prio < pmask.
-  int find_pending_spi(unsigned pmask, unsigned target, Irq *irq)
-  {
-    return _spis.find_pending_irq(pmask, irq, [target](Irq_info const *i)
-        {
-          return i->target() & (1u << target);
-        });
   }
 
   /// MMIO write to the GICD_SGIR
@@ -221,7 +122,7 @@ public:
           if (cpu != vmm_current_cpu_id)
             _cpu[cpu]->ipi(irq);
           else
-            inject_local(irq, vmm_current_cpu_id);
+            set(irq);
         }
   }
 
@@ -266,7 +167,7 @@ public:
   }
 };
 
-struct DF : Dist::Factory
+struct DF : Dist<false>::Factory
 {
   DF() : Factory(2) {}
   cxx::Ref_ptr<Dist_if> create(unsigned tnlines) const

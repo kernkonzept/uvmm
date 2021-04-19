@@ -14,9 +14,12 @@
 #include <l4/cxx/utils>
 
 #include <cassert>
+#include <condition_variable>
 #include <cstdio>
+#include <mutex>
 
 #include "debug.h"
+#include "cpu_dev.h"
 #include "gic_iface.h"
 #include "mmio_device.h"
 #include "irq.h"
@@ -27,6 +30,379 @@
 extern __thread unsigned vmm_current_cpu_id;
 
 namespace Gic {
+
+/**
+ * Item on an Atomic_fwd_list.
+ */
+class Atomic_fwd_list_item
+{
+  template<typename T>
+  friend class Atomic_fwd_list;
+
+  enum {
+    // Element is not in a list. Distinct from nullptr which is is the end of
+    // list.
+    Not_in_list = 1,
+  };
+
+public:
+  Atomic_fwd_list_item() : _next((Atomic_fwd_list_item*)Not_in_list) {}
+
+  bool in_list() const { return _next != (Atomic_fwd_list_item*)Not_in_list; }
+
+private:
+  explicit Atomic_fwd_list_item(Atomic_fwd_list_item *n) : _next(n) {}
+
+  Atomic_fwd_list_item *_next;
+};
+
+/**
+ * A lock-free, multi producer list.
+ *
+ * Items that are stored on the list must be derived from Atomic_fwd_list_item.
+ * The only supported concurrent methods are push() and swap(). Multiple
+ * threads may push(), even the same element, onto a list. On the consumer
+ * side, swap() must be used to atomically take ownership of the list and
+ * replace it with an empty one. All other methods are *not* thread safe and
+ * must only be used after swap() was used to have exclusive access to the
+ * list. Internally it is a single linked list.
+ */
+template<typename T>
+class Atomic_fwd_list
+{
+public:
+  Atomic_fwd_list() : _head(nullptr) {}
+
+  class Iterator
+  {
+    friend class Atomic_fwd_list;
+
+  public:
+    Iterator() : _elem(nullptr), _prev_next_ptr(nullptr) {}
+
+    Iterator operator++()
+    {
+      _prev_next_ptr = &_elem->_next;
+      _elem = _elem->_next;
+      return *this;
+    }
+
+    T *operator*() const { return static_cast<T*>(_elem); }
+    T *operator->() const { return static_cast<T*>(_elem); }
+
+    bool operator==(Iterator const &other) const
+    { return other._elem == _elem; }
+    bool operator!=(Iterator const &other) const
+    { return other._elem != _elem; }
+
+  private:
+    Iterator(Atomic_fwd_list_item **prev_next_ptr, Atomic_fwd_list_item *elem)
+    : _elem(elem), _prev_next_ptr(prev_next_ptr)
+    {}
+
+    /**
+     * Construct iterator to first element on the list.
+     *
+     * \param head_next_ptr Pointer to the _next-pointer of the list head.
+     */
+    explicit Iterator(Atomic_fwd_list_item **head_next_ptr)
+    : _elem(*head_next_ptr), _prev_next_ptr(head_next_ptr)
+    {}
+
+    /**
+     * Construct (invalid) iterator that points to before the first element.
+     *
+     * \param head Pointer to list head.
+     */
+    explicit Iterator(Atomic_fwd_list_item *head)
+    : _elem(head), _prev_next_ptr(nullptr)
+    {}
+
+    /// The current element to which the iterator points.
+    Atomic_fwd_list_item *_elem;
+
+    /**
+     * Pointer to _next pointer of previous element that points to _elem.
+     *
+     * For valid iterators "*_prev_next_ptr == _elem" holds.
+     */
+    Atomic_fwd_list_item **_prev_next_ptr;
+  };
+
+  Iterator before_begin() { return Iterator(&_head); }
+  Iterator begin() { return Iterator(&_head._next); }
+  Iterator end() { return Iterator(); }
+
+  /**
+   * Add element to front of list.
+   *
+   * It is safe against concurrent insert attempts, even of the same element.
+   * This is achieved by synchronizing on the _next pointer. Elements that are
+   * not on a list are marked as "logically deleted" (Not_in_list), as done by
+   * erase(). This guarantees that the object is currently not visible on the
+   * list. If setting that pointer fails, some other thread was faster and the
+   * element is being inserted currently.
+   *
+   * We do *not* wait until being inserted if the _next pointer could not be
+   * set. It is the responsibility of the caller to cope with the possibility
+   * that the element is not yet visible on the list on such concurrent
+   * inserts.
+   */
+  void push(T *e)
+  {
+    Atomic_fwd_list_item *old_next = __atomic_load_n(&e->_next, __ATOMIC_ACQUIRE);
+    if (old_next != (Atomic_fwd_list_item*)Atomic_fwd_list_item::Not_in_list)
+      return;
+
+    Atomic_fwd_list_item *first = __atomic_load_n(&_head._next, __ATOMIC_ACQUIRE);
+    if (!__atomic_compare_exchange_n(&e->_next, &old_next, first,
+                                     false, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))
+      return;
+
+    // We now "own" the element and must complete the insert. It's not yet
+    // visible on the list. There could still be other concurrent inserts on
+    // the same list for different elements, though.
+    while (!__atomic_compare_exchange_n(&_head._next, &first,
+                                        static_cast<Atomic_fwd_list_item*>(e),
+                                        true, __ATOMIC_ACQ_REL,
+                                        __ATOMIC_ACQUIRE))
+      __atomic_store_n(&e->_next, first, __ATOMIC_RELEASE);
+  }
+
+  /**
+   * Atomically swap this and the other list.
+   *
+   * The content of this instance must no be manipulated concurrently.
+   * Atomicity is only guaranteed wrt. the \a other list.
+   */
+  void swap(Atomic_fwd_list &other)
+  {
+    Atomic_fwd_list_item *cur = _head._next;
+    Atomic_fwd_list_item *o = __atomic_load_n(&other._head._next,
+                                              __ATOMIC_RELAXED);
+    while (!__atomic_compare_exchange_n(&other._head._next, &o, cur, false,
+                                        __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))
+      ;
+
+    _head._next = o;
+  }
+
+  /**
+   * Remove item from list.
+   *
+   * This method is *not* thread safe. There must be no concurrent
+   * manipulations of the list!
+   */
+  static Iterator erase(Iterator const &e)
+  {
+    Iterator ret(e._prev_next_ptr, e._elem->_next);
+    *e._prev_next_ptr = e._elem->_next;
+    __atomic_store_n(&e._elem->_next,
+                     (Atomic_fwd_list_item*)Atomic_fwd_list_item::Not_in_list,
+                     __ATOMIC_RELEASE);
+    return ret;
+  }
+
+  /**
+   * Move item from \a other list to this one after \a pos.
+   *
+   * The moved element is always seen as if it is on a list. Protects against
+   * concurrent push() calls for the element that is moved between the lists.
+   * This method is *not* thread safe.
+   *
+   * \return Iterator pointing to element after \a e on the \a other list.
+   */
+  static Iterator move_after(Iterator const &pos, Atomic_fwd_list& /*other*/,
+                             Iterator const &e)
+  {
+    Iterator ret(e._prev_next_ptr, e._elem->_next);
+
+    *e._prev_next_ptr = e._elem->_next;
+    e._elem->_next = pos._elem->_next;
+    pos._elem->_next = e._elem;
+
+    return ret;
+  }
+
+private:
+  Atomic_fwd_list_item _head;
+};
+
+class Irq;
+
+/**
+ * Base class for GIC CPU interface to handle pending guest interrupts.
+ *
+ * Each vCPU that is visible on the GIC has a corresponding CPU-interface
+ * object that is derived from this class. This serves two purposes:
+ *
+ * - Enable cross-vCPU thread notifications if a guest IRQ is queued from a
+ *   different thread. This is used to interrupt the guest so that the
+ *   destination vCPU thread can pick up the interrupt and inject it into the
+ *   vGIC LRs.
+ * - Handle guest IRQ migrations. If the guest re-targets an IRQ that is
+ *   pending, the thread that is in charge of maintaining the _owned_pend_irqs
+ *   list must push the IRQ to the right destination.
+ *
+ * The X-CPU Irq notification handler is always bound to the corresponding vCPU
+ * thread. As long as the vCPU is online the migration handler is bound there
+ * too. Only in case a CPU is offline the migration handler will be bound to
+ * the boot CPU to keep IRQ migration working.
+ *
+ * In any case, it must be guaranteed that only one thread will ever handle the
+ * queued Irqs on this object! Only queuing Irqs is thread safe.
+ */
+class Vcpu_handler : public L4::Irqep_t<Vcpu_handler>
+{
+  /**
+   * Dummy handler for X-CPU IPIs.
+   *
+   * Only exists so that the target vCPU traps into the vmm on X-CPU
+   * interrupts. Is always bound to the target vCPU thread even when the CPU
+   * is offline.
+   */
+  struct Irq_event_receiver : public L4::Irqep_t<Irq_event_receiver>
+  {
+  public:
+    void handle_irq() {}
+  };
+
+public:
+  Vcpu_handler(Vmm::Vcpu_ptr vcpu, Vmm::Vcpu_ptr sentinel_vcpu)
+  : _cpu_id(vcpu.get_vcpu_id())
+  {
+    auto *registry = vcpu.get_ipc_registry();
+    L4Re::chkcap(registry->register_irq_obj(&_irq_event),
+                 "Cannot register X-CPU irq event");
+
+    _migration_event = L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
+                                   "allocate migration event");
+    L4Re::chksys(L4Re::Env::env()->factory()->create(_migration_event.get()),
+                 "create migration event");
+    rebind(sentinel_vcpu.get_ipc_registry());
+  }
+
+  /// Send a notification to this vCPU that an Irq is pending.
+  void notify_irq()
+  { _irq_event.obj_cap()->trigger(); }
+
+  /// Signal that migration maintenance is necessary
+  void notify_migration()
+  { _migration_event->trigger(); }
+
+  /**
+   * Queue Irq as pending on this vCPU.
+   *
+   * The vCPU is not notified. It is the responsibility of the caller to
+   * trigger X-CPU notifications if necessary.
+   */
+  void queue(Irq *e)
+  {
+    _pending_irqs.push(e);
+  }
+
+  inline bool online() const { return _online; }
+
+  /**
+   * Mark CPU interface as online.
+   *
+   * Transfers the responsibility of the migration work back to the actual
+   * vcpu. This must of course not be done for the VCPU that acts as sentinel.
+   * Must be called from the vCPU that comes online.
+   */
+  void online(Vmm::Vcpu_ptr vcpu, bool boot_cpu)
+  {
+    _online = true;
+
+    // The vCPU is about to take over IRQ injection and migration. The old
+    // sentinel vCPU must reliquish its ownership and pass it to us.
+    if (!boot_cpu)
+      {
+        std::unique_lock<std::mutex> lock(_migration_lock);
+        _migration_rebind = vcpu;
+        notify_migration();
+        while (*_migration_rebind != nullptr)
+          _migration_cv.wait(lock);
+      }
+  }
+
+  /**
+   * Mark CPU interface as offline.
+   *
+   * Most importantly it pushes the migration handling to the sentinel vCPU
+   * (read: the boot CPU). Because this must be called from the vCPU that goes
+   * offline there can be no migration handling running. Hence there is no need
+   * to synchronize the rebinding.
+   */
+  void offline(Vmm::Vcpu_ptr sentinel_vcpu)
+  {
+    rebind(sentinel_vcpu.get_ipc_registry());
+    _online = false;
+  }
+
+  /**
+   * Push away Irqs that are on our pending list but that do not belong here.
+   */
+  void handle_migrations();
+
+  // L4::Irqep_t<> callback for _migration_event
+  void handle_irq()
+  {
+    handle_migrations();
+
+    // relinquish migration responsibility if requested
+    std::lock_guard<std::mutex> lock(_migration_lock);
+    if (*_migration_rebind != nullptr)
+      {
+        rebind(_migration_rebind.get_ipc_registry());
+        _migration_rebind = Vmm::Vcpu_ptr(nullptr);
+        _migration_cv.notify_one();
+      }
+  }
+
+  unsigned vcpu_id() const { return _cpu_id; }
+
+protected:
+  /// Priority sorted list of pending IRQs owned by this vCPU.
+  Atomic_fwd_list<Irq> _owned_pend_irqs;
+
+  /// The logical CPU number this interface belongs to
+  unsigned _cpu_id;
+
+  /**
+   * Move all new pending Irqs to our priority sorted _owned_pend_irqs
+   * list.
+   */
+  void fetch_pending_irqs();
+
+private:
+  /// The list of pending IRQs for this (or an invalid) vCPU.
+  Atomic_fwd_list<Irq> _pending_irqs;
+
+  /// The x-CPU pending IRQ notification
+  Irq_event_receiver _irq_event;
+
+  /// The pending migration signal
+  L4Re::Util::Unique_cap<L4::Irq> _migration_event;
+
+  /// Mutex protecting the migration handler rebinding
+  std::mutex _migration_lock;
+
+  /// Condition variable to sync the transition of the migration handler
+  std::condition_variable _migration_cv;
+
+  /// The new migration handler (or nullptr if ownership is kept)
+  Vmm::Vcpu_ptr _migration_rebind = Vmm::Vcpu_ptr(nullptr);
+
+  /// Is the corresponding vCPU online?
+  bool _online = false;
+
+  void rebind(L4Re::Util::Object_registry *registry)
+  {
+    L4Re::chkcap(registry->register_obj(this, _migration_event.get()),
+                 "Cannot register migration event");
+  }
+};
 
 class Irq_info
 {
@@ -41,12 +417,16 @@ public:
   CXX_BITFIELD_MEMBER_RO( 0,  0, pending,     _state); // GICD_I[SC]PENDRn
   CXX_BITFIELD_MEMBER_RO( 1,  1, active,      _state); // GICD_I[SC]ACTIVERn
   CXX_BITFIELD_MEMBER_RO( 3,  3, enabled,     _state); // GICD_I[SC]ENABLERn
-  CXX_BITFIELD_MEMBER_RO( 4, 11, cpu,         _state);
+  CXX_BITFIELD_MEMBER_RO( 4, 11, cpu,         _state); // the owning vcpu
 
   CXX_BITFIELD_MEMBER_RO(12, 19, target,      _state); // GICD_ITARGETSRn ...
   CXX_BITFIELD_MEMBER_RO(20, 27, prio,        _state); // GICD_IPRIORITYRn
   CXX_BITFIELD_MEMBER_RO(28, 29, config,      _state); // GICD_ICFGRn
   CXX_BITFIELD_MEMBER_RO(30, 30, group,       _state); // GICD_IGROUPRn
+
+  enum : unsigned { Invalid_cpu = 0xff }; // special case for cpu field
+  static_assert(Invalid_cpu >= (unsigned)Vmm::Cpu_dev::Max_cpus,
+                "Invalid_cpu must not collide with available CPUs");
 
 private:
   template<typename BFM, typename STATET, typename VALT>
@@ -68,22 +448,26 @@ private:
   enum
   {
     Pending_and_enabled = pending_bfm_t::Mask | enabled_bfm_t::Mask,
-    Pecpu_mask = Pending_and_enabled | cpu_bfm_t::Mask,
   };
 
-  static State is_pending_and_enabled(State state)
+  static bool is_pending_and_enabled(State state)
   { return (state & Pending_and_enabled) == Pending_and_enabled; }
 
-  static State is_pending_or_enabled(State state)
+  static bool is_pending_or_enabled(State state)
   { return state & Pending_and_enabled; }
+
+  static bool is_active(State state)
+  { return state & active_bfm_t::Mask; }
 
   Irq_info(Irq_info const &) = delete;
   Irq_info operator = (Irq_info const &) = delete;
 
   /**
-   * Set the enabled bit and conditionally the new_pending bit if
-   * the irq was already pending.
-   * \return true if we made a new IRQ pending.
+   * Set the pending or enabled bit.
+   *
+   * \param set Set bit. Either enabled_bfm_t::Mask or enabled_bfm_t::Mask.
+   * \return True if we made the IRQ pending&enabled. False if the IRQ was
+   *         already pending&enabled or is not yet pending&enabled.
    */
   bool set_pe(unsigned char set)
   {
@@ -95,104 +479,100 @@ private:
       }
     while (!__atomic_compare_exchange_n(&_state, &old, old | set,
                                         true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
+
+    // Note that we test the *old* value here. Above loop stops only if a bit
+    // has been set (otherwise it would have returned from the function). Here
+    // we test if the other bit was already set.
     return is_pending_or_enabled(old);
   }
 
   /**
-   * Clear the enabled and the new_pending flag
-   * \return true if the IRQ was disabled and previously new_pending.
+   * Clear the pending or enabled flag.
    */
-  bool clear_pe(unsigned char clear)
+  void clear_pe(unsigned char clear)
   {
     State old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
     do
       {
         if (!(old & clear))
-          return false;
+          return;
       }
     while (!__atomic_compare_exchange_n(&_state, &old, old & ~clear,
                                         true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
-    return is_pending_and_enabled(old);
   }
 
 public:
   Irq_info() = default;
 
-  l4_uint32_t state() const
-  { return _state; }
-
   bool enable()
   { return set_pe(enabled_bfm_t::Mask); }
 
-  bool disable()
+  void disable()
   { return clear_pe(enabled_bfm_t::Mask); }
 
   bool set_pending()
   { return set_pe(pending_bfm_t::Mask); }
 
-  bool clear_pending()
+  void clear_pending()
   { return clear_pe(pending_bfm_t::Mask); }
 
-  bool take_on_cpu(unsigned char cpu, unsigned char min_prio)
+  class Take_result
+  {
+  public:
+    enum Result { Ok, Drop, Keep };
+    constexpr Take_result(Result r) : _r(r) {}
+    explicit constexpr operator bool() const { return _r == Ok; }
+    constexpr bool drop() const { return _r == Drop; }
+    constexpr bool keep() const { return _r == Keep; }
+  private:
+    Result _r;
+  };
+
+  /**
+   * Try to atomically take a pending&enabled Irq for injection on \a cpu.
+   *
+   * Depending on the status this might succeed or, if failed, requires
+   * different actions. Either the Irq is still relevant for the cpu. In this
+   * case Take_result::Keep is returned. Or the Irq should be removed from the
+   * pending list of the \a cpu. This might be because the Irq is not p&e any
+   * more or needs to be pushed to a different CPU.
+   */
+  Take_result take_on_cpu(unsigned cpu)
   {
     State old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
     State nv;
     do
       {
-        State current = cpu_bfm_t::get(old);
-        if (current != 0)
-          {
-            if (current != cpu + 1U)
-              return false; // another CPU is currently owning this IRQ
-
-            nv = old;
-          }
-        else
-          nv = old | cpu_bfm_t::val_dirty(cpu + 1);
-
         if (!is_pending_and_enabled(old))
-          return false; // not pending / enabled (any more) skip
+          return Take_result::Drop;
 
-        if (prio_bfm_t::get(old) >= min_prio)
-          return false; // prio < PMR -> skip
+        // Pending&enabled IRQs are always queued on the right CPU even if they
+        // are still active on the old cpu. If the target CPU is invalid the
+        // original CPU retains the burden of coping with this rogue IRQ.
+        if (cpu_bfm_t::get(old) != cpu)
+          return cpu_bfm_t::get(old) == Invalid_cpu ? Take_result::Keep
+                                                    : Take_result::Drop;
 
-        nv = (nv & ~pending_bfm_t::Mask) | active_bfm_t::Mask;
+        // Already active? Cannot take twice!
+        if (is_active(old))
+          return Take_result::Keep;
+
+        nv = (old & ~pending_bfm_t::Mask) | active_bfm_t::Mask;
       }
     while (!__atomic_compare_exchange_n(&_state, &old, nv,
                                         true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
-    return true;
+    return Take_result::Ok;
   }
 
-  bool eoi(unsigned char cpu, bool pending)
+  bool eoi()
   {
-    (void)cpu;
-    assert (this->cpu() == cpu + 1);
-
-    // ok, the assumption is that this IRQ is on CPU cpu
-    // and we are currently running on CPU cpu, so this
-    // this->cpu() cannot change here
-    State mask = pending ? ~active_bfm_t::Mask
-                         : ~(cpu_bfm_t::Mask | active_bfm_t::Mask);
     State old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
     while (!__atomic_compare_exchange_n(&_state, &old,
-                                        old & mask,
+                                        old & ~active_bfm_t::Mask,
                                         true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
       ;
-    return false;
-  }
 
-  void kick_from_cpu(unsigned char cpu)
-  {
-    (void)cpu;
-    assert (this->cpu() == cpu + 1);
-    // ok, the assumption is that this IRQ is on CPU cpu
-    // and we are currently running on CPU cpu, so this
-    // this->cpu() cannot change here
-    State old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
-    while (!__atomic_compare_exchange_n(&_state, &old,
-                                        (old & ~cpu_bfm_t::Mask) | pending_bfm_t::Mask,
-                                        true, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
-      ;
+    return is_pending_and_enabled(old);
   }
 
   bool prio(unsigned char p)
@@ -207,198 +587,232 @@ public:
   bool config(unsigned cfg)
   { return atomic_set<config_bfm_t>(&_state, cfg); }
 
-  bool target(unsigned char tgt)
-  { return atomic_set<target_bfm_t>(&_state, tgt); }
-
-  template<typename TGT_MATCH>
-  bool is_ready(unsigned min_prio, TGT_MATCH &&tgt_match) const
+  void target(unsigned char reg, unsigned cpu)
   {
-    return ((_state & Pecpu_mask) == Pending_and_enabled)
-           && (prio() < min_prio)
-           && tgt_match(this);
+    State old = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
+    State nv;
+    do
+      {
+        nv = target_bfm_t::set_dirty(old, reg);
+        nv = cpu_bfm_t::set_dirty(nv, cpu);
+        if (old == nv)
+          return;
+      }
+    while (!__atomic_compare_exchange_n(&_state, &old, nv, true,
+                                        __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
   }
+
+  bool is_pending_and_enabled() const
+  {
+    State state = __atomic_load_n(&_state, __ATOMIC_ACQUIRE);
+    return is_pending_and_enabled(state);
+  }
+};
+
+class Irq : public Atomic_fwd_list_item
+{
+public:
+  Irq() = default;
+
+  Irq(const Irq &) = delete;
+  Irq(Irq &&) noexcept = delete;
+  Irq& operator=(const Irq &) = delete;
+  Irq& operator=(Irq &&) noexcept = delete;
+
+  enum : unsigned { Invalid_cpu = Irq_info::Invalid_cpu };
+
+  /**
+   * Initialize state for SPIs.
+   *
+   * By default SPIs target no CPU. But the guest can make an SPI
+   * pending&enabled _before_ setting the target CPU. This requires a sentinel
+   * _vcpu where the Irq is queued so that the Irq can be pushed to the right
+   * vCPU once the guest sets the target.
+   *
+   * This setup is only required for SPIs. PPIs have a fixed target that is
+   * initialized in Dist_if::setup_cpu(). LPIs cannot be made pending unless
+   * the LPI already targets a valid CPU.
+   */
+  void init_spi(Vcpu_handler *sentinel)
+  {
+    _vcpu = sentinel;
+    _irq.target(0, Invalid_cpu);
+  }
+
+  bool enabled() const { return _irq.enabled(); }
+  bool pending() const { return _irq.pending(); }
+  bool active() const { return _irq.active(); }
+  bool group() const { return _irq.group(); }
+  unsigned char config() const { return _irq.config(); }
+  unsigned char prio() const { return _irq.prio(); }
+  unsigned char target() const { return _irq.target(); }
+
+  Eoi_handler *get_eoi_handler() const { return _eoi; }
+
+  bool is_pending_and_enabled() const { return _irq.is_pending_and_enabled(); }
+  bool is_for_cpu(unsigned char cpu_id)
+  { return _irq.cpu() == cpu_id || _irq.cpu() == Invalid_cpu; }
+
+  unsigned cpu() const { return _irq.cpu(); }
+  unsigned id() const { return _id; }
+  unsigned lr() const { return _lr; }
+
+  void set_eoi(Eoi_handler *eoi) { _eoi = eoi; }
+  void set_id(uint16_t id) { _id = id; }
+
+  Vcpu_handler *enable(bool ena)
+  {
+    Vcpu_handler *dest_vcpu = nullptr;
+    if (ena)
+      {
+        if (_irq.enable())
+          dest_vcpu = vcpu_handler();
+      }
+    else
+      _irq.disable();
+
+    if (dest_vcpu)
+      dest_vcpu->queue(this);
+
+    return dest_vcpu;
+  }
+
+  Vcpu_handler *pending(bool pend)
+  {
+    Vcpu_handler *dest_vcpu = nullptr;
+    if (pend)
+      {
+        if (_irq.set_pending())
+          dest_vcpu = vcpu_handler();
+      }
+    else
+      _irq.clear_pending();
+
+    if (dest_vcpu)
+      dest_vcpu->queue(this);
+
+    return dest_vcpu;
+  }
+
+  Irq_info::Take_result take_on_cpu(unsigned cpu)
+  {
+    return _irq.take_on_cpu(cpu);
+  }
+
+  void eoi()
+  {
+    if (_irq.eoi())
+      vcpu_handler()->notify_irq();
+    if (_eoi)
+      _eoi->eoi();
+  }
+
+  void prio(unsigned char p) { _irq.prio(p); }
+  void active(bool act) { _irq.active(act); }
+  void group(bool grp1) { _irq.group(grp1); }
+  void config(unsigned char cfg) { _irq.config(cfg); }
+
+  void set_lr(unsigned idx) { _lr = idx; }
+  void clear_lr() { set_lr(0); }
+
+  /**
+   * Change target of Irq to potentially different vCPU.
+   *
+   * *Must* not be called concurrently from multiple CPUs. Other operations
+   * can still be invoked in parallel from other CPUs.
+   *
+   * \param reg    The field value in GICD_ITARGETSRn register.
+   * \param vcpu   The new vCPU that handles pending Irqs. May be nullptr in
+   *               case the irq targets no valid vCPU (e.g. only offline or
+   *               non-exiting vCPUs).
+   *
+   * If there is no valid target for the Irq the old vCPU still has to cope
+   * with the pending Irqs. This is considered an error of the guest because an
+   * enabled Irq should always target a valid CPU.
+   */
+  void target(unsigned char reg, Vcpu_handler *vcpu)
+  {
+    Vcpu_handler *old = vcpu_handler();
+    if (vcpu)
+      set_vcpu_handler(vcpu);
+
+    // New queues and notifications will already go to the new vCPU. It cannot
+    // be taken there yet because the cpu field is not updated. But even then
+    // it will stay on the right list.
+
+    _irq.target(reg, vcpu ? vcpu->vcpu_id() : (unsigned)Invalid_cpu);
+
+    // If the IRQ is queued it must most likely be evicted from the old list.
+    // It might also got queued during migration but waking the old vCPU does
+    // not harm.
+    if (in_list() && old != vcpu)
+      old->notify_migration();
+  }
+
+  Vcpu_handler *vcpu_handler() const
+  { return __atomic_load_n(&_vcpu, __ATOMIC_ACQUIRE); }
+
+private:
+  Vcpu_handler *_vcpu = nullptr;
+  Eoi_handler *_eoi = nullptr;
+  Irq_info _irq;
+  uint16_t _id = 0;
+
+  /*
+   * Keeps track of the used lr, uses 0 for "no link register
+   * assigned" (see #get_empty_lr())
+   */
+  unsigned char _lr = 0;
+
+  void set_vcpu_handler(Vcpu_handler *vcpu)
+  { __atomic_store_n(&_vcpu, vcpu, __ATOMIC_RELEASE); }
 };
 
 class Irq_array
 {
-private:
-  using Per_irq_info = Irq_info;
-
-  struct Context
-  {
-    Eoi_handler *eoi;
-    /*
-     * Keeps track of the used lr, uses 0 for "no link register
-     * assigned" (see #get_empty_lr())
-     */
-    unsigned char lr;
-    Context() : eoi(nullptr), lr(0) {}
-  };
-
-  cxx::unique_ptr<Per_irq_info[]> _pending;
-  cxx::unique_ptr<Context[]> _irq;
-  unsigned _size;
-
 public:
-  class Const_irq
-  {
-    template<bool T, typename V>
-    friend class Monitor::Gic_cmd_handler;
+  using Irq = ::Gic::Irq;
 
-  public:
-    Const_irq() = default;
-    l4_uint32_t state() const { return _p->state(); }
-    bool enabled() const { return _p->enabled(); }
-    bool pending() const { return _p->pending(); }
-    bool active() const { return _p->active(); }
-    bool group() const { return _p->group(); }
-    unsigned char config() const { return _p->config(); }
-    unsigned char prio() const { return _p->prio(); }
-    unsigned char target() const { return _p->target(); }
-
-    void do_eoi() const { if (_c->eoi) _c->eoi->eoi(); }
-    Eoi_handler *get_eoi_handler() const { return _c->eoi; }
-
-    unsigned cpu() const { return _p->cpu(); }
-    unsigned lr() const { return _c->lr; }
-
-    Const_irq &operator ++ () { ++_c; ++_p; return *this; }
-
-    bool operator == (Const_irq const &r) const { return _p == r._p; }
-    bool operator != (Const_irq const &r) const { return _p != r._p; }
-
-  protected:
-    friend class Irq_array;
-    Const_irq(Per_irq_info *p, Context *c) : _p(p), _c(c) {}
-
-    Per_irq_info *_p;
-    Context *_c;
-  };
-
-  class Irq : public Const_irq
-  {
-  public:
-    Irq() = default;
-
-    void set_eoi(Eoi_handler *eoi) { _c->eoi = eoi; }
-    bool enable(bool ena) const
-    {
-      if (ena)
-        return _p->enable();
-      else
-        return _p->disable();
-    }
-
-    using Const_irq::pending;
-    bool pending(bool pend) const
-    {
-      if (pend)
-        return _p->set_pending();
-      else
-        return _p->clear_pending();
-    }
-
-    bool take_on_cpu(unsigned char cpu, unsigned char min_prio) const
-    {
-      return _p->take_on_cpu(cpu, min_prio);
-    }
-
-    void kick_from_cpu(unsigned char cpu)
-    {
-      return _p->kick_from_cpu(cpu);
-    }
-
-
-    using Const_irq::prio;
-    void prio(unsigned char p) const { _p->prio(p); }
-    bool eoi(unsigned cpu, bool pending) const { return _p->eoi(cpu, pending); }
-    using Const_irq::active;
-    void active(bool act) const { _p->active(act); }
-    using Const_irq::group;
-    void group(bool grp1) const { _p->group(grp1); }
-    using Const_irq::config;
-    void config(unsigned char cfg) const { _p->config(cfg); }
-
-    void set_lr(unsigned idx) const { _c->lr = idx; }
-    void clear_lr() const { set_lr(0); }
-
-    using Const_irq::target;
-    bool target(unsigned char tgt) const  { return _p->target(tgt); }
-
-    Irq &operator ++ () { ++_c; ++_p; return *this; }
-
-
-  private:
-    friend class Irq_array;
-    Irq(Per_irq_info *p, Context *c) : Const_irq(p, c) {}
-  };
-
-
-  explicit Irq_array(unsigned irqs)
+  explicit Irq_array(unsigned irqs, unsigned first_irq)
   : _size(irqs)
   {
-    _pending = cxx::unique_ptr<Per_irq_info[]>(new Per_irq_info[irqs]);
-    _irq     = cxx::unique_ptr<Context[]>(new Context[irqs]);
+    _irqs = cxx::unique_ptr<Irq[]>(new Irq[irqs]);
+    for (unsigned i = 0; i < irqs; i++)
+      _irqs.get()[i].set_id(i + first_irq);
   }
 
-  Irq operator [] (unsigned i)
-  { return Irq(_pending.get() + i, _irq.get() + i); }
+  Irq &operator [] (unsigned i)
+  { return _irqs.get()[i]; }
 
-  Const_irq operator [] (unsigned i) const
-  { return Const_irq(_pending.get() + i, _irq.get() + i); }
+  Irq const &operator [] (unsigned i) const
+  { return _irqs.get()[i]; }
 
   unsigned size() const { return _size; }
 
-  template<typename TGT_MATCH>
-  int find_pending_irq(unsigned char min_prio, Irq *irq, TGT_MATCH &&tgt_match)
-  {
-    int hp_irq = -1;
-    unsigned char hprio = min_prio;
-
-    for (Per_irq_info *p = _pending.get(); p != _pending.get() + _size; ++p)
-      {
-        if (!p->is_ready(hprio, tgt_match))
-          continue;
-
-        // found a potential victim
-        hp_irq = p - _pending.get();
-        hprio = p->prio();
-      }
-
-    if (hp_irq >= 0)
-      *irq = (*this)[hp_irq];
-
-    return hp_irq;
-  }
-
+private:
+  cxx::unique_ptr<Irq[]> _irqs;
+  unsigned _size;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 // GIC CPU interface
-class Cpu
+class Cpu : public Vcpu_handler
 {
   template<bool T, typename V>
   friend class Monitor::Gic_cmd_handler;
 
 public:
-  using Irq = typename Irq_array::Irq;
-  using Const_irq = typename Irq_array::Const_irq;
+  using Irq = ::Gic::Irq;
 
   enum { Num_local = 32 };
   enum { Num_lrs = 4, Lr_mask = (1UL << Num_lrs) - 1U };
 
   static_assert(Num_lrs <= 32, "Can only handle up to 32 list registers.");
 
-  Cpu(Vmm::Vcpu_ptr vcpu, Irq_array *spis, L4::Cap<L4::Thread> thread)
-  : _local_irq(Num_local)
+  Cpu(Vmm::Vcpu_ptr vcpu, Vmm::Vcpu_ptr sentinel_vcpu, Irq_array *spis)
+  : Vcpu_handler(vcpu, sentinel_vcpu), _local_irq(Num_local, 0)
   {
     memset(&_sgi_pend, 0, sizeof(_sgi_pend));
-    _cpu_irq = L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
-                            "allocate vcpu notification interrupt");
-    L4Re::chksys(L4Re::Env::env()->factory()->create(_cpu_irq.get()),
-                 "create vcpu notification interrupt");
-    L4Re::chksys(_cpu_irq->bind_thread(thread, 0),
-                 "Bind vCPU notification interrupt.");
 
     _vcpu = vcpu;
     _spis = spis;
@@ -425,12 +839,16 @@ public:
   }
 
   /// get the local IRQ for irqn (irqn < 32)
-  Irq local_irq(unsigned irqn) { return _local_irq[irqn]; }
+  Irq& local_irq(unsigned irqn) { return _local_irq[irqn]; }
   /// get the array of local IRQs of this CPU
   Irq_array &local_irqs() { return _local_irq; }
 
   /*
    * Get empty list register
+   *
+   * We might try to preempt a lower priority interrupt from the
+   * link registers here. But since our main guest does not use
+   * priorities we ignore this possibility.
    *
    * \return Returns 0 if no empty list register is available, (lr_idx
    *         + 1) otherwise
@@ -443,7 +861,7 @@ public:
   { return _elsr() != Lr_mask; }
 
   /// Get in Irq for the given `intid`, works for SGIs, PPIs, and SPIs
-  Irq irq_from_intid(unsigned intid)
+  Irq& irq_from_intid(unsigned intid)
   {
     if (intid < Num_local)
       return _local_irq[intid];
@@ -461,12 +879,8 @@ public:
   void ipi(unsigned irq)
   {
     if (set_sgi(irq))
-      notify();
+      notify_irq();
   }
-
-  /// Send an internal notification to this vCPU.
-  void notify()
-  { _cpu_irq->trigger(); }
 
   /// Read GICv2 GICD_[SC]PENDSGIR<reg>
   l4_uint32_t read_sgi_pend(unsigned reg)
@@ -487,24 +901,61 @@ public:
 
   /// Add a pending IRQ into a list register (LR).
   template<typename CPU_IF>
-  bool add_pending_irq(unsigned lr, Irq const &irq, unsigned irq_id,
-                       unsigned src_cpu = 0);
+  void add_pending_irq(unsigned lr, Irq &irq, unsigned src_cpu = 0);
 
   /// Try to inject an SPI on this CPU
   template<typename CPU_IF>
-  bool inject(Irq const &irq, unsigned irq_id, unsigned src_cpu = 0);
+  bool inject(Irq &irq, unsigned src_cpu = 0);
 
   /// Handle pending vGIC maintenance IRQs
   template<typename CPU_IF>
-  void handle_maintenance_irq(unsigned /*current_cpu*/)
+  void handle_maintenance_irq()
   { handle_eois<CPU_IF>(); }
 
-  /// Find a pending SGI (not on GICv2) or PPI
-  int find_pending_irq(unsigned char min_prio, Irq *irq)
+  /**
+   * Find and take a pending&enabled IRQ targeting this CPU.
+   *
+   * If an Irq is returned it *must* be added to a Lr. The Irq will already be
+   * marked as active.
+   */
+  Irq *take_pending_irq(unsigned char min_prio)
   {
-    return _local_irq.find_pending_irq(min_prio, irq,
-                                       [](void const *){return true;});
+    bool rescan;
+    do
+      {
+        rescan = false;
+        fetch_pending_irqs();
+
+        for (auto it = _owned_pend_irqs.begin(); it != _owned_pend_irqs.end();)
+          {
+            if (it->prio() >= min_prio)
+              break;
+
+            auto took = it->take_on_cpu(_cpu_id);
+            if (took)
+              {
+                Irq *ret = *it;
+                _owned_pend_irqs.erase(it);
+                if (ret->is_pending_and_enabled())
+                  queue_and_notify(ret);
+                return ret;
+              }
+            else if (took.drop())
+              {
+                Irq *removed = *it;
+                it = _owned_pend_irqs.erase(it);
+                if (removed->is_pending_and_enabled())
+                  rescan = queue_and_notify(removed) || rescan;
+              }
+            else
+              ++it;
+          }
+      }
+    while (rescan);
+
+    return nullptr;
   }
+
 
   /**
    * Set a GICv2 SGI for this CPU pending
@@ -571,9 +1022,6 @@ private:
   /// The associated vCPU
   Vmm::Vcpu_ptr _vcpu = Vmm::Vcpu_ptr(nullptr);
 
-  /// The x-CPU notification IRQ
-  L4Re::Util::Unique_cap<L4::Irq> _cpu_irq;
-
   l4_uint32_t _elsr() const
   { return l4_vcpu_e_read_32(*_vcpu, L4_VCPU_E_GIC_ELSR) & Lr_mask; }
 
@@ -589,6 +1037,17 @@ private:
     unsigned id = L4_VCPU_E_GIC_ELSR;
     l4_uint32_t e = l4_vcpu_e_read_32(*_vcpu, id);
     l4_vcpu_e_write_32(*_vcpu, id, e & ~bits);
+  }
+
+  bool queue_and_notify(Irq *irq)
+  {
+    Vcpu_handler *cpu = irq->vcpu_handler();
+    cpu->queue(irq);
+    if (cpu == this)
+      return true;
+
+    cpu->notify_irq();
+    return false;
   }
 };
 
@@ -652,16 +1111,13 @@ Cpu::handle_eois()
         continue;
 
       Lr lr = CPU_IF::read_lr(_vcpu, i);
-      Irq c = irq_from_intid(lr.vid());
-      if (!lr.pending())
-        {
-          c.clear_lr();
-          CPU_IF::write_lr(_vcpu, i, Lr(0));
-          _set_elsr(1U << i);
-        }
+      Irq &c = irq_from_intid(lr.vid());
+      assert(lr.state() == Lr::Empty);
 
-      c.eoi(vmm_current_cpu_id, lr.pending());
-      c.do_eoi();
+      c.clear_lr();
+      c.eoi();
+      CPU_IF::write_lr(_vcpu, i, Lr(0));
+      _set_elsr(1U << i);
     }
 
   // all EOIs are handled
@@ -671,18 +1127,14 @@ Cpu::handle_eois()
 }
 
 template<typename CPU_IF>
-inline bool
-Cpu::add_pending_irq(unsigned lr, Irq const &irq,
-                     unsigned irq_id, unsigned src_cpu)
+inline void
+Cpu::add_pending_irq(unsigned lr, Irq &irq, unsigned src_cpu)
 {
-  if (!irq.take_on_cpu(vmm_current_cpu_id, 0xff))
-    return false;
-
   using Lr = typename CPU_IF::Lr;
   Lr new_lr(0);
   new_lr.state() = Lr::Pending;
   new_lr.eoi()   = 1; // need an EOI IRQ
-  new_lr.vid()   = irq_id;
+  new_lr.vid()   = irq.id();
   new_lr.set_cpuid(src_cpu);
   new_lr.prio()  = irq.prio();
   new_lr.grp1()  = irq.group();
@@ -691,51 +1143,24 @@ Cpu::add_pending_irq(unsigned lr, Irq const &irq,
   irq.set_lr(lr + 1);
   CPU_IF::write_lr(_vcpu, lr, new_lr);
   _clear_elsr(1U << lr);
-  return true;
 }
 
 template<typename CPU_IF>
 inline bool
-Cpu::inject(Irq const &irq, unsigned irq_id, unsigned src_cpu)
+Cpu::inject(Irq &irq, unsigned src_cpu)
 {
-  using Lr = typename CPU_IF::Lr;
-
   // free LRs if there are inactive LRs
   handle_eois<CPU_IF>();
 
-  // check whether the irq is already in a list register
-  unsigned lr_idx = irq.lr();
-  if (lr_idx)
-    {
-      --lr_idx;
-      assert(lr_idx < Num_lrs);
-
-      Lr lr = CPU_IF::read_lr(_vcpu, lr_idx);
-      if (lr.vid() == irq_id)
-        {
-          if (!irq.take_on_cpu(vmm_current_cpu_id, 0xff))
-            return false;
-
-          lr.pending() = 1;
-          CPU_IF::write_lr(_vcpu, lr_idx, lr);
-          return true;
-        }
-      else
-        irq.clear_lr();
-    }
-
-  // look for an empty list register
-  lr_idx = get_empty_lr();
-  // currently we use up to 4 (Num_lrs) list registers
+  unsigned lr_idx = get_empty_lr();
   if (!lr_idx)
-    {
-      // We might try to preempt a lower priority interrupt from the
-      // link registers here. But since our main guest does not use
-      // priorities we ignore this possibility.
-      return false;
-    }
+    return false;
 
-  return add_pending_irq<CPU_IF>(lr_idx - 1, irq, irq_id, src_cpu);
+  if (!irq.take_on_cpu(_cpu_id))
+    return false;
+
+  add_pending_irq<CPU_IF>(lr_idx - 1, irq, src_cpu);
+  return true;
 }
 
 class Cpu_vector
@@ -748,6 +1173,8 @@ private:
   unsigned _c = 0;
 
 public:
+  using Irq = Cpu::Irq;
+
   explicit Cpu_vector(unsigned capacity)
   : _cpu(cxx::make_unique<Cpu_ptr[]>(capacity)),
     _c(capacity)
@@ -773,19 +1200,19 @@ public:
 };
 
 
+template<bool AFF_ROUTING>
 class Dist
 : public Dist_if,
   public Ic,
-  public Monitor::Gic_cmd_handler<Monitor::Enabled, Dist>
+  public Monitor::Gic_cmd_handler<Monitor::Enabled, Dist<AFF_ROUTING>>
 {
-  friend Gic_cmd_handler<Monitor::Enabled, Dist>;
+  friend Monitor::Gic_cmd_handler<Monitor::Enabled, Dist<AFF_ROUTING>>;
 
 protected:
   Dbg gicd_trace;
 
 public:
   using Irq = Cpu::Irq;
-  using Const_irq = Cpu::Const_irq;
 
   enum { Num_local = 32 };
 
@@ -800,15 +1227,20 @@ public:
   l4_uint32_t ctlr;
   unsigned char tnlines;
 
-  explicit Dist(unsigned tnlines, unsigned max_cpus);
+  Dist(unsigned tnlines, unsigned max_cpus)
+  : gicd_trace(Dbg::Irq, Dbg::Trace, "GICD"), ctlr(0), tnlines(tnlines),
+    _cpu(max_cpus),
+    _spis(tnlines * 32, Num_local)
+  {
+  }
 
-  Irq_array::Irq spi(unsigned spi)
+  Irq &spi(unsigned spi)
   {
     assert (spi < _spis.size());
     return _spis[spi];
   }
 
-  Irq_array::Const_irq spi(unsigned spi) const
+  Irq const &spi(unsigned spi) const
   {
     assert (spi < _spis.size());
     return _spis[spi];
@@ -820,7 +1252,7 @@ public:
 
   void bind_eoi_handler(unsigned irq, Eoi_handler *handler) override
   {
-    auto pin = spi(irq - Cpu::Num_local);
+    Irq &pin = spi(irq - Cpu::Num_local);
 
     if (handler && pin.get_eoi_handler())
       L4Re::chksys(-L4_EEXIST, "Assigning EOI handler to GIC");
@@ -874,20 +1306,34 @@ public:
   /// \{
 
   /// Setup the CPU interface for the given `vcpu` running on `thread`.
-  Cpu *add_cpu(Vmm::Vcpu_ptr vcpu, L4::Cap<L4::Thread> thread)
+  Cpu *add_cpu(Vmm::Vcpu_ptr vcpu)
   {
     unsigned cpu = vcpu.get_vcpu_id();
-
-
     if (cpu >= _cpu.capacity())
       return nullptr;
 
+    // The boot CPU is the sentinel for all CPUs, including itself.
+    // Nevertheless a special case for the boot CPU is needed here, because
+    // the entry for the boot CPU is not yet set up in the _cpu vector.
+    Vmm::Vcpu_ptr sentinel_vcpu = cpu != 0 ? _cpu[0]->vcpu() : vcpu;
+
     gicd_trace.printf("set CPU interface for CPU %02d (%p) to %p\n",
                       cpu, &_cpu[cpu], *vcpu);
-    _cpu.set_at(cpu, cxx::make_unique<Cpu>(vcpu, &_spis, thread));
+    _cpu.set_at(cpu, cxx::make_unique<Cpu>(vcpu, sentinel_vcpu, &_spis));
+    Cpu *ret = _cpu[cpu].get();
     if (cpu == 0)
-      _prio_mask = ~((1U << (7 - _cpu[cpu]->vtr().pri_bits())) - 1U);
-    return _cpu[cpu].get();
+      {
+        _prio_mask = ~((1U << (7 - ret->vtr().pri_bits())) - 1U);
+
+        // Our implementation assumes that there is always a valid
+        // Irq::vcpu_handler() for interrupts that can get pending&enabled. To
+        // make things easy, all SPIs use the boot CPU as Vcpu_handler
+        // sentinel.
+        for (unsigned i = 0; i < _spis.size(); i++)
+          _spis[i].init_spi(ret);
+      }
+
+    return ret;
   }
 
   /// write to the GICD_CTLR.
@@ -906,35 +1352,55 @@ public:
   virtual l4_uint32_t iidr_read(unsigned offset) const = 0;
   /// \}
 
+protected:
+  Cpu *cpu(unsigned id)
+  { return id < _cpu.capacity() ? _cpu[id].get() : nullptr; }
+
   /**
-   * Show the GIC state, for debugging / tracing.
+   * Check targets of SPIs and possibly divert them to a different vCPU.
+   *
+   * When affinity routing is not used the target vCPU of a SPI might change
+   * if the set of online vCPUs changes.
    */
-  void show_state(unsigned current_cpu, char const *file, unsigned line) const
+  void retarget_spis()
   {
-    // early exit if inactive
-    if (!gicd_trace.is_active())
+    if (AFF_ROUTING)
       return;
 
-    for (auto const &c: _cpu)
-      if (c)
-        gicd_trace.printf("%s:%d: Cpu%ld = %p, Gic=%p\n",
-                          file, line, (long)(&c - _cpu.begin()),
-                          c.get(), *c->vcpu());
-
-    if (current_cpu >= _cpu.capacity())
-      return;
-
-    Cpu *c = _cpu[current_cpu].get();
-    if (!c)
-      return;
-
-    gicd_trace.printf("%s:%d: Irq state for Cpu%d: hcr:%08x, vmcr:%08x\n",
-                      file, line, current_cpu,
-                      c->hcr().raw,
-                      l4_vcpu_e_read_32(*c->vcpu(), L4_VCPU_E_GIC_VMCR));
+    std::lock_guard<std::mutex> lock(_target_lock);
+    for (unsigned i = 0; i < _spis.size(); i++)
+      {
+        Irq &irq = _spis[i];
+        unsigned vcpu = find_cpu_for_target(irq.target());
+        if (vcpu != irq.cpu())
+          irq.target(irq.target(), cpu(vcpu));
+      }
   }
 
 private:
+  /**
+   * Get the first usable vCPU number from the given GICD_ITARGETSRn field.
+   *
+   * Might be Irq::Invalid_cpu if the irq targets no CPU or only offline CPUs.
+   */
+  unsigned find_cpu_for_target(unsigned char tgt)
+  {
+    while (tgt)
+      {
+        unsigned first = __builtin_ffs(tgt) - 1;
+        if (first >= _cpu.capacity())
+          return Irq::Invalid_cpu;
+
+        Vcpu_handler *cpu = _cpu[first].get();
+        if (cpu && cpu->online())
+          return first;
+
+        tgt &= ~(1U << first);
+      }
+
+    return Irq::Invalid_cpu;
+  }
+
   /// \group Per IRQ register interfaces
   /// \{
   enum Reg_group_idx
@@ -954,7 +1420,7 @@ private:
     R_route
   };
 
-  l4_uint32_t irq_mmio_read(Const_irq const &irq, unsigned rgroup)
+  l4_uint32_t irq_mmio_read(Irq const &irq, unsigned rgroup)
   {
     switch (rgroup)
       {
@@ -966,7 +1432,7 @@ private:
       case R_isactive:
       case R_icactive: return irq.active();
       case R_prio:     return irq.prio();
-      case R_target:   return irq.target();
+      case R_target:   return AFF_ROUTING ? 0 : irq.target();
       case R_cfg:      return irq.config();
       case R_grpmod:   return 0;
       case R_nsacr:    return 0;
@@ -974,19 +1440,39 @@ private:
       }
   }
 
-  void irq_mmio_write(Irq const &irq, unsigned rgroup, l4_uint32_t value)
+  void irq_mmio_write(Irq &irq, unsigned rgroup, l4_uint32_t value)
   {
     switch (rgroup)
       {
       case R_group:    irq.group(value);               return;
-      case R_isenable: if (value) irq.enable(true);    return;
+      case R_isenable:
+        if (value)
+          {
+            Vcpu_handler *dest_cpu = irq.enable(true);
+            if (dest_cpu)
+              dest_cpu->notify_irq();
+          }
+          return;
       case R_icenable: if (value) irq.enable(false);   return;
-      case R_ispend:   if (value) irq.pending(true);   return;
+      case R_ispend:
+        if (value)
+          {
+            Vcpu_handler *dest_cpu = irq.pending(true);
+            if (dest_cpu)
+              dest_cpu->notify_irq();
+          }
+          return;
       case R_icpend:   if (value) irq.pending(false);  return;
       case R_isactive: if (value) irq.active(true);    return;
       case R_icactive: if (value) irq.active(false);   return;
       case R_prio:     irq.prio(value & _prio_mask);   return;
-      case R_target:   irq.target(value);              return;
+      case R_target:
+        if (!AFF_ROUTING && irq.id() >= Cpu::Num_local)
+          {
+            std::lock_guard<std::mutex> lock(_target_lock);
+            irq.target(value, cpu(find_cpu_for_target(value)));
+          }
+        return;
       case R_cfg:      irq.config(value);              return;
       case R_grpmod:   /* GICD_CTRL.DS=1 -> RAZ/WI */  return;
       case R_nsacr:    /* GICD_CTRL.DS=1 -> RAZ/WI */  return;
@@ -1126,7 +1612,7 @@ protected:
   bool
   read_multi_irq(unsigned reg, char size, unsigned cpu_id, l4_uint64_t *res)
   {
-    auto rd = [this,res](Const_irq const &irq, unsigned r, l4_uint32_t mask,
+    auto rd = [this,res](Irq const &irq, unsigned r, l4_uint32_t mask,
                         unsigned shift)
       {
         *res |= (this->irq_mmio_read(irq, r) & mask) << shift;
@@ -1143,7 +1629,7 @@ protected:
   bool
   write_multi_irq(unsigned reg, char size, l4_uint32_t value, unsigned cpu_id)
   {
-    auto wr = [this,value](Irq const &irq, unsigned r, l4_uint32_t mask,
+    auto wr = [this,value](Irq &irq, unsigned r, l4_uint32_t mask,
                            unsigned shift)
       {
         this->irq_mmio_write(irq, r, (value >> shift) & mask);
@@ -1209,6 +1695,15 @@ protected:
   Cpu_vector _cpu;
   Irq_array _spis;
   l4_uint8_t _prio_mask;
+
+  /**
+   * Protect IRQ migration calls from concurrent invocations.
+   *
+   * IRQ migration is not thread safe. See Irq::target() for details. Also
+   * Dist_v3::_router must be kept in sync. Because migrations should happen
+   * rarely, a single lock for all Irqs should suffice.
+   */
+  std::mutex _target_lock;
 };
 
 template<typename GIC_IMPL>
@@ -1232,27 +1727,19 @@ Cpu::handle_ipis()
       // inject one IPI, if another CPU posted the same IPI we keep it
       // pending
       unsigned src = __builtin_ffs((int)cpu_bits) - 1;
-      auto irq = local_irq(irq_num);
+      Irq &irq = local_irq(irq_num);
 
       // set irq pending and try to inject
       if (irq.pending(true))
         {
-          if (!inject<Cpu_if>(irq, irq_num, src))
+          if (!inject<Cpu_if>(irq, src))
             {
-              Dbg(Dbg::Cpu, Dbg::Info, "IPI")
-                .printf("Cpu%d: Failed to inject irq %d\n",
-                        vmm_current_cpu_id, irq_num);
+              // Can happen if no LR was free. Will try again on next guest
+              // entry before other iterrupts are injected.
+              irq.pending(false);
               return;
             }
           clear_sgi(irq_num, src);
-        }
-      else
-        {
-          Dbg(Dbg::Cpu, Dbg::Info, "IPI")
-            .printf("Cpu%d: Failed to set irq %d to pending,"
-                    " current state: %s (%08x)\n",
-                    vmm_current_cpu_id, irq_num,
-                    irq.pending() ? "pending" : "not pending", irq.state());
         }
     }
 }
