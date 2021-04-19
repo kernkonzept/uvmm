@@ -286,7 +286,7 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &
         break;
 
       if (ret < 0)
-        L4Re::chksys(-L4_EINVAL, "Reading reg values.");
+        L4Re::chksys(-L4_EINVAL, "Reading reg values from DT memory nodes.");
 
       trace.printf("Adding region @0x%llx (size = 0x%llx remaining = 0x%llx)\n",
                    reg_addr, reg_size, remain);
@@ -294,15 +294,17 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &
       l4_uint64_t map_size = cxx::min(reg_size, remain);
 
       if (map_size & ~L4_PAGEMASK)
-        L4Re::chksys(-L4_EINVAL, "Size must be rounded to page size");
+        L4Re::chksys(-L4_EINVAL,
+                     "Size must be rounded to page size for DT memory nodes");
 
       if (reg_addr & ~L4_PAGEMASK)
-        L4Re::chksys(-L4_EINVAL, "Start address must be rounded to page size");
+        L4Re::chksys(-L4_EINVAL,
+                     "Start address must be rounded to page size for DT memory nodes");
 
       long ridx = add_memory_region(ds, Vmm::Guest_addr(reg_addr), offset,
                                     map_size, memmap);
       if (ridx < 0)
-        L4Re::chksys(-L4_ENOMEM, "Setting up RAM region.");
+        L4Re::chksys(-L4_ENOMEM, "Setting up RAM region via DT memory nodes.");
 
       remain -= map_size;
       offset += map_size;
