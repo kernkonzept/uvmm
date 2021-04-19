@@ -32,7 +32,7 @@ public:
   void exec(FILE *f, Arglist *) override
   {
     fprintf(f, "#\n# Spis\n#\n");
-    fprintf(f, "Irq     raw pen act ena tar pri con grp\n");
+    fprintf(f, "Irq ena pen act pri con grp -> tar vcpu\n");
     for (unsigned i = 0; i < dist()->tnlines * 32; ++i)
       show_irq(f, dist()->_spis[i], i);
   }
@@ -41,20 +41,20 @@ private:
   template<typename I>
   void show_irq(FILE *f, I const &irq, int num)
   {
-    if (!irq.enabled())
+    if (!irq.enabled() && !irq.pending() && !irq.active())
       return;
 
-    auto *p = irq._p;
-
-    fprintf(f, "%3d %x  %c   %c   %c  %3d %3d %3d %3d\n",
-            num, p->_state,
-            p->pending() ? 'y' : 'n',
-            p->active()  ? 'y' : 'n',
-            p->enabled() ? 'y' : 'n',
-            (int)p->target(),
-            (int)p->prio(),
-            (int)p->config(),
-            (int)p->group());
+    fprintf(f, "%3d   %c   %c   %c %3d %3d %3d    %3d %4d\n",
+            num,
+            irq.enabled() ? 'y' : 'n',
+            irq.pending() ? 'y' : 'n',
+            irq.active()  ? 'y' : 'n',
+            (int)irq.prio(),
+            (int)irq.config(),
+            (int)irq.group(),
+            (int)irq.target(),
+            (int)irq.cpu()
+            );
   }
 
   T *dist()

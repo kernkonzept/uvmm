@@ -57,6 +57,9 @@ public:
                          char const *cmd_line, l4_addr_t dt);
   void run(cxx::Ref_ptr<Cpu_dev_array> cpus);
 
+  void cpu_online(Cpu_dev *cpu);
+  void cpu_offline(Cpu_dev *cpu);
+
   void L4_NORETURN halt_vm(Vcpu_ptr current_vcpu)
   {
     stop_cpus();
@@ -72,6 +75,7 @@ public:
   l4_msgtag_t handle_entry(Vcpu_ptr vcpu);
 
   static Guest *create_instance();
+  static Guest *instance();
 
   void show_state_interrupts(FILE *, Vcpu_ptr) {}
 

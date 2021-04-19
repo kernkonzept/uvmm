@@ -68,10 +68,10 @@ struct Cpu_if_v3
   }
 };
 
-class Dist_v3 : public Dist_mixin<Dist_v3>
+class Dist_v3 : public Dist_mixin<Dist_v3, true>
 {
 private:
-  using Dist = Dist_mixin<Dist_v3>;
+  using Dist = Dist_mixin<Dist_v3, true>;
 
   class Redist : public Vmm::Mmio_device_t<Redist>
   {
@@ -239,7 +239,7 @@ private:
       auto const &cc = dist->_cpu[vmm_current_cpu_id];
       for (auto const &c: dist->_cpu)
         if (c != cc)
-          dist->inject_irq_remote(c->local_irq(intid), c.get());
+          dist->inject_irq(c->local_irq(intid), cc.get());
     }
 
     void sgi_tgt(unsigned intid, l4_uint64_t target)
@@ -261,9 +261,9 @@ private:
             continue;
 
           if (cc != c)
-            dist->inject_irq_remote(c->local_irq(intid), c.get());
+            dist->inject_irq(c->local_irq(intid), cc.get());
           else
-            dist->inject_irq_local(c->local_irq(intid), intid, c.get());
+            dist->inject_irq_local(c->local_irq(intid), cc.get());
         }
     }
 
@@ -306,9 +306,11 @@ public:
     ctlr = Gicd_ctlr_must_set;
   }
 
-  void setup_cpu(Vmm::Vcpu_ptr vcpu, L4::Cap<L4::Thread> thread) override
+  void setup_cpu(Vmm::Vcpu_ptr vcpu) override
   {
-    Dist::add_cpu(vcpu, thread);
+    auto *c = Dist::add_cpu(vcpu);
+    if (!c)
+      return;
 
     if ((_redist_size >> Redist::Stride) < _cpu.size())
       {
@@ -316,6 +318,9 @@ public:
                      _cpu.size(), _redist_size);
         L4Re::throw_error(-L4_EINVAL, "Setup GICv3 redistributor");
       }
+
+    for (unsigned i = 0; i < Cpu::Num_local; ++i)
+      c->local_irq(i).target(0, c);
   }
 
   l4_uint32_t get_typer() const override
@@ -361,68 +366,16 @@ public:
     return self;
   }
 
-  void update_gicc_state(Vmm::Arm::Gic_h::Misr, unsigned)
-  {}
-
-  void inject_local(unsigned id, unsigned current_cpu)
-  {
-    Cpu *cpu = _cpu[current_cpu].get();
-    Irq const &irq = cpu->local_irq(id);
-    if (irq.pending(true))
-      {
-        // need to take some action to pass IRQ to a CPU
-        cpu->inject<Cpu_if>(irq, id);
-      }
-  }
-
-  void inject_irq_remote(Irq const &irq, Cpu *target)
-  {
-    if (irq.pending(true))
-      target->notify();
-  }
-
-  void inject_irq_local(Irq const &irq, unsigned id, Cpu *c)
-  {
-    if (irq.pending(true))
-      c->inject<Cpu_if>(irq, id);
-  }
-
-  void inject_irq(Irq const &irq, unsigned id, unsigned current_cpu)
-  {
-    unsigned tgt = irq.target();
-    if (tgt != current_cpu)
-      inject_irq_remote(irq, _cpu[tgt].get());
-    else
-      inject_irq_local(irq, id, _cpu[current_cpu].get());
-  }
-
-  void set(unsigned irq) override
-  {
-    if (irq < Cpu::Num_local)
-      inject_local(irq, vmm_current_cpu_id);
-    else
-      inject_irq(this->spi(irq - Cpu::Num_local), irq, vmm_current_cpu_id); // SPI
-  }
-
-  int find_pending_spi(unsigned pmask, unsigned target, Irq *irq)
-  {
-    return _spis.find_pending_irq(pmask, irq, [target](Irq_info const *i)
-        {
-          // currently we support no 1 of N delivery
-          return i->target() == target;
-        });
-  }
-
   void sgir_write(l4_uint32_t)
   {}
 
-  int find_cpu(l4_uint32_t affinity)
+  unsigned char find_cpu(l4_uint32_t affinity)
   {
     for (unsigned i = 0; i < _cpu.size(); ++i)
-      if (_cpu[i]->affinity() == affinity)
+      if (_cpu[i] && _cpu[i]->affinity() == affinity)
         return i;
 
-    return -1;
+    return Irq::Invalid_cpu;
   }
 
   l4_uint64_t read(unsigned reg, char size, unsigned cpu_id)
@@ -453,14 +406,17 @@ public:
     if (dist_write(reg, size, value, cpu_id))
       return;
 
+    // GICD_IROUTERn
     if (reg >= 0x6100 && (reg < (0x6100 + 8 * 32 * (unsigned)tnlines)))
       {
+        std::lock_guard<std::mutex> lock(_target_lock);
+
         unsigned const r = (reg - 0x6100) >> 3;
         Vmm::Mem_access::write(&_router[r], value, reg & 7, size);
         _router[r] &= ~(1ull << 31); // IRM always 0: no 1 of N routing
         l4_uint32_t aff =   (_router[r] & 0x00ffffff)
                           | ((_router[r] >> 32) & 0xff000000);
-        spi(r).target(find_cpu(aff));
+        spi(r).target(0, cpu(find_cpu(aff)));
       }
   }
 
@@ -470,7 +426,7 @@ public:
   }
 };
 
-struct DF : Dist::Factory
+struct DF : Dist<true>::Factory
 {
   DF() : Factory(3) {}
   cxx::Ref_ptr<Dist_if> create(unsigned tnlines) const
