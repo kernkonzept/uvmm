@@ -22,6 +22,15 @@ class Cpu_dev
 : public Generic_cpu_dev,
   public Monitor::Cpu_dev_cmd_handler<Monitor::Enabled, Cpu_dev>
 {
+  /**
+   * Trivial interrupt to wakeup stopped vCPU.
+   */
+  struct Restart_event : public L4::Irqep_t<Restart_event>
+  {
+  public:
+    void handle_irq() {}
+  };
+
 public:
   enum { Max_cpus = 8 };
 
@@ -39,10 +48,13 @@ public:
   {
     Off,
     On_pending,
+    On_prepared,
     On
   };
 
   Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *);
+
+  void powerup_cpu() override;
 
   bool
   start_vcpu()
@@ -76,7 +88,7 @@ public:
    * vcpu_control_ext()). The virtualization related state is set to
    * default values, therefore we have to initialize this state here.
    */
-  void reset() override;
+  void L4_NORETURN reset() final override;
 
   /**
    * Restart a CPU
@@ -106,9 +118,11 @@ public:
 
   /**
    * Cpu_state changes
-   * * Off -> On_pending: concurrent execution
-   * * On_pending -> On:  CPU local, no concurrency
-   * * On -> Off:         CPU local, no concurrency
+   * * Off -> On_pending:          concurrent execution
+   * * On_pending  -> On:          CPU local, no concurrency (initial startup)
+   * * On_pending  -> On_prepared: CPU local, no concurrency (restart)
+   * * On_prepared -> On:          CPU local, no concurrency (restart)
+   * * On* -> Off:                 CPU local, no concurrency
    *
    * The only state change that requires protection against concurrent access
    * is the change from Off to On_pending. Therefore mark_pending() uses
@@ -131,6 +145,19 @@ public:
   }
 
   /**
+   * Mark CPU as On_prepared.
+   *
+   * The vCPU entry has been setup and the guest is about to be entered
+   * again. This state is only used when restarting a CPU that was prevously
+   * powered off.
+   */
+  void mark_on_prepared()
+  {
+    assert(online_state() == Cpu_state::On_pending);
+    std::atomic_store(&_online, Cpu_state::On_prepared);
+  }
+
+  /**
    * Mark CPU as Off.
    *
    * Marks the CPU as Off. The current state has to be either On (CPU is
@@ -146,11 +173,12 @@ public:
   /**
    * Mark CPU as On.
    *
-   * Marks the CPU as On. The current state has to be On_pending.
+   * Marks the CPU as On. The current state has to be On_pending or On_prepared.
    */
   void mark_on()
   {
-    assert(online_state() == Cpu_state::On_pending);
+    assert(online_state() == Cpu_state::On_pending ||
+           online_state() == Cpu_state::On_prepared);
     std::atomic_store(&_online, Cpu_state::On);
   }
 
@@ -190,6 +218,7 @@ private:
   l4_umword_t _dt_affinity;
   l4_umword_t _dt_vpidr = 0;
   std::atomic<Cpu_state> _online{Cpu_state::Off};
+  Restart_event _restart_event;
 };
 
 }

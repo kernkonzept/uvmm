@@ -12,6 +12,7 @@
 #include "arm_hyp.h"
 
 #include <l4/sys/ipc.h>
+#include <l4/util/util.h>
 
 namespace Vmm {
 
@@ -35,6 +36,18 @@ Cpu_dev::Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *node)
       if (prop && prop_size > 0)
         _dt_vpidr = node->get_prop_val(prop, prop_size, true);
     }
+}
+
+void
+Cpu_dev::powerup_cpu()
+{
+  Generic_cpu_dev::powerup_cpu();
+
+  // Now the vCPU thread exists and the IPC registry is setup.
+
+  auto *registry = vcpu().get_ipc_registry();
+  L4Re::chkcap(registry->register_irq_obj(&_restart_event),
+               "Cannot register CPU restart event");
 }
 
 void
@@ -116,38 +129,30 @@ Cpu_dev::reset()
                vmpidr);
 
   mark_on();
+
   L4::Cap<L4::Thread> myself;
-  myself->vcpu_resume_commit(myself->vcpu_resume_start());
-  // XXX Error handling?
+  auto res = myself->vcpu_resume_commit(myself->vcpu_resume_start());
+
+  // Could not enter guest! Take us offline...
+  Err().printf("vcpu_resume_commit error %lx\n", l4_error(res));
+  stop();
+
+  // Failed to take vCPU offline. Should not happend but play safe.
+  l4_sleep_forever();
 }
-
-/**
- * Stub function used to invoke Cpu_dev::reset()
- */
-void
-reset_helper(Cpu_dev *cpu)
-{ cpu->reset(); }
-
 
 bool
 Cpu_dev::restart()
 {
   assert(_vcpu->entry_sp);
 
-  auto sp = _vcpu->entry_sp - sizeof(this);
+  mark_on_prepared();
 
-  Dbg().printf("Triggering reset using exregs on %lx\n",
-               pthread_l4_cap(_thread));
-
-  *(l4_umword_t *)sp = (l4_umword_t)this;
-  l4_msgtag_t res = thread_cap()->ex_regs((l4_addr_t)reset_helper_trampoline,
-                                          sp, L4_THREAD_EX_REGS_CANCEL);
-
-  // XXX What to do here?
-  if (!l4_error(res))
+  l4_msgtag_t res = _restart_event.obj_cap()->trigger();
+  if (!l4_msgtag_has_error(res))
     return true;
 
-  Dbg().printf("Error in exregs: %lx\n", l4_error(res));
+  Err().printf("Error waking Cpu%d: %lx\n", _vcpu.get_vcpu_id(), l4_error(res));
   return false;
 }
 
@@ -155,8 +160,10 @@ void
 Cpu_dev::stop()
 {
   mark_off();
-  for (;;)
-    l4_ipc_sleep(L4_IPC_NEVER);
+  while (online_state() != Cpu_state::On_prepared)
+    _vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+
+  reset();
 }
 
 }

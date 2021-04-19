@@ -74,7 +74,7 @@ public:
   Vcpu_ptr vcpu() const
   { return _vcpu; }
 
-  void powerup_cpu();
+  virtual void powerup_cpu();
   void reschedule();
 
   virtual void reset() = 0;
