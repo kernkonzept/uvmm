@@ -75,19 +75,3 @@ asm
  "  hvc    #0                       \n"
 );
 
-/**
- * Trampolin code used to invoke restart_fkt(Cpu_dev *cpu)
- */
-namespace Vmm {
-
-class Cpu_dev;
-extern "C" void reset_helper_trampoline();
-extern "C" void reset_helper(Cpu_dev *cpu);
-asm
-(
-  "reset_helper_trampoline:     \n"
-  "   ldr    x0, [sp]           \n"
-  "   b reset_helper            \n"
-);
-}
-

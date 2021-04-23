@@ -12,6 +12,7 @@
 #include "arm_hyp.h"
 
 #include <l4/sys/ipc.h>
+#include <l4/util/util.h>
 
 namespace Vmm {
 
@@ -116,38 +117,31 @@ Cpu_dev::reset()
                vmpidr);
 
   mark_on();
+
   L4::Cap<L4::Thread> myself;
-  myself->vcpu_resume_commit(myself->vcpu_resume_start());
-  // XXX Error handling?
+  auto res = myself->vcpu_resume_commit(myself->vcpu_resume_start());
+
+  // Could not enter guest! Take us offline...
+  Err().printf("vcpu_resume_commit error %lx\n", l4_error(res));
+  stop();
 }
-
-/**
- * Stub function used to invoke Cpu_dev::reset()
- */
-void
-reset_helper(Cpu_dev *cpu)
-{ cpu->reset(); }
-
 
 bool
 Cpu_dev::restart()
 {
   assert(_vcpu->entry_sp);
 
-  auto sp = _vcpu->entry_sp - sizeof(this);
+  mark_on_prepared();
 
-  Dbg().printf("Triggering reset using exregs on %lx\n",
-               pthread_l4_cap(_thread));
-
-  *(l4_umword_t *)sp = (l4_umword_t)this;
-  l4_msgtag_t res = thread_cap()->ex_regs((l4_addr_t)reset_helper_trampoline,
-                                          sp, L4_THREAD_EX_REGS_CANCEL);
-
-  // XXX What to do here?
+  // Zero label IPCs are not dispatched by Generic_vcpu_ptr::handle_ipc(). Use
+  // it as simple means to unblock the vCPU thread hanging in Cpu_dev::stop()
+  // below.
+  l4_msgtag_t res = l4_ipc_send(thread_cap().cap(), l4_utcb(),
+    l4_msgtag(0, 0, 0, 0), L4_IPC_SEND_TIMEOUT_0);
   if (!l4_error(res))
     return true;
 
-  Dbg().printf("Error in exregs: %lx\n", l4_error(res));
+  Err().printf("Error waking Cpu%d: %lx\n", _vcpu.get_vcpu_id(), l4_error(res));
   return false;
 }
 
@@ -155,8 +149,12 @@ void
 Cpu_dev::stop()
 {
   mark_off();
-  for (;;)
-    l4_ipc_sleep(L4_IPC_NEVER);
+  while (online_state() != Cpu_state::On_prepared)
+    _vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+
+  reset();
+
+  l4_sleep_forever(); // not reached
 }
 
 }
