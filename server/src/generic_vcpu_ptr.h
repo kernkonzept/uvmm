@@ -15,6 +15,7 @@
 #include <l4/re/util/cap_alloc>
 #include <l4/sys/thread>
 #include <l4/sys/vcpu.h>
+#include <l4/re/util/object_registry>
 
 #include "debug.h"
 
@@ -57,16 +58,50 @@ public:
   void set_vcpu_id(unsigned id)
   { _s->user_data[Reg_vcpu_id] = id; }
 
+  L4Re::Util::Object_registry *get_ipc_registry() const
+  { return reinterpret_cast<L4Re::Util::Object_registry *>(_s->user_data[Reg_ipc_registry]); }
+
+  void set_ipc_registry(L4Re::Util::Object_registry *registry)
+  { _s->user_data[Reg_ipc_registry] = reinterpret_cast<l4_umword_t>(registry); }
+
   Pt_walker *get_pt_walker() const
   { return reinterpret_cast<Pt_walker *>(_s->user_data[Reg_ptw_ptr]); }
 
   void set_pt_walker(Pt_walker *ptw)
   { _s->user_data[Reg_ptw_ptr] = reinterpret_cast<l4_umword_t>(ptw); }
 
+  void handle_ipc(l4_msgtag_t tag, l4_umword_t label, l4_utcb_t *utcb)
+  {
+    // IPIs between CPUs have IRQs with zero label and are currently
+    // not handled by the registery. Return immediately on these IPCs.
+    if ((label & ~3UL) == 0)
+      return;
+
+    l4_msgtag_t r = get_ipc_registry()->dispatch(tag, label, utcb);
+    if (r.label() != -L4_ENOREPLY)
+      l4_ipc_send(L4_INVALID_CAP | L4_SYSF_REPLY, utcb, r,
+                  L4_IPC_SEND_TIMEOUT_0);
+  }
+
+  void wait_for_ipc(l4_utcb_t *utcb, l4_timeout_t to)
+  {
+    l4_umword_t src;
+    l4_msgtag_t tag = l4_ipc_wait(utcb, &src, to);
+    if (!tag.has_error())
+      handle_ipc(tag, src, utcb);
+  }
+
+  void process_pending_ipc(l4_utcb_t *utcb)
+  {
+    while (_s->sticky_flags & L4_VCPU_SF_IRQ_PENDING)
+      wait_for_ipc(utcb, L4_IPC_BOTH_TIMEOUT_0);
+  }
+
 protected:
   enum User_data_regs
   {
     Reg_vcpu_id = 0,
+    Reg_ipc_registry,
     Reg_ptw_ptr,
     Reg_arch_base
   };

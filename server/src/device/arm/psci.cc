@@ -273,7 +273,7 @@ private:
       }
 
     /* Go to sleep */
-    _vmm->wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+    vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
     /* Back alive */
     _pm->resume();
 

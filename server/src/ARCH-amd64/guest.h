@@ -122,12 +122,12 @@ public:
         return;
       }
 
+    auto vcpu = _cpus->cpu(0)->vcpu();
     /* Go to sleep */
-    wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+    vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
     /* Back alive */
     _pm->resume();
 
-    auto vcpu = _cpus->cpu(0)->vcpu();
     vcpu.vm_state()->init_state();
     vcpu.vm_state()->setup_real_mode(wake_vector);
     vcpu->r.sp = 0;

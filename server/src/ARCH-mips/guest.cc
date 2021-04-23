@@ -148,7 +148,7 @@ Guest::handle_entry(Vcpu_ptr vcpu)
   switch (cause)
     {
     case 0:
-      handle_ipc(vcpu->i.tag, vcpu->i.label, utcb);
+      vcpu.handle_ipc(vcpu->i.tag, vcpu->i.label, utcb);
       break;
     case 1: // TLB modify
     case 2: // TLB load/fetch
@@ -171,7 +171,7 @@ Guest::handle_entry(Vcpu_ptr vcpu)
           Err().printf(
             "Bad page fault (%s) 0x%lx (GExcCode=0x%x) @0x%lx. Halting.\n",
             cause == 2 ? "read" : "write", vcpu->r.pfa, exccode, vcpu->r.ip);
-          halt_vm();
+          halt_vm(vcpu);
           break;
         }
       break;
@@ -182,7 +182,7 @@ Guest::handle_entry(Vcpu_ptr vcpu)
           {
             Err().printf("Cannot decode faulting instruction @ IP 0x%lx\n",
                          vcpu->r.ip);
-            halt_vm();
+            halt_vm(vcpu);
           }
 
         int ret = -L4_ENOSYS;
@@ -230,7 +230,7 @@ Guest::handle_entry(Vcpu_ptr vcpu)
           {
             Err().printf("Guest exception %d, error: %d, inst: 0x%x @ IP 0x%lx\n",
                          exccode, ret, insn.raw, vcpu->r.ip);
-            halt_vm();
+            halt_vm(vcpu);
           }
         if (ret == Jump_instr)
           vcpu.jump_instruction();
@@ -238,10 +238,10 @@ Guest::handle_entry(Vcpu_ptr vcpu)
       }
     default:
       Err().printf("Unknown cause of VMM entry: %d. Halting.\n", cause);
-      halt_vm();
+      halt_vm(vcpu);
     }
 
-  process_pending_ipc(vcpu, utcb);
+  vcpu.process_pending_ipc(utcb);
   _core_ic->update_vcpu(vcpu);
 }
 

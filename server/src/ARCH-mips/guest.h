@@ -295,7 +295,7 @@ private:
     l4_timeout_t to;
     l4_rcv_timeout(l4_timeout_abs_u(kip_time + diff, 8, utcb), &to);
 
-    wait_for_ipc(utcb, to);
+    vcpu.wait_for_ipc(utcb, to);
 
     return Jump_instr;
   }

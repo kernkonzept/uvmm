@@ -16,6 +16,8 @@
 namespace Vmm {
 
 Vcpu_ptr Generic_cpu_dev::_main_vcpu(nullptr);
+L4Re::Util::Br_manager Generic_cpu_dev::_main_bm;
+L4Re::Util::Object_registry Generic_cpu_dev::_main_registry(&Generic_cpu_dev::_main_bm);
 bool Generic_cpu_dev::_main_vcpu_used = false;
 
 void
@@ -25,6 +27,7 @@ Generic_cpu_dev::startup()
   if (!_attached)
     {
       _attached = true;
+      _bm->setup_wait(l4_utcb(), L4::Ipc_svr::Reply_separate);
       _vcpu.thread_attach();
     }
 
@@ -60,6 +63,11 @@ Generic_cpu_dev::powerup_cpu()
 
       if (err != 0)
         L4Re::chksys(-L4_EAGAIN, "Cannot start vcpu thread");
+
+      _bm = cxx::make_unique<L4Re::Util::Br_manager>();
+      _registry = cxx::make_unique<L4Re::Util::Object_registry>(
+        _bm.get(), thread_cap(), L4Re::Env::env()->factory());
+      _vcpu.set_ipc_registry(_registry.get());
     }
 
   char n[8];
