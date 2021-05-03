@@ -87,10 +87,7 @@ private:
 
     l4_uint32_t ctlr() const
     {
-      // as long as we have do 1 of N routing or LPI support
-      // as well as no write pending bits
-      // bit 4: ARE (affinity routing always enabled), see also GICD_TYPER.
-      return (1U << 4);
+      return 0;
     }
 
     void ctlr(l4_uint32_t)
@@ -293,6 +290,8 @@ private:
   Redist _redist;
   Sgir_sysreg _sgir;
 
+  enum { Gicd_ctlr_must_set = 5UL << 4 }; // DS, ARE
+
 public:
   using Cpu_if = Cpu_if_v3;
 
@@ -303,6 +302,7 @@ public:
     _router(cxx::make_unique<l4_uint64_t[]>(32 * tnlines)),
     _redist(this), _sgir(this)
   {
+    ctlr = Gicd_ctlr_must_set;
     _redist.add_ref(); // we keep always a ref to our redist :)
   }
 
@@ -315,9 +315,11 @@ public:
   {
     // CPUNumber: ARE always enabled, see also GICD_CTLR.
     // IDBits:    Let's assume 10 (IDs 0-1019, 1020-1023 are reserved).
+    // No1N:      1 of N SPI routing model not supported
     return tnlines
            | (0 << 5)
-           | (9 << 19);
+           | (9 << 19)
+           | (1 << 25);
   }
 
   cxx::Ref_ptr<Vdev::Device>
@@ -462,6 +464,11 @@ public:
                           | ((_router[r] >> 32) & 0xff000000);
         spi(r).target(find_cpu(aff));
       }
+  }
+
+  void write_ctlr(l4_uint32_t val) override
+  {
+    ctlr = (val & 3U) | Gicd_ctlr_must_set;
   }
 };
 
