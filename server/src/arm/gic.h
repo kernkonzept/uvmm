@@ -964,6 +964,8 @@ private:
       case R_prio:     return irq.prio();
       case R_target:   return irq.target();
       case R_cfg:      return irq.config();
+      case R_grpmod:   return 0;
+      case R_nsacr:    return 0;
       default:         assert (false); return 0;
       }
   }
@@ -982,6 +984,8 @@ private:
       case R_prio:     irq.prio(value & _prio_mask);   return;
       case R_target:   irq.target(value);              return;
       case R_cfg:      irq.config(value);              return;
+      case R_grpmod:   /* GICD_CTRL.DS=1 -> RAZ/WI */  return;
+      case R_nsacr:    /* GICD_CTRL.DS=1 -> RAZ/WI */  return;
       default:         assert (false);                 return;
       }
   }
