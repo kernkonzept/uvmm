@@ -42,6 +42,13 @@ enum Pci_header_type_register
   Multi_func_bit = (1U << 7),
 };
 
+enum Pci_header_type
+{
+  Type0 = 0,
+  Type1 = 1,
+  Type2 = 2
+};
+
 enum Pci_config_consts
 {
   Pci_header_size = 0x100,
@@ -438,13 +445,6 @@ struct Pci_device : public virtual Vdev::Dev_ref
     return bar_offs;
   }
 
-  bool is_multi_function_device()
-  {
-    l4_uint32_t val = 0;
-    cfg_read(Pci_hdr_type_offset, &val, Vmm::Mem_access::Wd8);
-    return val & Multi_func_bit;
-  }
-
   //
   // *** PCI cap ************************************************************
   //
@@ -520,11 +520,16 @@ struct Pci_device : public virtual Vdev::Dev_ref
    */
   void parse_device_bars()
   {
+    unsigned const max_bar_offset =
+      get_header_type() == Pci_header_type::Type0
+        ? Pci_hdr_base_addr5_offset
+        : Pci_hdr_base_addr1_offset;
+
     // Disable any bar access
     l4_uint32_t access = disable_access();
 
     for (unsigned bar_offs = Pci_hdr_base_addr0_offset, i = 0;
-         bar_offs <= Pci_hdr_base_addr5_offset; ++i)
+         bar_offs <= max_bar_offset; ++i)
       {
         Pci_cfg_bar &bar = bars[i];
 
@@ -544,6 +549,41 @@ struct Pci_device : public virtual Vdev::Dev_ref
 
     // Reenable bar access
     enable_access(access);
+  }
+
+  /**
+   * Get the type of the device's PCI header.
+   *
+   * We are not supporting PCI-to-Cardbus bridges (Type2). If such a bridge is
+   * encountered or any other invalid header type, this function throws.
+   *
+   * \retval Pci_header_type::Type0, for normal PCI devices
+   *         Pci_header_type::Type1, for PCI-to-PCI bridge devices.
+   */
+  Pci_header_type get_header_type()
+  {
+    enum { Type_mask = 0x7f };
+    l4_uint8_t type = get_header_field() & Type_mask;
+
+    // Not supporting Cardbus bridges and reserved header type values.
+    if (type >= Pci_header_type::Type2)
+      L4Re::throw_error(-L4_EINVAL, "Device has unsupported PCI header type.");
+
+    return Pci_header_type(type);
+  }
+
+  /// True, iff this device supports multiple functions.
+  bool is_multi_function_device()
+  {
+    return get_header_field() & Multi_func_bit;
+  }
+
+  /// Get the raw value of the header type field in the config space.
+  l4_uint8_t get_header_field()
+  {
+    l4_uint32_t header_type = 0U;
+    cfg_read(Pci_hdr_type_offset, &header_type, Vmm::Mem_access::Wd8);
+    return header_type & 0xff;
   }
 
   // These registers keep track of the BARs that are actually mapped.
