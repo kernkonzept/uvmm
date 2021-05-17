@@ -352,7 +352,11 @@ public:
    */
   void register_device(cxx::Ref_ptr<Pci_device> const &dev)
   {
-    printf("Registering device %zu\n", _devices.size() + 1);
+    if (_devices.size() > 31)
+      L4Re::throw_error(-L4_ENOMEM,
+                        "PCI bus can accomodate no more than 32 devices. "
+                        "Consider putting the device on another PCI bus.");
+    warn().printf("Registering device %zu\n", _devices.size() + 1);
     _devices.push_back(dev);
   }
 
