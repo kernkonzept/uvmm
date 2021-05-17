@@ -265,7 +265,7 @@ public:
    */
   void register_device(cxx::Ref_ptr<Pci_device> const &dev)
   {
-    printf("Registering device %lu\n", _devices.size() + 1);
+    printf("Registering device %zu\n", _devices.size() + 1);
     _devices.push_back(dev);
   }
 
