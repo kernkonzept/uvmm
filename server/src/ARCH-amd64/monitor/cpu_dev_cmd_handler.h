@@ -11,8 +11,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include <l4/vcpu/vmx/vmcs.h>
-
+#include "vmcs.h"
 #include "vcpu_ptr.h"
 #include "vm_state_vmx.h"
 #include "monitor/monitor.h"
@@ -76,19 +75,19 @@ public:
       }
 
     fprintf(f, "(C) VPID: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_VPID));
+            vmx->vmx_read(VMCS_VPID));
     fprintf(f, "(C) Int notification vector: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_PIR_NOTIFICATION_VECTOR));
+            vmx->vmx_read(VMCS_PIR_NOTIFICATION_VECTOR));
     fprintf(f, "(C) EPTP index: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_EPTP_INDEX));
+            vmx->vmx_read(VMCS_EPTP_INDEX));
     fprintf(f, "(C) EPT pointer: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_EPT_POINTER));
+            vmx->vmx_read(VMCS_EPT_POINTER));
     fprintf(f, "(C) Pin-based execution control: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_PIN_BASED_VM_EXEC_CTLS));
+            vmx->vmx_read(VMCS_PIN_BASED_VM_EXEC_CTLS));
     fprintf(f, "(C) Primary execution control: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_PRI_PROC_BASED_VM_EXEC_CTLS));
+            vmx->vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS));
     fprintf(f, "(C) Secondary execution control: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_SEC_PROC_BASED_VM_EXEC_CTLS));
+            vmx->vmx_read(VMCS_SEC_PROC_BASED_VM_EXEC_CTLS));
 
     void *ext = static_cast<void *>(*get_vcpu());
 
@@ -102,116 +101,116 @@ public:
             l4_vm_vmx_get_caps(ext, L4_VM_VMX_PROCBASED_CTLS2_REG));
 
     fprintf(f, "(G) ES selector: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_ES_SELECTOR));
+            vmx->vmx_read(VMCS_GUEST_ES_SELECTOR));
     fprintf(f, "(G) CS selector: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_CS_SELECTOR));
+            vmx->vmx_read(VMCS_GUEST_CS_SELECTOR));
     fprintf(f, "(G) SS selector: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_SS_SELECTOR));
+            vmx->vmx_read(VMCS_GUEST_SS_SELECTOR));
     fprintf(f, "(G) DS selector: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_DS_SELECTOR));
+            vmx->vmx_read(VMCS_GUEST_DS_SELECTOR));
     fprintf(f, "(G) FS selector: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_FS_SELECTOR));
+            vmx->vmx_read(VMCS_GUEST_FS_SELECTOR));
     fprintf(f, "(G) GS selector: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_GS_SELECTOR));
+            vmx->vmx_read(VMCS_GUEST_GS_SELECTOR));
     fprintf(f, "(G) GDTR base: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_GDTR_BASE));
+            vmx->vmx_read(VMCS_GUEST_GDTR_BASE));
     fprintf(f, "(G) IDTR base: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_IDTR_BASE));
+            vmx->vmx_read(VMCS_GUEST_IDTR_BASE));
 
     fprintf(f, "(G) LDTR selector: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_LDTR_SELECTOR));
+            vmx->vmx_read(VMCS_GUEST_LDTR_SELECTOR));
     fprintf(f, "(G) TR selector: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_TR_SELECTOR));
+            vmx->vmx_read(VMCS_GUEST_TR_SELECTOR));
     fprintf(f, "(G) interrupt status: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_INTERRUPT_STATUS));
+            vmx->vmx_read(VMCS_GUEST_INTERRUPT_STATUS));
 
     fprintf(f, "(C) IO bitmap A: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_ADDRESS_IO_BITMAP_A));
+            vmx->vmx_read(VMCS_ADDRESS_IO_BITMAP_A));
     fprintf(f, "(C) IO bitmap B: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_ADDRESS_IO_BITMAP_B));
+            vmx->vmx_read(VMCS_ADDRESS_IO_BITMAP_B));
     fprintf(f, "(C) MSR bitmaps: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_ADDRESS_MSR_BITMAP));
+            vmx->vmx_read(VMCS_ADDRESS_MSR_BITMAP));
     fprintf(f, "(C) Exit MSR store address: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_VM_EXIT_MSR_STORE_ADDRESS));
+            vmx->vmx_read(VMCS_VM_EXIT_MSR_STORE_ADDRESS));
     fprintf(f, "(C) Exit MSR load address: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_VM_EXIT_MSR_LOAD_ADDRESS));
+            vmx->vmx_read(VMCS_VM_EXIT_MSR_LOAD_ADDRESS));
     fprintf(f, "(C) Entry MSR load address: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_VM_ENTRY_MSR_LOAD_ADDRESS));
+            vmx->vmx_read(VMCS_VM_ENTRY_MSR_LOAD_ADDRESS));
 
     fprintf(f, "(C) Entry control: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS));
+            vmx->vmx_read(VMCS_VM_ENTRY_CTLS));
     fprintf(f, "(C) Entry error: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_VM_ENTRY_EXCEPTION_ERROR));
+            vmx->vmx_read(VMCS_VM_ENTRY_EXCEPTION_ERROR));
     fprintf(f, "(C) Entry MSR load cnt: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_VM_ENTRY_MSR_LOAD_COUNT));
+            vmx->vmx_read(VMCS_VM_ENTRY_MSR_LOAD_COUNT));
     fprintf(f, "(C) Entry interrupt info: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_VM_ENTRY_INTERRUPT_INFO));
+            vmx->vmx_read(VMCS_VM_ENTRY_INTERRUPT_INFO));
     fprintf(f, "(C) VM-instruction error: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_VM_INSN_ERROR));
+            vmx->vmx_read(VMCS_VM_INSN_ERROR));
     fprintf(f, "(C) Exit control: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_VM_EXIT_CTLS));
+            vmx->vmx_read(VMCS_VM_EXIT_CTLS));
     fprintf(f, "(C) Exit reason: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_EXIT_REASON));
+            vmx->vmx_read(VMCS_EXIT_REASON));
     fprintf(f, "(C) Exit interrupt info: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_VM_EXIT_INTERRUPT_INFO));
+            vmx->vmx_read(VMCS_VM_EXIT_INTERRUPT_INFO));
     fprintf(f, "(C) Exit interrupt error: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_VM_EXIT_INTERRUPT_ERROR));
+            vmx->vmx_read(VMCS_VM_EXIT_INTERRUPT_ERROR));
     fprintf(f, "(C) Guest interruptability: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_INTERRUPTIBILITY_STATE));
+            vmx->vmx_read(VMCS_GUEST_INTERRUPTIBILITY_STATE));
 
     fprintf(f, "(G) ES limit: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_ES_LIMIT));
+            vmx->vmx_read(VMCS_GUEST_ES_LIMIT));
     fprintf(f, "(G) CS limit: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_CS_LIMIT));
+            vmx->vmx_read(VMCS_GUEST_CS_LIMIT));
     fprintf(f, "(G) SS limit: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_SS_LIMIT));
+            vmx->vmx_read(VMCS_GUEST_SS_LIMIT));
     fprintf(f, "(G) DS limit: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_DS_LIMIT));
+            vmx->vmx_read(VMCS_GUEST_DS_LIMIT));
     fprintf(f, "(G) FS limit: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_FS_LIMIT));
+            vmx->vmx_read(VMCS_GUEST_FS_LIMIT));
     fprintf(f, "(G) GS limit: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_GS_LIMIT));
+            vmx->vmx_read(VMCS_GUEST_GS_LIMIT));
     fprintf(f, "(G) GDTR limit: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_GDTR_LIMIT));
+            vmx->vmx_read(VMCS_GUEST_GDTR_LIMIT));
     fprintf(f, "(G) IDTR limit: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_IDTR_LIMIT));
+            vmx->vmx_read(VMCS_GUEST_IDTR_LIMIT));
     fprintf(f, "(G) Activity state: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_ACTIVITY_STATE));
+            vmx->vmx_read(VMCS_GUEST_ACTIVITY_STATE));
 
     fprintf(f, "(G) sysenter rip: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_IA32_SYSENTER_EIP));
+            vmx->vmx_read(VMCS_GUEST_IA32_SYSENTER_EIP));
     fprintf(f, "(G) sysenter rsp: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_IA32_SYSENTER_ESP));
+            vmx->vmx_read(VMCS_GUEST_IA32_SYSENTER_ESP));
     fprintf(f, "(G) exit qualification: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_EXIT_QUALIFICATION));
+            vmx->vmx_read(VMCS_EXIT_QUALIFICATION));
     fprintf(f, "(G) guest linear address: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_LINEAR_ADDRESS));
+            vmx->vmx_read(VMCS_GUEST_LINEAR_ADDRESS));
     fprintf(f, "(G) CR0: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_CR0));
+            vmx->vmx_read(VMCS_GUEST_CR0));
     fprintf(f, "(G) CR3: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_CR3));
+            vmx->vmx_read(VMCS_GUEST_CR3));
     fprintf(f, "(G) CR4: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_CR4));
+            vmx->vmx_read(VMCS_GUEST_CR4));
     fprintf(f, "(G) Guest IA32 EFER: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER));
+            vmx->vmx_read(VMCS_GUEST_IA32_EFER));
     fprintf(f, "(G) RFLAGS: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_RFLAGS));
+            vmx->vmx_read(VMCS_GUEST_RFLAGS));
     fprintf(f, "(G) RIP: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_RIP));
+            vmx->vmx_read(VMCS_GUEST_RIP));
     fprintf(f, "(G) RSP: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_RSP));
+            vmx->vmx_read(VMCS_GUEST_RSP));
     fprintf(f, "(G) ES base: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_ES_BASE));
+            vmx->vmx_read(VMCS_GUEST_ES_BASE));
     fprintf(f, "(G) CS base: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_CS_BASE));
+            vmx->vmx_read(VMCS_GUEST_CS_BASE));
     fprintf(f, "(G) SS base: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_SS_BASE));
+            vmx->vmx_read(VMCS_GUEST_SS_BASE));
     fprintf(f, "(G) DS base: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_DS_BASE));
+            vmx->vmx_read(VMCS_GUEST_DS_BASE));
     fprintf(f, "(G) FS base: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_FS_BASE));
+            vmx->vmx_read(VMCS_GUEST_FS_BASE));
     fprintf(f, "(G) GS base: 0x%llx\n",
-            vmx->vmx_read(L4VCPU_VMCS_GUEST_GS_BASE));
+            vmx->vmx_read(VMCS_GUEST_GS_BASE));
   }
 
 private:

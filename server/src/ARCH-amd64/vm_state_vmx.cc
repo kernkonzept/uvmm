@@ -35,12 +35,12 @@ int
 Vmx_state::handle_exception_nmi_ext_int()
 {
   auto interrupt_info = Vmx_int_info_field(
-    (l4_uint32_t)vmx_read(L4VCPU_VMCS_VM_EXIT_INTERRUPT_INFO));
+    (l4_uint32_t)vmx_read(VMCS_VM_EXIT_INTERRUPT_INFO));
 
   l4_uint32_t interrupt_error = 0;
   if (interrupt_info.error_valid())
     interrupt_error =
-      (l4_uint32_t)vmx_read(L4VCPU_VMCS_VM_EXIT_INTERRUPT_ERROR);
+      (l4_uint32_t)vmx_read(VMCS_VM_EXIT_INTERRUPT_ERROR);
 
   info().printf("Interrupt exit: 0x%x/0x%x\n", interrupt_info.field,
                 (unsigned)interrupt_error);
@@ -82,7 +82,7 @@ Vmx_state::read_msr(unsigned msr, l4_uint64_t *value) const
           *value = 1U;
           break;
         case 0xc0000080: // efer
-          *value = vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER);
+          *value = vmx_read(VMCS_GUEST_IA32_EFER);
           break;
 
         /*
@@ -123,19 +123,19 @@ Vmx_state::write_msr(unsigned msr, l4_uint64_t value)
     case 0xc0000080: // efer
       {
         l4_uint64_t efer = value & 0xD01;
-        auto vm_entry_ctls = vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS);
+        auto vm_entry_ctls = vmx_read(VMCS_VM_ENTRY_CTLS);
 
         trace().printf("vmx read CRO: 0x%llx old efer 0x%llx new efer 0x%llx, "
                        "vm_entry_ctls 0x%llx\n",
-                       vmx_read(L4VCPU_VMCS_GUEST_CR0),
-                       vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER), efer,
+                       vmx_read(VMCS_GUEST_CR0),
+                       vmx_read(VMCS_GUEST_IA32_EFER), efer,
                        vm_entry_ctls);
 
         if ((efer & Efer_lme_bit)
-            && (vmx_read(L4VCPU_VMCS_GUEST_CR0) & Cr0_pg_bit))
+            && (vmx_read(VMCS_GUEST_CR0) & Cr0_pg_bit))
           {
             // enable long mode
-            vmx_write(L4VCPU_VMCS_VM_ENTRY_CTLS,
+            vmx_write(VMCS_VM_ENTRY_CTLS,
                       vm_entry_ctls | Entry_ctrl_ia32e_bit);
             efer |= Efer_lma_bit;
           }
@@ -149,7 +149,7 @@ Vmx_state::write_msr(unsigned msr, l4_uint64_t value)
           }
         trace().printf("efer: 0x%llx, vm_entry_ctls 0x%llx\n", efer,
                        vm_entry_ctls);
-        vmx_write(L4VCPU_VMCS_GUEST_IA32_EFER, efer);
+        vmx_write(VMCS_GUEST_IA32_EFER, efer);
         break;
       }
     case 0x8b: // IA32_BIOS_SIGN_ID
@@ -168,7 +168,7 @@ Vmx_state::write_msr(unsigned msr, l4_uint64_t value)
 int
 Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
 {
-  auto qual = vmx_read(L4VCPU_VMCS_EXIT_QUALIFICATION);
+  auto qual = vmx_read(VMCS_EXIT_QUALIFICATION);
   int crnum;
   l4_umword_t newval;
 
@@ -182,7 +182,7 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
         case 1: newval = regs->cx; break;
         case 2: newval = regs->dx; break;
         case 3: newval = regs->bx; break;
-        case 4: newval = vmx_read(L4VCPU_VMCS_GUEST_RSP); break;
+        case 4: newval = vmx_read(VMCS_GUEST_RSP); break;
         case 5: newval = regs->bp; break;
         case 6: newval = regs->si; break;
         case 7: newval = regs->di; break;
@@ -201,7 +201,7 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
       break;
     case 2: // clts
       crnum = 0;
-      newval = vmx_read(L4VCPU_VMCS_GUEST_CR0) & ~(1ULL << 3);
+      newval = vmx_read(VMCS_GUEST_CR0) & ~(1ULL << 3);
       break;
     default:
       warn().printf("Unknown CR action %lld.\n", (qual >> 4) & 3);
@@ -212,35 +212,35 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
     {
     case 0:
       {
-        auto old_cr0 = vmx_read(L4VCPU_VMCS_GUEST_CR0);
+        auto old_cr0 = vmx_read(VMCS_GUEST_CR0);
         trace().printf("Write to cr0: 0x%llx -> 0x%lx\n", old_cr0, newval);
         // 0x10 => Extension Type; hardcoded to 1 see manual
-        vmx_write(L4VCPU_VMCS_GUEST_CR0, newval | 0x10);
-        vmx_write(L4VCPU_VMCS_CR0_READ_SHADOW, newval);
+        vmx_write(VMCS_GUEST_CR0, newval | 0x10);
+        vmx_write(VMCS_CR0_READ_SHADOW, newval);
         if ((newval & Cr0_pg_bit)
             && (old_cr0 & Cr0_pg_bit) == 0
-            && (vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER) & Efer_lme_bit))
+            && (vmx_read(VMCS_GUEST_IA32_EFER) & Efer_lme_bit))
           {
             // enable long mode
             info().printf("Enable long mode\n");
-            vmx_write(L4VCPU_VMCS_VM_ENTRY_CTLS,
-                      vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS)
+            vmx_write(VMCS_VM_ENTRY_CTLS,
+                      vmx_read(VMCS_VM_ENTRY_CTLS)
                         | Entry_ctrl_ia32e_bit);
-            vmx_write(L4VCPU_VMCS_GUEST_IA32_EFER,
-                      vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER) | Efer_lma_bit);
+            vmx_write(VMCS_GUEST_IA32_EFER,
+                      vmx_read(VMCS_GUEST_IA32_EFER) | Efer_lma_bit);
           }
 
         if ((newval & Cr0_pg_bit) == 0
             && (old_cr0 & Cr0_pg_bit))
           {
             trace().printf("Disabling paging ...\n");
-            vmx_write(L4VCPU_VMCS_VM_ENTRY_CTLS,
-                      vmx_read(L4VCPU_VMCS_VM_ENTRY_CTLS)
+            vmx_write(VMCS_VM_ENTRY_CTLS,
+                      vmx_read(VMCS_VM_ENTRY_CTLS)
                         & ~Entry_ctrl_ia32e_bit);
 
-            if (vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER) & Efer_lme_bit)
-              vmx_write(L4VCPU_VMCS_GUEST_IA32_EFER,
-                        vmx_read(L4VCPU_VMCS_GUEST_IA32_EFER) & ~Efer_lma_bit);
+            if (vmx_read(VMCS_GUEST_IA32_EFER) & Efer_lme_bit)
+              vmx_write(VMCS_GUEST_IA32_EFER,
+                        vmx_read(VMCS_GUEST_IA32_EFER) & ~Efer_lma_bit);
           }
 
         break;
@@ -249,8 +249,8 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
       // force VMXE bit but hide it from guest
       trace().printf("mov to cr4: 0x%lx, RIP 0x%lx\n", newval, ip());
       // CR4 0x2000  = VMXEnable bit
-      vmx_write(L4VCPU_VMCS_GUEST_CR4, newval | 0x2000);
-      vmx_write(L4VCPU_VMCS_CR4_READ_SHADOW, newval);
+      vmx_write(VMCS_GUEST_CR4, newval | 0x2000);
+      vmx_write(VMCS_CR4_READ_SHADOW, newval);
       break;
     default: warn().printf("Unknown CR access.\n"); return -L4_EINVAL;
     }

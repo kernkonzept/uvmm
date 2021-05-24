@@ -487,8 +487,8 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
   if (reason != Vmx_state::Exit::Exec_vmcall)
     trace().printf("Exit at guest IP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
                    vms->ip(),
-                   vms->vmx_read(L4VCPU_VMCS_EXIT_REASON),
-                   vms->vmx_read(L4VCPU_VMCS_EXIT_QUALIFICATION));
+                   vms->vmx_read(VMCS_EXIT_REASON),
+                   vms->vmx_read(VMCS_EXIT_QUALIFICATION));
 
   switch (reason)
     {
@@ -498,7 +498,7 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
 
     case Exit::Io_access:
       {
-        auto qual = vms->vmx_read(L4VCPU_VMCS_EXIT_QUALIFICATION);
+        auto qual = vms->vmx_read(VMCS_EXIT_QUALIFICATION);
         unsigned qwidth = qual & 7;
         bool is_read = qual & 8;
         unsigned port = (qual >> 16) & 0xFFFFU;
@@ -529,8 +529,8 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
     case Exit::Ept_violation:
       {
         auto guest_phys_addr =
-          vms->vmx_read(L4VCPU_VMCS_GUEST_PHYSICAL_ADDRESS);
-        auto qual = vms->vmx_read(L4VCPU_VMCS_EXIT_QUALIFICATION);
+          vms->vmx_read(VMCS_GUEST_PHYSICAL_ADDRESS);
+        auto qual = vms->vmx_read(VMCS_EXIT_QUALIFICATION);
 
         trace().printf("Exit reason due to EPT violation %i;  gp_addr 0x%llx, "
                        "qualification 0x%llx\n",
@@ -549,7 +549,7 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
 
         if (qual & 0x80)
           warn().printf("Linear address: 0x%llx\n",
-                       vms->vmx_read(L4VCPU_VMCS_GUEST_LINEAR_ADDRESS));
+                       vms->vmx_read(VMCS_GUEST_LINEAR_ADDRESS));
         return -L4_EINVAL;
       }
 
@@ -562,8 +562,8 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
       return L4_EOK;
 
     case Exit::Exec_halt:
-      trace().printf("HALT 0x%llx!\n", vms->vmx_read(L4VCPU_VMCS_GUEST_RIP));
-      vms->vmx_write(L4VCPU_VMCS_GUEST_ACTIVITY_STATE, 1);
+      trace().printf("HALT 0x%llx!\n", vms->vmx_read(VMCS_GUEST_RIP));
+      vms->vmx_write(VMCS_GUEST_ACTIVITY_STATE, 1);
 
       if (!lapic(vcpu)->is_irq_pending())
         wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
@@ -598,7 +598,7 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
 
     case Exit::Virtualized_eoi:
       Dbg().printf("INFO: EOI virtualized for vector 0x%llx\n",
-                   vms->vmx_read(L4VCPU_VMCS_EXIT_QUALIFICATION));
+                   vms->vmx_read(VMCS_EXIT_QUALIFICATION));
       // Trap like exit: IP already on next instruction
       return L4_EOK;
 
@@ -621,8 +621,8 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
 
     default:
       Dbg().printf("Exit at guest IP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
-                   vms->ip(), vms->vmx_read(L4VCPU_VMCS_EXIT_REASON),
-                   vms->vmx_read(L4VCPU_VMCS_EXIT_QUALIFICATION));
+                   vms->ip(), vms->vmx_read(VMCS_EXIT_REASON),
+                   vms->vmx_read(VMCS_EXIT_QUALIFICATION));
       if (reason <= Exit::Exit_reason_max)
         Dbg().printf("Unhandled exit reason: %s (%d)\n",
                      str_exit_reason[(int)reason],
