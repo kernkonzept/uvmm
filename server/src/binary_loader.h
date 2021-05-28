@@ -69,7 +69,7 @@ public:
     Vmm::Guest_addr img_start(-1UL);
     Vmm::Guest_addr img_end(0);
 
-    _elf.iterate_phdr([this,ram,free_list,&img_start,&img_end](Ldr::Elf_phdr ph) {
+    _elf.iterate_phdr([this,ram,free_list,&img_start,&img_end](Ldr::Elf_phdr ph, void const *) {
       if (ph.type() == PT_LOAD)
         {
           auto gstart = ram->boot2guest_phys(ph.paddr());
