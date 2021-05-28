@@ -10,35 +10,12 @@
 #include <l4/re/env>
 #include <l4/re/error_helper>
 #include <l4/sys/cache.h>
-#include <l4/l4re_vfs/backend>
+#include <l4/re/util/env_ns>
 
 #include "debug.h"
 #include "vm_memmap.h"
 #include "vm_ram.h"
 #include "device_factory.h"
-
-namespace {
-
-class Auto_fd
-{
-public:
-  explicit Auto_fd(int fd) : _fd(fd) {}
-  Auto_fd(Auto_fd &&) = delete;
-  Auto_fd(Auto_fd const &) = delete;
-
-  ~Auto_fd()
-  {
-    if (_fd >= 0)
-      close(_fd);
-  }
-
-  int get() const { return _fd; }
-
-private:
-  int _fd;
-};
-
-}
 
 static Dbg warn(Dbg::Core, Dbg::Warn, "ram");
 static Dbg info(Dbg::Core, Dbg::Info, "ram");
@@ -96,24 +73,11 @@ long
 Vmm::Ram_free_list::load_file_to_back(Vm_ram *ram, char const *name,
                                       Vmm::Guest_addr *start, l4_size_t *size)
 {
-  Auto_fd fd(open(name, O_RDONLY));
-  if (fd.get() < 0)
-    {
-      Err().printf("could not open file: %s\n", name);
-      L4Re::chksys(-L4_EINVAL);
-    }
-
-  cxx::Ref_ptr<L4Re::Vfs::File> file = L4Re::Vfs::vfs_ops->get_file(fd.get());
-  if (!file)
-    {
-      Err().printf("bad file descriptor: %s\n", name);
-      L4Re::chksys(-L4_EINVAL);
-    }
-
-  L4::Cap<L4Re::Dataspace> f = file->data_space();
+  L4Re::Util::Env_ns ens;
+  L4Re::Util::Unique_cap<L4Re::Dataspace> f(ens.query<L4Re::Dataspace>(name));
   if (!f)
     {
-      Err().printf("could not get data space for %s\n", name);
+      Err().printf("could not open file: %s\n", name);
       L4Re::chksys(-L4_EINVAL);
     }
 
@@ -130,7 +94,7 @@ Vmm::Ram_free_list::load_file_to_back(Vm_ram *ram, char const *name,
   if (size)
     *size = sz;
 
-  ram->load_file(f, addr, sz);
+  ram->load_file(f.get(), addr, sz);
 
   return L4_EOK;
 }

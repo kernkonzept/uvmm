@@ -14,6 +14,8 @@
 
 #include <l4/cxx/minmax>
 #include <l4/re/error_helper>
+#include <l4/re/util/env_ns>
+#include <l4/re/util/unique_cap>
 
 #include "debug.h"
 #include "host_dt.h"
@@ -27,48 +29,54 @@ namespace {
   public:
     explicit Mapped_file(char const *name)
     {
-      int fd = open(name, O_RDWR);
-      if (fd < 0)
+      L4Re::Util::Env_ns ens;
+      L4Re::Util::Unique_cap<L4Re::Dataspace> f(ens.query<L4Re::Dataspace>(name));
+      if (!f)
         {
-          warn.printf("Unable to open file '%s': %s\n", name, strerror(errno));
+          warn.printf("Unable to open file '%s'\n", name);
           return;
         }
 
-      struct stat buf;
-      if (fstat(fd, &buf) < 0)
+      _size = l4_round_page(f->size());
+
+      auto env = L4Re::Env::env();
+      _ds = L4Re::Util::make_unique_cap<L4Re::Dataspace>();
+      L4Re::chksys(env->mem_alloc()->alloc(_size, _ds.get()));
+      L4Re::chksys(_ds->copy_in(0, f.get(), 0, _size));
+
+      int err = env->rm()->attach(&_addr, _size,
+                                  L4Re::Rm::F::Search_addr | L4Re::Rm::F::RW,
+                                  _ds.get(),
+                                  0);
+      if (err < 0)
         {
-          warn.printf("Unable to get size of file '%s': %s\n", name,
-                       strerror(errno));
-          close(fd);
+          warn.printf("Unable to mmap file '%s'(%zu): %s\n", name, _size, strerror(-err));
           return;
         }
-      _size = buf.st_size;
-
-      _addr = mmap(nullptr, _size, PROT_WRITE | PROT_READ, MAP_PRIVATE, fd, 0);
-      if (_addr == MAP_FAILED)
-        warn.printf("Unable to mmap file '%s': %s\n", name, strerror(errno));
-
-      close(fd);
     }
     Mapped_file(Mapped_file &&) = delete;
     Mapped_file(Mapped_file const &) = delete;
 
     ~Mapped_file()
     {
-      if (_addr != MAP_FAILED)
+      if (_addr)
         {
-          if (munmap(_addr, _size) < 0)
+          L4::Cap<L4Re::Rm> r = L4Re::Env::env()->rm();
+
+          int err = r->detach(l4_addr_t(_addr), 0);
+          if (err < 0)
             warn.printf("Unable to unmap file at addr %p: %s\n",
-                        _addr, strerror(errno));
+                        _addr, strerror(-err));
         }
     }
 
     void *get() const { return _addr; }
-    bool valid() { return _addr != MAP_FAILED; }
+    bool valid() { return _addr != 0; }
 
   private:
+    L4Re::Util::Unique_cap<L4Re::Dataspace> _ds;
     size_t _size = 0;
-    void *_addr = MAP_FAILED;
+    void *_addr = 0;
   };
 
 }
