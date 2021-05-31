@@ -98,6 +98,16 @@ private:
                       L4_FPAGE_RWX);
   }
 
+  /**
+   * Map an MMIO region to the guest.
+   *
+   * \param pfa      Guest-physical page fault address.
+   * \param offset   Offset of the page fault into the MMIO region.
+   * \param vcpu     Virtual CPU from which the memory was accessed.
+   * \param vm_task  VM task capability.
+   * \param min      Guest-physical address of the MMIO region's first byte.
+   * \param max      Guest-physical address of the MMIO region's last byte.
+   */
   int access(l4_addr_t pfa, l4_addr_t offset, Vmm::Vcpu_ptr vcpu,
              L4::Cap<L4::Vm> vm_task, l4_addr_t min, l4_addr_t max) override
   {

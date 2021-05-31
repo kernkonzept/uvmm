@@ -66,7 +66,7 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    *
    * \param addr     Guest-physical address where the access occurred.
    * \param start    Guest-physical address of start of memory region.
-   * \param end      Guest-physical address of end of memory region.
+   * \param end      Guest-physical address of last byte of memory region.
    * \param offset   Accessed address relative to the beginning of the region.
    * \param l_start  Local address of start of memory region.
    * \param l_end    Local address of end of memory region, default 0.
@@ -336,7 +336,7 @@ struct Ro_ds_mapper_t : Mmio_device
         // client.
         unsigned char ps =
           get_page_shift(pfa, min, max, offset, local_start,
-                         local_start + dev()->mapped_mmio_size());
+                         local_start + dev()->mapped_mmio_size() - 1);
         l4_addr_t base = l4_trunc_size(local_start + offset, ps);
 
         res = l4_error(vm_task->map(L4Re::This_task,
