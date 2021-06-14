@@ -110,12 +110,12 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
     {
       Err().printf("File does not fit into ram. "
                    "(Loading [0x%lx - 0x%lx] into area [0x%lx - 0x%llx])\n",
-                   addr.get(), addr.get() + sz,
-                   _vm_start.get(), _vm_start.get() + size());
+                   addr.get(), addr.get() + sz - 1,
+                   _vm_start.get(), _vm_start.get() + size() - 1);
       L4Re::chksys(-L4_EINVAL);
     }
 
-  info.printf("copy in: to offset 0x%lx-0x%lx\n", offset, offset + sz);
+  info.printf("copy in: to offset 0x%lx-0x%lx\n", offset, offset + sz - 1);
 
   L4Re::chksys(dataspace()->copy_in(offset + this->offset(), file, 0, sz), "copy in");
 }

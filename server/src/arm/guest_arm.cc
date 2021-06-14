@@ -306,7 +306,7 @@ private:
   {
     Dbg(Dbg::Mmio, Dbg::Info, "mmio")
       .printf("\tMapping [GICC] -> [%lx - %lx]\n", l4_fpage_memaddr(_fp),
-              l4_fpage_memaddr(_fp) + L4_PAGESIZE);
+              l4_fpage_memaddr(_fp) + L4_PAGESIZE - 1);
     L4Re::chksys(vm->vgicc_map(_fp), "Mapping VGICC area into guest task");
   }
 

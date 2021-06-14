@@ -18,8 +18,8 @@ void Vmm::Mmio_device::map_guest_range(L4::Cap<L4::Vm> vm_task,
   l4_addr_t offs = 0;
 
   Dbg(Dbg::Mmio, Dbg::Info, "mmio")
-    .printf("\tMapping [%lx - %lx] -> [%lx - %lx]\n", src, src_end, dest.get(),
-            dest_end);
+    .printf("\tMapping [%lx - %lx] -> [%lx - %lx]\n", src, src_end - 1,
+            dest.get(), dest_end - 1);
 
   while (src + offs < src_end)
     {

@@ -230,7 +230,7 @@ Vmm::Vm_ram::move_in_device_tree(Ram_free_list *free_list, Vdev::Host_dt &&dt)
   l4_cache_clean_data(ds_start, ds_start + new_size);
 
   warn.printf("Cleaning caches for device tree [%lx-%lx] ([%lx])\n",
-              ds_start, ds_start + new_size, addr.get());
+              ds_start, ds_start + new_size - 1, addr.get());
 
   return guest_phys2boot(addr);
 }
