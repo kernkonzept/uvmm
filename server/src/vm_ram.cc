@@ -141,7 +141,7 @@ Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, Vmm::Guest_addr base
 {
   cxx::Ref_ptr<Ram_ds> r = cxx::make_ref_obj<Ram_ds>(ds, size, ds_offset);
 
-  if (r->setup(baseaddr) < 0)
+  if (r->setup(baseaddr, as_mgr()) < 0)
     return -1;
 
   auto dsdev = Vdev::make_device<Ds_handler>(r);
@@ -159,6 +159,8 @@ Vmm::Vm_ram::setup_from_device_tree(Vdev::Host_dt const &dt, Vm_mem *memmap,
                                     Vmm::Guest_addr default_address)
 {
   bool has_memory_nodes = false;
+
+  as_mgr()->mode_selection();
 
   if (dt.valid())
     {
@@ -237,7 +239,8 @@ Vmm::Vm_ram::move_in_device_tree(Ram_free_list *free_list, Vdev::Host_dt &&dt)
 
 
 long
-Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &node)
+Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
+                              Vdev::Dt_node const &node)
 {
   if (!node.is_enabled())
     return -L4_ENOSYS;
@@ -262,14 +265,26 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &
   l4_size_t first_region = _regions.size();
   // dma-ranges can only be set for all regions or none
   bool add_dma_ranges = node.has_prop("dma-ranges");
+  if (add_dma_ranges)
+    as_mgr()->info_add_dma_ranges();
 
   if (node.has_prop("l4vmm,physmap"))
     {
-      trace.printf("%s: trying identity mapping.\n", node.get_name());
-      long ridx = add_memory_region(ds, Vmm::Guest_addr(Ram_ds::Ram_base_identity_mapped),
-                                    0, remain, memmap);
+      Err().printf("Physmap property in device tree memory nodes is deprecated.\n"
+                   "Remove the property from the memory node and check that "
+                   "DMA capable devices in \nIo's System_bus configuration "
+                   "feature the 'Io.Hw_device_DF_dma_supported' flag. \n"
+                   "If you still need a physmap alike mode, use the '-i' flag "
+                   "on the command line.\n");
+      L4Re::throw_error(-L4_EINVAL, "DT property 'l4vmm,physmap' deprecated.");
+    }
 
-      if (ridx >= 0)
+  if (as_mgr()->is_any_identity_mode())
+    {
+      l4_size_t ridx =
+        add_memory_region(ds, Vmm::Guest_addr(0UL), 0, remain, memmap);
+
+      if (ridx != -1U)
         remain = 0; // we are done
       else
         {
@@ -304,9 +319,9 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &
         L4Re::chksys(-L4_EINVAL,
                      "Start address must be rounded to page size for DT memory nodes");
 
-      long ridx = add_memory_region(ds, Vmm::Guest_addr(reg_addr), offset,
-                                    map_size, memmap);
-      if (ridx < 0)
+      l4_size_t ridx = add_memory_region(ds, Vmm::Guest_addr(reg_addr), offset,
+                                         map_size, memmap);
+      if (ridx == -1U)
         L4Re::chksys(-L4_ENOMEM, "Setting up RAM region via DT memory nodes.");
 
       remain -= map_size;
@@ -342,9 +357,9 @@ Vmm::Vm_ram::setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,
 {
   auto ds = L4Re::chkcap(L4Re::Env::env()->get_cap<L4Re::Dataspace>("ram"),
                          "Grabbing default \"ram\" capability", -L4_ENOENT);
-  long ridx = add_memory_region(ds, baseaddr, 0, ds->size(), memmap);
+  l4_size_t ridx = add_memory_region(ds, baseaddr, 0, ds->size(), memmap);
 
-  if (ridx < 0)
+  if (ridx == -1U)
     L4Re::chksys(-L4_ENOMEM, "Setting up default RAM region.");
 
   if (dt.valid())

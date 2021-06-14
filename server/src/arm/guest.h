@@ -34,7 +34,7 @@ class Guest : public Generic_guest
 public:
   enum
   {
-    Default_rambase = Ram_ds::Ram_base_identity_mapped,
+    Default_rambase = 0,
     Boot_offset = 0
   };
 

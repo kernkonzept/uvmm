@@ -15,7 +15,6 @@
     memory@0 {
         device_type = "memory";
         l4vmm,dscap = "ram";
-        l4vmm,physmap;
     };
 
     icsoc {

@@ -74,6 +74,11 @@
  *    When set, the uvmm resumes when the host system resumes after a
  *    suspend call.
  *
+ * * `-i`
+ *
+ *  When set, the option forces the guest RAM to be mapped to its corresponding
+ *  host-physical addresses.
+ *
  *
  * Setting up guest memory
  * -----------------------
@@ -98,7 +103,6 @@
  *       reg = <0x00000000 0x00100000
  *              0x00200000 0xffffffff>;
  *       l4vmm,dscap = "memcap";
- *       l4vmm,physmap;
  *       dma-ranges = <>;
  *     };
  *
@@ -109,15 +113,8 @@
  * memory. The regions will be filled up to the size of the supplied dataspace.
  * If they are larger, then the remaining area will be cut.
  *
- * `l4vmm,physmap` indicates that uvmm should try to map the dataspace to its
- * actual physical address when no IOMMU is available. If the physical address
- * cannot be determined or an IOMMU is available, then the memory will be
- * mapped to the addresses supplied in `regs`. It is possible to omit the
- * `regs` property when `l4vmm,physmap` is set. In this case, uvmm will fail to
- * start if the physical address cannot be determined.
- *
- * If a `dma-ranges` property is given, the host-physical address ranges
- * for the memory regions will be added here. Note that the property is
+ * If the optional `dma-ranges` property is given, the host-physical address
+ * ranges for the memory regions will be added here. Note that the property is
  * not cleared first, so it should be left empty.
  *
  * ### Memory layout

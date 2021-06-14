@@ -24,7 +24,8 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   virtio_proxy.cc \
                   virt_bus.cc io_proxy.cc \
                   mmio_device.cc \
-                  pm.cc vbus_event.cc vm_memmap.cc vm_ram.cc vm.cc
+                  pm.cc vbus_event.cc vm_memmap.cc vm_ram.cc vm.cc \
+                  address_space_manager.cc
 
 CXXFLAGS       += $(CXXFLAGS-$(ARCH)-y)
 

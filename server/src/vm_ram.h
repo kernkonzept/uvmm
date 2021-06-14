@@ -27,6 +27,7 @@
 #include "ram_ds.h"
 #include "vm_memmap.h"
 #include "monitor/vm_ram_cmd_handler.h"
+#include "address_space_manager.h"
 
 class Vm_mem;
 
@@ -70,7 +71,9 @@ class Vm_ram
   friend Vm_ram_cmd_handler<Monitor::Enabled, Vm_ram>;
 
 public:
-  Vm_ram(l4_addr_t boot_offset) : _boot_offset(boot_offset)
+  Vm_ram(l4_addr_t boot_offset)
+  : _boot_offset(boot_offset),
+    _as_mgr(Vdev::make_device<Vmm::Address_space_manager>())
   {}
 
   /**
@@ -184,6 +187,8 @@ public:
       func(*r.get());
   }
 
+  Vmm::Address_space_manager *as_mgr() const { return _as_mgr.get(); }
+
 private:
   cxx::Ref_ptr<Ram_ds> find_region(Vmm::Guest_addr addr, l4_size_t size) const
   {
@@ -217,6 +222,7 @@ private:
 
   std::vector<cxx::Ref_ptr<Vmm::Ram_ds>> _regions;
   l4_addr_t _boot_offset;
+  cxx::Ref_ptr<Vmm::Address_space_manager> _as_mgr;
 };
 
 }

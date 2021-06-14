@@ -11,6 +11,7 @@ function start_io(busses, opts)
   local caps = {
     sigma0 = L4.cast(L4.Proto.Factory, L4.Env.sigma0):create(L4.Proto.Sigma0);
     icu    = L4.Env.icu;
+    iommu  = L4.Env.iommu;
   };
 
   local files = "";

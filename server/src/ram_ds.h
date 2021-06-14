@@ -21,6 +21,7 @@
 #include "device_tree.h"
 #include "ds_manager.h"
 #include "mem_types.h"
+#include "address_space_manager.h"
 
 namespace Vmm {
 
@@ -30,8 +31,6 @@ namespace Vmm {
 class Ram_ds : public Vmm::Ds_manager
 {
 public:
-  enum { Ram_base_identity_mapped = ~0UL };
-
   /**
    * Create a new RAM dataspace.
    *
@@ -43,7 +42,8 @@ public:
          l4_size_t size, l4_addr_t offset)
   : Ds_manager(ds, offset, size, L4Re::Rm::F::RWX,
                sizeof(l4_umword_t) == 8 && size >= Ram_hugepagesize
-               ? Ram_hugepageshift : L4_SUPERPAGESHIFT)
+               ? Ram_hugepageshift : L4_SUPERPAGESHIFT),
+    _phys_size(0U)
   {}
 
   Ram_ds(Vmm::Ram_ds const &) = delete;
@@ -54,10 +54,12 @@ public:
    * Set up the memory for DMA and host access.
    *
    * \param vm_base  Guest physical address where the RAM should be mapped.
-   *                 If `Ram_base_identity_mapped`, use the host physical address
-   *                 of the backing memory (required for DMA without IOMMU).
+   * \param as_mgr  DMA manager to register the RAM with.
+   *
+   * The actually used `vm_base` address might change, depending on the
+   * necessity of DMA and the presence of an IO-MMU.
    */
-  long setup(Vmm::Guest_addr vm_base);
+  long setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr);
 
   /**
    * Load the contents of the given dataspace into guest RAM.
@@ -101,8 +103,6 @@ private:
   /// Guest-physical address of the mapped dataspace.
   Vmm::Guest_addr _vm_start;
 
-  /// DMA space providing device access (if applicable).
-  L4Re::Util::Unique_cap<L4Re::Dma_space> _dma;
   /// Host-physical address of the beginning of the mapped area (if applicable).
   L4Re::Dma_space::Dma_addr _phys_ram;
   /// Size of the contiguously mapped area from the beginning of the area.

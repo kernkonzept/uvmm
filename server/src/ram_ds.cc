@@ -19,76 +19,65 @@ static Dbg trace(Dbg::Mmio, Dbg::Warn, "trace");
 namespace Vmm {
 
 long
-Ram_ds::setup(Vmm::Guest_addr vm_base)
+Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr)
 {
   Dbg info(Dbg::Mmio, Dbg::Info, "ram");
 
   _vm_start = vm_base;
-  auto dma_cap = L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dma_space>());
 
-  auto *env = L4Re::Env::env();
-
-  int err = l4_error(env->user_factory()->create(dma_cap.get()));
-  if (err < 0)
-    trace.printf("Cannot create DMA capability.\n");
-
-  if (err >= 0)
+  if (as_mgr->is_any_identity_mode())
     {
-      err = dma_cap->associate(L4::Ipc::Cap<L4::Task>(),
-                               L4Re::Dma_space::Phys_space);
-      if (err < 0)
-        trace.printf("Cannot access physical address space mappings.\n");
-    }
+      l4_size_t phys_size = size();
+      L4Re::Dma_space::Dma_addr phys_ram = 0;
+      int err = as_mgr->get_phys_mapping(dataspace().get(), ds_offset(),
+                                         &phys_ram, &phys_size);
 
-  l4_size_t phys_size = size();
-  L4Re::Dma_space::Dma_addr phys_ram = 0;
-
-  if (err >= 0)
-    err = dma_cap->map(L4::Ipc::make_cap(dataspace().get(), L4_CAP_FPAGE_RW),
-                       offset(), &phys_size,
-                       L4Re::Dma_space::Attributes::None,
-                       L4Re::Dma_space::Bidirectional, &phys_ram);
-  else
-    phys_size = 0;
-
-  bool cont = false;
-  bool ident = false;
-
-  if (err < 0 || phys_size < size())
-    {
-      if (_vm_start == Vmm::Guest_addr(Ram_base_identity_mapped))
+      if (err < 0 || phys_size < size())
         {
-          warn.printf("Identity mapping requested but dataspace not contiguous.\n");
+          warn.printf(
+            "Identity mapping requested, but dataspace not contiguous.\n");
           return err < 0 ? err : -L4_ENOMEM;
         }
-      warn.printf("RAM dataspace not contiguous, should not use DMA w/o IOMMU\n");
-    }
-  else
-    {
-      cont = true;
-      if (_vm_start == Vmm::Guest_addr(Ram_base_identity_mapped))
-        {
-          _vm_start = Vmm::Guest_addr(phys_ram);
-          ident = true;
-        }
-    }
 
-  info.printf("RAM: @ 0x%lx size=0x%lx (%c%c)\n",
-              _vm_start.get(), (l4_addr_t) size(),
-              cont ? 'c' : '-',
-              ident ? 'i' : '-');
+      _vm_start = Vmm::Guest_addr(phys_ram);
+
+      if (as_mgr->is_iommu_identity_mode())
+        as_mgr->add_ram_iommu(_vm_start, local_start(), size());
+
+      _phys_ram = phys_ram;
+      _phys_size = phys_size;
+    }
+  else if (as_mgr->is_dma_offset_mode())
+    {
+      /**
+       * While this code looks rather alike to the identity_mode case, the
+       * semantics are quite different. The DMA address the as_mgr returns
+       * can be used by the guest for device access, but it is not the host-
+       * physical address corresponding to the given dataspace.
+       */
+      l4_size_t dma_size = size();
+      L4Re::Dma_space::Dma_addr dma_addr = 0;
+      int err = as_mgr->get_phys_mapping(dataspace().get(), ds_offset(),
+                                         &dma_addr, &dma_size);
+
+      if (err < 0 || dma_size < size())
+        warn.printf("DMA offset mode requested, but dataspace not contiguous. "
+                    "DMA usage not recommended.\n");
+
+      _phys_ram = dma_addr;
+      _phys_size = dma_size;
+    }
+  else if (as_mgr->is_iommu_mode())
+    as_mgr->add_ram_iommu(vm_start(), local_start(), size());
+  else
+    info.printf("RAM not set up for DMA.\n");
 
   l4_addr_t local_start = this->local_start();
-  info.printf("RAM: VMM mapping @ 0x%lx size=0x%lx\n", local_start, (l4_addr_t)size());
+  info.printf("RAM: @ 0x%lx size=0x%lx\n", _vm_start.get(), (l4_addr_t)size());
+  info.printf("RAM: VMM local mapping @ 0x%lx\n", local_start);
 
   _offset = local_start - _vm_start.get();
   info.printf("RAM: VM offset=0x%lx\n", _offset);
-
-  if (err >= 0)
-    _dma = cxx::move(dma_cap);
-
-  _phys_ram = phys_ram;
-  _phys_size = phys_size;
 
   return L4_EOK;
 }

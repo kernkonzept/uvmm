@@ -140,7 +140,7 @@ setup_kaslr_seed(Vdev::Host_dt const &dt)
   node.setprop_u64("kaslr-seed", random.r);
 }
 
-static char const *const options = "+k:d:r:c:b:vqD:f:";
+static char const *const options = "+k:d:r:c:b:vqD:f:i";
 static struct option const loptions[] =
 {
     { "kernel",                  required_argument, NULL, 'k' },
@@ -196,6 +196,7 @@ int main(int argc, char *argv[])
   l4_addr_t rambase = Vmm::Guest::Default_rambase;
   bool use_wakeup_inhibitor = false;
   Vmm::Guest::Fault_mode fault_mode = Vmm::Guest::Fault_mode::Ignore;
+  bool force_ram_identity_mapping = false;
 
   int opt;
   while ((opt = getopt_long(argc, argv, options, loptions, NULL)) != -1)
@@ -211,9 +212,10 @@ int main(int argc, char *argv[])
           break;
         case 'r': ram_disk     = optarg; break;
         case 'b':
-          rambase = optarg[0] == '-'
-                    ? (l4_addr_t)Vmm::Ram_ds::Ram_base_identity_mapped
-                    : strtoul(optarg, nullptr, 0);
+          rambase = strtoul(optarg, nullptr, 0);
+          break;
+        case 'i':
+          force_ram_identity_mapping = true;
           break;
         case 'q':
           // quiet actually means guest output only
@@ -246,6 +248,8 @@ int main(int argc, char *argv[])
 
   Vmm::Cpu_dev::alloc_main_vcpu();
   vm_instance.create_default_devices();
+  vm_instance.ram()->as_mgr()->detect_sys_info(vm_instance.vbus().get(),
+                                               force_ram_identity_mapping);
 
   auto *vmm = vm_instance.vmm();
   auto *ram = vm_instance.ram().get();
