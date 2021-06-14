@@ -982,7 +982,7 @@ Node<ERR>::has_mmio_regs() const
 
   if (prop_size % reg_size != 0)
     ERR(this, "Unexpected property size %zd/%zd vs %zd",
-        addr_cells, size_cells, reg_size);
+        addr_cells, size_cells, prop_size);
 
   for (size_t i = 0; i < num_regs; ++i, prop += reg_size)
     {
