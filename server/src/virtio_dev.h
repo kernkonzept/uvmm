@@ -102,7 +102,7 @@ protected:
   void update_virtio_config()
   {
     l4_cache_clean_data((l4_addr_t)_cfg_header.get(),
-                        (l4_addr_t)_cfg_header.get() + Config_ds_size - 1);
+                        (l4_addr_t)_cfg_header.get() + Config_ds_size);
   }
 
 public:
@@ -186,7 +186,7 @@ protected:
   template<typename T>
   void writeback_cache(T const *p)
   {
-    l4_cache_clean_data((l4_addr_t)p, (l4_addr_t)p + sizeof(T) - 1);
+    l4_cache_clean_data((l4_addr_t)p, (l4_addr_t)p + sizeof(T));
   }
 
   template<typename T>
