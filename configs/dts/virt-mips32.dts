@@ -4,15 +4,7 @@
 
 /dts-v1/;
 
-#if __SIZEOF_POINTER__ == 4
 /include/ "skeleton.dtsi"
-# define CPU_ID "mips,p5600"
-#else
-/include/ "skeleton64.dtsi"
-# define CPU_ID "mips,i6400"
-#endif
-
-
 /include/ "ic-mips.dtsi"
 /include/ "vmm-devices-mips.dtsi"
 /include/ "syscon.dtsi"
@@ -27,28 +19,14 @@
 
       CPU0: cpu@0 {
           device_type = "cpu";
-          compatible = CPU_ID;
+          compatible = "mips,p5600";
           reg = <0x0>;
       };
 
       CPU1: cpu@1 {
           device_type = "cpu";
-          compatible = CPU_ID;
+          compatible = "mips,p5600";
           reg = <0x1>;
       };
     };
-
-#if __SIZEOF_POINTER__ == 8
-    l4vmm {
-        ranges = <0x0  0x0 0x30000000  0x21000>;
-    };
-
-    soc {
-        ranges = <0x0  0x0 0x0  0xffffffff>;
-    };
-
-    vmm-syscon {
-        ranges = <0x0  0x0 0x30030000  0x4>;
-    };
-#endif
 };

@@ -1,0 +1,44 @@
+/**
+ * Devic tree for purely virtual guests on the MIPS architecture.
+ */
+
+/dts-v1/;
+
+/include/ "skeleton64.dtsi"
+/include/ "ic-mips.dtsi"
+/include/ "vmm-devices-mips.dtsi"
+/include/ "syscon.dtsi"
+
+/ {
+    model = "L4 VM";
+    compatible = "l4,virt", "linux,dummy-virt";
+
+    cpus {
+      #address-cells = <1>;
+      #size-cells = <0>;
+
+      CPU0: cpu@0 {
+          device_type = "cpu";
+          compatible = "mips,i6400";
+          reg = <0x0>;
+      };
+
+      CPU1: cpu@1 {
+          device_type = "cpu";
+          compatible = "mips,i6400";
+          reg = <0x1>;
+      };
+    };
+
+    l4vmm {
+        ranges = <0x0  0x0 0x30000000  0x21000>;
+    };
+
+    soc {
+        ranges = <0x0  0x0 0x0  0xffffffff>;
+    };
+
+    vmm-syscon {
+        ranges = <0x0  0x0 0x30030000  0x4>;
+    };
+};
