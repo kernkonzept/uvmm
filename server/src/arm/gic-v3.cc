@@ -288,6 +288,7 @@ private:
 
   cxx::unique_ptr<l4_uint64_t[]> _router;
   Redist _redist;
+  l4_uint64_t _redist_size;
   Sgir_sysreg _sgir;
 
   enum { Gicd_ctlr_must_set = 5UL << 4 }; // DS, ARE
@@ -309,6 +310,13 @@ public:
   void setup_cpu(Vmm::Vcpu_ptr vcpu, L4::Cap<L4::Thread> thread) override
   {
     Dist::add_cpu(vcpu, thread);
+
+    if ((_redist_size >> Redist::Stride) < _cpu.size())
+      {
+        Err().printf("GICR mmio is too small for %u+ cpus: 0x%llx.\n",
+                     _cpu.size(), _redist_size);
+        L4Re::throw_error(-L4_EINVAL, "Setup GICv3 redistributor");
+      }
   }
 
   l4_uint32_t get_typer() const override
@@ -327,9 +335,9 @@ public:
   {
     cxx::Ref_ptr<Dist_v3> self(this);
     cxx::Ref_ptr<Redist> redist(&_redist);
-    l4_uint64_t base, size;
+    l4_uint64_t base;
 
-    int res = node.get_reg_val(1, &base, &size);
+    int res = node.get_reg_val(1, &base, &_redist_size);
     if (res < 0)
       {
         Err().printf("Failed to read 'reg[1]' from node %s: %s\n",
@@ -340,14 +348,7 @@ public:
     if (base & 0xffff)
       {
         Err().printf("%s: GICR mmio is not 64K aligned: <%llx, %llx>.\n",
-                     node.get_name(), base, size);
-        L4Re::throw_error(-L4_EINVAL, "Setup GICv3");
-      }
-
-    if ((size >> Redist::Stride) < _cpu.size())
-      {
-        Err().printf("%s: GICR mmio is too small for %u cpus: <%llx, %llx>.\n",
-                     node.get_name(), _cpu.size(), base, size);
+                     node.get_name(), base, _redist_size);
         L4Re::throw_error(-L4_EINVAL, "Setup GICv3");
       }
 
