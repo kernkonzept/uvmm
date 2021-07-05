@@ -283,12 +283,9 @@ register_msix_table_page(Pci_host_bridge::Hw_pci_device *hwdev, unsigned bir,
   auto region = Region(Guest_addr(table_addr), Guest_addr(table_end),
                        Vmm::Region_type::Vbus);
 
-  auto hdlr =
-    Vdev::Msix::make_virt_msix_table(std::move(con),
-                                     cxx::static_pointer_cast<Msi::Allocator>(
-                                       vbus),
-                                     vmm, hwdev->src_id(), max_msis,
-                                     msix_ctrl);
+  auto hdlr = make_device<Msix::Virt_msix_table>(
+      std::move(con), cxx::static_pointer_cast<Msi::Allocator>(vbus),
+      vmm->registry(), hwdev->src_id(), max_msis, msix_ctrl);
 
   warn.printf("Register MSI-X MMIO region: [0x%lx, 0x%lx]\n",
               region.start.get(), region.end.get());
