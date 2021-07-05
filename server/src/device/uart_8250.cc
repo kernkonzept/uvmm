@@ -393,4 +393,5 @@ struct F : Vdev::Factory
 }
 
 static F f;
-static Vdev::Device_type t = { "uart,8250", nullptr, &f };
+static Vdev::Device_type t1 = { "uart,8250", nullptr, &f };
+static Vdev::Device_type t2 = { "ns16550a", nullptr, &f };
