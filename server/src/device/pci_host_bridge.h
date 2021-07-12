@@ -9,9 +9,11 @@
 #include <l4/vbus/vbus>
 #include <l4/vbus/vbus_pci>
 #include <l4/vbus/vbus_interfaces.h>
+
 #include "virt_bus.h"
 #include "irq_svr.h"
 #include "guest.h"
+#include "pci_device.h"
 
 namespace Vdev { namespace Pci {
 
@@ -64,12 +66,14 @@ public:
     }
 
     void cfg_write(unsigned reg, l4_uint32_t value, Vmm::Mem_access::Width width)
+      override
     {
       L4Re::chksys(dev.cfg_write(reg, value, mem_access_to_bits(width)),
                    "PCI config space access: write\n");
     }
 
     void cfg_read(unsigned reg, l4_uint32_t *value, Vmm::Mem_access::Width width)
+      override
     {
       L4Re::chksys(dev.cfg_read(reg, value, mem_access_to_bits(width)),
                    "PCI config space access: read\n");
