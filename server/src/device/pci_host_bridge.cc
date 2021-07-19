@@ -325,10 +325,8 @@ bool Pci_host_bridge::Hw_pci_device::msi_cap_write(unsigned reg,
                 info().printf("MSI enabled: devid = 0x%x, ctrl = 0x%x\n",
                               dev_id, msi_cap.ctrl.raw);
                 l4_icu_msi_info_t msiinfo;
-                msi_src =
-                  parent->_msi_src_factory->configure_msi_route(msi_cap,
-                                                                src_id(),
-                                                                &msiinfo);
+                msi_src = parent->_msi_src_factory->configure_msi_route(
+                  msi_cap, parent->msix_dest(dev_id), src_id(), &msiinfo);
                 if (msi_src)
                   cfg_space_write_msi_cap(&msiinfo);
               }
@@ -432,7 +430,8 @@ void Pci_host_bridge::Hw_pci_device::setup_msix_table()
   unsigned bir = msix_cap.tbl.bir();
   if (bir < Pci_config_consts::Bar_num_max_type0)
     {
-      if (!parent->_msix_ctrl)
+      Gic::Msix_dest _msix_dest = parent->msix_dest(dev_id);
+      if (!_msix_dest.is_present())
         warn().printf(
           "No MSI-X controller available for MSI-X device %s (devid=%u).\n",
           dinfo.name, dev_id);
@@ -456,7 +455,7 @@ void Pci_host_bridge::Hw_pci_device::setup_msix_table()
 
       msix_table = make_device<Msix::Virt_msix_table>(
         std::move(con), cxx::static_pointer_cast<Msi::Allocator>(parent->_vbus),
-        parent->_vmm->registry(), src_id(), max_msis, parent->_msix_ctrl);
+        parent->_vmm->registry(), src_id(), max_msis, _msix_dest);
     }
   else
     warn().printf("Device %s (devid=%u) has invalid MSI-X bar: %u\n",

@@ -34,15 +34,15 @@ public:
    * `msi_index` defines the entry number in this list.
    */
   Msi_src(Vdev::Pci::Pci_msi_cap const &msi_cap, l4_uint32_t io_irq,
-          unsigned msi_index, cxx::Ref_ptr<Gic::Msix_controller> ctrl)
+          unsigned msi_index, Gic::Msix_dest const &msix_dest)
   : _msi_cap(msi_cap),
     _msi_index(msi_index),
-    _msix_ctrl(ctrl),
+    _msix_dest(msix_dest),
     _io_irq(io_irq)
   {}
 
   void handle_irq() const
-  { _msix_ctrl->send(_msi_cap.addr(), _msi_cap.data + _msi_index); }
+  { _msix_dest.send_msix(_msi_cap.addr(), _msi_cap.data + _msi_index); }
 
   l4_uint32_t io_irq() const
   { return _io_irq; }
@@ -50,7 +50,7 @@ public:
 private:
   Vdev::Pci::Pci_msi_cap const &_msi_cap;
   unsigned const _msi_index;
-  cxx::Ref_ptr<Gic::Msix_controller> const _msix_ctrl;
+  Gic::Msix_dest const _msix_dest;
   l4_uint32_t const _io_irq;
 };
 
@@ -58,9 +58,8 @@ class Msi_src_factory : public virtual Vdev::Dev_ref
 {
 public:
   Msi_src_factory(cxx::Ref_ptr<Vdev::Msi::Allocator> msi_alloc,
-                  L4Re::Util::Object_registry *registry,
-                  cxx::Ref_ptr<Gic::Msix_controller> const &msix_ctrl)
-  : _msi_alloc(msi_alloc), _registry(registry), _msix_ctrl(msix_ctrl)
+                  L4Re::Util::Object_registry *registry)
+  : _msi_alloc(msi_alloc), _registry(registry)
   {}
 
   void reset_msi_route(cxx::Ref_ptr<Msi_src> irq)
@@ -71,6 +70,7 @@ public:
   }
 
   cxx::Ref_ptr<Msi_src> configure_msi_route(Pci::Pci_msi_cap const &msi_cap,
+                                            Gic::Msix_dest const &msix_dest,
                                             l4_uint64_t src_id,
                                             l4_icu_msi_info_t *info)
   {
@@ -78,7 +78,7 @@ public:
       L4Re::chksys(_msi_alloc->alloc_msi(), "MSI vector allocation failed.");
 
     auto msi_src =
-      Vdev::make_device<Msi_src>(msi_cap, msi, 0, _msix_ctrl);
+      Vdev::make_device<Msi_src>(msi_cap, msi, 0, msix_dest);
 
     _registry->register_irq_obj(msi_src.get());
 
@@ -112,7 +112,6 @@ private:
 
   cxx::Ref_ptr<Vdev::Msi::Allocator> _msi_alloc;
   L4Re::Util::Object_registry *_registry;
-  cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;
 }; // class Msi_src_factory
 
 } } // namespace Vdev::Msi

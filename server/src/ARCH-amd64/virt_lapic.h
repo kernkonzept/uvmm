@@ -734,8 +734,9 @@ class Msix_control : public Msix_controller, public Vdev::Device
 public:
   Msix_control(cxx::Ref_ptr<Lapic_array> apics) : _apics(apics) {}
 
-  // Msix_controller interface
-  void send(l4_uint64_t msix_addr, l4_uint64_t msix_data) const override
+  /// Analyse the MSI-X message and send it to the specified local APIC.
+  void send(l4_uint64_t msix_addr, l4_uint64_t msix_data,
+            l4_uint32_t) const override
   {
     Vdev::Msix::Interrupt_request_compat addr(msix_addr);
     Vdev::Msix::Data_register_format data(msix_data);

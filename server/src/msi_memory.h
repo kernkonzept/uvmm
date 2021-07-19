@@ -32,20 +32,20 @@ class Msix_src
 {
 public:
   explicit Msix_src(Table_entry const *entry,
-                   cxx::Ref_ptr<Gic::Msix_controller> const &ctrl,
-                   l4_uint32_t io_irq)
-  : _entry(entry), _msix_ctrl(ctrl), _io_irq(io_irq)
+                    Gic::Msix_dest const &msix_dest,
+                    l4_uint32_t io_irq)
+  : _entry(entry), _msix_dest(msix_dest), _io_irq(io_irq)
   {}
 
   void handle_irq() const
-  { _msix_ctrl->send(_entry->addr, _entry->data); }
+  { _msix_dest.send_msix(_entry->addr, _entry->data); }
 
   l4_uint32_t io_irq() const
   { return _io_irq; }
 
 private:
   Table_entry const *_entry;
-  cxx::Ref_ptr<Gic::Msix_controller> const _msix_ctrl;
+  Gic::Msix_dest _msix_dest;
   l4_uint32_t const _io_irq;
 };
 
@@ -75,13 +75,13 @@ public:
                   L4Re::Util::Object_registry *registry,
                   l4_uint64_t src_id,
                   unsigned num_entries,
-                  cxx::Ref_ptr<Gic::Msix_controller> const &msix_ctrl)
+                  Gic::Msix_dest const &msix_dest)
   : _con(std::move(con)),
     _registry(registry),
     _msi_alloc(msi_alloc),
     _msi_irqs(num_entries),
     _src_id(src_id),
-    _msix_ctrl(msix_ctrl),
+    _msix_dest(msix_dest),
     _virt_table(cxx::make_unique<Table_entry[]>(num_entries))
   {}
 
@@ -225,7 +225,7 @@ private:
    */
   void configure_msix_route(unsigned idx)
   {
-    if (!_msix_ctrl)
+    if (!_msix_dest.is_present())
       {
         warn().printf("No MSI-X controller! Entry %u not routed to guest.\n",
                       idx);
@@ -248,7 +248,7 @@ private:
                    "Please increase the 'Property.num_msis' on vbus.");
 
     // allocate IRQ object and bind it to the ICU
-    auto msi_src = Vdev::make_device<Msix_src>(entry, _msix_ctrl, msi);
+    auto msi_src = Vdev::make_device<Msix_src>(entry, _msix_dest, msi);
     _registry->register_irq_obj(msi_src.get());
 
     long label = L4Re::chksys(_msi_alloc->icu()->bind(msi | L4_ICU_FLAG_MSI,
@@ -284,7 +284,7 @@ private:
   cxx::Ref_ptr<Vdev::Msi::Allocator> _msi_alloc;
   std::vector<cxx::Ref_ptr<Msix_src>> _msi_irqs;
   l4_uint64_t const _src_id;
-  cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;
+  Gic::Msix_dest _msix_dest;
   cxx::unique_ptr<Table_entry[]> _virt_table;
   std::mutex _mutex;
 }; // class Virt_msix_table

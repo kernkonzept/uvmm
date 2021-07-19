@@ -24,8 +24,8 @@ namespace Virtio {
 class Event_connector_msix
 {
 public:
-  Event_connector_msix(cxx::Ref_ptr<Gic::Msix_controller> const &distr)
-  : _distr(distr),
+  Event_connector_msix(Gic::Msix_dest const &msix_dest)
+  : _msix_dest(msix_dest),
     _msix_mem(make_ram_ds_handler(Vdev::Pci::Msix_mem_need,
                                   L4Re::Mem_alloc::Continuous))
   {}
@@ -41,7 +41,7 @@ public:
   {
     auto const *entry = msix_entry(idx);
     if (!entry->masked())
-      _distr->send(entry->addr, entry->data);
+      _msix_dest.send_msix(entry->addr, entry->data);
   }
 
   void clear_events(unsigned) {}
@@ -55,7 +55,7 @@ public:
   }
 
 private:
-  cxx::Ref_ptr<Gic::Msix_controller> _distr;
+  Gic::Msix_dest _msix_dest;
   cxx::Ref_ptr<Vmm::Ds_manager> _msix_mem;
 
   Vdev::Msix::Table_entry *msix_entry(l4_uint16_t idx) const

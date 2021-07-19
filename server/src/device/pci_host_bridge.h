@@ -45,7 +45,7 @@ public:
       _msi_src_factory = make_device<
         Vdev::Msi::Msi_src_factory>(cxx::static_pointer_cast<Msi::Allocator>(
                                       devs->vbus()),
-                                    devs->vmm()->registry(), msix_ctrl);
+                                    devs->vmm()->registry());
   }
 
   /**
@@ -326,9 +326,29 @@ public:
     return dev_id;
   }
 
-  cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl()
+  /**
+   * Return the virtual source ID for a PCI device registered on this host
+   * bridge.
+   *
+   * This default implementation returns the plain Requester ID (bus, device and
+   * function number). Derived implementations overriding this method might
+   * want to apply a mapping to the Requester ID.
+   */
+  virtual l4_uint32_t msi_vsrc_id(unsigned dev_id) const
   {
-    return _msix_ctrl;
+    // The Requester ID consists of the bus number, device number and function
+    // number. We do not support device function, therefore the following shift
+    // accounts for the 3 bits allocated for the function number.
+    return dev_id << 3;
+  }
+
+  /**
+   * Return the MSI-X destination for a PCI device registered on this host
+   * bridge.
+   */
+  Gic::Msix_dest msix_dest(unsigned dev_id) const
+  {
+    return Gic::Msix_dest(_msix_ctrl, msi_vsrc_id(dev_id));
   }
 
 private:

@@ -25,11 +25,11 @@ class Virtio_console_pci
 {
 public:
   Virtio_console_pci(Vmm::Vm_ram *ram, L4::Cap<L4::Vcon> con,
-                     cxx::Ref_ptr<Gic::Msix_controller> distr)
+                     Gic::Msix_dest const &msix_dest)
   : Virtio_console(ram, con),
     Virtio_device_pci<Virtio_console_pci>(),
     Virtio::Pci_connector<Virtio_console_pci>(),
-    _evcon(distr)
+    _evcon(msix_dest)
   {
   }
 
@@ -96,14 +96,15 @@ struct F : Factory
     if (!cap)
       return nullptr;
 
+    auto dev_id = pci->alloc_dev_id();
     auto vmm = devs->vmm();
     auto console = make_device<Virtio_console_pci>(devs->ram().get(), cap,
-                                                   pci->msix_ctrl());
+                                                   pci->msix_dest(dev_id));
 
     console->register_obj(vmm->registry());
     unsigned num_msix = 5;
     console->configure(regs, num_msix);
-    pci->register_device(console);
+    pci->register_device(console, dev_id);
 
     info().printf("Console: %p\n", console.get());
 
