@@ -48,8 +48,10 @@ public:
     Cpu *current_cpu = this->_cpu[vmm_current_cpu_id].get();
     if (irq < Cpu::Num_local)
       inject_irq_local(current_cpu->local_irq(irq), current_cpu);
-    else
+    else if (irq < GIC_IMPL::Lpi_base)
       inject_irq(this->spi(irq - Cpu::Num_local), current_cpu); // SPI
+    else
+      inject_irq(this->lpi(irq - GIC_IMPL::Lpi_base), current_cpu); // LPI
   }
 
   bool schedule_irqs(unsigned current_cpu) override

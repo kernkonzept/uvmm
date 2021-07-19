@@ -806,6 +806,7 @@ public:
 
   enum { Num_local = 32 };
   enum { Num_lrs = 4, Lr_mask = (1UL << Num_lrs) - 1U };
+  enum { Lpi_base = 8192 };
 
   static_assert(Num_lrs <= 32, "Can only handle up to 32 list registers.");
 
@@ -843,6 +844,9 @@ public:
   /// get the array of local IRQs of this CPU
   Irq_array &local_irqs() { return _local_irq; }
 
+  /// Set the array of GICv3+ LPIs.
+  void register_lpis(Irq_array *lpis) { _lpis = lpis; }
+
   /*
    * Get empty list register
    *
@@ -865,8 +869,10 @@ public:
   {
     if (intid < Num_local)
       return _local_irq[intid];
-    else
+    else if (intid < Lpi_base)
       return (*_spis)[intid - Num_local];
+    else
+      return (*_lpis)[intid - Lpi_base];
   }
 
   /// Get the associated vCPU
@@ -1018,6 +1024,9 @@ private:
 
   /// SPI IRQ array from distributor
   Irq_array *_spis;
+
+  /// GICv3+ LPI IRQ array
+  Irq_array *_lpis;
 
   /// The associated vCPU
   Vmm::Vcpu_ptr _vcpu = Vmm::Vcpu_ptr(nullptr);
@@ -1215,6 +1224,7 @@ public:
   using Irq = Cpu::Irq;
 
   enum { Num_local = 32 };
+  enum { Lpi_base = 8192 };
 
   enum Regs
   {
@@ -1230,7 +1240,8 @@ public:
   Dist(unsigned tnlines, unsigned max_cpus)
   : gicd_trace(Dbg::Irq, Dbg::Trace, "GICD"), ctlr(0), tnlines(tnlines),
     _cpu(max_cpus),
-    _spis(tnlines * 32, Num_local)
+    _spis(tnlines * 32, Num_local),
+    _lpis(nullptr)
   {
   }
 
@@ -1245,6 +1256,33 @@ public:
     assert (spi < _spis.size());
     return _spis[spi];
   }
+
+  void register_lpis(Irq_array *lpis)
+  {
+    // Ensure that once set, the LPI array cannot be changed.
+    if (_lpis)
+      L4Re::chksys(-L4_EEXIST, "Assigning LPIs to GIC");
+
+    _lpis = lpis;
+    for (auto const &cpu : _cpu)
+      {
+        if (cpu)
+          cpu->register_lpis(_lpis);
+      }
+  }
+
+  Irq &lpi(unsigned lpi)
+  {
+    assert (_lpis && lpi < _lpis->size());
+    return (*_lpis)[lpi];
+  }
+
+  Irq const &lpi(unsigned lpi) const
+  {
+    assert (_lpis && lpi < _lpis->size());
+    return (*_lpis)[lpi];
+  }
+
 
   /// \group Implementation of Ic functions
   /// \{
@@ -1321,6 +1359,7 @@ public:
                       cpu, &_cpu[cpu], *vcpu);
     _cpu.set_at(cpu, cxx::make_unique<Cpu>(vcpu, sentinel_vcpu, &_spis));
     Cpu *ret = _cpu[cpu].get();
+    ret->register_lpis(_lpis);
     if (cpu == 0)
       {
         _prio_mask = ~((1U << (7 - ret->vtr().pri_bits())) - 1U);
@@ -1352,10 +1391,10 @@ public:
   virtual l4_uint32_t iidr_read(unsigned offset) const = 0;
   /// \}
 
-protected:
   Cpu *cpu(unsigned id)
   { return id < _cpu.capacity() ? _cpu[id].get() : nullptr; }
 
+protected:
   /**
    * Check targets of SPIs and possibly divert them to a different vCPU.
    *
@@ -1704,6 +1743,8 @@ protected:
    * rarely, a single lock for all Irqs should suffice.
    */
   std::mutex _target_lock;
+
+  Irq_array *_lpis;
 };
 
 template<typename GIC_IMPL>

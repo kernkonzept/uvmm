@@ -214,6 +214,11 @@ config UVMM_VDEV_SEL_GIC_V3
 
 endchoice
 
+config UVMM_VDEV_GIC_ITS
+	bool "Emulate ITS in GICv3 to support MSIs"
+	depends on UVMM_VDEV_GIC_V3
+	default y
+
 endif
 
 endmenu
