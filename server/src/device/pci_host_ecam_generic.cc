@@ -372,6 +372,35 @@ struct F : Factory
       }
   }
 
+  /**
+   * Parse the MSI map and ensure that it describes an identity mapping targeted
+   * at a single MSI controller.
+   *
+   * The purpose of the MSI map is to map devices via their Requester ID
+   * (Bus number, Device number and Function number) to an MSI controller,
+   * optionally applying an offset to the Requester ID.
+   *
+   * For now we only support the simple case, where the map contains one entry
+   * that identity maps all requester IDs to a single MSI controller.
+   */
+  void parse_msi_map(Dt_node const &node)
+  {
+    int sz;
+    fdt32_t const *map = node.get_prop<fdt32_t>("msi-map", &sz);
+    if (!map)
+      // In the absence of an msi-map assume identity mapping of Requester IDs.
+      return;
+
+    if (sz != 4)
+      L4Re::chksys(-L4_EINVAL, "msi-map must have exactly one entry.");
+
+    unsigned rid_base = cpu_to_fdt32(map[0]);
+    unsigned msi_base = cpu_to_fdt32(map[2]);
+    if (rid_base != 0 || msi_base != 0)
+      L4Re::chksys(-L4_EINVAL,
+                   "msi-map must describe a zero-based identity mapping.");
+  }
+
   cxx::Ref_ptr<Device> create(Device_lookup *devs, Dt_node const &node) override
   {
     info().printf("Creating PCIe host bridge\n");
@@ -386,6 +415,8 @@ struct F : Factory
     // Parse the interrupt map once
     Interrupt_map irq_map;
     parse_interrupt_map(&irq_map, devs, node);
+
+    parse_msi_map(node);
 
     cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl;
     // MSI controller is optional

@@ -95,8 +95,9 @@ public:
    *
    * \param node  Node to find the MSI parent of.
    *
-   * \return  The node of the MSI parent or an invalid node, if the 'msi-parent'
-   *          property is not specified or references an invalid node.
+   * \return  The node of the MSI parent or an invalid node, if neither the
+   *          'msi-parent' nor the 'msi-map' property are specified or
+   *          reference an invalid node.
    *
    * \note  Currently, this function only returns the simple case of one
    *        referenced MSI parent node in the device tree.
@@ -105,13 +106,26 @@ public:
   {
     int size = 0;
     auto *prop = node.get_prop<fdt32_t>("msi-parent", &size);
+    if (prop)
+      {
+        if (size != 1)
+          L4Re::throw_error(
+            -L4_EINVAL, "The msi-parent property must be a single reference.");
 
-    if (size > 1)
-      L4Re::chksys(-L4_EINVAL,
-                   "MSI parent is a single reference without sideband data.");
+        return node.find_phandle(*prop);
+      }
 
-    return (prop && size > 0) ? node.find_phandle(*prop)
-                              : Vdev::Dt_node();
+    prop = node.get_prop<fdt32_t>("msi-map", &size);
+    if (prop)
+      {
+        if (size != 4)
+          L4Re::throw_error(
+            -L4_EINVAL, "The msi-map property must contain exactly one entry.");
+
+        return node.find_phandle(prop[1]);
+      }
+
+    return Vdev::Dt_node();
   }
 
   /**
