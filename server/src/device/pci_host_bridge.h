@@ -15,6 +15,7 @@
 #include "guest.h"
 #include "pci_device.h"
 #include "msi.h"
+#include "msi_controller.h"
 #include "address_space_manager_mode_if.h"
 
 namespace Vdev { namespace Pci {
@@ -226,6 +227,41 @@ protected:
         register_device(cxx::Ref_ptr<Pci_device>(h));
       }
   }
+
+  /**
+   * Set up management of the MSI-X table page.
+   *
+   * \param  hwdev      Device for which MSI-X table is to be set up.
+   * \param  bar        Index of the BAR containing the MSI-X table.
+   * \param  msix_ctrl  MSI-X controller responsible for the device.
+   */
+  void register_msix_table_page(
+    Pci_host_bridge::Hw_pci_device *hwdev, unsigned bir,
+    cxx::Ref_ptr<Gic::Msix_controller> const &msix_ctrl);
+
+  /**
+   * Register non-MSI-X table pages as pass-through MMIO regions.
+   *
+   * \param bar         BAR containing the MSI-X table.
+   * \param tbl_offset  Offset of the MSI-X table inside `bar`.
+   */
+  void register_msix_bar(Pci_cfg_bar const *bar, l4_addr_t tbl_offset);
+
+  /**
+   * If the device supports MSI-X, set up the BAR used for the MSI-X table.
+   *
+   * If the device supports MSI-X, but no MSI-X controller is supplied, the
+   * MSI-X table will not be mapped. However, the remainder of the BAR will be
+   * mapped anyway.
+   *
+   * \param  hwdev      Device for which MSI-X is to be set up.
+   * \param  msix_ctrl  MSI-X controller responsible for the device.
+   *
+   * \return The index of the BAR used for the MSI-X table if the device
+   *         supports MSI-X, otherwise Pci_config_consts::Bar_num_max_type0.
+   */
+  unsigned setup_msix_memory(
+    Hw_pci_device *hwdev, cxx::Ref_ptr<Gic::Msix_controller> const &msix_ctrl);
 
   virtual void init_dev_resources(Hw_pci_device *) = 0;
 

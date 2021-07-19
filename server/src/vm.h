@@ -56,6 +56,15 @@ public:
                             cxx::Ref_ptr<Gic::Ic> *ic_ptr) override;
 
   /**
+   * \see Device_lookup::get_or_create_mc(
+   *        Vdev::Dt_node const &node,
+   *        cxx::Ref_ptr<Gic::Msix_controller> *mc_ptr)
+   */
+  Mc_error
+  get_or_create_mc(Vdev::Dt_node const &node,
+                   cxx::Ref_ptr<Gic::Msix_controller> *mc_ptr) override;
+
+  /**
    * \see Device_lookup::get_or_create_mc_dev()
    */
   cxx::Ref_ptr<Gic::Msix_controller>

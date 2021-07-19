@@ -182,10 +182,57 @@ struct Device_lookup
   virtual Ic_error get_or_create_ic(Vdev::Dt_node const &node,
                                     cxx::Ref_ptr<Gic::Ic> *ic_ptr) = 0;
 
+  /// Result values for get_or_create_mc()
+  enum Mc_error
+  {
+    Mc_ok,             ///< There is a valid MSI parent device.
+    Mc_e_no_msiparent, ///< Node does not have an MSI parent property.
+    Mc_e_disabled,     ///< Node is disabled.
+    Mc_e_no_msictrl,   ///< Interrupt parent is not a virtual interrupt controller.
+    Mc_e_failed,       ///< Creation of an MSI parent failed.
+  };
+
+  /**
+   * Get a textual description for an Mc_error value.
+   *
+   * \param res  The error a textual description is looked for.
+   *
+   * \return Pointer to error string.
+   *
+   */
+  static const char *mc_err_str(Mc_error res)
+  {
+    char const *err[] = {
+        "ok",
+        "no MSI parent found",
+        "MSI parent node disabled"
+        "MSI parent is not an MSI controller",
+        "creation of MSI parent failed"
+    };
+    return (res < sizeof(err)/sizeof(err[0])) ? err[res] : "unknown error";
+  }
+
   /**
    * Get the virtual MSI controller device for a given node.
    *
-   * \param node   The device tree node to look for the MSI parent for.
+   * \param node         The device tree node to look up the MSI parent for.
+   * \param[out] mc_ptr  A pointer to the virtual device of the MSI parent
+   *                     if there is one.
+   *
+   * \retval Mc_ok              MSI parent was returned in mc_ptr.
+   * \retval Mc_e_no_msiparent  Node does not have an MSI parent property.
+   * \retval Mc_e_disabled      MSI parent node is disabled.
+   * \retval Mc_e_no_msictrl    MSI parent is not a virtual MSI controller.
+   * \retval Mc_e_failed        Creation of an MSI parent failed.
+   */
+  virtual Mc_error
+  get_or_create_mc(Vdev::Dt_node const &node,
+                   cxx::Ref_ptr<Gic::Msix_controller> *mc_ptr) = 0;
+
+  /**
+   * Get the virtual MSI controller device for a given node.
+   *
+   * \param node  The device tree node to look up the MSI parent for.
    *
    * \returns  A virtual MSI controller device or an exception is thrown.
    */

@@ -49,24 +49,47 @@ Vm::get_or_create_ic(Vdev::Dt_node const &node, cxx::Ref_ptr<Gic::Ic> *ic_ptr)
   return Ic_ok;
 }
 
-cxx::Ref_ptr<Gic::Msix_controller>
-Vm::get_or_create_mc_dev(Vdev::Dt_node const &node)
+Vdev::Device_lookup::Mc_error
+Vm::get_or_create_mc(Vdev::Dt_node const &node,
+                     cxx::Ref_ptr<Gic::Msix_controller> *mc_ptr)
 {
   Vdev::Dt_node msi_parent = find_msi_parent(node);
 
   if (!msi_parent.is_valid())
-    L4Re::chksys(-L4_EINVAL, "Node has an MSI parent.");
+    return Mc_e_no_msiparent;
+
+  if (!msi_parent.is_enabled())
+    return Mc_e_disabled;
 
   if (!Vdev::Factory::is_vdev(msi_parent))
-    L4Re::chksys(-L4_EINVAL, "MSI parent node is a device.");
+    return Mc_e_no_msictrl;
 
   auto dev = Vdev::Factory::create_dev(this, msi_parent);
-  auto msi_ctrl = cxx::dynamic_pointer_cast<Gic::Msix_controller>(dev);
+  if (!dev)
+    return Mc_e_failed;
 
-  if (!msi_ctrl)
-    L4Re::chksys(-L4_EINVAL, "MSI controller is the MSI parent of the device.");
+  auto mc = cxx::dynamic_pointer_cast<Gic::Msix_controller>(dev);
+  if (!mc)
+    return Mc_e_no_msictrl;
 
-  return msi_ctrl;
+  *mc_ptr = mc;
+  return Mc_ok;
+}
+
+cxx::Ref_ptr<Gic::Msix_controller>
+Vm::get_or_create_mc_dev(Vdev::Dt_node const &node)
+{
+  cxx::Ref_ptr<Gic::Msix_controller> mc;
+  Mc_error res = get_or_create_mc(node, &mc);
+  if (res == Mc_ok)
+    return mc;
+
+  Err().printf("%s: Failed to get MSI controller: %s\n",
+               node.get_name(), mc_err_str(res));
+
+  L4Re::throw_error(-L4_ENODEV, "Unable to locate MSI controller.");
+
+  return nullptr;
 }
 
 void

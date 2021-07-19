@@ -122,9 +122,12 @@ public:
     explicit Cfg_addr(l4_uint32_t r) : raw(r) {}
   };
 
-  explicit Pci_host_ecam_generic(Interrupt_map const &irq_map, Device_lookup *devs)
+  explicit Pci_host_ecam_generic(Interrupt_map const &irq_map,
+                                 Device_lookup *devs,
+                                 cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
   : Pci_host_bridge(devs),
-    _irq_map(irq_map)
+    _irq_map(irq_map),
+    _msix_ctrl(msix_ctrl)
   {
     register_device(cxx::Ref_ptr<Pci_device>(this));
     iterate_pci_root_bus();
@@ -224,9 +227,11 @@ private:
   {
     // Go through all resources of the PCI device and register them with the
     // memmap
+    int bir = setup_msix_memory(hwdev, _msix_ctrl);
+
     for (int i = 0; i < Pci_config_consts::Bar_num_max_type0; ++i)
       {
-        if (hwdev->bars[i].type == Pci_cfg_bar::Type::Unused
+        if (i == bir || hwdev->bars[i].type == Pci_cfg_bar::Type::Unused
             || hwdev->bars[i].type == Pci_cfg_bar::Type::IO)
           continue;
 
@@ -260,11 +265,15 @@ private:
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCIe ctl"); }
 private:
   Interrupt_map const _irq_map;
+  /// MSI-X controller responsible for the devices of this PCIe host bridge,
+  /// may be nullptr since MSI-X support is an optional feature.
+  cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;
 };
 
 struct F : Factory
 {
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCIe ctl"); }
+  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCIe ctl"); }
 
   /*
    * Parses the interrupt map and create an internal representation.
@@ -378,7 +387,15 @@ struct F : Factory
     Interrupt_map irq_map;
     parse_interrupt_map(&irq_map, devs, node);
 
-    auto dev = make_device<Pci_host_ecam_generic>(irq_map, devs);
+    cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl;
+    // MSI controller is optional
+    Device_lookup::Mc_error res = devs->get_or_create_mc(node, &msix_ctrl);
+    if (res != Device_lookup::Mc_ok && res != Device_lookup::Mc_e_no_msiparent)
+      warn().printf(
+        "PCIe host bridge %s refers to invalid MSI controller: %s\n",
+        node.get_name(), Device_lookup::mc_err_str(res));
+
+    auto dev = make_device<Pci_host_ecam_generic>(irq_map, devs, msix_ctrl);
     devs->vmm()->register_mmio_device(dev, Vmm::Region_type::Virtual, node);
 
     info().printf("Created & registered the PCIe host bridge\n");
