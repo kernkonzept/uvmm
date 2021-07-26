@@ -53,6 +53,7 @@ SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                ARCH-amd64/acpi_timer.cc ARCH-amd64/zeropage.cc
 
 SRC_CC-amd64-$(CONFIG_UVMM_EXTERNAL_RTC) += ARCH-amd64/l4rtc.cc
+SRC_CC-amd64-$(CONFIG_UVMM_VDEV_DEVICE_FRAMEBUFFER) += ARCH-amd64/framebuffer.cc
 
 SRC_CC-arm-$(CONFIG_UVMM_VDEV_PSCI)   += device/arm/psci.cc
 SRC_CC-arm64-$(CONFIG_UVMM_VDEV_PSCI) += device/arm/psci.cc

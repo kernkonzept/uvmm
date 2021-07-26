@@ -52,6 +52,12 @@ void Zeropage::add_dtb(l4_addr_t dt_addr, l4_size_t size)
   _dtb_size = size;
 }
 
+void Zeropage::set_screen_callback(std::function<void (void *)> cb)
+{
+  assert(!_screen_cb);
+  _screen_cb = cb;
+}
+
 void Zeropage::write(Vm_ram *ram, Binary_type const gt)
 {
   memset(ram->guest2host<void *>(_gp_addr), 0, L4_PAGESIZE);
@@ -120,6 +126,10 @@ void Zeropage::write(Vm_ram *ram, Binary_type const gt)
   set_header<l4_uint8_t>(ram, Bp_loadflags,
                          get_header<l4_uint8_t>(ram, Bp_loadflags)
                          | Bp_loadflags_keep_segments_bit);
+
+  // add screen info if necessary
+  if (_screen_cb)
+    _screen_cb(ram->guest2host<void *>(addr()));
 }
 
 void Zeropage::add_e820_entry(l4_uint64_t addr, l4_uint64_t size, l4_uint32_t type)
@@ -179,4 +189,6 @@ void Zeropage::write_dtb(Vm_ram *ram)
   // sd->data is the first DT byte.
   add_setup_data(ram, sd, _dtb_boot_addr - sd_hdr_size);
 }
+
+std::function<void (void *)> Zeropage::_screen_cb;
 }

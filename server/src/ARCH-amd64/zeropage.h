@@ -1,6 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
- * Copyright (C) 2017 Kernkonzept GmbH.
+ * Copyright (C) 2017,2021 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
+ *            Jean Wolter <jean.wolter@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
@@ -8,6 +10,7 @@
 #pragma once
 
 #include <l4/sys/types.h>
+#include <functional>
 
 #include "debug.h"
 #include "vm_ram.h"
@@ -129,6 +132,7 @@ public:
    */
   void add_dtb(l4_addr_t dt_addr, l4_size_t size);
 
+  static void set_screen_callback(std::function<void (void *)> cb);
   void write(Vm_ram *ram, Binary_type const gt);
 
   Vmm::Guest_addr addr() const { return _gp_addr; }
@@ -137,6 +141,8 @@ public:
   { return get_header<l4_uint32_t>(ram, Bp_code32_start); }
 
 private:
+  static std::function<void (void *)> _screen_cb;
+
   static Dbg trace() { return Dbg(Dbg::Core, Dbg::Trace); }
   static Dbg info() { return Dbg(Dbg::Core, Dbg::Info); }
 

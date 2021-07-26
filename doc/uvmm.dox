@@ -250,6 +250,42 @@
  * block device support to work. In the Linux kernel configuration add:
  *      CONFIG_BLK_DEV_RAM=y
  *
+ * Framebuffer support for uvmm/amd64 guests
+ * -----------------------------------------
+ * Uvmm can be instructed to pass along a framebuffer to the Linux guest. To
+ * enable this three things need to be done:
+ *
+ * 1. Configure Linux to support a simple framebuffer by enabling
+ *      CONFIG_FB_SIMPLE=y
+ *      CONFIG_X86_SYSFB=y
+ *
+ * 2. Configure a simple framebuffer device in the device tree (currently only
+ *    read by uvmm, linearer framebuffer at [0xf0000000 - 0xf1000000])
+ *
+ *      simplefb {
+ *            compatible = "simple-framebuffer";
+ *            reg = <0x0 0xf0000000 0x0 0x1000000>;
+ *            l4vmm,cap = "fb";
+ *      };
+ *
+ * 3. Start a framebuffer instance and connect it to uvmm e.g.
+ *      -- Start fb-drv (but only if we need to)
+ *      local fbdrv_fb = L4.Env.vesa;
+ *      if (not fbdrv_fb) then
+ *        fbdrv_fb = l:new_channel();
+ *        l:start({
+ *                 caps = {
+ *                   vbus = io_busses.fbdrv,
+ *                   fb   = fbdrv_fb:svr(),
+ *                 },
+ *                 log = { "fbdrv", "r" },
+ *               },
+ *               "rom/fb-drv");
+ *      end
+ *      vmm.start_vm{
+ *        ext_caps = { fb = fbdrv_fb },
+ *      -- ...
+ *
  * Recommended Linux configuration options for uvmm/amd64 guests
  * -------------------------------------------------------------
  *
