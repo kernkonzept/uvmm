@@ -351,6 +351,59 @@
  *
  * uvmm does currently not support AMD-V.
  *
+ * QEMU network setup for a uvmm guest on amd64
+ * --------------------------------------------
+ *
+ * qemu-system-x86_64 -M q35 -cpu host -enable-kvm  -device intel-iommu
+ *                    -device e1000e,netdev=net0 -netdev bridge,id=net0,br=virbr0
+ *
+ * where 'virbr0' is the name of the host's bridge device. The line 'allow
+ * virbr0' needs to be present in /etc/qemu/bridge.conf.
+ * The bridge can either be created via the network manager or via the command
+ * line:
+ *
+ *     brctl addbr virbr0
+ *     ip addr add 192.168.124.1/24 dev virbr0
+ *     ip link set up dev virbr0
+ *
+ * In the guest linux with eth0 as network device:
+ *
+ *     ip a a 192.168.124.5/24 dev eth0
+ *     ip li se up dev eth0
+ *
+ * Now the host and guest can ping each other using their respective IPs.
+ *
+ * Of course, uvmm needs to be connected to Io and Io needs a vbus
+ * configuration for the uvmm client like this:
+ *
+ *     Io.add_vbusses
+ *     {
+ *       vm_pci = Io.Vi.System_bus(function ()
+ *         Property.num_msis = 6
+ *         PCI = Io.Vi.PCI_bus(function ()
+ *           pci_net = wrap(Io.system_bus():match("PCI/CC_0200"))
+ *         end)
+ *       end)
+ *     }
+ *
+ * QEMU emulated VirtIO devices and IO-MMU on amd64
+ * ------------------------------------------------
+ *
+ * QEMU does not route VirtIO devices through the IO-MMU per default. To use
+ * QEMU emulated VirtIO devices add the
+ * `disable-legacy=on,disable-modern=off,iommu_platform=on` flags to the option
+ * list of the device.
+ * The e1000e card in the network example above can be replaced with an
+ * virtio-net-pci card like this:
+ *
+ *     -device virtio-net-pci,disable-legacy=on,disable-modern=off,
+ *             iommu_platform=on,netdev=net0
+ *
+ * For more information on VirtIO devices and their options see
+ * https://wiki.qemu.org/Features/VT-d.
+ *
+ *
+ *
  * Using the uvmm monitor interface
  * --------------------------------
  *
@@ -429,4 +482,5 @@
  *
  * \note When using SMP, most guest debugger subcommands require you to
  *       explicitly specify a guest vcpu using an index starting from zero.
+ *
  */
