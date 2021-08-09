@@ -40,6 +40,8 @@ public:
 
   Guest();
 
+  static bool fault_mode_supported(Fault_mode mode);
+
   void setup_device_tree(Vdev::Device_tree) {}
 
   l4_addr_t load_linux_kernel(Vm_ram *ram, char const *kernel,
@@ -128,6 +130,9 @@ public:
 
   void handle_ex_regs_exception(Vcpu_ptr vcpu);
 
+  bool inject_abort(Vcpu_ptr vcpu, bool inst, l4_addr_t addr);
+  bool inject_undef(Vcpu_ptr vcpu);
+
   using Sys_reg = Vmm::Arm::Sys_reg;
 
   cxx::Weak_ptr<Sys_reg> sys_reg(Sys_reg::Key k)
@@ -162,6 +167,9 @@ public:
     // op0 == 3 -> cp15, op0 == 2 -> cp14
     add_sys_reg_aarch32(op0 + 12, op1, crn, crm, op2, r);
   }
+
+protected:
+  bool inject_abort(l4_addr_t addr, Vcpu_ptr vcpu) override;
 
 private:
 

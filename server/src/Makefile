@@ -66,6 +66,12 @@ SRC_CC-$(CONFIG_VDEV_DEVICE_PROXY) += device/virtio_device_proxy.cc
 SRC_CC-arm-$(CONFIG_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_ecam_generic.cc
 SRC_CC-arm64-$(CONFIG_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_ecam_generic.cc
 
+ifeq ($(CONFIG_FAULT_INJECT),y)
+SRC_CC-arm-common += ARCH-$(ARCH)/guest_arm_exc.cc
+else
+SRC_CC-arm-common += arm/guest_arm_noexc.cc
+endif
+
 ifeq ($(ARCH),mips)
 SRC_CC        += ARCH-$(ARCH)/guest_entry.cc
 CXXFLAGS_guest_entry.cc = -msoft-float

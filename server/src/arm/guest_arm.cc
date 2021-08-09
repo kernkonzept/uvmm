@@ -527,7 +527,8 @@ guest_unknown_fault(Vcpu_ptr vcpu)
 {
   Err().printf("unknown trap: err=%lx ec=0x%x ip=%lx lr=%lx\n",
                vcpu->r.err, (int)vcpu.hsr().ec(), vcpu->r.ip, vcpu.get_lr());
-  guest->halt_vm();
+  if (!guest->inject_undef(vcpu))
+    guest->halt_vm();
 }
 
 static void
@@ -543,6 +544,14 @@ guest_memory_fault(Vcpu_ptr vcpu)
       guest->halt_vm();
       break;
     }
+}
+
+bool
+Vmm::Guest::inject_abort(l4_addr_t addr, Vcpu_ptr vcpu)
+{
+  // Inject an instruction abort?
+  bool inst = vcpu.hsr().ec() == Hsr::Ec_iabt_low;
+  return inject_abort(vcpu, inst, addr);
 }
 
 void

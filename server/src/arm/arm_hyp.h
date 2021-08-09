@@ -24,6 +24,20 @@ public:
 
   l4_uint32_t raw() const { return _raw; }
 
+  enum Fsc
+  {
+    Fsc_sync_ext_abt = 0x10,
+  };
+
+  enum Ec
+  {
+    Ec_unknown  = 0x0,
+    Ec_iabt_low = 0x20,
+    Ec_iabt_cur = 0x21,
+    Ec_dabt_low = 0x24,
+    Ec_dabt_cur = 0x25,
+  };
+
   CXX_BITFIELD_MEMBER(26, 31, ec, _raw);
   CXX_BITFIELD_MEMBER(25, 25, il, _raw);
   CXX_BITFIELD_MEMBER(24, 24, cv, _raw);
@@ -89,6 +103,11 @@ public:
   CXX_BITFIELD_MEMBER( 7,  7, pf_s1ptw, _raw);
   CXX_BITFIELD_MEMBER( 6,  6, pf_write, _raw);
   CXX_BITFIELD_MEMBER( 0,  5, pf_fsc, _raw);
+};
+
+enum Ttbcr
+{
+  Ttbcr_eae = 1UL << 31,
 };
 
 namespace Gic_h {
