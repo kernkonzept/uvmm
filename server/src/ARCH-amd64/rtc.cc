@@ -179,6 +179,7 @@ class Rtc : public Vmm::Io_device, public Vdev::Device
     return ret;
   }
 
+public:
   /* IO write from the guest to device */
   void io_out(unsigned port, Vmm::Mem_access::Width, l4_uint32_t value) override
   {
@@ -213,14 +214,13 @@ class Rtc : public Vmm::Io_device, public Vdev::Device
       };
   }
 
-public:
-  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "RTC"); }
-  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "RTC"); }
-  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "RTC"); }
-
   ~Rtc()
   { L4rtc_hub::destroy(); }
 
+private:
+  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "RTC"); }
+  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "RTC"); }
+  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "RTC"); }
 };
 
 } // namespace Vdev
