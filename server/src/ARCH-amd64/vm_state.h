@@ -14,11 +14,17 @@ namespace Vmm {
 class Vm_state
 {
 public:
+  enum class Type { Vmx, Svm };
+
   virtual ~Vm_state() = 0;
+
+  virtual Type type() const = 0;
 
   virtual void init_state() = 0;
   virtual void setup_linux_protected_mode(l4_addr_t entry) = 0;
   virtual void setup_real_mode(l4_addr_t entry) = 0;
+
+  virtual void reinject_event_after_vmexit() = 0;
 
   virtual l4_umword_t ip() const = 0;
   virtual l4_umword_t sp() const = 0;
@@ -26,11 +32,21 @@ public:
   virtual l4_umword_t cr3() const = 0;
   virtual bool interrupts_enabled() const = 0;
 
+  virtual bool is_halted() const = 0;
+  virtual void halt() = 0;
+  virtual void resume() = 0;
+
   virtual void jump_instruction() = 0;
+  virtual bool can_inject_interrupt() const = 0;
   virtual void inject_interrupt(unsigned vec) = 0;
+  virtual void inject_nmi() = 0;
 
   virtual void disable_interrupt_window() = 0;
   virtual void enable_interrupt_window() = 0;
+
+  virtual bool can_inject_nmi() const = 0;
+  virtual void disable_nmi_window() = 0;
+  virtual void enable_nmi_window() = 0;
 
   virtual bool read_msr(unsigned msr, l4_uint64_t *value) const = 0;
   virtual bool write_msr(unsigned msr, l4_uint64_t value) = 0;

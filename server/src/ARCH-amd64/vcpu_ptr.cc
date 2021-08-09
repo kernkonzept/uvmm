@@ -8,6 +8,7 @@
 #include <l4/util/cpu.h>
 
 #include "vcpu_ptr.h"
+#include "vm_state_svm.h"
 #include "vm_state_vmx.h"
 #include "pt_walker.h"
 #include "mad.h"
@@ -16,16 +17,20 @@
 namespace Vmm {
 
 void
-Vcpu_ptr::create_state(Vcpu_ptr::Vm_state_t type)
+Vcpu_ptr::create_state(Vm_state::Type type)
 {
-  if (type == Vm_state_t::Vmx)
+  if (type == Vm_state::Type::Vmx)
     _s->user_data[Reg_vmm_type] =
       reinterpret_cast<l4_umword_t>(new Vmx_state(extended_state()));
+  else if(type == Vm_state::Type::Svm)
+    _s->user_data[Reg_vmm_type] =
+      reinterpret_cast<l4_umword_t>(new Svm_state(extended_state()));
+
   else
     throw L4::Runtime_error(-L4_ENOSYS, "Unsupported HW virtualization type.");
 }
 
-Vcpu_ptr::Vm_state_t
+Vm_state::Type
 Vcpu_ptr::determine_vmm_type()
 {
   if (!l4util_cpu_has_cpuid())
@@ -36,9 +41,29 @@ Vcpu_ptr::determine_vmm_type()
   l4util_cpu_cpuid(0, &ax, &bx, &cx, &dx);
 
   if (bx == 0x756e6547 && cx == 0x6c65746e && dx == 0x49656e69)
-    return Vm_state_t::Vmx;
+    return Vm_state::Type::Vmx;
+  // AuthenticAMD
   else if (bx == 0x68747541 && cx == 0x444d4163 && dx == 0x69746e65)
-    return Vm_state_t::Svm;
+    {
+      warn().printf(">>> CAUTION: Support for AMD SVM is experimental, use at your own risk! <<<\n");
+
+      // Check if the SVM features we need are present.
+      l4util_cpu_cpuid(0x8000000a, &ax, &bx, &cx, &dx);
+
+      if (!(dx & Svm_state::Cpuid_svm_feature_nrips))
+        L4Re::throw_error(-L4_ENOSYS,
+                          "SVM does not support next_rip save. Aborting!\n");
+
+      // It should be safe to assume that the decode assists feature is
+      // present, since all modern AMD CPUs (starting with Bulldozer)
+      // implement it. However, QEMU or rather KVM-based nested virtualization
+      // does not report that the feature is present (see svm_set_cpu_caps()),
+      // but still provides decode assist information, e.g. for writes to CR0.
+      if (!(dx & Svm_state::Cpuid_svm_feature_decode_assists))
+        warn().printf("Platform does not support SVM decode assists (misreported on QEMU).\n");
+
+      return Vm_state::Type::Svm;
+    }
   else
     throw L4::Runtime_error(-L4_ENOSYS, "Platform not supported. Aborting!\n");
 }
@@ -164,8 +189,6 @@ Vcpu_ptr::reset(bool protected_mode)
   else
     vm_state()->setup_real_mode(_s->r.ip);
 
-  // TODO If SVM is implemented, we need to branch here for the Vm_state_t
-  // to use the correct handle_exit_* function.
-  Guest::get_instance()->run_vmx(*this);
+  Guest::get_instance()->run_vm(*this);
 }
 } // namespace Vmm

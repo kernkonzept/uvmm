@@ -52,7 +52,8 @@ SRC_CC_amd64-l4f = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                    ARCH-amd64/kvm_clock.cc \
                    ARCH-amd64/legacy_pic.cc ARCH-amd64/acpi_platform.cc \
                    ARCH-amd64/acpi_timer.cc ARCH-amd64/zeropage.cc \
-                   ARCH-amd64/io_port_handler_l4util.cc
+                   ARCH-amd64/io_port_handler_l4util.cc \
+                   ARCH-amd64/vm_state_svm.cc
 
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_DEVICE_FRAMEBUFFER) += ARCH-amd64/framebuffer.cc
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_ISA_DEBUG_PORT) += ARCH-amd64/isa_debugport.cc

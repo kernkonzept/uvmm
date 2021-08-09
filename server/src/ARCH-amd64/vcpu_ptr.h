@@ -28,8 +28,6 @@ public:
   static_assert(Reg_ucode_rev >= Reg_must_be_last_before_ucode,
                 "Last user data register is reserved for microcode revision.");
 
-  enum class Vm_state_t { Vmx, Svm };
-
   explicit Vcpu_ptr(l4_vcpu_state_t *s) : Generic_vcpu_ptr(s)
   {
     if (s)
@@ -68,8 +66,8 @@ private:
     return (void *)(((char *)_s) + L4_VCPU_OFFSET_EXT_STATE);
   }
 
-  Vm_state_t determine_vmm_type();
-  void create_state(Vm_state_t type);
+  Vm_state::Type determine_vmm_type();
+  void create_state(Vm_state::Type type);
   l4_umword_t *decode_reg_ptr(int value) const;
 
 }; // class Vcpu_ptr

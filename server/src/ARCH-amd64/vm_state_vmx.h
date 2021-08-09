@@ -161,6 +161,9 @@ public:
   Vmx_state(void *vmcs) : _vmcs(vmcs) {}
   ~Vmx_state() = default;
 
+  Type type() const override
+  { return Type::Vmx; }
+
   void set_activity_state(Activity_state s)
   { vmx_write(VMCS_GUEST_ACTIVITY_STATE, s); }
 
@@ -360,6 +363,13 @@ public:
     vmx_write(VMCS_CR4_GUEST_HOST_MASK, ~0ULL);
   }
 
+  void reinject_event_after_vmexit() override
+  {
+    Vmx_state::Idt_vectoring_info vinfo = idt_vectoring_info();
+    if (vinfo.valid())
+      inject_event(vinfo);
+  }
+
   Exit exit_reason() const
   {
     return Exit(vmx_read(VMCS_EXIT_REASON) & 0xffffU);
@@ -383,6 +393,21 @@ public:
 #endif
       default: return 0;
     }
+  }
+
+  bool is_halted() const override
+  {
+    return activity_state() == Activity_state::Halt;
+  }
+
+  void halt() override
+  {
+    set_activity_state(Vmx_state::Activity_state::Halt);
+  }
+
+  void resume() override
+  {
+    set_activity_state(Vmx_state::Activity_state::Active);
   }
 
   bool interrupts_enabled() const override
@@ -410,7 +435,7 @@ public:
    *
    * \return true  iff we can inject in an interrupt into the guest
    */
-  bool can_inject_interrupt() const
+  bool can_inject_interrupt() const override
   {
     return interrupts_enabled() && !event_injected()
            && activity_state() < Activity_state::Shutdown;
@@ -430,21 +455,21 @@ public:
                 | Int_window_exit_bit);
   }
 
-  bool can_inject_nmi() const
+  bool can_inject_nmi() const override
   {
     return vmx_read(VMCS_GUEST_INTERRUPTIBILITY_STATE) == 0
            && !event_injected()
            && activity_state() < Activity_state::Shutdown;
   }
 
-  void disable_nmi_window()
+  void disable_nmi_window() override
   {
     vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
                 & ~Nmi_window_exit_bit);
   }
 
-  void enable_nmi_window()
+  void enable_nmi_window() override
   {
     vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
@@ -555,7 +580,7 @@ public:
     inject_event(irq, Int_type::External_interrupt);
   }
 
-  void inject_nmi()
+  void inject_nmi() override
   {
     using Int_type = Vmx_int_info_field::Int_type;
     inject_event(2, Int_type::NMI);

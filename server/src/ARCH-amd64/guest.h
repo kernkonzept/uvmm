@@ -152,7 +152,7 @@ public:
   int handle_io_access(unsigned port, bool is_in, Mem_access::Width op_width,
                        l4_vcpu_regs_t *regs);
 
-  void run_vmx(Vcpu_ptr vcpu) L4_NORETURN;
+  void run_vm(Vcpu_ptr vcpu) L4_NORETURN;
 
 private:
   enum : unsigned
@@ -161,6 +161,7 @@ private:
   };
 
   int handle_exit_vmx(Vcpu_ptr vcpu);
+  int handle_exit_svm(Vcpu_ptr vcpu);
 
   unsigned get_max_physical_address_bit() const
   {
