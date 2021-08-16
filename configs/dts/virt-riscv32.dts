@@ -1,0 +1,6 @@
+/dts-v1/;
+
+/include/ "skeleton.dtsi"
+
+#define RISCV_ISA "rv32imafd"
+#include "virt-riscv.dtsi"

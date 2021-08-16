@@ -1,5 +1,5 @@
 config UVMM_SUPPORTED
-	def_bool BUILD_ARCH_arm64 || BUILD_ARCH_arm || BUILD_ARCH_amd64 || BUILD_ARCH_mips
+	def_bool BUILD_ARCH_arm64 || BUILD_ARCH_arm || BUILD_ARCH_amd64 || BUILD_ARCH_mips || BUILD_ARCH_riscv
 
 comment "uvmm is not supported on this architecture"
 	depends on !UVMM_SUPPORTED

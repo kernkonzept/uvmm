@@ -3,7 +3,7 @@ L4DIR  ?= $(PKGDIR)/../..
 
 include $(L4DIR)/mk/Makeconf
 
-SYSTEMS         = arm-l4f mips-l4f arm64-l4f amd64-l4f
+SYSTEMS         = arm-l4f mips-l4f arm64-l4f amd64-l4f riscv-l4f
 TARGET          = uvmm
 VARIANTS        = nofpu
 
@@ -40,6 +40,10 @@ SRC_CC_arm-l4f   = $(SRC_CC_arm-common) $(SRC_CC_arm-common-y)
 SRC_CC_arm64-l4f = $(SRC_CC_arm-common) $(SRC_CC_arm-common-y)
 SRC_CC_mips-l4f  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc \
                    io_port_handler_noop.cc
+SRC_CC_riscv-l4f = ARCH-riscv/guest.cc ARCH-riscv/sbi.cc \
+                   ARCH-riscv/virtual_timer.cc ARCH-riscv/vcpu_ic.cc \
+                   ARCH-riscv/plic.cc io_port_handler_noop.cc \
+                   ARCH-riscv/binary_loader_linux.cc
 SRC_CC_amd64-l4f = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                    ARCH-amd64/rtc.cc ARCH-amd64/virt_lapic.cc \
                    ARCH-amd64/ioapic.cc \
@@ -105,6 +109,16 @@ SRC_CC        += ARCH-$(ARCH)/guest_entry.cc
 CXXFLAGS_guest_entry.cc = -msoft-float
 
 LDFLAGS       += --no-warn-mismatch
+endif
+
+ifeq ($(ARCH),riscv)
+# Prevent the compiler from assembling instructions that use the floating-point
+# registers (Limitation: does not apply to libraries we link against).
+# But this option will alert us in case we add floating point instructions to
+# uvmm or the RISC-V compiler should start to use FPU state automatically, such
+# as for optimization purposes.
+# uvmm then must save and restore the fpu in the entry handler.
+CXXFLAGS      += -Wa,-march=$(subst d,,$(subst f,,$(CPU)))
 endif
 
 PRIVATE_INCDIR  = $(SRC_DIR)/../include $(SRC_DIR) $(SRC_DIR)/ARCH-$(ARCH)

@@ -1,0 +1,77 @@
+/**
+ * Device tree for purely virtual guests on the RISC-V architecture.
+ *
+ * Expects the RISCV_ISA macro to be defined when being included.
+ */
+
+/include/ "vmm-devices-riscv.dtsi"
+/include/ "syscon.dtsi"
+
+#define CPU(x)  cpu##x: cpu@x {                            \
+                    device_type = "cpu";                   \
+                    reg = <x>;                             \
+                    status = "okay";                       \
+                    compatible = "riscv";                  \
+                    riscv,isa = RISCV_ISA;                 \
+                                                           \
+                    cpu##x##_intc: interrupt-controller {  \
+                        #interrupt-cells = <0x01>;         \
+                        interrupt-controller;              \
+                        compatible = "riscv,cpu-intc";     \
+                    };                                     \
+                }
+
+#define EXT_INT_AT_CPU(x)  &cpu##x##_intc 0x09
+
+/ {
+    #address-cells = <2>;
+    #size-cells = <2>;
+
+    model = "L4 VM";
+    compatible = "l4,virt", "linux,dummy-virt";
+
+    chosen {
+        stdout-path = "uart0";
+    };
+
+    cpus {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        /* NOTE: If a CPU(n) is added here, a corresponding EXT_INT_AT_CPU(n)
+                 must be added to interrupts-extended in the PLIC below. */
+        CPU(0);
+        CPU(1);
+        CPU(2);
+        CPU(3);
+    };
+
+    soc {
+        #address-cells = <0x01>;
+        #size-cells = <0x01>;
+        compatible = "simple-bus";
+        ranges = <0x0  0x0 0x0  0xffffffff>;
+
+        /* Platform-Level Interrupt Controller (PLIC) */
+        gic: interrupt-controller@c000000 {
+          reg = <0xc000000 0x4000000>;
+          /* PLIC triggers external interrupt at interrupt controller of CPUs. */
+          interrupts-extended = <EXT_INT_AT_CPU(0)
+                                 EXT_INT_AT_CPU(1)
+                                 EXT_INT_AT_CPU(2)
+                                 EXT_INT_AT_CPU(3)
+                                >;
+          interrupt-controller;
+          compatible = "riscv,plic0";
+          #interrupt-cells = <0x01>;
+          #address-cells = <0x00>;
+        };
+    };
+
+    l4vmm {
+        ranges = <0x0  0x0 0x30000000  0x21000>;
+    };
+    vmm-syscon {
+        ranges = <0x0  0x0 0x30030000  0x4>;
+    };
+};
