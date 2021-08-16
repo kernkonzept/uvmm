@@ -237,6 +237,49 @@ struct Pci_msix_cap : Pci_cap
 static_assert(sizeof(Pci_msix_cap) == 12,
               "Pci_msix_cap size conforms to specification.");
 
+/// MSI capability for PCI
+struct Pci_msi_cap : Pci_cap
+{
+  enum : l4_uint8_t { Cap_id = Cap_ident::Msi };
+
+  Pci_msi_cap() : Pci_cap(Cap_id) {}
+
+  struct
+  {
+    l4_uint16_t raw;
+    CXX_BITFIELD_MEMBER(8, 8, per_vector_masking, raw);
+    CXX_BITFIELD_MEMBER(7, 7, sixtyfour, raw);
+    CXX_BITFIELD_MEMBER(4, 6, multiple_message_enable, raw);
+    CXX_BITFIELD_MEMBER(1, 3, multiple_message_capable, raw);
+    CXX_BITFIELD_MEMBER(0, 0, msi_enable, raw);
+  } ctrl;
+
+  l4_uint32_t address;
+  l4_uint16_t data;
+  // optional, depends on ctrl.sixtyfour()
+  l4_uint32_t upper_address;
+  unsigned offset; // the offset into the devices config space
+
+  l4_uint64_t addr() const
+  {
+    l4_uint64_t addr = address;
+    if (ctrl.sixtyfour())
+      addr |= static_cast<l4_uint64_t>(upper_address) << 32;
+    return addr;
+  }
+
+  unsigned cap_end() const
+  {
+    if (ctrl.sixtyfour() && ctrl.per_vector_masking())
+      return offset + 0x18;
+    if (ctrl.sixtyfour())
+      return offset + 0xe;
+    if (ctrl.per_vector_masking())
+      return offset + 0x14;
+    return offset + 0xa;
+  }
+};
+
 union alignas(l4_addr_t) Pci_header
 {
   l4_uint8_t byte[Pci_header_size];
@@ -464,11 +507,28 @@ struct Pci_device : public virtual Vdev::Dev_ref
     has_msix = true;
   }
 
+  void parse_msi_cap()
+  {
+    unsigned msi_cap_addr = get_capability(Cap_ident::Msi);
+    if (!msi_cap_addr)
+      return;
+
+    msi_cap.offset = msi_cap_addr;
+
+    l4_uint32_t ctrl = 0;
+    cfg_read(msi_cap_addr + 2, &ctrl, Vmm::Mem_access::Wd16);
+    msi_cap.ctrl.raw = static_cast<l4_uint16_t>(ctrl);
+
+    // Disable multi MSI, as we don't support it, yet.
+    msi_cap.ctrl.multiple_message_capable() = 0;
+
+    has_msi = true;
+  }
+
   /*
    * Walk capabilities list and return the first capability of cap_type (see
    * PCI Spec. Version 3, Chapter 6.7). If none is found return 0.
    *
-   * \param devfn     Device function to query
    * \param cap_type  Capability type to retrieve
    *
    * \returns 0       If no capability was found.
@@ -593,7 +653,9 @@ struct Pci_device : public virtual Vdev::Dev_ref
   // mappings and save the configuration into the shadow registers).
   Pci_cfg_bar bars[Bar_num_max_type0];
   Pci_msix_cap msix_cap;               /// MSI-X capability
+  Pci_msi_cap msi_cap;                 /// MSI capability
   bool has_msix = false;               /// indicates MSI-X support
+  bool has_msi = false;                /// indicates MSI support
 
 private:
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI dev"); }

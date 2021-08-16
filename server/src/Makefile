@@ -45,7 +45,8 @@ SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                ARCH-amd64/rtc.cc ARCH-amd64/virt_lapic.cc \
                ARCH-amd64/vcpu_ptr.cc ARCH-amd64/vm_state_vmx.cc \
                virtio_console_pci.cc virtio_proxy_pci.cc \
-               device/pci_host_generic.cc ARCH-amd64/kvm_clock.cc \
+               device/pci_host_bridge.cc device/pci_host_generic.cc \
+               ARCH-amd64/kvm_clock.cc \
                ARCH-amd64/legacy_pic.cc ARCH-amd64/acpi_platform.cc \
                ARCH-amd64/acpi_timer.cc
 
@@ -63,8 +64,10 @@ SRC_CC-$(CONFIG_VDEV_VIRQ) += device/virq.cc
 SRC_CC-$(CONFIG_VDEV_MMIO_PROXY) += device/mmio_proxy.cc
 SRC_CC-$(CONFIG_VDEV_SYSCTL) += device/sysctl.cc
 SRC_CC-$(CONFIG_VDEV_DEVICE_PROXY) += device/virtio_device_proxy.cc
-SRC_CC-arm-$(CONFIG_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_ecam_generic.cc
-SRC_CC-arm64-$(CONFIG_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_ecam_generic.cc
+SRC_CC-arm-$(CONFIG_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
+                                                          device/pci_host_ecam_generic.cc
+SRC_CC-arm64-$(CONFIG_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
+                                                            device/pci_host_ecam_generic.cc
 
 ifeq ($(CONFIG_FAULT_INJECT),y)
 SRC_CC-arm-common += ARCH-$(ARCH)/guest_arm_exc.cc

@@ -14,6 +14,7 @@
 #include "irq_svr.h"
 #include "guest.h"
 #include "pci_device.h"
+#include "msi.h"
 
 namespace Vdev { namespace Pci {
 
@@ -29,7 +30,7 @@ public:
   {}
 
   /**
-   * Internal PCI device.
+   * A hardware PCI device present on the vBus.
    */
   struct Hw_pci_device : public Pci_device
   {
@@ -68,6 +69,9 @@ public:
     void cfg_write(unsigned reg, l4_uint32_t value, Vmm::Mem_access::Width width)
       override
     {
+      if (has_msi && msi_cap_write(reg, value, width))
+        return;
+
       L4Re::chksys(dev.cfg_write(reg, value, mem_access_to_bits(width)),
                    "PCI config space access: write\n");
     }
@@ -75,14 +79,50 @@ public:
     void cfg_read(unsigned reg, l4_uint32_t *value, Vmm::Mem_access::Width width)
       override
     {
+      if (has_msi && msi_cap_read(reg, value, width))
+        return;
+
       L4Re::chksys(dev.cfg_read(reg, value, mem_access_to_bits(width)),
                    "PCI config space access: read\n");
     }
+
+    /**
+     * Check if the read access in in the range of the MSI cap and needs to be
+     * emulated.
+     *
+     * \return true, iff read was to the MSI cap and is served.
+     */
+    bool msi_cap_read(unsigned reg, l4_uint32_t *value,
+                       Vmm::Mem_access::Width width);
+
+    /**
+     * Check if the write access is in the range of the MSI cap and needs to be
+     * emulated.
+     *
+     * \return true, iff write was to the MSI cap and is handled.
+     *
+     * If the MSI capability supports per-vector masking, writes to the mask
+     * bits of the capability needs to be written to the HW device as well.
+     */
+    bool msi_cap_write(unsigned reg, l4_uint32_t value,
+                       Vmm::Mem_access::Width width);
+
+    /// write MSI cap of hardware device
+    void cfg_space_write_msi_cap(l4_icu_msi_info_t *msiinfo = nullptr);
 
     unsigned dev_id;                     /// Virtual device id
     L4vbus::Pci_dev dev;                 /// Reference to vbus PCI device
     l4vbus_device_t dinfo;               /// vbus device info
     cxx::Ref_ptr<Vdev::Irq_svr> irq;
+    Vdev::Msi::Msi_src_factory *msi_src_factory;
+    cxx::Ref_ptr<Vdev::Msi::Msi_src> msi_src;
+
+  private:
+    static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "HW PCI dev"); }
+    static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "HW PCI dev"); }
+    static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "HW PCI dev"); }
+
+    std::mutex _mutex;                   /// Protect MSI cap reads/writes
   };
 
   /**
@@ -138,8 +178,8 @@ public:
       device(devid)->cfg_write(reg, value, width);
 
     if (0)
-      trace().printf("write cfg dev=%u width=%d reg=0x%x\n",
-                     devid, (int)width, reg);
+      info().printf("write cfg dev=%u width=%d reg=0x%x, value=0x%x\n",
+                     devid, (int)width, reg, value);
   }
 
 protected:
@@ -173,6 +213,7 @@ protected:
 
         h->parse_device_bars();
         h->parse_msix_cap();
+        h->parse_msi_cap();
 
         init_dev_resources(h);
 
@@ -286,4 +327,4 @@ protected:
   std::vector<cxx::Ref_ptr<Pci_device>> _devices;
 };
 
-}}
+} } // namespace Vdev::Pci

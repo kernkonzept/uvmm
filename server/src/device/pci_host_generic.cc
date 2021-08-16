@@ -45,6 +45,10 @@ public:
   : Pci_host_bridge(devs),
     _msix_ctrl(msix_ctrl)
   {
+    _msi_src_factory = make_device<
+      Vdev::Msi::Msi_src_factory>(cxx::static_pointer_cast<Msi::Allocator>(
+                                    devs->vbus()),
+                                  devs->vmm()->registry(), _msix_ctrl);
     register_device(cxx::Ref_ptr<Pci_device>(this));
     iterate_pci_root_bus();
 
@@ -67,6 +71,7 @@ private:
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI bus"); }
 
   cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;
+  cxx::Ref_ptr<Vdev::Msi::Msi_src_factory> _msi_src_factory;
 }; // class Pci_host_generic
 
 /**
@@ -384,6 +389,8 @@ Pci_host_generic::init_dev_resources(Hw_pci_device *hwdev)
       register_msix_bar(&hwdev->bars[bir], hwdev->msix_cap.tbl.offset(),
                         _vbus->io_ds(), _vmm);
     }
+  if (hwdev->has_msi)
+    hwdev->msi_src_factory = _msi_src_factory.get();
 
   for (int i = 0; i < Pci_config_consts::Bar_num_max_type0; ++i)
     {
