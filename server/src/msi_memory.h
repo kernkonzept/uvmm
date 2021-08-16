@@ -26,12 +26,12 @@ namespace Vdev { namespace Msix {
  * Translates the L4Re interrupt to the MSIx Table entry and send it to
  * the Msix_controller.
  */
-class Msi_src
-: public L4::Irqep_t<Msi_src>,
+class Msix_src
+: public L4::Irqep_t<Msix_src>,
   public virtual Vdev::Dev_ref
 {
 public:
-  explicit Msi_src(Table_entry const *entry,
+  explicit Msix_src(Table_entry const *entry,
                    cxx::Ref_ptr<Gic::Msix_controller> const &ctrl,
                    l4_uint32_t io_irq)
   : _entry(entry), _msix_ctrl(ctrl), _io_irq(io_irq)
@@ -248,7 +248,7 @@ private:
       L4Re::chksys(_msi_alloc->alloc_msi(), "MSI-X vector allocation failed.");
 
     // allocate IRQ object and bind it to the ICU
-    auto msi_src = Vdev::make_device<Msi_src>(entry, _msix_ctrl, msi);
+    auto msi_src = Vdev::make_device<Msix_src>(entry, _msix_ctrl, msi);
     _registry->register_irq_obj(msi_src.get());
 
     long label = L4Re::chksys(_msi_alloc->icu()->bind(msi | L4_ICU_FLAG_MSI,
@@ -282,7 +282,7 @@ private:
   cxx::Ref_ptr<Vdev::Mmio_ds_converter> _con;
   L4Re::Util::Object_registry *_registry;
   cxx::Ref_ptr<Vdev::Msi::Allocator> _msi_alloc;
-  std::vector<cxx::Ref_ptr<Msi_src>> _msi_irqs;
+  std::vector<cxx::Ref_ptr<Msix_src>> _msi_irqs;
   l4_uint64_t const _src_id;
   cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;
   cxx::unique_ptr<Table_entry[]> _virt_table;
