@@ -33,10 +33,10 @@ namespace Vdev {
  *     interrupt-parent = <0x1>;
  *     interrupts = <0x0 0x7a 0x4>;
  *     l4vmm,vdev = "console";
- *     l4vmm,virtiocap = "guest_log";
+ *     l4vmm,vcon_cap = "guest_log";
  *   };
  *
- * "l4vmm,virtiocap" is a capability to a L4::Vcon passed to uvmm. If it is not
+ * "l4vmm,vcon_cap" is a capability to a L4::Vcon passed to uvmm. If it is not
  * given in the device tree or no such capability exists in uvmm's initial
  * namespace, the log of L4Re::Env is used.
  */

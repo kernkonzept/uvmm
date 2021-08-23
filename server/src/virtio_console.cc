@@ -16,7 +16,13 @@ struct F : Factory
   {
     Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual console\n");
 
-    auto cap = Vdev::get_cap<L4::Vcon>(node, "l4vmm,virtiocap",
+    /* Deprecation warning, added 2021-08 */
+    if (node.has_prop("l4vmm,virtiocap"))
+      Dbg(Dbg::Dev, Dbg::Warn).printf("Device tree node for Virtio console"
+                                      " contains old property 'l4vmm,virtiocap',"
+                                      " which has been renamed to 'l4vmm,vcon_cap'\n");
+
+    auto cap = Vdev::get_cap<L4::Vcon>(node, "l4vmm,vcon_cap",
                                        L4Re::Env::env()->log());
     if (!cap)
       return nullptr;
