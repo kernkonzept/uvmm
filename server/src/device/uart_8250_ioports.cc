@@ -275,7 +275,14 @@ public:
         if (_lcr.dlab())
           _dlm = value;
         else
-          _ier.raw = value;
+          {
+            _ier.raw = value;
+            if (_ier.thre())
+              {
+                _iir.set_write_irq();
+                _sink.inject();
+              }
+          }
         break;
       case Iir:
         // Used by 16550 as FCR. Ignore for now.
