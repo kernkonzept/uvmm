@@ -256,7 +256,7 @@ public:
 
   void register_obj(L4::Registry_iface *registry)
   {
-    _con->bind(0, L4Re::chkcap(registry->register_irq_obj(this)));
+    L4Re::chksys(_con->bind(0, L4Re::chkcap(registry->register_irq_obj(this))));
   }
 
   void handle_irq()
