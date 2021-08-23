@@ -1,6 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
- * Copyright (C) 2017 Kernkonzept GmbH.
+ * Copyright (C) 2017,2020,2021 Kernkonzept GmbH.
  * Author(s): Phillip Raffeck <phillip.raffeck@kernkonzept.com>
+ *            Steffen Liebergeld <steffen.liebergeld@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
@@ -28,24 +30,41 @@ namespace {
  *
  * Modem status and FIFO controls are ignored.
  *
- * To use this device e.g. under Linux add something like the following to the
- * device tree:
+ * On x86, to use this device e.g. under Linux add something like the
+ * following to the device tree:
+ * uart8250 {
+ *       compatible = "ns8250", "uart,8250";
+ *       reg = <0x0 0x0 0x0 0x0>;
+ *       interrupt-parent = <&PIC>;
+ *       interrupts = <4>;
+ *       l4vmm,vcon_cap = "uart";
+ *   };
+ *
+ * This emulates COM0 (irq = 4, ioports 0x3f8-0x400).
+ *
+ * On non-x86, e.g., on Arm, use the following in the device tree:
  *   uart8250@30018000 {
  *     compatible = "ns8250", "uart,8250";
  *     reg = <...>;
  *     clocks = <&sysclk>;
  *     clock-names = "apb_pclk";
+ *     interrupts = <0 xxx 4>;
+ *     l4vmm,vcon_cap = "uart";
  *   }
  *
- * "uart,8250" is the compatible string used by this device. "ns8250" is one of
- * the ones given in linux/Documentation/devicetree/bindings/serial/8250.txt.
+ * "uart,8250" and "ns16550a" are the compatible string used by this
+ * device. "ns8250" is one of the ones given in
+ * linux/Documentation/devicetree/bindings/serial/8250.txt.
  * Instead of specyfing an actual clock, a "clock-frequency" property with an
  * arbitrary value also suffices.
+ *
+ * The 'uart' cap is optional. If it is not there output will be through
+ * uvmm log cap.
  */
-class Uart_8250_mmio
-: public Vmm::Mmio_device_t<Uart_8250_mmio>,
-  public Vdev::Device,
-  public L4::Irqep_t<Uart_8250_mmio>
+
+class Uart_8250_base
+: public Vdev::Device,
+  public L4::Irqep_t<Uart_8250_base>
 {
   enum Regs
   {
@@ -89,7 +108,7 @@ class Uart_8250_mmio
       Rls  = 3, ///< An error occurred.
     };
 
-    /// Interrup ID.
+    /// Interrupt ID.
     CXX_BITFIELD_MEMBER(1, 2, id, raw);
     /// 0, when interrupt is pending
     CXX_BITFIELD_MEMBER(0, 0, pending, raw);
@@ -170,7 +189,7 @@ class Uart_8250_mmio
   };
 
 public:
-  Uart_8250_mmio(L4::Cap<L4::Vcon> con, l4_uint64_t regshift,
+  Uart_8250_base(L4::Cap<L4::Vcon> con, l4_uint64_t regshift,
                  cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
   : _con(con), _regshift(regshift), _sink(ic, irq)
   {
@@ -205,7 +224,7 @@ public:
     return ret;
   }
 
-  l4_uint32_t read(unsigned reg, char size, unsigned cpu_id)
+  l4_uint32_t read(unsigned reg, char size, unsigned)
   {
     l4_uint32_t ret = 0;
     switch (reg >> _regshift)
@@ -246,15 +265,14 @@ public:
         ret = _scr;
         break;
       default:
-        warn.printf("Unhandled read: reg: %x size: %u cpu: %u\n",
-                    reg, size, cpu_id);
+        warn.printf("Unhandled read: reg: %x size: %d\n", reg, size);
         break;
       };
 
     return ret;
   }
 
-  void write(unsigned reg, char size, l4_uint32_t value, unsigned cpu_id)
+  void write(unsigned reg, char size, l4_uint32_t value, unsigned)
   {
     switch (reg >> _regshift)
       {
@@ -296,8 +314,8 @@ public:
         _scr = value;
         break;
       default:
-        warn.printf("Unhandled write: reg: %x value: %x size: %u cpu: %u\n",
-                    reg, value, size, cpu_id);
+        warn.printf("Unhandled write: reg: %x value: %x size: %u\n",
+                    reg, value, size);
         break;
       };
   }
@@ -361,6 +379,39 @@ private:
   Device *dev() { return static_cast<Device *>(this); }
 };
 
+class Uart_8250_mmio
+: public Vmm::Mmio_device_t<Uart_8250_mmio>,
+  public Uart_8250_base
+{
+public:
+  Uart_8250_mmio(L4::Cap<L4::Vcon> con, l4_uint64_t regshift,
+                 cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
+  : Uart_8250_base(con, regshift, ic, irq)
+  {}
+};
+
+#ifdef ARCH_amd64
+class Uart_8250_io
+: public Vmm::Io_device,
+  public Uart_8250_base
+{
+public:
+  Uart_8250_io(L4::Cap<L4::Vcon> con, cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
+  : Uart_8250_base(con, 0, ic, irq)
+  {}
+
+  void io_in(unsigned reg, Vmm::Mem_access::Width width, l4_uint32_t *value) override
+  {
+    *value = read(reg, 1 << width, 0);
+  }
+
+  void io_out(unsigned reg, Vmm::Mem_access::Width width, l4_uint32_t value) override
+  {
+    write(reg, 1 << width, value, 0);
+  }
+};
+#endif
+
 struct F : Vdev::Factory
 {
   cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
@@ -368,7 +419,7 @@ struct F : Vdev::Factory
   {
     Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual 8250 console\n");
 
-    auto cap = Vdev::get_cap<L4::Vcon>(node, "l4vmm,8250cap",
+    auto cap = Vdev::get_cap<L4::Vcon>(node, "l4vmm,vcon_cap",
                                        L4Re::Env::env()->log());
     if (!cap)
       return nullptr;
@@ -389,7 +440,16 @@ struct F : Vdev::Factory
     if (!it.ic_is_virt())
       L4Re::chksys(-L4_EINVAL, "Uart 8250 requires a virtual interrupt controller");
 
-
+#ifdef ARCH_amd64
+    if (1) // Differentiate node types (MMIO or port-IO) here
+      {
+        auto region = Vmm::Io_region(0x3f8, 0x400, Vmm::Region_type::Virtual);
+        auto c = Vdev::make_device<Uart_8250_io>(cap, it.ic(), it.irq());
+        c->register_obj(devs->vmm()->registry());
+        devs->vmm()->register_io_device(region, c);
+        return c;
+      }
+#endif
     auto c = Vdev::make_device<Uart_8250_mmio>(cap, regshift, it.ic(), it.irq());
     c->register_obj(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
@@ -397,8 +457,8 @@ struct F : Vdev::Factory
   }
 };
 
-}
-
 static F f;
 static Vdev::Device_type t1 = { "uart,8250", nullptr, &f };
 static Vdev::Device_type t2 = { "ns16550a", nullptr, &f };
+
+} // namespace
