@@ -90,6 +90,8 @@ public:
     if (_config->version != 2)
       L4Re::chksys(-L4_ENODEV, "Require virtio version of 2");
 
+    _guest_irq = guest_irq;
+
     _host_irq = L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
                              "Allocating cap for host irq");
 
@@ -173,7 +175,10 @@ public:
 
   void virtio_queue_notify(unsigned num)
   {
-    if (num < _queue_irqs.size())
+    if (l4virtio_get_feature(_config->dev_features_map,
+                             L4VIRTIO_FEATURE_CMD_CONFIG))
+      _host_irq->trigger();
+    else if (num < _queue_irqs.size())
       _queue_irqs[num]->trigger();
   }
 
@@ -208,7 +213,7 @@ public:
 protected:
   L4::Cap<L4virtio::Device> _device;
   L4Re::Rm::Unique_region<L4virtio::Device::Config_hdr *> _config;
-  L4Re::Util::Unique_cap<L4::Irq> _guest_irq;
+  L4::Cap<L4::Irq> _guest_irq;
 
 private:
   std::vector<L4Re::Util::Unique_cap<L4::Irq> > _queue_irqs;

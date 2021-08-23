@@ -101,6 +101,8 @@ public:
       old_value = *reinterpret_cast<l4_uint32_t *>(l);
     else if (reg == offsetof(l4virtio_config_hdr_t, queue_notify))
       {
+        // Acknowledge earlier queue irqs
+        _irq_sink.ack();
         _kick_guest_irq->trigger();
         return; // do not actually write the value
       }
