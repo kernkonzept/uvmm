@@ -37,8 +37,26 @@ public:
     Reboot = 0x66
   };
 
+  enum class Fault_mode
+  {
+    Ignore,
+    Halt,
+    Inject,
+  };
+
   Generic_guest();
   virtual ~Generic_guest() = default;
+
+  /*
+   * By default only Ignore and Halt are supported. If an architecture supports
+   * Inject it must override this method.
+   */
+  static bool fault_mode_supported(Fault_mode mode)
+  {
+    return mode == Fault_mode::Ignore || mode == Fault_mode::Halt;
+  }
+
+  void set_fault_mode(Fault_mode mode) { _fault_mode = mode; }
 
   void prepare_generic_platform(Vdev::Device_lookup *devs)
   { _pm = devs->pm(); }
@@ -92,6 +110,35 @@ public:
       return f->second->access(pfa, pfa - f->first.start.get(),
                                vcpu, _task.get(),
                                f->first.start.get(), f->first.end.get());
+
+    auto insn = vcpu.decode_mmio();
+    warn().printf("Invalid %s 0x%lx, ip 0x%lx! %sing...\n",
+                  insn.access == Vmm::Mem_access::Load
+                    ? "load from"
+                    : (insn.access == Vmm::Mem_access::Store ? "store to"
+                                                             : "access at"),
+                  pfa, vcpu->r.ip,
+                  _fault_mode == Fault_mode::Ignore
+                    ? "Ignor"
+                    : (_fault_mode == Fault_mode::Inject ? "Inject" : "Halt"));
+
+    switch (_fault_mode)
+      {
+      case Fault_mode::Ignore:
+        if (insn.access == Vmm::Mem_access::Load)
+          {
+            insn.value = 0;
+            vcpu.writeback_mmio(insn);
+          }
+        return Jump_instr;
+      case Fault_mode::Inject:
+        if (inject_abort(pfa, vcpu))
+          return Retry;
+        warn().printf("Abort inject failed! Halting VM...\n");
+        /* FALLTHRU */
+      case Fault_mode::Halt:
+        break;
+      }
 
     return -L4_EFAULT;
   }
@@ -150,11 +197,15 @@ protected:
   static Dbg trace()
   { return Dbg(Dbg::Core, Dbg::Trace, "guest"); }
 
+  virtual bool inject_abort(l4_addr_t /*pfa*/, Vcpu_ptr /*vcpu*/)
+  { return false; }
+
   L4Re::Util::Br_manager _bm;
   L4Re::Util::Object_registry _registry;
   Vm_mem _memmap;
   L4Re::Util::Unique_cap<L4::Vm> _task;
   cxx::Ref_ptr<Pm> _pm;
+  Fault_mode _fault_mode = Fault_mode::Ignore;
 };
 
 } // namespace

@@ -46,6 +46,20 @@
  *
  *        uvmm -D info -D irq=trace
  *
+ * * `-f, --fault-mode`
+ *
+ *    Control the handling of guest reads/writes to non-existing memory.
+ *    Possible values are:
+ *
+ *    * `ignore` - Invalid writes are ignored. Invalid reads either return 0 or
+ *      are skipped. The guest may experience undefined behaviour.
+ *    * `halt` - Halt the VM on the first invalid memory access.
+ *    * `inject` - Try to forward the invalid access to the guest. This is not
+ *      supported on all architectures. Falls back to `halt` if the error could
+ *      not be forwarded to the guest.
+ *
+ *    Defaults to `ignore`.
+ *
  * * `-q, --quiet`
  *
  *    Silence all uvmm output.

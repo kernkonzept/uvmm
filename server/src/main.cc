@@ -122,7 +122,7 @@ setup_kaslr_seed(Vdev::Host_dt const &dt)
   node.setprop_u64("kaslr-seed", random.r);
 }
 
-static char const *const options = "+k:d:r:c:b:vqD:";
+static char const *const options = "+k:d:r:c:b:vqD:f:";
 static struct option const loptions[] =
 {
     { "kernel",                  required_argument, NULL, 'k' },
@@ -134,8 +134,33 @@ static struct option const loptions[] =
     { "verbose",                 no_argument,       NULL, 'v' },
     { "quiet",                   no_argument,       NULL, 'q' },
     { "wakeup-on-system-resume", no_argument,       NULL, 'W' },
+    { "fault-mode",              required_argument, NULL, 'f' },
     { 0, 0, 0, 0}
 };
+
+static bool str_to_fault_mode(char const *s, Vmm::Guest::Fault_mode *mode)
+{
+  static struct {
+    char const *name;
+    Vmm::Guest::Fault_mode mode;
+  } fault_options[] =
+  {
+    { "ignore", Vmm::Guest::Fault_mode::Ignore },
+    { "halt",   Vmm::Guest::Fault_mode::Halt },
+    { "inject", Vmm::Guest::Fault_mode::Inject },
+  };
+
+  for (auto &&i : fault_options)
+    {
+      if (strcmp(i.name, s) == 0)
+        {
+          *mode = i.mode;
+          return Vmm::Guest::fault_mode_supported(*mode);
+        }
+    }
+
+  return false;
+}
 
 int main(int argc, char *argv[])
 {
@@ -150,6 +175,7 @@ int main(int argc, char *argv[])
   char const *ram_disk     = nullptr;
   l4_addr_t rambase = Vmm::Guest::Default_rambase;
   bool use_wakeup_inhibitor = false;
+  Vmm::Guest::Fault_mode fault_mode = Vmm::Guest::Fault_mode::Ignore;
 
   int opt;
   while ((opt = getopt_long(argc, argv, options, loptions, NULL)) != -1)
@@ -185,6 +211,13 @@ int main(int argc, char *argv[])
         case 'W':
           use_wakeup_inhibitor = true;
           break;
+        case 'f':
+          if (!str_to_fault_mode(optarg, &fault_mode))
+            {
+              Err().printf("invalid --fault-mode: %s\n", optarg);
+              return 1;
+            }
+          break;
         default:
           Err().printf("unknown command-line option\n");
           return 1;
@@ -196,6 +229,8 @@ int main(int argc, char *argv[])
 
   auto *vmm = vm_instance.vmm();
   auto *ram = vm_instance.ram().get();
+
+  vmm->set_fault_mode(fault_mode);
 
   if (use_wakeup_inhibitor)
     vm_instance.pm()->use_wakeup_inhibitor(true);
