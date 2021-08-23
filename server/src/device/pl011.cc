@@ -36,7 +36,7 @@ namespace {
  *    interrupts = <0 ... 4>;
  *    clocks = <&apb_dummy_pclk>;
  *    clock-names = "apb_pclk";
- *    l4vmm,pl011cap = "log";
+ *    l4vmm,vcon_cap = "log";
  *   };
  *
  *  apb_dummy_pclk: dummy_clk {
@@ -51,7 +51,7 @@ namespace {
  * optional, it's impossible to add the device, if these are missing (see add
  * and probe code in linux/drivers/amba/bus.c).
  *
- * You may add 'l4vmm,pl011cap = "log";' to the pl011 node to use a
+ * You may add 'l4vmm,vcon_cap = "log";' to the pl011 node to use a
  * different vcon. Per default the standard uvmm console is used.
  *
  * For running this successfully in Linux (around 4.19 - 5.5 era), consider
@@ -352,7 +352,7 @@ struct F : Vdev::Factory
   {
     Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual pl011 console\n");
 
-    L4::Cap<L4::Vcon> cap = Vdev::get_cap<L4::Vcon>(node, "l4vmm,pl011cap",
+    L4::Cap<L4::Vcon> cap = Vdev::get_cap<L4::Vcon>(node, "l4vmm,vcon_cap",
                                                     L4Re::Env::env()->log());
     if (!cap)
       return nullptr;
