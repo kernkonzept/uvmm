@@ -189,9 +189,9 @@ public:
 
   void handle_irq()
   {
+    _lsr.dr() = 1;
     if (_ier.rda())
       {
-        _lsr.dr() = 1;
         _iir.set_data_irq();
         _sink.inject();
       }
