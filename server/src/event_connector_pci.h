@@ -9,7 +9,7 @@
 
 #include "pci_device.h"
 #include "msi_controller.h"
-#include "msi.h"
+#include "msix.h"
 #include "virtio_event_connector.h"
 #include "ds_mmio_mapper.h"
 #include "guest.h"

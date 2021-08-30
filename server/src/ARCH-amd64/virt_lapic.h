@@ -25,7 +25,7 @@
 #include "msr_device.h"
 #include "mem_types.h"
 #include "mmio_device.h"
-#include "msi.h"
+#include "msix.h"
 #include "msi_arch.h"
 #include "monitor/lapic_cmd_handler.h"
 #include "cpu_dev.h"

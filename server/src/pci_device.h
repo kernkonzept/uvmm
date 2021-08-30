@@ -15,7 +15,7 @@
 
 #include "mem_access.h"
 #include "device.h"
-#include "msi.h"
+#include "msix.h"
 
 #include <type_traits>
 

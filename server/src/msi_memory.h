@@ -15,7 +15,7 @@
 #include "debug.h"
 #include "mem_access.h"
 #include "pci_device.h"
-#include "msi.h"
+#include "msix.h"
 #include "msi_allocator.h"
 #include "ds_mmio_handling.h"
 #include "msi_controller.h"
