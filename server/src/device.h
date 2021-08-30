@@ -149,6 +149,7 @@ struct Device_lookup
   static const char * ic_err_str(Vdev::Device_lookup::Ic_error res)
   {
     char const *err[] = {
+        "ok",
         "no interrupt parent found",
         "interrupt parent node disabled"
         "interrupt parent is not a virtual interrupt controller",
