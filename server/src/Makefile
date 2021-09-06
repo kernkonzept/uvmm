@@ -48,7 +48,7 @@ SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                device/pci_host_bridge.cc device/pci_host_generic.cc \
                ARCH-amd64/kvm_clock.cc \
                ARCH-amd64/legacy_pic.cc ARCH-amd64/acpi_platform.cc \
-               ARCH-amd64/acpi_timer.cc
+               ARCH-amd64/acpi_timer.cc ARCH-amd64/zeropage.cc
 
 SRC_CC-amd64-$(CONFIG_EXTERNAL_RTC) += ARCH-amd64/l4rtc.cc
 
