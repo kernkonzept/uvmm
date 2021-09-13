@@ -26,6 +26,8 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   mmio_device.cc \
                   pm.cc vbus_event.cc vm_memmap.cc vm_ram.cc vm.cc
 
+CXXFLAGS       += $(CXXFLAGS-$(ARCH)-y)
+
 ifneq ($(CONFIG_RELEASE_MODE),y)
 SRC_CC-$(CONFIG_MONITOR)       += monitor/monitor.cc
 SRC_CC-amd64-$(CONFIG_MONITOR) += debugger/generic_guest_debugger.cc
@@ -33,7 +35,6 @@ SRC_CC                         += debug.cc
 
 CXXFLAGS-$(CONFIG_MONITOR)       += -DCONFIG_MONITOR
 CXXFLAGS-amd64-$(CONFIG_MONITOR) += -DGUEST_DEBUGGER_SUPPORT
-CXXFLAGS                         += $(CXXFLAGS-$(ARCH)-y)
 endif
 SRC_CC-arm-common = arm/gic.cc arm/gic-v2.cc arm/gic-v3.cc \
                     arm/guest_arm.cc arm/cpu_dev_arm.cc
