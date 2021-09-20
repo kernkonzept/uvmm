@@ -39,6 +39,24 @@ static Vmm::Vm vm_instance;
 static Dbg info(Dbg::Core, Dbg::Info, "main");
 static Dbg warn(Dbg::Core, Dbg::Warn, "main");
 
+static std::terminate_handler old_terminate_handler;
+
+/**
+ * Cleanup dependencies into the running system on exit.
+ *
+ * This function is called whenever uvmm exits unexpectedly. It is here, where
+ * we can clean up all the dependencies into the running L4Re system.
+ */
+static void uvmm_terminate_handler()
+{
+  // Tingling inhibitors would prevent proper system shutdown/reboot/suspend,
+  // so we must free them here.
+  vm_instance.pm()->free_inhibitors();
+  // The upstream terminate handler can show information about the exception
+  // and do the cleanup.
+  old_terminate_handler();
+}
+
 /**
  * Verify the CPU setup from the device tree.
  *
@@ -164,6 +182,8 @@ static bool str_to_fault_mode(char const *s, Vmm::Guest::Fault_mode *mode)
 
 int main(int argc, char *argv[])
 {
+  old_terminate_handler = std::set_terminate(&uvmm_terminate_handler);
+
   unsigned long verbosity = Dbg::Warn;
 
   Dbg::set_verbosity(verbosity);
