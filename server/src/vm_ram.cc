@@ -239,6 +239,9 @@ Vmm::Vm_ram::move_in_device_tree(Ram_free_list *free_list, Vdev::Host_dt &&dt)
 long
 Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &node)
 {
+  if (!node.is_enabled())
+    return -L4_ENOSYS;
+
   if (!node.has_prop("l4vmm,dscap"))
     return -L4_ENOSYS;
 
