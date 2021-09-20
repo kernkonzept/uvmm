@@ -29,12 +29,12 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
 CXXFLAGS       += $(CXXFLAGS-$(ARCH)-y)
 
 ifneq ($(CONFIG_RELEASE_MODE),y)
-SRC_CC-$(CONFIG_MONITOR)       += monitor/monitor.cc
-SRC_CC-amd64-$(CONFIG_MONITOR) += debugger/generic_guest_debugger.cc
+SRC_CC-$(CONFIG_UVMM_MONITOR)       += monitor/monitor.cc
+SRC_CC-amd64-$(CONFIG_UVMM_MONITOR) += debugger/generic_guest_debugger.cc
 SRC_CC                         += debug.cc
 
-CXXFLAGS-$(CONFIG_MONITOR)       += -DCONFIG_MONITOR
-CXXFLAGS-amd64-$(CONFIG_MONITOR) += -DGUEST_DEBUGGER_SUPPORT
+CXXFLAGS-$(CONFIG_UVMM_MONITOR)       += -DCONFIG_MONITOR
+CXXFLAGS-amd64-$(CONFIG_UVMM_MONITOR) += -DGUEST_DEBUGGER_SUPPORT
 endif
 SRC_CC-arm-common = arm/gic.cc arm/gic-v2.cc arm/gic-v3.cc \
                     arm/guest_arm.cc arm/cpu_dev_arm.cc
@@ -51,26 +51,26 @@ SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                ARCH-amd64/legacy_pic.cc ARCH-amd64/acpi_platform.cc \
                ARCH-amd64/acpi_timer.cc ARCH-amd64/zeropage.cc
 
-SRC_CC-amd64-$(CONFIG_EXTERNAL_RTC) += ARCH-amd64/l4rtc.cc
+SRC_CC-amd64-$(CONFIG_UVMM_EXTERNAL_RTC) += ARCH-amd64/l4rtc.cc
 
-SRC_CC-arm-$(CONFIG_VDEV_PSCI)   += device/arm/psci.cc
-SRC_CC-arm64-$(CONFIG_VDEV_PSCI) += device/arm/psci.cc
+SRC_CC-arm-$(CONFIG_UVMM_VDEV_PSCI)   += device/arm/psci.cc
+SRC_CC-arm64-$(CONFIG_UVMM_VDEV_PSCI) += device/arm/psci.cc
 
-SRC_CC-$(CONFIG_VDEV_8250) += device/uart_8250.cc
-SRC_CC-$(CONFIG_VDEV_PL011) += device/pl011.cc
-SRC_CC-arm-$(CONFIG_VDEV_OPTEE)   += device/optee.cc
-SRC_CC-arm64-$(CONFIG_VDEV_OPTEE) += device/optee.cc
-SRC_CC-$(CONFIG_VDEV_VIRTIO_POWER)   += device/virtio_input_power.cc
-SRC_CC-$(CONFIG_VDEV_VIRQ) += device/virq.cc
-SRC_CC-$(CONFIG_VDEV_MMIO_PROXY) += device/mmio_proxy.cc
-SRC_CC-$(CONFIG_VDEV_SYSCTL) += device/sysctl.cc
-SRC_CC-$(CONFIG_VDEV_DEVICE_PROXY) += device/virtio_device_proxy.cc
-SRC_CC-arm-$(CONFIG_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
-                                                          device/pci_host_ecam_generic.cc
-SRC_CC-arm64-$(CONFIG_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
-                                                            device/pci_host_ecam_generic.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_8250) += device/uart_8250.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_PL011) += device/pl011.cc
+SRC_CC-arm-$(CONFIG_UVMM_VDEV_OPTEE)   += device/optee.cc
+SRC_CC-arm64-$(CONFIG_UVMM_VDEV_OPTEE) += device/optee.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_POWER)   += device/virtio_input_power.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_VIRQ) += device/virq.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_MMIO_PROXY) += device/mmio_proxy.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_SYSCTL) += device/sysctl.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_PROXY) += device/virtio_device_proxy.cc
+SRC_CC-arm-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
+                                                               device/pci_host_ecam_generic.cc
+SRC_CC-arm64-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
+                                                                 device/pci_host_ecam_generic.cc
 
-ifeq ($(CONFIG_FAULT_INJECT),y)
+ifeq ($(CONFIG_UVMM_FAULT_INJECT),y)
 SRC_CC-arm-common += ARCH-$(ARCH)/guest_arm_exc.cc
 else
 SRC_CC-arm-common += arm/guest_arm_noexc.cc
