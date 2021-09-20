@@ -399,6 +399,10 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_li
           // Bytes 0x2c-0x2f have the zImage size
           entry = image.load_as_raw(ram, ram_base + l, free_list);
         }
+      else if (h[0] == 0x1f && h[1] == 0x8b && h[2] == 0x08)
+        // Gzip compressed kernel images are not self-decompressing on ARM
+        L4Re::throw_error(-L4_EINVAL,
+                          "Cannot boot compressed images! Unzip first.");
 
       if (entry == ~0ul)
         {
