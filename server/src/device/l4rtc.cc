@@ -24,7 +24,6 @@
 
 #include <l4/re/env>
 #include <l4/rtc/rtc>
-#include <l4/util/rdtsc.h>
 
 namespace Vdev {
 
@@ -33,29 +32,29 @@ class External_rtc:
   public Vdev::Device
 {
   L4::Cap<L4rtc::Rtc> _rtc;
-  l4_uint64_t _ns_offset = 0; // retrieve from l4rtc
 
 public:
   External_rtc(L4::Cap<L4rtc::Rtc> cap)
   : _rtc(cap)
   {
     L4rtc_hub::get()->register_adapter(this);
-    _rtc->get_timer_offset(&_ns_offset);
+    if (_rtc->get_timer_offset(&_ns_offset))
+      {
+        warn().printf("Could not read time @rtc.\n");
+        _ns_offset = 0;
+      }
   }
 
-  time_t seconds_since_epoch()
+  l4_uint64_t ns_since_epoch()
   {
-    // initialize scaler
-    if (L4_UNLIKELY(l4_scaler_tsc_to_ns == 0))
-      l4_calibrate_tsc(l4re_kip());
-
-    // retrieve time relative to boot
-    L4rtc::Rtc::Time ns_since_boot = l4_tsc_to_ns(l4_rdtsc());
-
-    return (ns_since_boot + _ns_offset) / 1000000000;
+    return _ns_offset + l4_kip_clock_ns(l4re_kip());
   }
 
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "RTC"); }
+
+private:
+  // offset of kip_clock to epoch (wallclock time)
+  l4_uint64_t _ns_offset;
 };
 
 }

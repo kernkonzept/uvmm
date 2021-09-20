@@ -54,7 +54,6 @@ SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                ARCH-amd64/acpi_timer.cc ARCH-amd64/zeropage.cc \
                ARCH-amd64/io_port_handler_l4util.cc
 
-SRC_CC-amd64-$(CONFIG_UVMM_EXTERNAL_RTC) += ARCH-amd64/l4rtc.cc
 SRC_CC-amd64-$(CONFIG_UVMM_VDEV_DEVICE_FRAMEBUFFER) += ARCH-amd64/framebuffer.cc
 SRC_CC-amd64-$(CONFIG_UVMM_VDEV_ISA_DEBUG_PORT) += ARCH-amd64/isa_debugport.cc
 
@@ -75,6 +74,7 @@ SRC_CC-arm-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_b
 SRC_CC-arm64-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
                                                                  device/pci_host_ecam_generic.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_CFI_FLASH) +=  device/cfi.cc
+SRC_CC-$(CONFIG_UVMM_EXTERNAL_RTC) += device/l4rtc.cc
 
 ifeq ($(CONFIG_UVMM_FAULT_INJECT),y)
 SRC_CC-arm-common += ARCH-$(ARCH)/guest_arm_exc.cc

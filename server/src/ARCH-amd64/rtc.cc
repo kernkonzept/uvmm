@@ -33,7 +33,7 @@
 #include "device.h"
 #include "io_device.h"
 
-#include "rtc.h"
+#include "../device/rtc.h"
 Vdev::L4rtc_hub *Vdev::L4rtc_hub::_l4rtc;
 
 namespace Vdev {
@@ -143,7 +143,7 @@ class Rtc : public Vmm::Io_device, public Vdev::Device
         return Valid_ram_and_time;
       }
 
-    const time_t seconds = L4rtc_hub::get()->seconds_since_epoch();
+    const time_t seconds = L4rtc_hub::get()->ns_since_epoch() / 1000000000;
 
     struct tm *t = localtime(&seconds);
     if (!t)
