@@ -1,0 +1,82 @@
+// vi:ft=c
+/**
+ * \page l4re_servers_uvmm_ram_details RAM configuration
+ *
+ * ## RAM configuration for uvmm
+ *
+ * ### Without a memory node in the device tree
+ *
+ * * setup default RAM for guest VM.
+ * * RAM starts either
+ *    * at base-address which defaults to 0x0 or the base address value
+ *      set via the -b cmdline option or
+ *    * in case of identity mapping at the host-physical address of the
+ *      dataspace allocated for the RAM
+ *
+ *
+ * ### With a memory node in the device tree
+ *
+ * The memory node needs at least the properties device_type and l4vmm,dscap:
+ *
+ *      memory@0 {
+ *        device_type = "memory";
+ *        l4vmm,dscap = "ram";
+ *      }
+ *
+ * Where the given l4vmm,dscap name is accessible in the capability namespace
+ * of the uvmm. If the capability is invalid, the memory node is disabled.
+ *
+ * If memory nodes are given, but none provides valid RAM the configuration is
+ * invalid and uvmm refuses to boot.
+ *
+ * Additional properties of the memory node are `reg` and `dma-ranges`.
+ *
+ * The `reg` property describes the location in the guest's address space that
+ * should be backed by RAM.
+ *
+ * The `dma-ranges` property describes the offset between guest-physical and
+ * host-physical addresses. The guest can evaluate this non-standard property
+ * to derive the correct DMA addresses to program into passed-through devices.
+ * Usage of this property __requires__ modification of guest code.
+ *
+ *
+ * #### Without reg and dma-ranges properties
+ *
+ * The reg property is optional only in case the uvmm maps the guest's RAM into
+ * the VM under the host-physical addresses of the backing memory
+ * (l4vmm,dscap).
+ *
+ * This case can be forced via the cmdline parameter -i and is the default for
+ * platforms without IOMMU, but with DMA capable devices on the configured
+ * vBus.
+ *
+ *
+ * #### Without a reg property, but with a dma-ranges property
+ *
+ * If the -i cmdline parameter is given, identity mapping is forced and the
+ * behavior is the same as in the case above.
+ * Additionally, the dma-ranges property is written
+ *
+ * In case no -i cmdline parameter is given, the configuration is invalid and
+ * uvmm refuses to boot.
+ *
+ *
+ * #### With a reg property
+ *
+ * uvmm parses the reg property of the memory node and maps the memory into the
+ * VM to the given range(s).
+ *
+ * If the -i cmdline parameter is set, the reg property is ignored and the
+ * memory is mapped into the VM under the corresponding host-physical addresses
+ * of the backing memory (l4vmm,dscap)
+ *
+ *
+ * #### With a reg and dma-ranges property
+ *
+ * uvmm parses the reg property of the memory node and maps the memory into the
+ * VM to the given range(s).
+ *
+ * The dma-ranges property is filled with the corresponding host-physical
+ * addresses of the backing memory (l4vmm,dscap).
+ *
+ */

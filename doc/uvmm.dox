@@ -120,6 +120,8 @@
  * ranges for the memory regions will be added here. Note that the property is
  * not cleared first, so it should be left empty.
  *
+ * For more details see \subpage l4re_servers_uvmm_ram_details.
+ *
  * ### Memory layout
  *
  * uvmm populates the RAM with the following data:
