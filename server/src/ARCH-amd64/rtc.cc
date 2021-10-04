@@ -36,9 +36,6 @@
 #include "rtc.h"
 Vdev::L4rtc_hub *Vdev::L4rtc_hub::_l4rtc;
 
-// taken from rtc/server/src/x86.cc
-#define BIN_TO_BCD(val) ((((val)/10)<<4) + (val)%10)
-
 namespace Vdev {
 
 class Rtc : public Vmm::Io_device, public Vdev::Device
@@ -84,7 +81,8 @@ class Rtc : public Vmm::Io_device, public Vdev::Device
     if (_reg_b & Binary_format)
       return val;
 
-    return BIN_TO_BCD(val);
+    // See https://de.wikipedia.org/wiki/BCD-Code
+    return (val % 10) + ((val / 10) << 4);
   }
 
   void handle_write(l4_uint32_t value)
