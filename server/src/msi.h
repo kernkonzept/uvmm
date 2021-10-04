@@ -78,7 +78,7 @@ public:
       L4Re::chksys(_msi_alloc->alloc_msi(), "MSI vector allocation failed.");
 
     auto msi_src =
-      Vdev::make_device<Msi_src>(msi_cap, 0, msi, _msix_ctrl);
+      Vdev::make_device<Msi_src>(msi_cap, msi, 0, _msix_ctrl);
 
     _registry->register_irq_obj(msi_src.get());
 
