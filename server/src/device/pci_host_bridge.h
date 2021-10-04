@@ -15,6 +15,7 @@
 #include "guest.h"
 #include "pci_device.h"
 #include "msi.h"
+#include "address_space_manager_mode_if.h"
 
 namespace Vdev { namespace Pci {
 
@@ -26,7 +27,8 @@ class Pci_host_bridge
 public:
   Pci_host_bridge(Device_lookup *devs)
   : _vmm(devs->vmm()),
-    _vbus(devs->vbus())
+    _vbus(devs->vbus()),
+    _as_mgr(devs->ram()->as_mgr_if())
   {}
 
   /**
@@ -191,6 +193,10 @@ protected:
     if (!_vbus.get() || !_vbus->available())
       return;
 
+    // Without DMA we don't pass-through PCI devices.
+    if (_as_mgr->is_no_dma_mode())
+      return;
+
     auto root = _vbus->bus()->root();
     L4vbus::Pci_dev pdev;
     l4vbus_device_t dinfo;
@@ -322,6 +328,7 @@ private:
 protected:
   Vmm::Guest *_vmm;
   cxx::Ref_ptr<Vmm::Virt_bus> _vbus;
+  Vmm::Address_space_manager_mode_if const *_as_mgr;
   // used for device lookup on PCI config space access
   // may contain physical and virtual devices
   std::vector<cxx::Ref_ptr<Pci_device>> _devices;

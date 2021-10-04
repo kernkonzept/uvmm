@@ -104,6 +104,10 @@ Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
 void
 Virt_bus::collect_resources(Vdev::Device_lookup const *devs)
 {
+  // No HW devices, as DMA is not possible.
+  if (_as_mgr->is_no_dma_mode())
+    return;
+
   for (auto &iodev : _devices)
     {
       if (iodev.allocated())
@@ -116,6 +120,10 @@ Virt_bus::collect_resources(Vdev::Device_lookup const *devs)
 Virt_bus::Devinfo *
 Virt_bus::find_unassigned_device_by_hid(char const *hid)
 {
+  // No HW devices, as DMA is not possible.
+  if (_as_mgr->is_no_dma_mode())
+    return nullptr;
+
   L4vbus::Device vdev;
   while (_bus->root().device_by_hid(&vdev, hid) >= 0)
     {

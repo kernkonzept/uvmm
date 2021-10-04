@@ -10,6 +10,7 @@
 #include <l4/re/dma_space>
 #include <l4/cxx/bitfield>
 
+#include "address_space_manager_mode_if.h"
 #include "device.h"
 #include "mem_types.h"
 #include "virt_bus.h"
@@ -17,7 +18,8 @@
 
 namespace Vmm {
 
-class Address_space_manager : public Vdev::Device
+class Address_space_manager : public Vmm::Address_space_manager_mode_if,
+                              public Vdev::Device
 {
   /// Operating modes
   enum class Mode { No_dma, Identity, Iommu, Dma_offset, Iommu_identity };
@@ -82,16 +84,19 @@ public:
                        l4_size_t *size);
 
   /// Is the operating mode `Iommu`?
-  bool is_iommu_mode() const { return _mode == Mode::Iommu; }
+  bool is_iommu_mode() const override { return _mode == Mode::Iommu; }
   /// Is the operating mode `Identity`?
-  bool is_identity_mode() const { return _mode == Mode::Identity; }
+  bool is_identity_mode() const override { return _mode == Mode::Identity; }
   /// Is the operating mode `Dma_offset`?
-  bool is_dma_offset_mode() const { return _mode == Mode::Dma_offset; }
+  bool is_dma_offset_mode() const override { return _mode == Mode::Dma_offset; }
   /// Is the operating mode `Iommu_identity`?
-  bool is_iommu_identity_mode() const { return _mode == Mode::Iommu_identity; }
+  bool is_iommu_identity_mode() const override { return _mode == Mode::Iommu_identity; }
   /// Is the operating mode any of the indentity modes?
-  bool is_any_identity_mode() const
+  bool is_any_identity_mode() const override
   { return is_identity_mode() || is_iommu_identity_mode(); }
+  /// Is the operating mode `No_dma`?
+  bool is_no_dma_mode() const override
+  { return _mode == Mode::No_dma; }
 
   /**
    * Detect system information.

@@ -189,6 +189,9 @@ public:
 
   Vmm::Address_space_manager *as_mgr() const { return _as_mgr.get(); }
 
+  Vmm::Address_space_manager_mode_if const *as_mgr_if() const
+  { return static_cast<Vmm::Address_space_manager_mode_if *>(_as_mgr.get()); }
+
 private:
   cxx::Ref_ptr<Ram_ds> find_region(Vmm::Guest_addr addr, l4_size_t size) const
   {
