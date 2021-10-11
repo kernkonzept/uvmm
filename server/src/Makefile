@@ -96,7 +96,7 @@ PRIVATE_INCDIR += $(SRC_DIR)/../../tools/uvmm_cli
 include $(L4DIR)/mk/prog.mk
 
 ifeq ($(ARCH),arm)
-CARCHFLAGS := $(filter-out -march%,$(CARCHFLAGS)) -march=armv7ve
+CARCHFLAGS := $(filter-out -march%,$(CARCHFLAGS)) $(GCCARMV7VEFPOPT_arm)
 endif
 
 # We do not want to have -fno-strict-aliasing
