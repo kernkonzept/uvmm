@@ -41,6 +41,7 @@ private:
     Acpi_enable     = 0xf2,
     Acpi_disable    = 0xf1,
     Acpi_shutdown   = 0x7,
+    Reboot          = 0x4,
   };
 
 public:
@@ -56,7 +57,8 @@ public:
     Pm1a_sts        = Pm1a_event_block,
     Pm1a_en         = Pm1a_event_block+2,
     Pm1_event_length= 4,
-    Ports_end       = Pm1a_event_block + Pm1_event_length,
+    Reset_register  = Pm1a_event_block + Pm1_event_length,
+    Ports_end       = Reset_register + 1,
   };
 
   Acpi_platform(Vmm::Guest *vmm, cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
@@ -86,6 +88,13 @@ public:
 
     t->Pm1aEventBlock = Ports::Pm1a_event_block;
     t->Pm1EventLength = Ports::Pm1_event_length;
+
+    // set the reset register for ACPI reboot
+    t->Flags                 |= ACPI_FADT_RESET_REGISTER;
+    t->ResetRegister.Address  = Ports::Reset_register;
+    t->ResetRegister.SpaceId  = ACPI_ADR_SPACE_SYSTEM_IO;
+    t->ResetRegister.BitWidth = ACPI_RESET_REGISTER_WIDTH;
+    t->ResetValue             = Command_values::Reboot;
   }
 
   /**
@@ -232,6 +241,13 @@ public:
       case Pm1a_en:
         _pm1a_en = value;
         handle_pm1a_en();
+        break;
+      case Reset_register:
+        if (value == Command_values::Reboot)
+          {
+            trace().printf("Reboot requested. Bye\n");
+            _vmm->shutdown(Vmm::Guest::Reboot);
+          }
         break;
       default:
         trace().printf("IO OUT port=%x value=%x\n", port, value);
