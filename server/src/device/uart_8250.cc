@@ -216,10 +216,14 @@ public:
       }
   }
 
+  void attach_con_irq()
+  {
+    L4Re::chksys(_con->bind(0, _con_irq));
+  }
+
   void register_obj(L4::Registry_iface *registry)
   {
-    auto ret = registry->register_irq_obj(this);
-    _con->bind(0, L4Re::chkcap(ret, "Registering 8250 device"));
+    _con_irq = L4Re::chkcap(registry->register_irq_obj(this), "Registering 8250 device");
   }
 
   l4_uint32_t read(unsigned reg, char size, unsigned)
@@ -291,6 +295,8 @@ public:
                 _iir.set_write_irq();
                 _sink.inject();
               }
+            if (_ier.rda())
+              attach_con_irq();
           }
         break;
       case Iir:
@@ -363,6 +369,7 @@ private:
   }
 
   L4::Cap<L4::Vcon> _con;
+  L4::Cap<L4::Irq> _con_irq;
   l4_uint64_t _regshift;
   Vmm::Irq_sink _sink;
 

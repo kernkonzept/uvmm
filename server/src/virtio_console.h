@@ -125,6 +125,8 @@ public:
                       dev()->template devaddr_to_virt<void>(qc->avail_addr),
                       dev()->template devaddr_to_virt<void>(qc->used_addr));
         qc->ready = 1;
+
+        attach_con_irq();
       }
   }
 
@@ -254,9 +256,14 @@ public:
       }
   }
 
+  void attach_con_irq()
+  {
+    L4Re::chksys(_con->bind(0, _con_irq));
+  }
+
   void register_obj(L4::Registry_iface *registry)
   {
-    L4Re::chksys(_con->bind(0, L4Re::chkcap(registry->register_irq_obj(this))));
+    _con_irq = L4Re::chkcap(registry->register_irq_obj(this));
   }
 
   void handle_irq()
@@ -288,6 +295,7 @@ public:
   }
 private:
   L4::Cap<L4::Vcon> _con;
+  L4::Cap<L4::Irq> _con_irq;
 
   DEV *dev() { return static_cast<DEV *>(this); }
 };

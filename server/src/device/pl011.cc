@@ -147,6 +147,7 @@ public:
 
     CXX_BITFIELD_MEMBER(9, 9, rxe, raw);
     CXX_BITFIELD_MEMBER(8, 8, txe, raw);
+    CXX_BITFIELD_MEMBER(0, 0, enable, raw);
   };
 
   struct Ris_reg
@@ -183,10 +184,14 @@ public:
     _sink.inject();
   }
 
+  void attach_con_irq()
+  {
+    L4Re::chksys(_con->bind(0, _con_irq));
+  }
+
   void register_obj(L4::Registry_iface *registry)
   {
-    auto ret = registry->register_irq_obj(this);
-    _con->bind(0, L4Re::chkcap(ret, "Registering pl011 device"));
+    _con_irq = L4Re::chkcap(registry->register_irq_obj(this), "Registering pl011 device");
   }
 
   l4_uint32_t read(unsigned reg, char size, unsigned cpu_id)
@@ -306,8 +311,9 @@ public:
         // Ignore FIFO (always use character mode) and word length (use 8 bits).
         break;
       case CR:
-        // Ignore modem status etc. and just report the bits back to the client.
         _cr.raw = value;
+        if (_cr.enable() && _cr.rxe())
+          attach_con_irq();
         break;
       case IFLS:
         // FIFO setup is ignored, so just ignore the interrupt trigger level.
@@ -331,6 +337,7 @@ public:
 
 private:
   L4::Cap<L4::Vcon> _con;
+  L4::Cap<L4::Irq> _con_irq;
   Vmm::Irq_sink _sink;
 
   Rsr_ecr_reg _rsr_ecr;
