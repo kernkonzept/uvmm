@@ -216,12 +216,10 @@ public:
       }
   }
 
-  L4::Cap<void> register_obj(L4::Registry_iface *registry)
+  void register_obj(L4::Registry_iface *registry)
   {
     auto ret = registry->register_irq_obj(this);
     _con->bind(0, L4Re::chkcap(ret, "Registering 8250 device"));
-
-    return ret;
   }
 
   l4_uint32_t read(unsigned reg, char size, unsigned)

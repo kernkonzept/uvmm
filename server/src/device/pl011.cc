@@ -159,8 +159,7 @@ public:
     CXX_BITFIELD_MEMBER(4, 4, rx, raw);
   };
 
-  explicit Pl011_mmio(cxx::Ref_ptr<Gic::Ic> const &ic, int irq,
-                      L4::Cap<L4::Vcon> con = L4Re::Env::env()->log())
+  Pl011_mmio(cxx::Ref_ptr<Gic::Ic> const &ic, int irq, L4::Cap<L4::Vcon> con)
   : _con(con), _sink(ic, irq)
   {
     l4_vcon_attr_t attr;
@@ -184,12 +183,10 @@ public:
     _sink.inject();
   }
 
-  L4::Cap<void> register_obj(L4::Registry_iface *registry)
+  void register_obj(L4::Registry_iface *registry)
   {
     auto ret = registry->register_irq_obj(this);
     _con->bind(0, L4Re::chkcap(ret, "Registering pl011 device"));
-
-    return ret;
   }
 
   l4_uint32_t read(unsigned reg, char size, unsigned cpu_id)

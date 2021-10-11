@@ -298,8 +298,7 @@ class Virtio_console_mmio
   public Virtio::Mmio_connector<Virtio_console_mmio>
 {
 public:
-  Virtio_console_mmio(Vmm::Vm_ram *ram,
-                      L4::Cap<L4::Vcon> con = L4Re::Env::env()->log())
+  Virtio_console_mmio(Vmm::Vm_ram *ram, L4::Cap<L4::Vcon> con)
   : Virtio_console(ram, con)
   {}
 
