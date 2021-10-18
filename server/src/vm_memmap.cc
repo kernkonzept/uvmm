@@ -16,9 +16,12 @@ throw_error(char const *msg,
             cxx::Ref_ptr<Vmm::Mmio_device> const &new_dev, Vmm::Region const &new_region)
 {
   char buf[80], buf_new[80];
-  Err().printf("%s: [%lx:%lx] (%s) <-> [%lx:%lx] (%s)\n", msg,
-               region.start.get(), region.end.get(), dev->dev_info(buf, sizeof(buf)),
+  Err().printf("%s:\n"
+               "\tVM addresses:\t[%08lx:%08lx] <-> [%08lx:%08lx]\n"
+               "\tDevice info:\t(%s) <-> (%s)\n", msg,
+               region.start.get(), region.end.get(),
                new_region.start.get(), new_region.end.get(),
+               dev->dev_info(buf, sizeof(buf)),
                new_dev->dev_info(buf_new, sizeof(buf_new)));
   L4Re::chksys(-L4_EINVAL, msg);
 }
@@ -38,7 +41,7 @@ Vmm::Vm_mem::add_region(Vmm::Region const &region,
 
   // We can't merge if the region is marked moveable
   if (region.flags & Region_flags::Moveable)
-    throw_error("Unmergable mmio regions: region is moveable",
+    throw_error("Unmergable mmio regions in VM address space: region is moveable",
                 lower->second, current_region, dev, region);
 
   if (current_region.contains(region))
@@ -46,7 +49,7 @@ Vmm::Vm_mem::add_region(Vmm::Region const &region,
       // Region is a subset of an already existing one, there can be
       // at most one such region
       if (!lower->second->mergable(dev, region.start, current_region.start))
-        throw_error("Unmergable mmio regions: region is subset",
+        throw_error("Unmergable mmio regions in VM address space: region is subset",
                     lower->second, current_region, dev, region);
       return;
     }
@@ -60,11 +63,11 @@ Vmm::Vm_mem::add_region(Vmm::Region const &region,
       if (region.contains(tmp_region))
         {
           if (!it->second->mergable(dev, region.start, tmp_region.start))
-            throw_error("Unmergable mmio regions: region is superset",
+            throw_error("Unmergable mmio regions in VM address space: region is superset",
                         lower->second, tmp_region, dev, region);
         }
       else
-        throw_error("Unmergable mmio regions",
+        throw_error("Unmergable mmio regions in VM address space",
                     lower->second, tmp_region, dev, region);
     }
 
