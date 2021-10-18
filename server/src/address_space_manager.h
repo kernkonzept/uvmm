@@ -98,6 +98,10 @@ public:
   bool is_no_dma_mode() const override
   { return _mode == Mode::No_dma; }
 
+  /// Return the string representation of the current operating mode.
+  char const *mode() const
+  { return mode_to_str(_mode); }
+
   /**
    * Detect system information.
    *

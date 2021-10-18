@@ -309,7 +309,18 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
         break;
 
       if (ret < 0)
-        L4Re::chksys(-L4_EINVAL, "Reading reg values from DT memory nodes.");
+        {
+          if (ret == -FDT_ERR_NOTFOUND)
+            Err().printf("Memory node %s must contain a reg property in %s "
+                         "mode.\n",
+                         node.get_name(), as_mgr()->mode());
+          else
+            Err().printf("Error when parsing memory node %s: %s (%i)\n",
+                         node.get_name(), node.strerror(ret), ret);
+
+          L4Re::throw_error(-L4_EINVAL,
+                            "Reading reg values from DT memory nodes.");
+        }
 
       trace.printf("Adding region @0x%llx (size = 0x%llx remaining = 0x%llx)\n",
                    reg_addr, reg_size, remain);
