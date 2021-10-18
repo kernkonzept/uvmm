@@ -57,17 +57,26 @@ public:
   { _s->r.ip += 2 << hsr().il(); }
 
   /**
-   * return true if register `x` is the user mode register for the current
-   * mode.
+   * Check whether register 'x' is a user mode register for the current mode
+   *
+   * \retval true   Register is a normal register accessible in l4_vcpu_state_t
+   * \retval false  Register is a banked register which needs special treatment
    */
   bool use_ureg(unsigned x) const
   {
-    // regsiters < 8 are always the user registers
+    // registers < 8 are always the user registers
     if (x < 8)
       return true;
 
-    // one byte for each (leagal) mode, where a set bit
-    // means register r[x] is the user register
+    // one byte for each (legal) mode, where a set bit (x - 8) means
+    // register r[x] is a user register, modes are
+    //
+    //   usr,  fiq,  irq,  svc,
+    //      ,     ,  mon,  abt,
+    //      ,     ,  hyp,  und,
+    //      ,     ,     ,  sys
+    //
+    // fiq is handled separately, mon/hyp are invalid (trap to el2/el3).
     static l4_uint8_t const i[] =
       { 0xff, 0x00, 0x3f, 0x3f,
         0x00, 0x00, 0x00, 0x3f,
@@ -78,13 +87,24 @@ public:
   }
 
   /**
-   * return a jump offset to be used for accessing non-user SP and LR
+   * Caculate jump offset used for accessing non-user SP and LR in
+   * 'irq', 'svc', 'abt' or 'und' mode
+   *
+   * The calculation does not check whether the mode is valid.
+   *
+   * \return  Jump offset
    */
   unsigned mode_offs() const
   {
     // mode (lower 5bits of flags):
-    // 0x12 -> 0, 0x13 -> 2, 0x17 -> 4, 0x1b -> 6, 0x1f -> 0
-    // all other (non hyp) modes use all user registers, or are illegal
+    //
+    //   0x12 -> 0, irq
+    //   0x13 -> 2, svc
+    //   0x17 -> 4, abt
+    //   0x1b -> 6, und
+    //
+    // all other (non hyp) modes use all user registers, are handled
+    // separately (fiq) or are illegal
     return ((_s->r.flags + 1) >> 1) & 0x6;
   }
 
@@ -107,8 +127,12 @@ public:
     l4_umword_t res;
     if ((_s->r.flags & 0x1f) == 0x11) // FIQ
       {
-        asm (".arch armv7ve\n"
-             "add pc, pc, %[r]\n"
+        // assembly implementation of
+        // switch(x - 8) {
+        //    case n:
+        //        read banked fiq register (n + 8)
+        //        break;
+        asm ("add pc, pc, %[r]\n"
              "nop\n"
              "mrs %[res], R8_fiq \n b 2f\n"
              "mrs %[res], R9_fiq \n b 2f\n"
@@ -121,19 +145,25 @@ public:
         return res;
       }
 
-      asm (".arch armv7ve\n"
-           "add pc, pc, %[r]\n"
-           "nop\n"
-           "mrs %[res], SP_irq \n b 2f\n"
-           "mrs %[res], LR_irq \n b 2f\n"
-           "mrs %[res], SP_svc\n b 2f\n"
-           "mrs %[res], LR_svc\n b 2f\n"
-           "mrs %[res], SP_abt\n b 2f\n"
-           "mrs %[res], LR_abt \n b 2f\n"
-           "mrs %[res], SP_und \n b 2f\n"
-           "mrs %[res], LR_und \n"
-           "2:\n" : [res]"=r"(res) : [r]"r"((x - 13 + mode_offs()) * 8));
-      return res;
+    // Should we check whether we have a valid mode (irq, svc, abt, und) here?
+    //
+    // assembly implementation of
+    // switch(f(mode, x-13)) {
+    //    case x:
+    //        read banked lr/sp register for mode
+    //        break;
+    asm ("add pc, pc, %[r]\n"
+         "nop\n"
+         "mrs %[res], SP_irq \n b 2f\n"
+         "mrs %[res], LR_irq \n b 2f\n"
+         "mrs %[res], SP_svc\n b 2f\n"
+         "mrs %[res], LR_svc\n b 2f\n"
+         "mrs %[res], SP_abt\n b 2f\n"
+         "mrs %[res], LR_abt \n b 2f\n"
+         "mrs %[res], SP_und \n b 2f\n"
+         "mrs %[res], LR_und \n"
+         "2:\n" : [res]"=r"(res) : [r]"r"((x - 13 + mode_offs()) * 8));
+    return res;
   }
 
   void set_gpr(unsigned x, l4_umword_t value) const
@@ -154,37 +184,52 @@ public:
 
     if ((_s->r.flags & 0x1f) == 0x11) // FIQ
       {
-        asm (".arch armv7ve\n"
-             "add pc, pc, %[r]\n"
+        // assembly implementation of
+        // switch(x - 8) {
+        //    case n:
+        //        write banked fiq register (n + 8)
+        //        break;
+        asm ("add pc, pc, %[r]\n"
              "nop\n"
-             "msr R8_fiq, %[v] \n b 2f\n"
-             "msr R9_fiq, %[v] \n b 2f\n"
-             "msr R10_fiq, %[v]\n b 2f\n"
-             "msr R11_fiq, %[v]\n b 2f\n"
-             "msr R12_fiq, %[v]\n b 2f\n"
-             "msr SP_fiq, %[v] \n b 2f\n"
-             "msr LR_fiq, %[v] \n"
+             "msr R8_fiq,  %[v] \n b 2f\n"
+             "msr R9_fiq,  %[v] \n b 2f\n"
+             "msr R10_fiq, %[v] \n b 2f\n"
+             "msr R11_fiq, %[v] \n b 2f\n"
+             "msr R12_fiq, %[v] \n b 2f\n"
+             "msr SP_fiq,  %[v] \n b 2f\n"
+             "msr LR_fiq,  %[v] \n"
              "2:\n" : : [v]"r"(value), [r]"r"((x - 8) * 8));
         return;
       }
 
-      asm (".arch armv7ve\n"
-           "add pc, pc, %[r]\n"
-           "nop\n"
-           "msr SP_irq, %[v] \n b 2f\n"
-           "msr LR_irq, %[v] \n b 2f\n"
-           "msr SP_svc, %[v]\n b 2f\n"
-           "msr LR_svc, %[v]\n b 2f\n"
-           "msr SP_abt, %[v]\n b 2f\n"
-           "msr LR_abt, %[v] \n b 2f\n"
-           "msr SP_und, %[v] \n b 2f\n"
-           "msr LR_und, %[v] \n"
-           "2:\n" : : [v]"r"(value), [r]"r"((x - 13 + mode_offs()) * 8));
+    // Should we check whether we have a valid mode (irq, svc, abt, und) here?
+    //
+    // assembly implementation of
+    // switch(f(mode, x-13)) {
+    //    case x:
+    //        write banked lr/sp register for mode
+    //        break;
+    asm ("add pc, pc, %[r]\n"
+         "nop\n"
+         "msr SP_irq, %[v] \n b 2f\n"
+         "msr LR_irq, %[v] \n b 2f\n"
+         "msr SP_svc, %[v] \n b 2f\n"
+         "msr LR_svc, %[v] \n b 2f\n"
+         "msr SP_abt, %[v] \n b 2f\n"
+         "msr LR_abt, %[v] \n b 2f\n"
+         "msr SP_und, %[v] \n b 2f\n"
+         "msr LR_und, %[v] \n"
+         "2:\n" : : [v]"r"(value), [r]"r"((x - 13 + mode_offs()) * 8));
+  }
+
+  l4_umword_t get_sp() const
+  {
+    return get_gpr(13);
   }
 
   l4_umword_t get_lr() const
   {
-    return _s->r.lr;
+    return get_gpr(14);
   }
 
   Mem_access decode_mmio() const
