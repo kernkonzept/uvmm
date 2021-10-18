@@ -48,17 +48,19 @@ public:
 
   void show_regs(FILE *f) const
   {
-    auto regs = get_vcpu()->r;
+    auto vcpu = get_vcpu();
+    auto regs = vcpu->r;
 
     fprintf(f, "pc=%08lx lr=%08lx sp=%08lx flags=%08lx\n",
-            regs.ip, regs.lr, regs.sp, regs.flags);
+            regs.ip, vcpu.get_lr(), vcpu.get_sp(), regs.flags);
     fprintf(f, " r0=%08lx  r1=%08lx  r2=%08lx  r3=%08lx\n",
             regs.r[0], regs.r[1], regs.r[2], regs.r[3]);
     fprintf(f, " r4=%08lx  r5=%08lx  r6=%08lx  r7=%08lx\n",
             regs.r[4], regs.r[5], regs.r[6], regs.r[7]);
     fprintf(f, " r8=%08lx  r9=%08lx r10=%08lx r11=%08lx\n",
-            regs.r[8], regs.r[9], regs.r[10], regs.r[11]);
-    fprintf(f, "r12=%08lx\n", regs.r[12]);
+            vcpu.get_gpr(8), vcpu.get_gpr(9), vcpu.get_gpr(10),
+            vcpu.get_gpr(11));
+    fprintf(f, "r12=%08lx\n", vcpu.get_gpr(12));
   }
 
 private:
