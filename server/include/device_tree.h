@@ -570,9 +570,6 @@ public:
    * \retval -ERR_NOT_TRANSLATABLE reg entry exists, but is not translatable
    * \retval <0                    other fdt related errors
    * \retval 0                     ok
-   *
-   * This function throws an exception if "reg" property does not exist
-   * or the index is out of range
    */
   int get_reg_val(int index, l4_uint64_t *address, l4_uint64_t *size) const
   {
