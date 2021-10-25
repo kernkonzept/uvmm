@@ -44,13 +44,6 @@ class Legacy_pic : public Gic::Ic
     Data_port = 1,
   };
 
-  enum Command : l4_uint8_t
-  {
-    None = 0,
-    Read_irr,
-    Read_isr,
-  };
-
   enum class Init_words
   {
     ICW1 = 0,
@@ -114,8 +107,8 @@ class Legacy_pic : public Gic::Ic
       CXX_BITFIELD_MEMBER(6, 6, esmm, raw);
     };
 
-    // Command register.
-    l4_uint8_t _cmd = Command::None;
+    // Selected IRR/ISR register by OCW3 for even port reads
+    bool _read_isr = false;
     // Interrupt service register. Stores the Irq currently being serviced.
     l4_uint8_t _isr = 0;
     // Interrupt request register. Stores incoming Irq requesting to be
@@ -177,28 +170,16 @@ class Legacy_pic : public Gic::Ic
       switch (port)
         {
         case Cmd_port:
-          switch (_cmd)
-            {
-            case Command::Read_irr: *value = _irr; break;
-            case Command::Read_isr: *value = _isr; break;
-            }
+          *value = _read_isr ? _isr : _irr;
           break;
 
         case Data_port:
-          if (_cmd == Command::None)
-            {
-              *value = _imr;
-              trace().printf("%s read mask 0x%x\n",
-                             _is_master ? "Master:" : "Slave:", _imr);
-              break;
-            }
-          else
-            warn().printf("%s read unsupported cmd %d\n",
-                          _is_master ? "Master:" : "Slave:", _cmd);
+          *value = _imr;
+          trace().printf("%s read mask 0x%x\n",
+                         _is_master ? "Master:" : "Slave:", _imr);
           break;
         }
 
-      _cmd = Command::None;
       trace().printf("%s port in: %s - 0x%x\n",
                      _is_master ? "Master:" : "Slave:",
                      port == 0 ? "cmd" : "data", *value);
@@ -313,15 +294,9 @@ class Legacy_pic : public Gic::Ic
         {
           struct OCW3 o{cmd};
 
-          if (o.ris() && o.rr())
-            {
-              _cmd = Command::Read_isr;
-              return;
-            }
-
           if (o.rr())
             {
-              _cmd = Command::Read_irr;
+              _read_isr = o.ris();
               return;
             }
 
@@ -371,7 +346,10 @@ class Legacy_pic : public Gic::Ic
               if (_icw1.icw4())
                 _expect = Init_words::ICW4;
               else
-                _expect = Init_words::ICW1; // initialization complete
+                {
+                  _expect = Init_words::ICW1; // initialization complete
+                  _read_isr = false;
+                }
               break;
 
             case Init_words::ICW4:
@@ -379,24 +357,16 @@ class Legacy_pic : public Gic::Ic
               if (!_icw4.upm())
                 warn().printf("Guest tries to set MCS-80 mode. Unsupported.\n");
               _expect = Init_words::ICW1; // initialization complete
-              _cmd = Command::None;
+              _read_isr = false;
               break;
             }
           return;
         }
 
-      switch (_cmd)
-        {
-        case Command::None:
-          _imr = value;
-          // immediately inject pending irqs
-          issue_next_interrupt();
-          break;
-        default:
-          warn().printf("%s data port write unsupported cmd %x\n",
-                        _is_master ? "Master:" : "Slave:", _cmd);
-          break;
-        }
+      // OCW1
+      _imr = value;
+      // immediately inject pending irqs
+      issue_next_interrupt();
     }
 
   };
