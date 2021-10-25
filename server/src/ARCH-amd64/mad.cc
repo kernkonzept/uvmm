@@ -360,6 +360,8 @@ Decoder::decode(l4_exc_regs_t *u, l4_addr_t pc, Op *op, Desc *tgt, Desc *src)
           unsigned char mod = v >> 6;
           unsigned char len = 2;
 
+          if (rex & REX_R)
+            reg |= 8;
           if (!(ib & 1))
             byte = true;
 
