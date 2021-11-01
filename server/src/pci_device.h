@@ -16,6 +16,8 @@
 #include "mem_access.h"
 #include "device.h"
 #include "msix.h"
+#include "mmio_device.h"
+#include "io_device.h"
 
 #include <type_traits>
 
@@ -90,7 +92,6 @@ struct Pci_cfg_bar
 
   l4_uint64_t io_addr = 0;  /// Address used by IO
   l4_uint64_t map_addr = 0; /// Address to use for the guest mapping
-  l4_uint64_t mapped_addr = 0;  /// Address of current guest mapping
   l4_uint64_t size = 0;       /// Size of the region
   Type type = Unused_empty;       /// Type of the BAR
   bool prefetchable = false;  /// Prefetchable MMIO region?
@@ -410,6 +411,23 @@ struct Pci_device : public virtual Vdev::Dev_ref
   virtual void cfg_read_raw(unsigned reg, l4_uint32_t *value,
                             Vmm::Mem_access::Width width) = 0;
 
+  /**
+   * Go through all resources of the PCI device and register them with the
+   * memmap or iomap.
+   *
+   * \param vmm The guest where the device is mapped
+   * \param access Resources to be added (Io_space_bit | Memory_space_bit)
+   */
+  virtual void add_decoder_resources(Vmm::Guest *vmm, l4_uint32_t access) = 0;
+
+  /**
+   * Go through all resources of the PCI device and remove them from the memmap
+   * or iomap.
+   *
+   * \param vmm The guest where the device is mapped
+   * \param access Resources to be removed (Io_space_bit | Memory_space_bit)
+   */
+  virtual void del_decoder_resources(Vmm::Guest *vmm, l4_uint32_t access) = 0;
 
   /*
    * Get source ID.
@@ -440,17 +458,36 @@ struct Pci_device : public virtual Vdev::Dev_ref
    * enabled_access function to restore the correct configuration when
    * enabling the device again.
    *
+   * \param access  The MMIO/IO space configuration bits to disable
+   *
    * \return The current MMIO/IO space configuration bits
    */
-  l4_uint32_t disable_access()
+  l4_uint32_t disable_access(l4_uint32_t access)
   {
     // Disable any bar access
     l4_uint32_t cmd_reg = 0;
     cfg_read_raw(Pci_hdr_command_offset, &cmd_reg, Vmm::Mem_access::Wd16);
-    cfg_write_raw(Pci_hdr_command_offset, cmd_reg & ~Access_mask,
+    cfg_write_raw(Pci_hdr_command_offset, cmd_reg & ~(access & Access_mask),
                   Vmm::Mem_access::Wd16);
 
     return cmd_reg & Access_mask;
+  }
+
+  /**
+   * Update the guest resource registration.
+   *
+   * Will add or remove the resources for the enabled/disabled address space.
+   */
+  void update_decoders(Vmm::Guest *vmm, l4_uint32_t value)
+  {
+    l4_uint32_t diff = (enabled_decoders ^ value) & Access_mask;
+
+    if (enabled_decoders & diff)
+      del_decoder_resources(vmm, enabled_decoders & diff);
+    if (value & diff)
+      add_decoder_resources(vmm, value & diff);
+
+    enabled_decoders = value & Access_mask;
   }
 
   /**
@@ -580,25 +617,6 @@ struct Pci_device : public virtual Vdev::Dev_ref
   void update_bar(unsigned bar, l4_uint32_t value);
 
   /**
-   * Remap all bars if necessary.
-   *
-   * Checks for all bars if the base address has changed and remap the mmio
-   * handler to the new address if necessary.
-   *
-   * Note: This also unmaps any previous child mappings of the previous used
-   * region in the vm_task.
-   */
-  void remap_bars(Vmm::Guest *vmm)
-  {
-    remap_mmio_bars(vmm);
-  }
-
-  /**
-   * Remap MMIO bars if necessary.
-   */
-  void remap_mmio_bars(Vmm::Guest *vmm);
-
-  /**
    * Read from config page.
    *
    * The BAR register content is kept in a shadow copy in the `bars` array.
@@ -622,11 +640,9 @@ struct Pci_device : public virtual Vdev::Dev_ref
   void cfg_write(Vmm::Guest *vmm, unsigned reg, l4_uint32_t value,
                  Vmm::Mem_access::Width width)
   {
-    // When memory reads get enabled for a device we need to check if some
-    // of the bar base addresses have changed and in this case need to do a
-    // remap of them.
-    if (reg == Pci_hdr_command_offset && value & Memory_space_bit)
-      remap_bars(vmm);
+    if (reg == Pci_hdr_command_offset
+        && (8U << width) == Pci_hdr_command_length)
+      update_decoders(vmm, value);
 
     if (!cfg_write_bar(reg, value, width))
       cfg_write_raw(reg, value, width);
@@ -735,7 +751,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
 
     // Disable all access because read_bar() actually modifies the BARs to
     // detect the size.
-    l4_uint32_t access = disable_access();
+    l4_uint32_t access = disable_access(Access_mask);
 
     unsigned bar_offs = Pci_hdr_base_addr0_offset;
     while (bar_offs <= max_bar_offset)
@@ -752,7 +768,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
           continue;
 
         // Initial map address is equal to io address
-        bar.mapped_addr = bar.map_addr = bar.io_addr;
+        bar.map_addr = bar.io_addr;
 
         info().printf("  bar[%u] addr=0x%llx size=0x%llx type=%s\n", i,
                       bar.io_addr, bar.size, bar.to_string());
@@ -805,6 +821,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
   Pci_cfg_bar bars[Bar_num_max_type0];
   Pci_msix_cap msix_cap;               /// MSI-X capability
   Pci_msi_cap msi_cap;                 /// MSI capability
+  l4_uint8_t enabled_decoders = 0;     /// Currently registered resources
   bool has_msix = false;               /// indicates MSI-X support
   bool has_msi = false;                /// indicates MSI support
 
@@ -1004,6 +1021,10 @@ public:
 
     return 0;
   }
+
+  void add_decoder_resources(Vmm::Guest *vmm, l4_uint32_t access) override;
+  void del_decoder_resources(Vmm::Guest *vmm, l4_uint32_t access) override;
+
 private:
   Pci_header _hdr;
   /// Index into _hdr.byte array
@@ -1056,6 +1077,9 @@ protected:
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI dev"); }
   static Dbg dbg() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI dev"); }
 
+  virtual cxx::Ref_ptr<Vmm::Mmio_device> get_mmio_bar_handler(unsigned bar) = 0;
+  virtual cxx::Ref_ptr<Vmm::Io_device> get_io_bar_handler(unsigned bar) = 0;
+
   /**
    * Get a pointer to the header memory of type `TYPE`.
    *
@@ -1096,10 +1120,8 @@ protected:
   {
     assert_bar_type_size<TYPE>(bar);
 
-    bars[bar].mapped_addr = bars[bar].map_addr = addr & ~Bar_io_attr_mask;
+    bars[bar].map_addr = addr & ~Bar_io_attr_mask;
     bars[bar].type = Pci_cfg_bar::Type::IO;
-    get_header<TYPE>()->base_addr_regs[bar] =
-      bars[bar].map_addr | Bar_io_space_bit;
     set_bar_size(bar, size);
   }
 
@@ -1118,10 +1140,9 @@ protected:
     // memory space: [0] mem space indicator := 0;
     // [2:1] type: 00 = 32bit, 10 = 64bit;
     // [3] prefetch;
-    bars[bar].mapped_addr = bars[bar].map_addr = addr & ~Bar_mem_attr_mask;
+    bars[bar].map_addr = addr & ~Bar_mem_attr_mask;
     bars[bar].type = Pci_cfg_bar::Type::MMIO32;
     // TODO support mmio64 as well
-    get_header<TYPE>()->base_addr_regs[bar] = (addr & ~Bar_mem_attr_mask);
     set_bar_size(bar, size);
   }
 

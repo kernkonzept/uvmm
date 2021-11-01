@@ -125,9 +125,8 @@ public:
   explicit Pci_host_ecam_generic(Interrupt_map const &irq_map,
                                  Device_lookup *devs,
                                  cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
-  : Pci_host_bridge(devs),
-    _irq_map(irq_map),
-    _msix_ctrl(msix_ctrl)
+  : Pci_host_bridge(devs, msix_ctrl),
+    _irq_map(irq_map)
   {
     register_device(cxx::Ref_ptr<Pci_device>(this));
     iterate_pci_root_bus();
@@ -166,6 +165,19 @@ public:
     if (cfg.bus().get() > 0 || cfg.func().get() > 0)
       return;
     cfg_space_write(cfg.dev().get(), cfg.reg().get(), (Vmm::Mem_access::Width)width, val);
+  }
+
+protected:
+  cxx::Ref_ptr<Vmm::Mmio_device> get_mmio_bar_handler(unsigned) override
+  {
+    assert(false); // Must not be called. No BARs set up.
+    return nullptr;
+  }
+
+  cxx::Ref_ptr<Vmm::Io_device> get_io_bar_handler(unsigned) override
+  {
+    assert(false); // Must not be called. No BARs set up.
+    return nullptr;
   }
 
 private:
@@ -225,39 +237,6 @@ private:
 
   void init_dev_resources(Hw_pci_device *hwdev) override
   {
-    // Go through all resources of the PCI device and register them with the
-    // memmap
-    int bir = setup_msix_memory(hwdev, _msix_ctrl);
-
-    for (int i = 0; i < Pci_config_consts::Bar_num_max_type0; ++i)
-      {
-        if (i == bir || hwdev->bars[i].type == Pci_cfg_bar::Type::Unused_empty
-            || hwdev->bars[i].type == Pci_cfg_bar::Type::Reserved_mmio64_upper
-            || hwdev->bars[i].type == Pci_cfg_bar::Type::IO)
-          continue;
-
-        Guest_addr addr(hwdev->bars[i].map_addr);
-        l4_size_t size = hwdev->bars[i].size;
-        switch (hwdev->bars[i].type)
-          {
-          case Pci_cfg_bar::Type::MMIO32:
-          case Pci_cfg_bar::Type::MMIO64:
-            {
-              auto region = Region::ss(addr, size, Vmm::Region_type::Vbus,
-                                       Vmm::Region_flags::Moveable);
-              // Mark region as moveable so it can't be merged
-              warn().printf("Register MMIO region: [0x%lx, 0x%lx]\n",
-                            region.start.get(), region.end.get());
-              auto m = cxx::make_ref_obj<Ds_manager>(_vbus->io_ds(),
-                                                     hwdev->bars[i].map_addr, size);
-              _vmm->add_mmio_device(region, make_device<Ds_handler>(m));
-              break;
-            }
-
-          default: break;
-          }
-      }
-
     setup_device_irq(hwdev);
   }
 
@@ -266,9 +245,6 @@ private:
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCIe ctl"); }
 private:
   Interrupt_map const _irq_map;
-  /// MSI-X controller responsible for the devices of this PCIe host bridge,
-  /// may be nullptr since MSI-X support is an optional feature.
-  cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;
 };
 
 struct F : Factory

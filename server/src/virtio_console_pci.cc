@@ -35,6 +35,17 @@ public:
 
   Virtio::Event_connector_msix *event_connector() { return &_evcon; }
 
+protected:
+  cxx::Ref_ptr<Vmm::Mmio_device> get_mmio_bar_handler(unsigned) override
+  {
+    return event_connector()->make_mmio_device();
+  }
+
+  cxx::Ref_ptr<Vmm::Io_device> get_io_bar_handler(unsigned) override
+  {
+    return cxx::Ref_ptr<Vmm::Io_device>(this);
+  }
+
 private:
   Virtio::Event_connector_msix _evcon;
 };
@@ -91,12 +102,7 @@ struct F : Factory
     auto vmm = devs->vmm();
     auto console = make_device<Virtio_console_pci>(devs->ram().get(), cap,
                                                    msi_distr);
-    if (console->init_irqs(devs, node) < 0)
-      return nullptr;
 
-    vmm->add_io_device(Vmm::Io_region::ss(regs[1].base, regs[1].size,
-                                          Vmm::Region_type::Virtual),
-                       console);
     console->register_obj(vmm->registry());
     unsigned num_msix = 5;
     console->configure(regs, num_msix);

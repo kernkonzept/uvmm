@@ -101,6 +101,30 @@ void Pci_device::update_bar(unsigned bar, l4_uint32_t value)
 {
   assert(bar < sizeof(bars) / sizeof(bars[0]));
 
+  switch (bars[bar].type)
+    {
+    case Pci_cfg_bar::Unused_empty:
+      break;
+    case Pci_cfg_bar::Reserved_mmio64_upper:
+    case Pci_cfg_bar::MMIO32:
+    case Pci_cfg_bar::MMIO64:
+      if (enabled_decoders & Memory_space_bit)
+        {
+          warn().printf("Ignore update of BAR[%u]! MMIO decoding enabled.\n",
+                        bar);
+          return;
+        }
+      break;
+    case Pci_cfg_bar::IO:
+      if (enabled_decoders & Io_space_bit)
+        {
+          warn().printf("Ignore update of BAR[%u]! IO decoding enabled.\n",
+                        bar);
+          return;
+        }
+      break;
+    }
+
   // The BAR size (power of 2!) defines which bits are writable.
   switch (bars[bar].type)
     {
@@ -136,56 +160,66 @@ void Pci_device::update_bar(unsigned bar, l4_uint32_t value)
     }
 }
 
-void Pci_device::remap_mmio_bars(Vmm::Guest *vmm)
+void Virt_pci_device::add_decoder_resources(Vmm::Guest *vmm, l4_uint32_t access)
 {
-  // Disable any bar access
-  l4_uint32_t access = disable_access();
-
-  // BAR indicator register. Used to determine MSIX-emulation memory.
-  unsigned bir = Pci_config_consts::Bar_num_max_type0;
-  if (has_msix)
-    bir = msix_cap.tbl.bir();
-
-  for (unsigned i = 0; i < Bar_num_max_type0; ++i)
+  unsigned i = 0;
+  for (auto &bar : bars)
     {
-      if (i == bir) // we currently cannot move the bir
-        continue;
-
-      Pci_cfg_bar &bar = bars[i];
-      // We are only interested in mmio regions
-      if (bar.type != Pci_cfg_bar::MMIO32 && bar.type != Pci_cfg_bar::MMIO64)
-        continue;
-
-      // If the address has changed we need to do a remap
-      if (bar.map_addr != bar.mapped_addr)
+      switch (bar.type)
         {
-          trace().printf("command remap [%u] io_addr=0x%llx -> "
-                         "map_addr=0x%llx (from: map_addr=0x%llx) "
-                         "size=0x%llx\n", i, bar.io_addr, bar.map_addr,
-                         bar.mapped_addr, bar.size);
-          auto old_region = Vmm::Region::ss(Vmm::Guest_addr(bar.mapped_addr),
-                                            bar.size,
-                                            Vmm::Region_type::Vbus,
-                                            Vmm::Region_flags::Moveable);
-          // Instruct the vm map to use the new start address
-          vmm->remap_mmio_device(old_region, Vmm::Guest_addr(bar.map_addr));
-          // Unmap any child mappings which may be happened in the meantime
-          auto vm_task = vmm->vm_task();
-          l4_addr_t src = bar.mapped_addr;
-          assert(bar.size);
+        case Pci_cfg_bar::Unused_empty:
+        case Pci_cfg_bar::Reserved_mmio64_upper:
+          break;
+        case Pci_cfg_bar::MMIO32:
+        case Pci_cfg_bar::MMIO64:
+          if (!(access & Memory_space_bit))
+            break;
 
-          while (src < bar.mapped_addr + bar.size - 1)
-            {
-              vm_task->unmap(l4_fpage(src, L4_PAGESHIFT, 0), L4_FP_ALL_SPACES);
-              src += L4_PAGESIZE;
-            }
-          // Update our internal mapping address
-          bar.mapped_addr = bar.map_addr;
+          vmm->add_mmio_device(Vmm::Region::ss(Vmm::Guest_addr(bar.map_addr),
+                                               bar.size,
+                                               Vmm::Region_type::Virtual,
+                                               Vmm::Region_flags::Moveable),
+                               get_mmio_bar_handler(i));
+          break;
+        case Pci_cfg_bar::IO:
+          if (!Vmm::Guest::Has_io_space || !(access & Io_space_bit))
+            break;
+
+          vmm->add_io_device(Vmm::Io_region::ss(bar.map_addr, bar.size,
+                                                Vmm::Region_type::Virtual,
+                                                Vmm::Region_flags::Moveable),
+                             get_io_bar_handler(i));
+          break;
+        }
+      i++;
+    }
+}
+
+void Virt_pci_device::del_decoder_resources(Vmm::Guest *vmm, l4_uint32_t access)
+{
+  for (auto &bar : bars)
+    {
+      switch (bar.type)
+        {
+        case Pci_cfg_bar::Unused_empty:
+        case Pci_cfg_bar::Reserved_mmio64_upper:
+          break;
+        case Pci_cfg_bar::MMIO32:
+        case Pci_cfg_bar::MMIO64:
+          if (access & Memory_space_bit)
+            vmm->del_mmio_device(Vmm::Region::ss(Vmm::Guest_addr(bar.map_addr),
+                                                 bar.size,
+                                                 Vmm::Region_type::Virtual,
+                                                 Vmm::Region_flags::Moveable));
+          break;
+        case Pci_cfg_bar::IO:
+          if (Vmm::Guest::Has_io_space && access & Io_space_bit)
+            vmm->del_io_device(Vmm::Io_region::ss(bar.map_addr, bar.size,
+                                                  Vmm::Region_type::Virtual,
+                                                  Vmm::Region_flags::Moveable));
+          break;
         }
     }
-
-  // Reenable bar access
-  enable_access(access);
 }
 
 } } // namespace Vdev::Pci

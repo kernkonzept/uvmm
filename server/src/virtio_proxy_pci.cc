@@ -31,6 +31,17 @@ public:
 
   Virtio::Event_connector_msix *event_connector() { return &_evcon; }
 
+protected:
+  cxx::Ref_ptr<Vmm::Mmio_device> get_mmio_bar_handler(unsigned) override
+  {
+    return event_connector()->make_mmio_device();
+  }
+
+  cxx::Ref_ptr<Vmm::Io_device> get_io_bar_handler(unsigned) override
+  {
+    return cxx::Ref_ptr<Vmm::Io_device>(this);
+  }
+
 private:
   Virtio::Event_connector_msix _evcon;
 };
@@ -106,16 +117,6 @@ struct F : Factory
     auto proxy =
       make_device<Virtio_proxy_pci>(cap, cfgsz + 0x100, nnq_id, devs->ram().get(),
                                     msi_distr);
-
-    if (proxy->init_irqs(devs, node) < 0)
-      return nullptr;
-
-    if (regs[1].flags & Dt_pci_flags_io)
-      {
-        auto region = Vmm::Io_region::ss(regs[1].base, regs[1].size,
-                                         Vmm::Region_type::Virtual);
-        vmm->add_io_device(region, proxy);
-      }
 
     proxy->register_irq(vmm->registry());
 

@@ -15,7 +15,6 @@
 #include "guest.h"
 #include "ds_mmio_mapper.h"
 #include "io_port_handler.h"
-#include "ds_mmio_handling.h"
 
 namespace Vdev { namespace Pci {
 
@@ -39,13 +38,8 @@ class Pci_host_generic:
 public:
   explicit Pci_host_generic(Device_lookup *devs,
                             cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
-  : Pci_host_bridge(devs),
-    _msix_ctrl(msix_ctrl)
+  : Pci_host_bridge(devs, msix_ctrl)
   {
-    _msi_src_factory = make_device<
-      Vdev::Msi::Msi_src_factory>(cxx::static_pointer_cast<Msi::Allocator>(
-                                    devs->vbus()),
-                                  devs->vmm()->registry(), _msix_ctrl);
     register_device(cxx::Ref_ptr<Pci_device>(this));
     iterate_pci_root_bus();
 
@@ -56,19 +50,29 @@ public:
     header()->classcode[2] = Pci_class_code_bridge_device;
     header()->classcode[1] = Pci_subclass_code_host;
     header()->header_type = 1; // PCI_TO_PCI_BRIDGE
-    header()->command = Bus_master_bit | Io_space_bit;
+    header()->command |= Bus_master_bit;
   }
 
   void init_bus_range(Dt_node const &node);
   void init_dev_resources(Hw_pci_device *) override;
 
+protected:
+  cxx::Ref_ptr<Vmm::Mmio_device> get_mmio_bar_handler(unsigned) override
+  {
+    assert(false); // Must not be called. No BARs set up.
+    return nullptr;
+  }
+
+  cxx::Ref_ptr<Vmm::Io_device> get_io_bar_handler(unsigned) override
+  {
+    assert(false); // Must not be called. No BARs set up.
+    return nullptr;
+  }
+
 private:
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI bus"); }
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI bus"); }
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI bus"); }
-
-  cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;
-  cxx::Ref_ptr<Vdev::Msi::Msi_src_factory> _msi_src_factory;
 }; // class Pci_host_generic
 
 /**
@@ -251,60 +255,8 @@ Pci_host_generic::init_bus_range(Dt_node const &node)
 }
 
 void
-Pci_host_generic::init_dev_resources(Hw_pci_device *hwdev)
-{
-  // Go through all resources of the PCI device and register them with the
-  // memmap or iomap.
-  int bir = setup_msix_memory(hwdev, _msix_ctrl);
-  if (hwdev->has_msi)
-    hwdev->msi_src_factory = _msi_src_factory.get();
-
-  for (int i = 0; i < Pci_config_consts::Bar_num_max_type0; ++i)
-    {
-      if (i == bir || hwdev->bars[i].type == Pci_cfg_bar::Type::Unused_empty
-          || hwdev->bars[i].type == Pci_cfg_bar::Type::Reserved_mmio64_upper)
-        continue;
-
-      Guest_addr addr(hwdev->bars[i].map_addr);
-      l4_size_t size = hwdev->bars[i].size;
-      switch (hwdev->bars[i].type)
-        {
-        case Pci_cfg_bar::Type::IO:
-          {
-            auto region =
-              Io_region::ss(addr.get(), size, Vmm::Region_type::Vbus);
-            l4vbus_resource_t res;
-            res.type = L4VBUS_RESOURCE_PORT;
-            res.start = region.start;
-            res.end = region.end;
-            res.provider = 0;
-            res.id = 0;
-            L4Re::chksys(_vbus->bus()->request_ioport(&res),
-                         "Request IO port resource from vBus.");
-            warn().printf("Register IO region: [0x%lx, 0x%lx]\n",
-                          region.start, region.end);
-            _vmm->add_io_device(region, make_device<Io_port_handler>(addr.get()));
-            break;
-          }
-
-        case Pci_cfg_bar::Type::MMIO32:
-        case Pci_cfg_bar::Type::MMIO64:
-          {
-            auto region = Region::ss(addr, size, Vmm::Region_type::Vbus,
-                                     Vmm::Region_flags::Moveable);
-            // Mark region as moveable so it can't be merged
-            warn().printf("Register MMIO region: [0x%lx, 0x%lx]\n",
-                          region.start.get(), region.end.get());
-            auto m = cxx::make_ref_obj<Ds_manager>(_vbus->io_ds(),
-                                                   hwdev->bars[i].map_addr, size);
-            _vmm->add_mmio_device(region, make_device<Ds_handler>(m));
-            break;
-          }
-
-        default: break;
-        }
-    }
-}
+Pci_host_generic::init_dev_resources(Hw_pci_device *)
+{}
 
 } } // namespace Vdev::Pci
 

@@ -16,7 +16,9 @@
 #include "pci_device.h"
 #include "msi.h"
 #include "msi_controller.h"
+#include "msi_memory.h"
 #include "address_space_manager_mode_if.h"
+#include "ds_mmio_handling.h"
 
 namespace Vdev { namespace Pci {
 
@@ -26,20 +28,29 @@ namespace Vdev { namespace Pci {
 class Pci_host_bridge
 {
 public:
-  Pci_host_bridge(Device_lookup *devs)
+  Pci_host_bridge(Device_lookup *devs,
+                  cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
   : _vmm(devs->vmm()),
     _vbus(devs->vbus()),
-    _as_mgr(devs->ram()->as_mgr_if())
-  {}
+    _as_mgr(devs->ram()->as_mgr_if()),
+    _msix_ctrl(msix_ctrl)
+  {
+    if (msix_ctrl)
+      _msi_src_factory = make_device<
+        Vdev::Msi::Msi_src_factory>(cxx::static_pointer_cast<Msi::Allocator>(
+                                      devs->vbus()),
+                                    devs->vmm()->registry(), msix_ctrl);
+  }
 
   /**
    * A hardware PCI device present on the vBus.
    */
   struct Hw_pci_device : public Pci_device
   {
-    explicit Hw_pci_device(L4vbus::Pci_dev d, unsigned dev_id,
-                           l4vbus_device_t const &dinfo)
-    : dev_id(dev_id),
+    explicit Hw_pci_device(Pci_host_bridge *parent, L4vbus::Pci_dev d,
+                           unsigned dev_id, l4vbus_device_t const &dinfo)
+    : parent(parent),
+      dev_id(dev_id),
       dev(d),
       dinfo(dinfo)
     {}
@@ -113,14 +124,30 @@ public:
     /// write MSI cap of hardware device
     void cfg_space_write_msi_cap(l4_icu_msi_info_t *msiinfo = nullptr);
 
+    /// Setup virtual MSI-X table and map vbus resources as needed.
+    void setup_msix_table();
+
+    Pci_host_bridge *parent;             /// Parent host bridge of device
     unsigned dev_id;                     /// Virtual device id
     L4vbus::Pci_dev dev;                 /// Reference to vbus PCI device
     l4vbus_device_t dinfo;               /// vbus device info
     cxx::Ref_ptr<Vdev::Irq_svr> irq;
-    Vdev::Msi::Msi_src_factory *msi_src_factory;
+    cxx::Ref_ptr<Ds_access_mgr> msix_table_page_mgr;
+    cxx::Ref_ptr<Msix::Virt_msix_table> msix_table;
     cxx::Ref_ptr<Vdev::Msi::Msi_src> msi_src;
 
+  protected:
+    void add_decoder_resources(Vmm::Guest *, l4_uint32_t access) override;
+    void del_decoder_resources(Vmm::Guest *, l4_uint32_t access) override;
+
   private:
+    void add_io_bar_resources(Pci_cfg_bar const &bar);
+    void add_mmio_bar_resources(Pci_cfg_bar const &bar);
+    void add_msix_bar_resources(Pci_cfg_bar const &bar);
+    void del_io_bar_resources(Pci_cfg_bar const &bar);
+    void del_mmio_bar_resources(Pci_cfg_bar const &bar);
+    void del_msix_bar_resources(Pci_cfg_bar const &bar);
+
     static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "HW PCI dev"); }
     static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "HW PCI dev"); }
     static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "HW PCI dev"); }
@@ -200,54 +227,19 @@ protected:
         if (vendor_device == Pci_invalid_vendor_id)
           continue;
 
-        Hw_pci_device *h = new Hw_pci_device(pdev, _devices.size(), dinfo);
+        Hw_pci_device *h = new Hw_pci_device(this, pdev, _devices.size(), dinfo);
         info().printf("Found PCI device: name='%s', vendor/device=%04x:%04x\n",
                       dinfo.name, vendor_device & 0xffff, vendor_device >> 16);
 
         h->parse_device_bars();
         h->parse_msix_cap();
         h->parse_msi_cap();
-
+        h->setup_msix_table();
         init_dev_resources(h);
 
         register_device(cxx::Ref_ptr<Pci_device>(h));
       }
   }
-
-  /**
-   * Set up management of the MSI-X table page.
-   *
-   * \param  hwdev      Device for which MSI-X table is to be set up.
-   * \param  bar        Index of the BAR containing the MSI-X table.
-   * \param  msix_ctrl  MSI-X controller responsible for the device.
-   */
-  void register_msix_table_page(
-    Pci_host_bridge::Hw_pci_device *hwdev, unsigned bir,
-    cxx::Ref_ptr<Gic::Msix_controller> const &msix_ctrl);
-
-  /**
-   * Register non-MSI-X table pages as pass-through MMIO regions.
-   *
-   * \param bar         BAR containing the MSI-X table.
-   * \param tbl_offset  Offset of the MSI-X table inside `bar`.
-   */
-  void register_msix_bar(Pci_cfg_bar const *bar, l4_addr_t tbl_offset);
-
-  /**
-   * If the device supports MSI-X, set up the BAR used for the MSI-X table.
-   *
-   * If the device supports MSI-X, but no MSI-X controller is supplied, the
-   * MSI-X table will not be mapped. However, the remainder of the BAR will be
-   * mapped anyway.
-   *
-   * \param  hwdev      Device for which MSI-X is to be set up.
-   * \param  msix_ctrl  MSI-X controller responsible for the device.
-   *
-   * \return The index of the BAR used for the MSI-X table if the device
-   *         supports MSI-X, otherwise Pci_config_consts::Bar_num_max_type0.
-   */
-  unsigned setup_msix_memory(
-    Hw_pci_device *hwdev, cxx::Ref_ptr<Gic::Msix_controller> const &msix_ctrl);
 
   virtual void init_dev_resources(Hw_pci_device *) = 0;
 
@@ -255,7 +247,8 @@ public:
   /**
    * Register a UVMM emulated device.
    *
-   * In case the PCI bus is full, an exception is thrown.
+   * Disables the device to meet the required reset state. We also have not yet
+   * registered any MMIO/IO resources for the guest.
    */
   void register_device(cxx::Ref_ptr<Pci_device> const &dev)
   {
@@ -264,6 +257,7 @@ public:
                         "PCI bus can accomodate no more than 32 devices. "
                         "Consider putting the device on another PCI bus.");
     warn().printf("Registering device %zu\n", _devices.size() + 1);
+    dev->disable_access(Access_mask); // PCI devices are disabled by default.
     _devices.push_back(dev);
   }
 
@@ -279,6 +273,11 @@ protected:
   // used for device lookup on PCI config space access
   // may contain physical and virtual devices
   std::vector<cxx::Ref_ptr<Pci_device>> _devices;
+  /// MSI-X controller responsible for the devices of this PCIe host bridge,
+  /// may be nullptr since MSI-X support is an optional feature.
+  cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;
+
+  cxx::Ref_ptr<Vdev::Msi::Msi_src_factory> _msi_src_factory;
 };
 
 } } // namespace Vdev::Pci

@@ -46,20 +46,12 @@ public:
 
   void clear_events(unsigned) {}
 
-  int init_irqs(Vdev::Device_lookup const *devs,
-                Vdev::Dt_node const &node)
+  /**
+   * Create virtual device to let guest access MSI-X table.
+   */
+  cxx::Ref_ptr<Vmm::Mmio_device> make_mmio_device() const
   {
-    l4_uint64_t dt_msi_base = 0, dt_msi_size = 0;
-    node.get_reg_val(0, &dt_msi_base, &dt_msi_size);
-    // device tree values already checked by factory.create()
-
-    // Registered region must have the address from the DT as this is the value
-    // presented by the PCI device to the guest.
-    devs->vmm()->add_mmio_device(Vmm::Region::ss(Vmm::Guest_addr(dt_msi_base),
-                                                 Vdev::Pci::Msix_mem_need,
-                                                 Vmm::Region_type::Virtual),
-                                 Vdev::make_device<Ds_handler>(_msix_mem));
-    return 0;
+    return Vdev::make_device<Ds_handler>(_msix_mem);
   }
 
 private:

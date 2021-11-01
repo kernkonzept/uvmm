@@ -234,6 +234,13 @@ private:
    */
   void configure_msix_route(unsigned idx)
   {
+    if (!_msix_ctrl)
+      {
+        warn().printf("No MSI-X controller! Entry %u not routed to guest.\n",
+                      idx);
+        return;
+      }
+
     // guard against multiple threads accessing the Msi_allocator and the
     // capability allocator
     std::lock_guard<std::mutex> lock(_mutex);

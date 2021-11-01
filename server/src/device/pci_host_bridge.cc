@@ -13,8 +13,237 @@
 #include "ds_mmio_mapper.h"
 #include "ds_mmio_handling.h"
 #include "msi_memory.h"
+#include "io_port_handler.h"
 
 namespace Vdev { namespace Pci {
+
+void
+Pci_host_bridge::Hw_pci_device::add_decoder_resources(Vmm::Guest *,
+                                                      l4_uint32_t access)
+{
+  int bir = has_msix ? msix_cap.tbl.bir()
+                     : Pci_config_consts::Bar_num_max_type0;
+
+  for (int i = 0; i < Pci_config_consts::Bar_num_max_type0; ++i)
+    {
+      switch (bars[i].type)
+        {
+        case Pci_cfg_bar::Type::IO:
+          if (Vmm::Guest::Has_io_space && access & Io_space_bit)
+            add_io_bar_resources(bars[i]);
+          break;
+
+        case Pci_cfg_bar::Type::MMIO32:
+        case Pci_cfg_bar::Type::MMIO64:
+          if (!(access & Memory_space_bit))
+            break;
+
+          if (i == bir)
+            add_msix_bar_resources(bars[i]);
+          else
+            add_mmio_bar_resources(bars[i]);
+          break;
+
+        default: break;
+        }
+    }
+}
+
+void
+Pci_host_bridge::Hw_pci_device::add_io_bar_resources(Pci_cfg_bar const &bar)
+{
+  Vmm::Guest_addr addr(bar.map_addr);
+  l4_size_t size = bar.size;
+  auto region = Vmm::Io_region::ss(addr.get(), size, Vmm::Region_type::Vbus,
+                                   Vmm::Region_flags::Moveable);
+  warn().printf("Register IO region: [0x%lx, 0x%lx], vbus base 0x%llx\n",
+                region.start, region.end, bar.io_addr);
+
+  l4vbus_resource_t res;
+  res.type = L4VBUS_RESOURCE_PORT;
+  res.start = bar.io_addr;
+  res.end = res.start + size - 1U;
+  res.provider = 0;
+  res.id = 0;
+  L4Re::chksys(parent->_vbus->bus()->request_ioport(&res),
+               "Request IO port resource from vBus.");
+  parent->_vmm->add_io_device(region,
+                              make_device<Io_port_handler>(bar.io_addr));
+}
+
+void
+Pci_host_bridge::Hw_pci_device::add_mmio_bar_resources(Pci_cfg_bar const &bar)
+{
+  Vmm::Guest_addr addr(bar.map_addr);
+  l4_size_t size = bar.size;
+  auto region = Vmm::Region::ss(addr, size, Vmm::Region_type::Vbus,
+                                Vmm::Region_flags::Moveable);
+  warn().printf("Register MMIO region: [0x%lx, 0x%lx], vbus base 0x%llx\n",
+                region.start.get(), region.end.get(), bar.io_addr);
+
+  auto m = cxx::make_ref_obj<Ds_manager>(parent->_vbus->io_ds(),
+                                         bar.io_addr, size);
+  parent->_vmm->add_mmio_device(region, make_device<Ds_handler>(m));
+}
+
+/**
+ * Add MMIO resources of the BAR that holds the MSI-X table.
+ *
+ * Usually the BAR does not only hold the MSIX-table but other resources too.
+ * Everything in the BAR before and after the table is mapped pass-through to
+ * the guest. If the table is not page aligned the affected parts of the pages
+ * are trapped and forwarded.
+ *
+ * The virtual MSI-X table is always registered, even if the bridge lacks a
+ * virtual MSI-X controller. The guest might still access the MSI-X table
+ * and we must support that even though the interrupt will not be deliverd.
+ */
+void
+Pci_host_bridge::Hw_pci_device::add_msix_bar_resources(Pci_cfg_bar const &bar)
+{
+  unsigned max_msis = msix_cap.ctrl.max_msis() + 1;
+  unsigned table_offset = msix_cap.tbl.offset();
+
+  // the virtual MSI-X table
+  l4_addr_t msix_table_start = bar.map_addr + table_offset;
+  l4_addr_t msix_table_size = max_msis * Msix::Entry_size;
+
+  // whole pages mapped to guest at start of BAR
+  l4_addr_t before_pages_start = bar.map_addr;
+  l4_addr_t before_pages_size = l4_trunc_page(table_offset);
+
+  // partial page mapped to guest immediately before MSI-X table
+  l4_addr_t before_partial_start = before_pages_start + before_pages_size;
+  l4_addr_t before_partial_size = msix_table_start - before_partial_start;
+
+  // whole pages mapped to guest at end of BAR
+  l4_addr_t after_pages_start = l4_round_page(msix_table_start + msix_table_size);
+  l4_addr_t after_pages_size = bar.size - (after_pages_start - bar.map_addr);
+
+  // partial page mapped to guest immediately after MSI-X table
+  l4_addr_t after_partial_start = msix_table_start + msix_table_size;
+  l4_addr_t after_partial_size = after_pages_start - after_partial_start;
+
+  // now add everything
+
+  cxx::Ref_ptr<Vmm::Ds_manager> m;
+  if (before_pages_size || after_pages_size)
+    m = cxx::make_ref_obj<Vmm::Ds_manager>(parent->_vbus->io_ds(),
+                                           bar.io_addr, bar.size);
+
+  if (before_pages_size)
+    {
+      auto region = Region::ss(Vmm::Guest_addr(before_pages_start),
+                               before_pages_size, Vmm::Region_type::Vbus,
+                               Vmm::Region_flags::Moveable);
+      warn().printf("Register MMIO region in MSI-X bar: [0x%lx, 0x%lx]\n",
+                    region.start.get(), region.end.get());
+      parent->_vmm->add_mmio_device(region, make_device<Ds_handler>(m, 0));
+    }
+
+  if (before_partial_size)
+    {
+      auto region = Region::ss(Vmm::Guest_addr(before_partial_start),
+                               before_partial_size, Vmm::Region_type::Vbus,
+                               Vmm::Region_flags::Moveable);
+      warn().printf("Register MMIO region in MSI-X bar: [0x%lx, 0x%lx]\n",
+                    region.start.get(), region.end.get());
+      auto con = make_device<Mmio_ds_converter>(msix_table_page_mgr, 0);
+      parent->_vmm->add_mmio_device(region, con);
+    }
+
+  auto region = Region::ss(Vmm::Guest_addr(msix_table_start), msix_table_size,
+                           Vmm::Region_type::Vbus, Vmm::Region_flags::Moveable);
+  warn().printf("Register MSI-X MMIO table: [0x%lx, 0x%lx]\n",
+                region.start.get(), region.end.get());
+  parent->_vmm->add_mmio_device(region, msix_table);
+
+  if (after_partial_size)
+    {
+      auto region = Region::ss(Vmm::Guest_addr(after_partial_start),
+                               after_partial_size, Vmm::Region_type::Vbus,
+                               Vmm::Region_flags::Moveable);
+      warn().printf("Register MMIO region in MSI-X bar: [0x%lx, 0x%lx]\n",
+                    region.start.get(), region.end.get());
+      l4_addr_t mgr_offset = after_partial_start - before_partial_start;
+      auto con = make_device<Mmio_ds_converter>(msix_table_page_mgr, mgr_offset);
+      parent->_vmm->add_mmio_device(region, con);
+    }
+
+  if (after_pages_size)
+    {
+      auto region = Region::ss(Vmm::Guest_addr(after_pages_start),
+                               after_pages_size, Vmm::Region_type::Vbus,
+                               Vmm::Region_flags::Moveable);
+      warn().printf("Register MMIO region in MSI-X bar: [0x%lx, 0x%lx]\n",
+                    region.start.get(), region.end.get());
+      l4_addr_t mgr_offset = after_pages_start - before_pages_start;
+      parent->_vmm->add_mmio_device(region,
+                                    make_device<Ds_handler>(m, mgr_offset));
+    }
+}
+
+void
+Pci_host_bridge::Hw_pci_device::del_decoder_resources(Vmm::Guest *,
+                                                      l4_uint32_t access)
+{
+  int bir = has_msix ? msix_cap.tbl.bir()
+                     : Pci_config_consts::Bar_num_max_type0;
+
+  for (int i = 0; i < Pci_config_consts::Bar_num_max_type0; ++i)
+    {
+      switch (bars[i].type)
+        {
+        case Pci_cfg_bar::Type::IO:
+          if (Vmm::Guest::Has_io_space && access & Io_space_bit)
+            del_io_bar_resources(bars[i]);
+          break;
+
+        case Pci_cfg_bar::Type::MMIO32:
+        case Pci_cfg_bar::Type::MMIO64:
+          if (!(access & Memory_space_bit))
+            break;
+
+          if (i == bir)
+            del_msix_bar_resources(bars[i]);
+          else
+            del_mmio_bar_resources(bars[i]);
+          break;
+
+        default: break;
+        }
+    }
+}
+
+void
+Pci_host_bridge::Hw_pci_device::del_io_bar_resources(Pci_cfg_bar const &bar)
+{
+  auto region = Vmm::Io_region::ss(bar.map_addr, bar.size,
+                                   Vmm::Region_type::Vbus);
+  warn().printf("Unregister IO region: [0x%lx, 0x%lx]\n",
+                region.start, region.end);
+  parent->_vmm->del_io_device(region);
+}
+
+void
+Pci_host_bridge::Hw_pci_device::del_mmio_bar_resources(Pci_cfg_bar const &bar)
+{
+  auto region = Vmm::Region::ss(Vmm::Guest_addr(bar.map_addr), bar.size,
+                                Vmm::Region_type::Vbus);
+  warn().printf("Unregister MMIO region: [0x%lx, 0x%lx]\n",
+                region.start.get(), region.end.get());
+  parent->_vmm->del_mmio_device(region);
+}
+
+void
+Pci_host_bridge::Hw_pci_device::del_msix_bar_resources(Pci_cfg_bar const &bar)
+{
+  auto region = Region::ss(Vmm::Guest_addr(bar.map_addr), bar.size,
+                           Vmm::Region_type::Vbus);
+  warn().printf("Unregister MSI-X bar MMIO region: [0x%lx, 0x%lx]\n",
+                region.start.get(), region.end.get());
+  parent->_vmm->del_mmio_devices(region);
+}
 
 bool Pci_host_bridge::Hw_pci_device::msi_cap_read(unsigned reg,
                                                   l4_uint32_t *value,
@@ -91,14 +320,15 @@ bool Pci_host_bridge::Hw_pci_device::msi_cap_write(unsigned reg,
         msi_cap.ctrl.multiple_message_capable() = 0;
         if (!was_enabled && msi_cap.ctrl.msi_enable())
           {
-            if (msi_src_factory)
+            if (parent->_msi_src_factory)
               {
                 info().printf("MSI enabled: devid = 0x%x, ctrl = 0x%x\n",
                               dev_id, msi_cap.ctrl.raw);
                 l4_icu_msi_info_t msiinfo;
                 msi_src =
-                  msi_src_factory->configure_msi_route(msi_cap, src_id(),
-                                                       &msiinfo);
+                  parent->_msi_src_factory->configure_msi_route(msi_cap,
+                                                                src_id(),
+                                                                &msiinfo);
                 if (msi_src)
                   cfg_space_write_msi_cap(&msiinfo);
               }
@@ -110,10 +340,10 @@ bool Pci_host_bridge::Hw_pci_device::msi_cap_write(unsigned reg,
           }
         else if (was_enabled && !msi_cap.ctrl.msi_enable())
           {
-            if (msi_src_factory)
+            if (parent->_msi_src_factory)
               {
                 cfg_space_write_msi_cap();
-                msi_src_factory->reset_msi_route(msi_src);
+                parent->_msi_src_factory->reset_msi_route(msi_src);
               }
             msi_src = nullptr;
 
@@ -194,135 +424,43 @@ void Pci_host_bridge::Hw_pci_device::cfg_space_write_msi_cap(
                "Write HW PCI device MSI cap ctrl.");
 }
 
-void Pci_host_bridge::register_msix_table_page(
-  Pci_host_bridge::Hw_pci_device *hwdev, unsigned bir,
-  cxx::Ref_ptr<Gic::Msix_controller> const &msix_ctrl)
+void Pci_host_bridge::Hw_pci_device::setup_msix_table()
 {
-  assert(hwdev);
-  assert(hwdev->has_msix);
-  unsigned max_msis = hwdev->msix_cap.ctrl.max_msis() + 1;
+  if (!has_msix)
+    return;
 
-  l4_addr_t table_addr =
-    hwdev->bars[bir].map_addr + hwdev->msix_cap.tbl.offset();
-  l4_addr_t table_end = table_addr + max_msis * Msix::Entry_size - 1;
-
-  l4_addr_t table_page = l4_trunc_page(table_addr);
-
-  auto mem_mgr =
-    cxx::make_ref_obj<Ds_access_mgr>(_vbus->io_ds(), table_page, L4_PAGESIZE);
-
-  l4_size_t pre_table_size = table_addr - table_page;
-  if (pre_table_size > 0)
-    {
-      auto region = Vmm::Region::ss(Vmm::Guest_addr(table_page),
-                                    pre_table_size, Vmm::Region_type::Vbus);
-      auto con = make_device<Mmio_ds_converter>(mem_mgr, 0);
-      _vmm->add_mmio_device(region, con);
-      warn().printf("Register MMIO region before: [0x%lx, 0x%lx]\n",
-                    region.start.get(), region.end.get());
-    }
-
-  l4_addr_t post_table = table_end + 1;
-  l4_size_t post_table_size = table_page + L4_PAGESIZE - post_table;
-
-  if (post_table_size > 0)
-    {
-      auto region = Vmm::Region::ss(Vmm::Guest_addr(post_table),
-                                    post_table_size, Vmm::Region_type::Vbus);
-      auto con =
-        make_device<Mmio_ds_converter>(mem_mgr, post_table - table_page);
-      _vmm->add_mmio_device(region, con);
-      warn().printf("Register MMIO region after: [0x%lx, 0x%lx]\n",
-                    region.start.get(), region.end.get());
-    }
-
-  auto con =
-    make_device<Mmio_ds_converter>(mem_mgr, table_addr - table_page);
-
-  auto region = Vmm::Region(Vmm::Guest_addr(table_addr),
-                            Vmm::Guest_addr(table_end), Vmm::Region_type::Vbus);
-
-  auto hdlr = make_device<Msix::Virt_msix_table>(
-    std::move(con), cxx::static_pointer_cast<Msi::Allocator>(_vbus),
-    _vmm->registry(), hwdev->src_id(), max_msis, msix_ctrl);
-
-  warn().printf("Register MSI-X MMIO region: [0x%lx, 0x%lx]\n",
-                region.start.get(), region.end.get());
-
-  _vmm->add_mmio_device(region, hdlr);
-}
-
-void Pci_host_bridge::register_msix_bar(Pci_cfg_bar const *bar,
-                                        l4_addr_t tbl_offset)
-{
-  l4_addr_t tbl_page_begin_rel = l4_trunc_page(tbl_offset);
-  l4_addr_t tbl_page_size = L4_PAGESIZE;
-
-  l4_addr_t before_area_begin = bar->map_addr;
-  l4_addr_t before_area_size = tbl_page_begin_rel;
-
-  l4_addr_t after_area_begin_rel = tbl_page_begin_rel + tbl_page_size;
-  l4_addr_t after_area_begin = after_area_begin_rel + bar->map_addr;
-  l4_addr_t after_area_size = bar->size - after_area_begin_rel;
-
-  warn().printf("sizes before 0x%lx, after 0x%lx\n", before_area_size,
-                after_area_size);
-
-  cxx::Ref_ptr<Vmm::Ds_manager> m;
-
-  if (before_area_size || after_area_size)
-    m = cxx::make_ref_obj<Vmm::Ds_manager>(_vbus->io_ds(),
-                                           bar->map_addr, bar->size);
-
-  if (before_area_size > 0)
-    {
-      auto region = Vmm::Region::ss(Vmm::Guest_addr(before_area_begin),
-                                    before_area_size, Vmm::Region_type::Vbus);
-
-      warn().printf("Register MMIO region in MSI-X bar: [0x%lx, 0x%lx]\n",
-                    region.start.get(), region.end.get());
-
-      _vmm->add_mmio_device(region, make_device<Ds_handler>(m, 0));
-    }
-
-  if (after_area_size > 0)
-    {
-      auto region = Vmm::Region::ss(Vmm::Guest_addr(after_area_begin),
-                                    after_area_size, Vmm::Region_type::Vbus);
-
-      warn().printf("Register MMIO region in MSI-X bar: [0x%lx, 0x%lx]\n",
-                    region.start.get(), region.end.get());
-
-      _vmm->add_mmio_device(region,
-                            make_device<Ds_handler>(m, after_area_begin_rel));
-    }
-}
-
-unsigned Pci_host_bridge::setup_msix_memory(
-  Hw_pci_device *hwdev, cxx::Ref_ptr<Gic::Msix_controller> const &msix_ctrl)
-{
-  if (!hwdev->has_msix)
-    return Pci_config_consts::Bar_num_max_type0;
-
-  unsigned bir = hwdev->msix_cap.tbl.bir();
+  unsigned bir = msix_cap.tbl.bir();
   if (bir < Pci_config_consts::Bar_num_max_type0)
     {
-      if (msix_ctrl)
-        register_msix_table_page(hwdev, bir, msix_ctrl);
-      else
+      if (!parent->_msix_ctrl)
         warn().printf(
-          "No MSI controller assigned to MSI-X device %s (devid=%u).\n",
-          hwdev->dinfo.name, hwdev->dev_id);
+          "No MSI-X controller available for MSI-X device %s (devid=%u).\n",
+          dinfo.name, dev_id);
 
-      register_msix_bar(&hwdev->bars[bir], hwdev->msix_cap.tbl.offset());
-      return bir;
+      unsigned max_msis = msix_cap.ctrl.max_msis() + 1;
+      unsigned table_size = max_msis * Msix::Entry_size;
+
+      // Cover MSI-X table with page granularity
+      l4_addr_t io_table_addr =
+        bars[bir].io_addr + msix_cap.tbl.offset();
+      l4_addr_t io_table_ds_base = l4_trunc_page(io_table_addr);
+      l4_addr_t io_table_ds_size =
+        l4_round_page(io_table_addr + table_size) - io_table_ds_base;
+
+      msix_table_page_mgr =
+        cxx::make_ref_obj<Ds_access_mgr>(parent->_vbus->io_ds(),
+                                         io_table_ds_base, io_table_ds_size);
+      auto con =
+        make_device<Mmio_ds_converter>(msix_table_page_mgr,
+                                       io_table_addr - io_table_ds_base);
+
+      msix_table = make_device<Msix::Virt_msix_table>(
+        std::move(con), cxx::static_pointer_cast<Msi::Allocator>(parent->_vbus),
+        parent->_vmm->registry(), src_id(), max_msis, parent->_msix_ctrl);
     }
   else
-    {
-      warn().printf("Device %s (devid=%u) has invalid MSI-X bar: %u\n",
-                    hwdev->dinfo.name, hwdev->dev_id, bir);
-      return Pci_config_consts::Bar_num_max_type0;
-    }
+    warn().printf("Device %s (devid=%u) has invalid MSI-X bar: %u\n",
+                  dinfo.name, dev_id, bir);
 }
 
 }} // namespace Vdev::Pci
