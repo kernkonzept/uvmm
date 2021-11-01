@@ -105,10 +105,10 @@
             reg = <0x0 0x0 0x0 0x0>;
         };
 
-        pci0: pci@aaaa0000 {
+        pci0: pci@aa000000 {
             compatible = "virt-pci-bridge";
             // reg 1: MMIO memory region for PCI devices
-            reg = <0x0 0xaaaa0000 0x0 0x00010000>;
+            reg = <0x0 0xaa000000 0x0 0x01000000>;
             interrupt-parent = <&IOAPIC>;
             msi-parent = <&msi_ctrl>;
             bus-range = <0x0 0xff>;
@@ -123,7 +123,7 @@
             //
             // The translation of child device memory region into this nodes
             // memory is described in the device-tree standard.
-            ranges = <0x02000000 0x0 0xaaaa0000 0x0 0xaaaa0000 0x0 0x10000>;
+            ranges = <0x02000000 0x0 0xaa000000 0x0 0xaa000000 0x0 0x1000000>;
 
             virtio_uart@aaaa0000 {
               compatible = "virtio,pci";
@@ -133,7 +133,7 @@
               //
               // The upper 8-bits of the first cell encodes information as
               // described at the ranges property above.
-              reg = <0x02000000 0x0 0xaaaa0000 0x0 0x2000
+              reg = <0x02000000 0x0 0xaa000000 0x0 0x2000
                      0x01000000 0x0 0x800 0x0 0x80>;
               msi-parent = <&msi_ctrl>;
               l4vmm,vdev = "console";
@@ -142,7 +142,7 @@
             virtio_net@aaaa2000 {
                 compatible = "virtio,pci";
                 // The reg property requirements are described in virtio_uart.
-                reg = <0x2000000 0x0 0xaaaa2000 0x0 0x2000
+                reg = <0x2000000 0x0 0xaa002000 0x0 0x2000
                        0x1000000 0x0 0x700 0x0 0x80>;
                 msi-parent = <&msi_ctrl>;
                 l4vmm,virtiocap = "net";
