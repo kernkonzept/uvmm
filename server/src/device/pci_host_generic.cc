@@ -8,6 +8,7 @@
 #include <l4/vbus/vbus>
 #include <l4/re/error_helper>
 
+#include "acpi.h"
 #include "debug.h"
 #include "device.h"
 #include "pci_host_bridge.h"
@@ -30,9 +31,13 @@ namespace Vdev { namespace Pci {
 class Pci_host_generic:
   public Pci_host_bridge,
   public Virt_pci_device,
-  public Device
+  public Device,
+  public Acpi::Acpi_device
 {
   Pci_header::Type1 *header()
+  { return get_header<Pci_header::Type1>(); }
+
+  Pci_header::Type1 const *header() const
   { return get_header<Pci_header::Type1>(); }
 
 public:
@@ -56,6 +61,140 @@ public:
   void init_bus_range(Dt_node const &node);
   void init_dev_resources(Hw_pci_device *) override;
 
+  /**
+   * Add a minimal DSDT system bus so that the PCI bridge is discoverable via
+   * ACPI. Generated from the following ASL:
+   *
+   * DefinitionBlock ("Dsdt.aml", "DSDT", 1, "UVMM  ", "KERNKONZ", 4) {
+   *   //
+   *   //  System Bus
+   *   //
+   *   Scope (\_SB) {
+   *     //
+   *     // PCI Root Bridge
+   *     //
+   *     Device (PCI0) {
+   *       Name (_HID, EISAID ("PNP0A03"))
+   *       Name (_ADR, 0x00000000)
+   *       Name (_BBN, 0x00)
+   *       Name (_UID, 0x00)
+   *
+   *       //
+   *       // BUS, I/O, and MMIO resources
+   *       //
+   *       Name (_CRS, ResourceTemplate () {
+   *         WORDBusNumber (          // Bus number resource (0); the bridge produces bus numbers for its subsequent buses
+   *           ResourceProducer,      // bit 0 of general flags is 1
+   *           MinFixed,              // Range is fixed
+   *           MaxFixed,              // Range is fixed
+   *           PosDecode,             // PosDecode
+   *           0x0000,                // Granularity
+   *           0xAAAA,                // Min
+   *           0xBBBB,                // Max
+   *           0x0000,                // Translation
+   *           0x1112                 // Range Length = Max-Min+1
+   *           )
+   *
+   *         IO (Decode16, 0xCF8, 0xCF8, 0x01, 0x08)       //Consumed resource (0xCF8-0xCFF)
+   *
+   *         WORDIO (                 // Consumed-and-produced resource (all I/O below CF8)
+   *           ResourceProducer,      // bit 0 of general flags is 0
+   *           MinFixed,              // Range is fixed
+   *           MaxFixed,              // Range is fixed
+   *           PosDecode,
+   *           EntireRange,
+   *           0x0000,                // Granularity
+   *           0x0000,                // Min
+   *           0x0CF7,                // Max
+   *           0x0000,                // Translation
+   *           0x0CF8                 // Range Length
+   *           )
+   *
+   *         WORDIO (                 // Consumed-and-produced resource (all I/O above CFF)
+   *           ResourceProducer,      // bit 0 of general flags is 0
+   *           MinFixed,              // Range is fixed
+   *           MaxFixed,              // Range is fixed
+   *           PosDecode,
+   *           EntireRange,
+   *           0x0000,                // Granularity
+   *           0x0D00,                // Min
+   *           0xFFFF,                // Max
+   *           0x0000,                // Translation
+   *           0xF300                 // Range Length
+   *           )
+   *
+   *         DWORDMEMORY (            // Descriptor for 32-bit MMIO
+   *           ResourceProducer,      // bit 0 of general flags is 0
+   *           PosDecode,
+   *           MinFixed,              // Range is fixed
+   *           MaxFixed,              // Range is Fixed
+   *           NonCacheable,
+   *           ReadWrite,
+   *           0x00000000,            // Granularity
+   *           0xAAAAAAAA,            // Min
+   *           0xBBBBBBBB,            // Max
+   *           0x00000000,            // Translation
+   *           0x11111112,            // Range Length
+   *           )
+   *       })
+   *     }
+   *   }
+   * }
+   */
+  size_t amend_dsdt(void *buf, size_t max_size) const override
+  {
+    unsigned char dsdt_pci[] = {
+      /* 0x00 */ 0x10, 0x48, 0x08, 0x5f, 0x53, 0x42, 0x5f, 0x5b,
+      /* 0x08 */ 0x82, 0x40, 0x08, 0x50, 0x43, 0x49, 0x30, 0x08,
+      /* 0x10 */ 0x5f, 0x48, 0x49, 0x44, 0x0c, 0x41, 0xd0, 0x0a,
+      /* 0x18 */ 0x03, 0x08, 0x5f, 0x41, 0x44, 0x52, 0x00, 0x08,
+      /* 0x20 */ 0x5f, 0x42, 0x42, 0x4e, 0x00, 0x08, 0x5f, 0x55,
+      /* 0x28 */ 0x49, 0x44, 0x00, 0x08, 0x5f, 0x43, 0x52, 0x53,
+      /* 0x30 */ 0x11, 0x48, 0x05, 0x0a, 0x54, 0x88, 0x0d, 0x00,
+      /* 0x38 */ 0x02, 0x0c, 0x00, 0x00, 0x00,
+
+      // bus range
+      /* 0x3d */ 0xaa, 0xaa, // Min
+      /* 0x3f */ 0xbb, 0xbb, // Max
+      /* 0x41 */ 0x00, 0x00, // Translation
+      /* 0x43 */ 0x12, 0x11, // Range Length
+
+      /* 0x45 */ 0x47, 0x01, 0xf8,
+      /* 0x48 */ 0x0c, 0xf8, 0x0c, 0x01, 0x08, 0x88, 0x0d, 0x00,
+      /* 0x50 */ 0x01, 0x0c, 0x03, 0x00, 0x00, 0x00, 0x00, 0xf7,
+      /* 0x58 */ 0x0c, 0x00, 0x00, 0xf8, 0x0c, 0x88, 0x0d, 0x00,
+      /* 0x60 */ 0x01, 0x0c, 0x03, 0x00, 0x00, 0x00, 0x0d, 0xff,
+      /* 0x68 */ 0xff, 0x00, 0x00, 0x00, 0xf3, 0x87, 0x17, 0x00,
+      /* 0x70 */ 0x00, 0x0c, 0x01, 0x00, 0x00, 0x00, 0x00,
+
+      // MMIO window
+      /* 0x77 */ 0xaa, 0xaa, 0xaa, 0xaa, // Min
+      /* 0x7b */ 0xbb, 0xbb, 0xbb, 0xbb, // Max
+      /* 0x7f */ 0x00, 0x00, 0x00, 0x00, // Translation
+      /* 0x83 */ 0x12, 0x11, 0x11, 0x11, // Range Length
+      /* 0x87 */ 0x79, 0x00
+    };
+
+    // Update "bus range" with actual values from device tree
+    auto const *hdr = header();
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x3d]) = hdr->secondary_bus_num;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x3f]) = hdr->subordinate_bus_num;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x43]) =
+      hdr->subordinate_bus_num - hdr->secondary_bus_num + 1U;
+
+    // Update "MMIO window" with actual values from device tree
+    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x77]) = _mmio_base;
+    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x7b]) = _mmio_base + _mmio_size - 1U;
+    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x83]) = _mmio_size;
+
+    size_t size = sizeof(dsdt_pci);
+    if (max_size < size)
+      L4Re::throw_error(-L4_ENOMEM,
+                        "Not enough space in DSDT for PCI");
+    std::memcpy(buf, &dsdt_pci, size);
+    return size;
+  }
+
 protected:
   cxx::Ref_ptr<Vmm::Mmio_device> get_mmio_bar_handler(unsigned) override
   {
@@ -73,6 +212,9 @@ private:
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI bus"); }
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI bus"); }
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI bus"); }
+
+  l4_uint64_t _mmio_base = 0;
+  l4_uint64_t _mmio_size = 0;
 }; // class Pci_host_generic
 
 /**
@@ -252,6 +394,10 @@ Pci_host_generic::init_bus_range(Dt_node const &node)
   auto *const hdr = header();
   hdr->secondary_bus_num = (l4_uint8_t)fdt32_to_cpu(bus_range[0]);
   hdr->subordinate_bus_num = (l4_uint8_t)fdt32_to_cpu(bus_range[1]);
+
+  node.get_reg_val(0, &_mmio_base, &_mmio_size);
+  trace().printf("MMIO window at [0x%llx, 0x%llx]\n", _mmio_base,
+                 _mmio_base + _mmio_size - 1U);
 }
 
 void

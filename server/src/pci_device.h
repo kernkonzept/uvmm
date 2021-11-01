@@ -1093,6 +1093,14 @@ protected:
     return reinterpret_cast<TYPE *>(&_hdr);
   }
 
+  template <typename TYPE>
+  TYPE const *get_header() const
+  {
+    assert_header_type<TYPE>();
+
+    return reinterpret_cast<TYPE const *>(&_hdr);
+  }
+
   void dump_header() const
   {
     for (unsigned i = 0; i < Pci_header_size; i += 4)
