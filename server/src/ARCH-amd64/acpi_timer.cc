@@ -52,6 +52,7 @@ public:
   void amend_fadt(ACPI_TABLE_FADT *t) const override
   {
     t->PmTimerBlock = Port;
+    t->PmTimerLength = 4;
     t->Flags |= ACPI_FADT_32BIT_TIMER;
   }
 
