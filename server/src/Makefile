@@ -73,6 +73,7 @@ SRC_CC-arm-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_b
                                                                device/pci_host_ecam_generic.cc
 SRC_CC-arm64-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
                                                                  device/pci_host_ecam_generic.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_CFI_FLASH) +=  device/cfi.cc
 
 ifeq ($(CONFIG_UVMM_FAULT_INJECT),y)
 SRC_CC-arm-common += ARCH-$(ARCH)/guest_arm_exc.cc
