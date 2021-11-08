@@ -19,6 +19,7 @@
 #include "guest.h"
 #include "irq.h"
 #include "irq_dt.h"
+#include "io_device.h"
 #include "mmio_device.h"
 
 static Dbg warn(Dbg::Mmio, Dbg::Warn, "uart_8250");
@@ -395,7 +396,6 @@ public:
   {}
 };
 
-#ifdef ARCH_amd64
 class Uart_8250_io
 : public Vmm::Io_device,
   public Uart_8250_base
@@ -415,7 +415,6 @@ public:
     write(reg, 1 << width, value, 0);
   }
 };
-#endif
 
 struct F : Vdev::Factory
 {
@@ -445,8 +444,7 @@ struct F : Vdev::Factory
     if (!it.ic_is_virt())
       L4Re::chksys(-L4_EINVAL, "Uart 8250 requires a virtual interrupt controller");
 
-#ifdef ARCH_amd64
-    if (1) // Differentiate node types (MMIO or port-IO) here
+    if (Vmm::Guest::Has_io_space) // Differentiate node types (MMIO or port-IO) here
       {
         auto region = Vmm::Io_region(0x3f8, 0x400, Vmm::Region_type::Virtual);
         auto c = Vdev::make_device<Uart_8250_io>(cap, it.ic(), it.irq());
@@ -454,11 +452,14 @@ struct F : Vdev::Factory
         devs->vmm()->add_io_device(region, c);
         return c;
       }
-#endif
-    auto c = Vdev::make_device<Uart_8250_mmio>(cap, regshift, it.ic(), it.irq());
-    c->register_obj(devs->vmm()->registry());
-    devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
-    return c;
+    else
+      {
+        auto c = Vdev::make_device<Uart_8250_mmio>(cap, regshift, it.ic(),
+                                                   it.irq());
+        c->register_obj(devs->vmm()->registry());
+        devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
+        return c;
+      }
   }
 };
 
