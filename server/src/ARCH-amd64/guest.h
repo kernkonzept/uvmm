@@ -13,6 +13,7 @@
 #include <l4/l4virtio/l4virtio>
 
 #include <map>
+#include <mutex>
 #include <vector>
 
 #include "cpu_dev_array.h"
@@ -59,8 +60,15 @@ public:
 
   void add_io_device(Io_region const &region,
                      cxx::Ref_ptr<Io_device> const &dev);
+  void del_io_device(Io_region const &region);
 
-  Io_mem *iomap()
+  /**
+   * Return IO port map.
+   *
+   * Must only be used before the guest started to run or for debugging. Might
+   * be manipulated concurrently from other vCPUs!
+   */
+  Io_mem const *iomap()
   { return &_iomap; }
 
   void register_msr_device(cxx::Ref_ptr<Msr_device> const &dev);
@@ -144,6 +152,7 @@ private:
 
   bool msr_devices_rwmsr(l4_vcpu_regs_t *regs, bool write, unsigned vcpu_no);
 
+  std::mutex _iomap_lock;
   Io_mem _iomap;
 
   std::vector<cxx::Ref_ptr<Msr_device>> _msr_devices;

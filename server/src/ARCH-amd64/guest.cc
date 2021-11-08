@@ -66,6 +66,8 @@ Guest::get_instance()
 void Guest::add_io_device(Io_region const &region,
                           cxx::Ref_ptr<Io_device> const &dev)
 {
+  std::lock_guard<std::mutex> g(_iomap_lock);
+
   // Check for overlapping regions!
   if (_iomap.count(region) != 0)
     {
@@ -78,6 +80,15 @@ void Guest::add_io_device(Io_region const &region,
 
   trace().printf("New io mapping: %p @ [0x%lx, 0x%lx]\n", dev.get(),
                  region.start, region.end);
+}
+
+void Guest::del_io_device(Io_region const &region)
+{
+  std::lock_guard<std::mutex> g(_iomap_lock);
+  trace().printf("Remove io mapping: [0x%lx, 0x%lx]\n", region.start,
+                 region.end);
+  assert(_iomap.count(region) == 1);
+  _iomap.erase(region);
 }
 
 void Guest::register_msr_device(cxx::Ref_ptr<Msr_device> const &dev)
@@ -215,6 +226,7 @@ Guest::handle_io_access(unsigned port, bool is_in, Mem_access::Width op_width,
 {
   l4_umword_t op_mask = (1ULL << ((1 << op_width) * 8)) - 1;
 
+  std::unique_lock<std::mutex> lock(_iomap_lock);
   auto f = _iomap.find(Io_region(port));
   if (f == _iomap.end())
     {
@@ -227,15 +239,18 @@ Guest::handle_io_access(unsigned port, bool is_in, Mem_access::Width op_width,
     }
 
   port -= f->first.start;
+  cxx::Ref_ptr<Io_device> device = f->second;
+  lock.unlock();
+
   if (is_in)
     {
       l4_uint32_t out = -1;
-      f->second->io_in(port, op_width, &out);
+      device->io_in(port, op_width, &out);
 
       regs->ax = (regs->ax & ~op_mask) | (out & op_mask);
     }
   else
-    f->second->io_out(port, op_width, regs->ax & op_mask);
+    device->io_out(port, op_width, regs->ax & op_mask);
 
   return Jump_instr;
 }

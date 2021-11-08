@@ -73,13 +73,13 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    * \param start    Guest-physical address of start of memory region.
    * \param end      Guest-physical address of last byte of memory region.
    * \param offset   Accessed address relative to the beginning of the region.
-   * \param l_start  Local address of start of memory region.
+   * \param l_start  Local address of start of memory region, default 0.
    * \param l_end    Local address of end of memory region, default 0.
    *
    * \return largest possible pageshift.
    */
   inline char get_page_shift(l4_addr_t addr, l4_addr_t start, l4_addr_t end,
-                             l4_addr_t offset, l4_addr_t l_start,
+                             l4_addr_t offset, l4_addr_t l_start = 0,
                              l4_addr_t l_end = 0) const
   {
     if (end <= start)
@@ -118,6 +118,15 @@ struct Mmio_device : public virtual Vdev::Dev_ref
   void map_guest_range(L4::Cap<L4::Vm> vm_task, Vmm::Guest_addr dest,
                        l4_addr_t src, l4_size_t size, unsigned attr);
 
+  /**
+   * Purge mappings from guest memory.
+   *
+   * \param vm_task Capability to the guest memory.
+   * \param dest    Guest-physical address of the range
+   * \param size    Size of range
+   */
+  void unmap_guest_range(L4::Cap<L4::Vm> vm_task, Vmm::Guest_addr dest,
+                         l4_size_t size);
 
   /**
    * Map address range into the guest.

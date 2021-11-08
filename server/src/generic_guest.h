@@ -72,6 +72,7 @@ public:
                             Vdev::Dt_node const &node, size_t index = 0);
 
   void add_io_device(Io_region const &, cxx::Ref_ptr<Io_device> const &) {}
+  void del_io_device(Io_region const &) {}
 
   /**
    * Return MMIO map.
@@ -200,6 +201,33 @@ public:
   {
     std::lock_guard<std::mutex> g(_memmap_lock);
     _memmap.remap_mmio_device(old_region, addr);
+  }
+
+  void del_mmio_device(Region const &region)
+  {
+    std::lock_guard<std::mutex> g(_memmap_lock);
+    Vm_mem::const_iterator f = _memmap.find(region);
+    assert(f != _memmap.end());
+    f->second->unmap_guest_range(_task.get(), region.start,
+                                 region.end.get() - region.start.get() + 1U);
+    _memmap.erase(f);
+  }
+
+  /**
+   * Delete any device covered by the given region.
+   */
+  void del_mmio_devices(Region const &region)
+  {
+    std::lock_guard<std::mutex> g(_memmap_lock);
+
+    auto range = _memmap.equal_range(region);
+    auto it = range.first;
+    while (it != range.second)
+      {
+        it->second->unmap_guest_range(_task.get(), it->first.start,
+                                      it->first.end - it->first.start + 1U);
+        it = _memmap.erase(it);
+      }
   }
 
   L4::Cap<L4::Vm> vm_task()
