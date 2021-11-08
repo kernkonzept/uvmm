@@ -74,7 +74,15 @@ Vcpu_ptr::decode_mmio() const
     Decoder().l4mad_print_insn_info(reg, opcode);
 
   if (!Decoder().decode(reg, opcode, &op, &tgt, &src))
-    return m;
+    {
+      unsigned char const *text = reinterpret_cast<unsigned char *>(opcode);
+      Dbg().printf("Decoding failed at 0x%lx: %02x %02x %02x %02x %02x %02x %02x <%02x> %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                   vms->ip(),
+                   text[-7], text[-6], text[-5], text[-4], text[-3],
+                   text[-2], text[-1], text[0], text[1], text[2], text[3],
+                   text[4], text[5], text[6], text[7], text[8]);
+      return m;
+    }
 
   switch(op.access_width)
     {
