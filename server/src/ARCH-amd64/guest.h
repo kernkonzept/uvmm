@@ -165,6 +165,7 @@ private:
   cxx::Ref_ptr<Gic::Icr_handler> _icr_handler;
   cxx::Ref_ptr<Gic::Lapic_access_handler> _lapic_access_handler;
   Binary_type _guest_t;
+  cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
 };
 
 /**

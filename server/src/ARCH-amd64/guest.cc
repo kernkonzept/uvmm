@@ -147,6 +147,7 @@ void
 Guest::prepare_platform(Vdev::Device_lookup *devs)
 {
   auto cpus = devs->cpus();
+  _cpus = cpus;
   _icr_handler->register_cpus(cpus);
   unsigned const max_cpuid = cpus->max_cpuid();
   _ptw = cxx::make_ref_obj<Pt_walker>(devs->ram(), get_max_physical_address_bit());
@@ -160,7 +161,7 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
       vcpu.set_pt_walker(_ptw.get());
 
       unsigned vcpu_id = vcpu.get_vcpu_id();
-      _apics->register_core(vcpu_id);
+      _apics->register_core(vcpu_id, cpu);
       register_timer_device(_apics->get(vcpu_id), vcpu_id);
       _apics->get(vcpu_id)->attach_cpu_thread(cpu->thread_cap());
 
@@ -584,13 +585,6 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
 
       vms->set_activity_state(Vmx_state::Activity_state::Halt);
 
-      if (!lapic(vcpu)->is_irq_pending())
-        wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
-
-      // We cannot be sure that the pending interrupt is also injectable, thus
-      // we set the activity state unconditionally.
-      vms->set_activity_state(Vmx_state::Activity_state::Active);
-
       return Jump_instr;
 
     case Exit::Cr_access:
@@ -671,6 +665,8 @@ Guest::run_vmx(Vcpu_ptr vcpu)
   Vmx_state *vm = dynamic_cast<Vmx_state *>(vcpu.vm_state());
   assert(vm);
 
+  auto cpu = _cpus->cpu(vcpu.get_vcpu_id());
+
   L4::Cap<L4::Thread> myself;
   trace().printf("Starting vCPU 0x%lx\n", vcpu->r.ip);
 
@@ -713,6 +709,51 @@ Guest::run_vmx(Vcpu_ptr vcpu)
             {
               vm->jump_instruction();
             }
+        }
+
+      // Handle stopped CPUs.
+      // In the case of Halt, the CPU has to be stopped until a device
+      // interrupt happens.
+      // In the case of the INIT state, the CPU has to be stopped until a
+      // startup IPI happens. INIT state is entered when an INIT IPI happens.
+      // - An INIT IPI can occur any time (e.g. when the CPU is already in
+      //   Halt).
+      // - A device interrupt can happen anytime. We must make sure that none
+      //   happened before we enter wait_for_ipc().
+      // - Therefore order is important!
+      if (cpu->get_cpu_state() == Vmm::Cpu_dev::Cpu_state::Init
+          || vm->activity_state() == Vmx_state::Activity_state::Halt)
+        {
+          do
+            {
+              // if we are in INIT state we must wait until a startup ipi
+              // starts us up again
+              if (cpu->get_cpu_state() == Vmm::Cpu_dev::Cpu_state::Init)
+                {
+                  while (cpu->get_cpu_state() != Vmm::Cpu_dev::Cpu_state::Running)
+                    wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+
+                  // The CPU is not supposed to accept interrupts while in
+                  // INIT mode. We emulate that by clearing all interrupts
+                  // that happened while CPU was stopped.
+                  lapic(vcpu)->clear_irq_state();
+                  break;
+                }
+
+              // if an interrupt happened, the CPU must return from Halt state
+              // We cannot be sure that the pending interrupt is also
+              // injectable, thus we set the activity state unconditionally.
+              if (vm->activity_state() == Vmx_state::Activity_state::Halt
+                  && lapic(vcpu)->is_irq_pending())
+                {
+                  vm->set_activity_state(Vmx_state::Activity_state::Active);
+                  break;
+                }
+
+              // give up CPU for other tasks
+              wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+            }
+          while (1);
         }
 
       if (vm->can_inject_interrupt())

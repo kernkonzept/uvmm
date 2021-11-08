@@ -41,6 +41,7 @@ enum Delivery_mode : l4_uint8_t
   Dm_smi = 2,
   Dm_nmi = 4,
   Dm_init = 5,
+  Dm_startup = 6,
   Dm_extint = 7,
 };
 

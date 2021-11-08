@@ -25,8 +25,6 @@ public:
   {
     Sleeping,
     Init,
-    Init_level_de_assert,
-    Startup,
     Running
   };
 
@@ -49,7 +47,7 @@ public:
   /**
    * Translate a device tree "reg" value to an internally usable CPU id.
    *
-   * For most architectures this is NOP, but some archictures like ARM
+   * For most architectures this is NOP, but some architectures like ARM
    * might encode topology information into this value, which needs to
    * be translated.
    */

@@ -72,6 +72,11 @@ class Virt_lapic : public Vdev::Timer, public Ic
       return -1;
     }
 
+    void clear()
+    {
+      memset(_reg.u64, 0, sizeof(l4_uint64_t) * Reg_no);
+    }
+
     void clear_highest_irq()
     {
       int highest = get_highest_irq();
@@ -179,7 +184,7 @@ class Virt_lapic : public Vdev::Timer, public Ic
   };
 
 public:
-  Virt_lapic(unsigned id);
+  Virt_lapic(unsigned id, cxx::Ref_ptr<Vmm::Cpu_dev> cpu);
 
   void attach_cpu_thread(L4::Cap<L4::Thread> vthread)
   {
@@ -187,8 +192,69 @@ public:
                  "Attaching local APIC IRQ to vCPU thread");
   }
 
+  /**
+   * An incoming INIT IPI will place the CPU in INIT mode.
+   */
+  void init_ipi()
+  {
+    _cpu->set_cpu_state(Vmm::Cpu_dev::Cpu_state::Init);
+
+    // If the CPU is already running, we must force execution from the guest
+    // to Uvmm and place the thread in an open wait.
+    _lapic_irq->trigger();
+  }
+
+  /**
+   * Handle STARTUP IPIs
+   *
+   * Intel specifies that the correct sequence is INIT, STARTUP, STARTUP.
+   * So we make sure to only act on the second STARTUP IPI.
+   */
+  void startup_ipi(Vdev::Msix::Data_register_format data)
+  {
+    // a startup ipi without an init ipi shall be ignored
+    if (_cpu->get_cpu_state() != Vmm::Cpu_dev::Cpu_state::Init)
+      {
+        warn().printf("STARTUP IPI without INIT IPI. Ignoring.\n");
+        return;
+      }
+    // only act on the second SIPI
+    if (!_sipi_cnt)
+      {
+        ++_sipi_cnt;
+        return;
+      }
+    _sipi_cnt = 0;
+
+    enum : l4_uint32_t
+    {
+      Icr_startup_page_shift = 12
+    };
+
+    l4_addr_t start_eip = data.vector() << Icr_startup_page_shift;
+    start_cpu(start_eip);
+    _cpu->set_cpu_state(Vmm::Cpu_dev::Cpu_state::Running);
+
+    // the target CPU is likely to be blocked in wait_for_ipc()
+    // the IRQ will release it
+    _lapic_irq->trigger();
+  }
+
+  /**
+   * Clear all APIC irqs. This shall be used when entering INIT state.
+   */
+  void clear_irq_state()
+  {
+    std::lock_guard<std::mutex> lock(_int_mutex);
+
+    _regs.irr.clear();
+    _regs.tmr.clear();
+    _regs.isr.clear();
+  }
+
   // IC interface
   void clear(unsigned) override {}
+
   void set(unsigned irq) override;
   // Overload for MSIs
   void set(Vdev::Msix::Data_register_format data);
@@ -253,9 +319,30 @@ public:
   l4_uint32_t id() const { return _lapic_x2_id; }
   l4_uint32_t task_prio_class() const { return _regs.tpr & 0xf0; }
 
+  /**
+   * Start an Application Processor.
+   *
+   * \param entry  Real Mode entry address.
+   */
+  void start_cpu(l4_addr_t entry)
+  {
+    Vmm::Vcpu_ptr vcpu = _cpu->vcpu();
+    vcpu->r.sp = 0;
+    vcpu->r.ip = entry;
+
+    // reset CPU
+    vcpu.vm_state()->init_state();
+    vcpu.vm_state()->setup_real_mode(vcpu->r.ip);
+
+    info().printf("Starting CPU %u on EIP 0x%lx\n",
+                  _lapic_x2_id, entry);
+    _cpu->reschedule();
+  }
+
 private:
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "LAPIC"); }
   static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "LAPIC"); }
+  static Dbg info() { return Dbg(Dbg::Irq, Dbg::Info, "LAPIC"); }
 
   L4Re::Util::Unique_cap<L4::Irq> _lapic_irq; /// IRQ to notify VCPU
   l4_uint32_t _lapic_x2_id;
@@ -270,6 +357,8 @@ private:
   bool _x2apic_enabled;
   Eoi_handler *_sources[256];
   std::queue<unsigned> _non_irr_irqs;
+  cxx::Ref_ptr<Vmm::Cpu_dev> _cpu;
+  unsigned _sipi_cnt = 0;
 }; // class Virt_lapic
 
 
@@ -321,7 +410,7 @@ public:
     return lowest_prio_apic;
   }
 
-  void register_core(unsigned core_no)
+  void register_core(unsigned core_no, cxx::Ref_ptr<Vmm::Cpu_dev> cpu)
   {
     if (_lapics[core_no])
       {
@@ -329,7 +418,7 @@ public:
         return;
       }
 
-    _lapics[core_no] = Vdev::make_device<Virt_lapic>(core_no);
+    _lapics[core_no] = Vdev::make_device<Virt_lapic>(core_no, cpu);
   }
 
 private:
@@ -474,42 +563,19 @@ private:
     l4_uint32_t id = x2apic ? icr.dest_field_x2apic() : icr.dest_field_mmio();
     unsigned const max_cpuid = _cpus->max_cpuid();
 
-    // According to Tables 10-3, and 10-4, the Start-Up Delivery Mode is only
-    // valid without Destination Shorthand. Whilst the validity of INIT varies
-    // across generations, we assume that no shorthand is used for the whole
-    // sequence.
-    // Because according to Vol. 3A 10.4.7.1 the LDR is set to 0 in
-    // wait-for-SIPI state, we require Physical Destination Mode.
-    if ((icr.dest_shorthand() == 0) && !icr.dest_mode())
+    if (data.delivery_mode() == Vdev::Msix::Delivery_mode::Dm_init
+        || data.delivery_mode() == Vdev::Msix::Delivery_mode::Dm_startup)
       {
-        assert(_cpus != nullptr);
-
-        assert(id <= max_cpuid);
-
-        auto cpu = _cpus->cpu(id);
-
-        if (data.delivery_mode() == Delivery_mode::Dm_init)
+        // filter unsupported destination modes
+        switch (icr.dest_shorthand())
           {
-            if (data.trigger_level())
-              cpu->set_cpu_state(Vmm::Cpu_dev::Cpu_state::Init);
-            else
-              cpu->set_cpu_state(Vmm::Cpu_dev::Cpu_state::Init_level_de_assert);
-
+          case Destination_shorthand::Self:
+          case Destination_shorthand::All_including_self:
+            info().printf(
+              "{INIT,STARTUP} IPI: unsupported destination shorthand. Ignoring.\n");
             return;
-          }
-        else if (data.delivery_mode() == Icr_startup)
-          {
-            if (cpu->get_cpu_state()
-                == Vmm::Cpu_dev::Cpu_state::Init_level_de_assert)
-              {
-                l4_addr_t start_eip = data.vector() << Icr_startup_page_shift;
-                start_cpu(id, start_eip);
-                cpu->set_cpu_state(Vmm::Cpu_dev::Cpu_state::Startup);
-              }
-            else
-                cpu->set_cpu_state(Vmm::Cpu_dev::Cpu_state::Running);
-
-            return;
+          default:
+            break;
           }
       }
 
@@ -549,21 +615,6 @@ private:
             _msix_ctrl->send(addr.raw, data.raw);
           }
       }
-  }
-
-  /**
-   * Start an Application Processor.
-   *
-   * \param id     Number of the CPU to be started.
-   * \param entry  Real Mode entry address.
-   */
-  void start_cpu(unsigned id, l4_addr_t entry) const
-  {
-    auto vcpu = _cpus->cpu(id)->vcpu();
-    vcpu->r.sp = 0;
-    vcpu->r.ip = entry;
-    info().printf("Starting CPU %u on EIP 0x%lx\n", id, entry);
-    _cpus->cpu(id)->reschedule();
   }
 
   l4_uint64_t _icr[Vmm::Cpu_dev::Max_cpus] = { 0, };
@@ -700,11 +751,31 @@ public:
         return;
       }
 
+    switch (data.delivery_mode())
+      {
+      case Vdev::Msix::Delivery_mode::Dm_init:
+        if (auto lapic = _apics->get(id))
+          {
+            lapic->init_ipi();
+            return;
+          }
+        break;
+      case Vdev::Msix::Delivery_mode::Dm_startup:
+        if (auto lapic = _apics->get(id))
+          {
+            lapic->startup_ipi(data);
+            return;
+          }
+        break;
+      default:
+        break;
+      }
+
     if (addr.redirect_hint())
       {
         // Find LAPIC with lowest TPR and send the MSI its way. We shortcut it
         // here to improve performance. Alternatively, we can rewrite the MSI
-        // address to physical destination mode and wirte the local APIC ID to
+        // address to physical destination mode and write the local APIC ID to
         // the DID field.
         Virt_lapic *lapic = _apics->get_lowest_prio();
 

@@ -25,12 +25,13 @@ namespace Gic {
 using L4Re::chkcap;
 using L4Re::chksys;
 
-Virt_lapic::Virt_lapic(unsigned id)
+Virt_lapic::Virt_lapic(unsigned id, cxx::Ref_ptr<Vmm::Cpu_dev> cpu)
 : _lapic_irq(chkcap(L4Re::Util::make_unique_cap<L4::Irq>())),
   _lapic_x2_id(id),
   _lapic_version(Lapic_version),
   _last_ticks_tsc(0),
-  _x2apic_enabled(false)
+  _x2apic_enabled(false),
+  _cpu(cpu)
 {
   trace().printf("Virt_lapic ctor; ID 0x%x\n", id);
 
