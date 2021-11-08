@@ -113,9 +113,21 @@ Vcpu_ptr::decode_mmio() const
   else if (op.atype == L4mad::Write)
     {
       m.access = Mem_access::Store;
-      // src.val is the register number in MAD order; which is inverse to
-      // register order in l4_vcpu_regs_t.
-      m.value = *decode_reg_ptr(src.val) >> src.shift;
+      switch (src.dtype)
+        {
+        case L4mad::Desc_reg:
+          // src.val is the register number in MAD order; which is inverse to
+          // register order in l4_vcpu_regs_t.
+          m.value = *decode_reg_ptr(src.val) >> src.shift;
+          break;
+        case L4mad::Desc_imm:
+          m.value = src.val;
+          break;
+        default:
+          assert(false);
+          m.value = 0;
+          break;
+        }
     }
   // else unknown; Other already set.
 
