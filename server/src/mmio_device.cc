@@ -30,6 +30,6 @@ void Vmm::Mmio_device::map_guest_range(L4::Cap<L4::Vm> vm_task,
       if (res < 0)
         Err().printf("Could not map (%lx, %d) to (%lx, %d)\n", src + offs, ps,
                      doffs, ps);
-      offs += 1 << ps;
+      offs += (l4_addr_t)1 << ps;
     }
 }
