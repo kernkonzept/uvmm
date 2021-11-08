@@ -13,6 +13,7 @@
 #include <l4/re/util/br_manager>
 #include <l4/re/util/object_registry>
 #include <l4/re/util/unique_cap>
+#include <mutex>
 
 #include "debug.h"
 #include "ds_mmio_mapper.h"
@@ -67,6 +68,12 @@ public:
                             Region_type type,
                             Vdev::Dt_node const &node, size_t index = 0);
 
+  /**
+   * Return MMIO map.
+   *
+   * Must only be used before the guest started to run or for debugging. Might
+   * be manipulated concurrently from other vCPUs!
+   */
   Vm_mem *memmap()
   { return &_memmap; }
 
@@ -104,12 +111,21 @@ public:
 
   int handle_mmio(l4_addr_t pfa, Vcpu_ptr vcpu)
   {
-    Vm_mem::const_iterator f = _memmap.find(Region(Guest_addr(pfa)));
+    {
+      std::unique_lock<std::mutex> lock(_memmap_lock);
+      Vm_mem::const_iterator f = _memmap.find(Region(Guest_addr(pfa)));
 
-    if (f != _memmap.end())
-      return f->second->access(pfa, pfa - f->first.start.get(),
-                               vcpu, _task.get(),
-                               f->first.start.get(), f->first.end.get());
+      if (f != _memmap.end())
+        {
+          Region region = f->first;
+          cxx::Ref_ptr<Mmio_device> device = f->second;
+          lock.unlock();
+
+          return device->access(pfa, pfa - region.start.get(),
+                                vcpu, _task.get(),
+                                region.start.get(), region.end.get());
+        }
+    }
 
     auto insn = vcpu.decode_mmio();
     warn().printf("Invalid %s 0x%lx, ip 0x%lx! %sing...\n",
@@ -154,6 +170,7 @@ public:
    */
   void map_eager()
   {
+    std::lock_guard<std::mutex> g(_memmap_lock);
     for (auto it : _memmap)
       it.second->map_eager(_task.get(), it.first.start, it.first.end);
   }
@@ -170,11 +187,13 @@ public:
   void add_mmio_device(Region const &region,
                        cxx::Ref_ptr<Vmm::Mmio_device> const &dev)
   {
+    std::lock_guard<std::mutex> g(_memmap_lock);
     _memmap.add_mmio_device(region, dev);
   }
 
   void remap_mmio_device(Region const &old_region, Guest_addr const &addr)
   {
+    std::lock_guard<std::mutex> g(_memmap_lock);
     _memmap.remap_mmio_device(old_region, addr);
   }
 
@@ -202,6 +221,7 @@ protected:
 
   L4Re::Util::Br_manager _bm;
   L4Re::Util::Object_registry _registry;
+  std::mutex _memmap_lock;
   Vm_mem _memmap;
   L4Re::Util::Unique_cap<L4::Vm> _task;
   cxx::Ref_ptr<Pm> _pm;
