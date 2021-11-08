@@ -93,7 +93,7 @@ struct F : Vdev::Factory
     auto region = Vmm::Io_region(Vdev::Acpi_timer::Port,
                                  Vdev::Acpi_timer::Port,
                                  Vmm::Region_type::Virtual);
-    devs->vmm()->register_io_device(region, dev);
+    devs->vmm()->add_io_device(region, dev);
 
     return dev;
   }

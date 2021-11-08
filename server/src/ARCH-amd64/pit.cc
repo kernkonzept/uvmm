@@ -199,9 +199,9 @@ struct F : Vdev::Factory
 
     auto *vmm = devs->vmm();
     auto region = Vmm::Io_region(0x40, 0x43, Vmm::Region_type::Virtual);
-    vmm->register_io_device(region, dev);
+    vmm->add_io_device(region, dev);
     region = Vmm::Io_region(0x61, 0x61, Vmm::Region_type::Virtual);
-    vmm->register_io_device(region, dev->port61());
+    vmm->add_io_device(region, dev->port61());
     vmm->register_timer_device(dev);
 
     return dev;

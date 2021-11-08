@@ -295,9 +295,8 @@ struct F : Vdev::Factory
     auto *vmm = devs->vmm();
     auto start = Acpi::Acpi_platform::Ports::Ports_start;
     auto end   = Acpi::Acpi_platform::Ports::Ports_end;
-    vmm->register_io_device(Vmm::Io_region(start, end,
-                                           Vmm::Region_type::Virtual),
-                            dev);
+    vmm->add_io_device(Vmm::Io_region(start, end, Vmm::Region_type::Virtual),
+                       dev);
     return dev;
   }
 }; // struct F

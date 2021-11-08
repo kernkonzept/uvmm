@@ -63,8 +63,8 @@ Guest::get_instance()
   return guest;
 }
 
-void Guest::register_io_device(Io_region const &region,
-                               cxx::Ref_ptr<Io_device> const &dev)
+void Guest::add_io_device(Io_region const &region,
+                          cxx::Ref_ptr<Io_device> const &dev)
 {
   // Check for overlapping regions!
   if (_iomap.count(region) != 0)

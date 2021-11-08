@@ -22,12 +22,10 @@ namespace
       auto dev = Vdev::make_device<Vdev::Legacy_pic>(msi_distr);
 
       auto *vmm = devs->vmm();
-      vmm->register_io_device(Vmm::Io_region(0x20, 0x21,
-                                             Vmm::Region_type::Virtual),
-                              dev->master());
-      vmm->register_io_device(Vmm::Io_region(0xA0, 0xA1,
-                                             Vmm::Region_type::Virtual),
-                              dev->slave());
+      vmm->add_io_device(Vmm::Io_region(0x20, 0x21, Vmm::Region_type::Virtual),
+                         dev->master());
+      vmm->add_io_device(Vmm::Io_region(0xA0, 0xA1, Vmm::Region_type::Virtual),
+                         dev->slave());
 
       return dev;
     }

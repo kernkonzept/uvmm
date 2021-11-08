@@ -57,8 +57,8 @@ public:
 
   void show_state_interrupts(FILE *, Vcpu_ptr) {}
 
-  void register_io_device(Io_region const &region,
-                          cxx::Ref_ptr<Io_device> const &dev);
+  void add_io_device(Io_region const &region,
+                     cxx::Ref_ptr<Io_device> const &dev);
 
   Io_mem *iomap()
   { return &_iomap; }

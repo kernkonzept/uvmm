@@ -451,7 +451,7 @@ struct F : Vdev::Factory
         auto region = Vmm::Io_region(0x3f8, 0x400, Vmm::Region_type::Virtual);
         auto c = Vdev::make_device<Uart_8250_io>(cap, it.ic(), it.irq());
         c->register_obj(devs->vmm()->registry());
-        devs->vmm()->register_io_device(region, c);
+        devs->vmm()->add_io_device(region, c);
         return c;
       }
 #endif

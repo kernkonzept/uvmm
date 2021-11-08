@@ -114,7 +114,7 @@ struct F : Factory
       {
         auto region = Vmm::Io_region::ss(regs[1].base, regs[1].size,
                                          Vmm::Region_type::Virtual);
-        vmm->register_io_device(region, proxy);
+        vmm->add_io_device(region, proxy);
       }
 
     proxy->register_irq(vmm->registry());

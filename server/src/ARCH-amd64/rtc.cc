@@ -233,7 +233,7 @@ struct F : Vdev::Factory
     auto dev = Vdev::make_device<Vdev::Rtc>();
 
     auto region = Vmm::Io_region(0x70, 0x71, Vmm::Region_type::Virtual);
-    devs->vmm()->register_io_device(region, dev);
+    devs->vmm()->add_io_device(region, dev);
 
     return dev;
   }

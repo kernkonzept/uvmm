@@ -282,7 +282,7 @@ Pci_host_generic::init_dev_resources(Hw_pci_device *hwdev)
                          "Request IO port resource from vBus.");
             warn().printf("Register IO region: [0x%lx, 0x%lx]\n",
                           region.start, region.end);
-            _vmm->register_io_device(region, make_device<Io_port_handler>(addr.get()));
+            _vmm->add_io_device(region, make_device<Io_port_handler>(addr.get()));
             break;
           }
 
@@ -332,7 +332,7 @@ struct F : Factory
 
     auto io_cfg_connector = make_device<Pci_bus_cfg_io>(dev);
     auto region = Vmm::Io_region(0xcf8, 0xcff, Vmm::Region_type::Virtual);
-    devs->vmm()->register_io_device(region, io_cfg_connector);
+    devs->vmm()->add_io_device(region, io_cfg_connector);
 
     info().printf("Created & Registered the PCI host bridge\n");
     return dev;

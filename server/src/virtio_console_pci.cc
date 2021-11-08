@@ -94,9 +94,9 @@ struct F : Factory
     if (console->init_irqs(devs, node) < 0)
       return nullptr;
 
-    vmm->register_io_device(Vmm::Io_region::ss(regs[1].base, regs[1].size,
-                                               Vmm::Region_type::Virtual),
-                            console);
+    vmm->add_io_device(Vmm::Io_region::ss(regs[1].base, regs[1].size,
+                                          Vmm::Region_type::Virtual),
+                       console);
     console->register_obj(vmm->registry());
     unsigned num_msix = 5;
     console->configure(regs, num_msix);
