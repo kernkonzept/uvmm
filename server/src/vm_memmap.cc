@@ -27,8 +27,8 @@ throw_error(char const *msg,
 }
 
 void
-Vmm::Vm_mem::add_region(Vmm::Region const &region,
-                        cxx::Ref_ptr<Vmm::Mmio_device> const &dev)
+Vmm::Vm_mem::add_mmio_device(Vmm::Region const &region,
+                             cxx::Ref_ptr<Vmm::Mmio_device> const &dev)
 {
   if (count(region) == 0)
     {
@@ -75,7 +75,3 @@ Vmm::Vm_mem::add_region(Vmm::Region const &region,
   erase(lower, upper);
   insert(std::make_pair(region, dev));
 }
-
-void
-Vmm::Vm_mem::del_region(Vmm::Region const &region)
-{ erase(region); }

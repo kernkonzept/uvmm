@@ -197,12 +197,6 @@ public:
     _memmap.add_mmio_device(region, dev);
   }
 
-  void remap_mmio_device(Region const &old_region, Guest_addr const &addr)
-  {
-    std::lock_guard<std::mutex> g(_memmap_lock);
-    _memmap.remap_mmio_device(old_region, addr);
-  }
-
   void del_mmio_device(Region const &region)
   {
     std::lock_guard<std::mutex> g(_memmap_lock);
