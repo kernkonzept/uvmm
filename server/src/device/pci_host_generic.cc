@@ -30,7 +30,6 @@ namespace Vdev { namespace Pci {
  */
 class Pci_host_generic:
   public Pci_host_bridge,
-  public Virt_pci_device,
   public Device,
   public Acpi::Acpi_device
 {
@@ -45,9 +44,6 @@ public:
                             cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
   : Pci_host_bridge(devs, msix_ctrl)
   {
-    register_device(cxx::Ref_ptr<Pci_device>(this));
-    iterate_pci_root_bus();
-
     // Linux' x86 PCI_direct code sanity checks for a device with class code
     // PCI_CLASS_DISPLAY_VGA(0x0300) or PCI_CLASS_BRIDGE_HOST(0x00) or for a
     // device of vendor INTEL or COMPAQ.
@@ -56,6 +52,8 @@ public:
     header()->classcode[1] = Pci_subclass_code_host;
     header()->header_type = 1; // PCI_TO_PCI_BRIDGE
     header()->command |= Bus_master_bit;
+
+    setup_devices();
   }
 
   void init_bus_range(Dt_node const &node);

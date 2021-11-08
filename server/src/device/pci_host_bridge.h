@@ -25,7 +25,7 @@ namespace Vdev { namespace Pci {
 /*
  * Enumerate PCI devices on vbus.
  */
-class Pci_host_bridge
+class Pci_host_bridge : public Virt_pci_device
 {
 public:
   enum
@@ -205,6 +205,28 @@ public:
   }
 
 protected:
+  /**
+   * Setup and register devices, i.e. the host bridge itself and any PCI devices
+   * discovered on the root bus.
+   *
+   * This must be a separate method called from the constructor of classes
+   * derived from Pci_host_bridge, since iterate_pci_root_bus() calls virtual
+   * methods.
+   */
+  void setup_devices()
+  {
+    unsigned dev_id = alloc_dev_id();
+    iterate_pci_root_bus();
+
+    // Registering the host bridge itself must be the last operation, otherwise
+    // an exception thrown in the rest of the constructor would result in double
+    // destruction of the host bridge (exception unwind destroys the
+    // half-constructed host bridge, host bridge itself is removed from
+    // _devices, drops its _refcount to zero, which destroys the host bridge in
+    // destruction again).
+    register_device(cxx::Ref_ptr<Pci_device>(this), dev_id);
+  }
+
   /**
    * Iterate the root bus and setup any PCI devices found.
    */

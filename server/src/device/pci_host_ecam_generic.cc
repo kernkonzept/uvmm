@@ -100,7 +100,6 @@ struct Interrupt_map
 
 class Pci_host_ecam_generic
 : public Pci_host_bridge,
-  public Virt_pci_device,
   public Device,
   public Vmm::Mmio_device_t<Pci_host_ecam_generic>
 {
@@ -128,15 +127,14 @@ public:
   : Pci_host_bridge(devs, msix_ctrl),
     _irq_map(irq_map)
   {
-    register_device(cxx::Ref_ptr<Pci_device>(this));
-    iterate_pci_root_bus();
-
     header()->vendor_id = 0x1b36;        // PCI vendor id Redhat
     header()->device_id = 0x0008;        // PCI device id Redhat PCIe host
     header()->subsystem_vendor = 0x1af4; // PCI sub vendor id Redhat Qumranet (QEMU)
     header()->subsystem_id = 0x1100;     // PCI sub device id QEMU
     header()->classcode[1] = Pci_subclass_code_host;
     header()->classcode[2] = Pci_class_code_bridge_device;
+
+    setup_devices();
   }
 
   /**
