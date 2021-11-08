@@ -28,6 +28,12 @@ namespace Vdev { namespace Pci {
 class Pci_host_bridge
 {
 public:
+  enum
+  {
+    Max_num_devs = 32,
+    Invalid_dev_id = 0xffffffff,
+  };
+
   Pci_host_bridge(Device_lookup *devs,
                   cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
   : _vmm(devs->vmm()),
@@ -227,7 +233,7 @@ protected:
         if (vendor_device == Pci_invalid_vendor_id)
           continue;
 
-        Hw_pci_device *h = new Hw_pci_device(this, pdev, _devices.size(), dinfo);
+        Hw_pci_device *h = new Hw_pci_device(this, pdev, alloc_dev_id(), dinfo);
         info().printf("Found PCI device: name='%s', vendor/device=%04x:%04x\n",
                       dinfo.name, vendor_device & 0xffff, vendor_device >> 16);
 
@@ -237,7 +243,7 @@ protected:
         h->setup_msix_table();
         init_dev_resources(h);
 
-        register_device(cxx::Ref_ptr<Pci_device>(h));
+        register_device(cxx::Ref_ptr<Pci_device>(h), h->dev_id);
       }
   }
 
@@ -249,16 +255,53 @@ public:
    *
    * Disables the device to meet the required reset state. We also have not yet
    * registered any MMIO/IO resources for the guest.
+   *
+   * \param dev     Device to register.
+   * \param dev_id  Device ID to register the device with, must be allocated via
+   *                `alloc_dev_id()`, with the exception of `Invalid_dev_id`,
+   *                which instead instructs this method to allocate a device ID.
+   *
+   * \throws L4::Bounds_error   If an out-of-range device ID is provided.
+   * \throws L4::Out_of_memory  If `Invalid_dev_id` was passed for `dev_id`, but
+   *                            allocating a device ID failed because there was
+   *                            no more free device ID.
    */
-  void register_device(cxx::Ref_ptr<Pci_device> const &dev)
+  void register_device(cxx::Ref_ptr<Pci_device> const &dev,
+                       unsigned dev_id = Invalid_dev_id)
   {
-    if (_devices.size() > 31)
+    if (dev_id == Invalid_dev_id)
+      dev_id = alloc_dev_id();
+    else if (dev_id >= Max_num_devs)
+      L4Re::throw_error(-L4_ERANGE,
+                        "Provided device ID is in the range [0, 31].");
+
+    warn().printf("Registering device %u\n", dev_id);
+
+    if (dev_id >= _devices.size())
+      _devices.resize(dev_id + 1);
+
+    dev->disable_access(Access_mask); // PCI devices are disabled by default.
+    _devices[dev_id] = dev;
+  }
+
+  /**
+   * Allocate a device ID, which can be used to register a PCI device on this
+   * host bridge.
+   *
+   * \return Allocated device ID.
+   *
+   * \throws L4::Out_of_memory  If the allocation failed because there is no
+   *                            more free device ID.
+   */
+  unsigned alloc_dev_id()
+  {
+    long dev_id = _dev_id_alloc.scan_zero();
+    if (dev_id < 0)
       L4Re::throw_error(-L4_ENOMEM,
                         "PCI bus can accomodate no more than 32 devices. "
                         "Consider putting the device on another PCI bus.");
-    warn().printf("Registering device %zu\n", _devices.size() + 1);
-    dev->disable_access(Access_mask); // PCI devices are disabled by default.
-    _devices.push_back(dev);
+    _dev_id_alloc.set_bit(dev_id);
+    return dev_id;
   }
 
 private:
@@ -273,6 +316,7 @@ protected:
   // used for device lookup on PCI config space access
   // may contain physical and virtual devices
   std::vector<cxx::Ref_ptr<Pci_device>> _devices;
+  cxx::Bitmap<Max_num_devs> _dev_id_alloc;
   /// MSI-X controller responsible for the devices of this PCIe host bridge,
   /// may be nullptr since MSI-X support is an optional feature.
   cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;
