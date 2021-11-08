@@ -23,6 +23,7 @@
 #include "pm.h"
 #include "consts.h"
 #include "monitor/monitor.h"
+#include "io_device.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -44,6 +45,8 @@ public:
     Halt,
     Inject,
   };
+
+  enum { Has_io_space = false };
 
   Generic_guest();
   virtual ~Generic_guest() = default;
@@ -67,6 +70,8 @@ public:
   void register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
                             Region_type type,
                             Vdev::Dt_node const &node, size_t index = 0);
+
+  void add_io_device(Io_region const &, cxx::Ref_ptr<Io_device> const &) {}
 
   /**
    * Return MMIO map.

@@ -17,7 +17,6 @@
 
 #include "cpu_dev_array.h"
 #include "generic_guest.h"
-#include "io_device.h"
 #include "msr_device.h"
 #include "mem_access.h"
 #include "timer.h"
@@ -37,6 +36,7 @@ class Guest : public Generic_guest
 public:
   enum { Default_rambase = 0, Boot_offset = 0 };
 
+  enum { Has_io_space = true };
   using Io_mem = std::map<Io_region, cxx::Ref_ptr<Io_device>>;
 
   Guest()

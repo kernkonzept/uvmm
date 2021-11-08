@@ -38,11 +38,13 @@ CXXFLAGS-$(CONFIG_UVMM_MONITOR)       += -DCONFIG_MONITOR
 CXXFLAGS-amd64-$(CONFIG_UVMM_MONITOR) += -DGUEST_DEBUGGER_SUPPORT
 endif
 SRC_CC-arm-common = arm/gic.cc arm/gic-v2.cc arm/gic-v3.cc \
-                    arm/guest_arm.cc arm/cpu_dev_arm.cc
+                    arm/guest_arm.cc arm/cpu_dev_arm.cc \
+                    io_port_handler_noop.cc
 
 SRC_CC-arm   = $(SRC_CC-arm-common)
 SRC_CC-arm64 = $(SRC_CC-arm-common)
-SRC_CC-mips  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc
+SRC_CC-mips  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc \
+               io_port_handler_noop.cc
 SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                ARCH-amd64/rtc.cc ARCH-amd64/virt_lapic.cc \
                ARCH-amd64/vcpu_ptr.cc ARCH-amd64/vm_state_vmx.cc \
@@ -50,7 +52,8 @@ SRC_CC-amd64 = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                device/pci_host_bridge.cc device/pci_host_generic.cc \
                ARCH-amd64/kvm_clock.cc \
                ARCH-amd64/legacy_pic.cc ARCH-amd64/acpi_platform.cc \
-               ARCH-amd64/acpi_timer.cc ARCH-amd64/zeropage.cc
+               ARCH-amd64/acpi_timer.cc ARCH-amd64/zeropage.cc \
+               ARCH-amd64/io_port_handler_l4util.cc
 
 SRC_CC-amd64-$(CONFIG_UVMM_EXTERNAL_RTC) += ARCH-amd64/l4rtc.cc
 SRC_CC-amd64-$(CONFIG_UVMM_VDEV_DEVICE_FRAMEBUFFER) += ARCH-amd64/framebuffer.cc
