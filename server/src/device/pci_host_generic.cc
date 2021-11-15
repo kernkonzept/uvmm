@@ -136,7 +136,7 @@ public:
    *   $ xxd -i -s 0x24 -c 8 Dsdt.aml
    */
 
-  size_t amend_dsdt(void *buf, size_t max_size) const override
+  l4_size_t amend_dsdt(void *buf, l4_size_t max_size) const override
   {
     unsigned char dsdt_pci[] = {
       /* 0x00 */ 0x10, 0x48, 0x07, 0x5f, 0x53, 0x42, 0x5f, 0x5b,
@@ -193,7 +193,7 @@ public:
     *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x6b]) = _mmio_base + _mmio_size - 1U;
     *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x73]) = _mmio_size;
 
-    size_t size = sizeof(dsdt_pci);
+    l4_size_t size = sizeof(dsdt_pci);
     if (max_size < size)
       L4Re::throw_error(-L4_ENOMEM,
                         "Not enough space in DSDT for PCI");

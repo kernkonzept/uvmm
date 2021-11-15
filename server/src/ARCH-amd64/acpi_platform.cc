@@ -108,7 +108,7 @@ public:
    * \param buf       The memory are where to put the object.
    * \param max_size  Maximum available size of the designated memory area.
    */
-  size_t amend_dsdt(void *buf, size_t max_size) const override
+  l4_size_t amend_dsdt(void *buf, l4_size_t max_size) const override
   {
     // _S3 == suspend to ram
     // _S5 == shutdown
@@ -124,7 +124,7 @@ public:
       0x00, 0x00,
     };
 
-    size_t size = sizeof(dsdt_S3S5);
+    l4_size_t size = sizeof(dsdt_S3S5);
     if (max_size < size)
       L4Re::throw_error(-L4_ENOMEM,
                         "Not enough space in DSDT");

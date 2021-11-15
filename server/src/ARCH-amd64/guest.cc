@@ -179,7 +179,7 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
   register_msr_device(
     Vdev::make_device<Vdev::Microcode_revision>(_cpus->vcpu(0)));
 
-  Acpi::Tables acpi_tables(devs->ram());
+  Acpi::Bios_tables acpi_tables(devs->ram());
   acpi_tables.write_to_guest(_cpus->max_cpuid() + 1);
 }
 

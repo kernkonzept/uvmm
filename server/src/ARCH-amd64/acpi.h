@@ -94,7 +94,7 @@ public:
   }
 
   virtual void amend_fadt(ACPI_TABLE_FADT *) const {};
-  virtual size_t amend_dsdt(void *, size_t) const { return 0; };
+  virtual l4_size_t amend_dsdt(void *, l4_size_t) const { return 0; };
 };
 
 /**
@@ -140,92 +140,25 @@ private:
  */
 class Tables
 {
-  enum : l4_uint32_t
+public:
+  ~Tables()
   {
-    /**
-     * Physical location of the RSDP according to section 5.2.5.1 of the ACPI
-     * Specification.
-     */
-    Phys_start_addr = 0x0E0000
-  };
+    Acpi_device_hub::destroy();
+  }
 
-  enum Table_sizes : size_t
+protected:
+  enum Table_sizes : l4_size_t
   {
     Header_size = sizeof(ACPI_TABLE_HEADER),
     Rsdp_size = sizeof(ACPI_TABLE_RSDP),
     Rsdp_v1_size = 20,
-    Rsdt_size = Header_size + 2 * sizeof(UINT32),
+    Rsdt_size = Header_size + 2 * sizeof(l4_uint32_t),
     Fadt_size = sizeof(ACPI_TABLE_FADT),
     Ioapic_size = sizeof(ACPI_MADT_IO_APIC),
     Lapic_size = sizeof(ACPI_MADT_LOCAL_APIC),
     Madt_basic_size = sizeof(ACPI_TABLE_MADT),
     Facs_size = sizeof(ACPI_TABLE_FACS)
   };
-
-public:
-  /**
-   * ACPI control structure.
-   *
-   * \param ram  Guest RAM.
-   */
-  Tables(cxx::Ref_ptr<Vmm::Vm_ram> ram)
-  {
-    info.printf("Initialize ACPI tables.\n");
-    _dest_addr = ram->guest2host<l4_addr_t>(Vmm::Guest_addr(Phys_start_addr));
-    _ram = ram;
-  }
-
-  ~Tables()
-  {
-    Acpi_device_hub::destroy();
-  }
-
-  /**
-   * Calculate positions for each table and write them in place.
-   */
-  void write_to_guest(unsigned cpus)
-  {
-    auto madt_size = Madt_basic_size + Ioapic_size + cpus * Lapic_size;
-
-    l4_addr_t const rsdp = _dest_addr;
-    l4_addr_t const rsdt = l4_round_size(rsdp + Rsdp_size, 4);
-    l4_addr_t const fadt = l4_round_size(rsdt + Rsdt_size, 4);
-    l4_addr_t const madt = l4_round_size(fadt + Fadt_size, 4);
-    l4_addr_t const facs = l4_round_size(madt + madt_size, 4);
-    l4_addr_t const dsdt = l4_round_size(facs + Facs_size, 4);
-    // we allow the dsdt to take up the rest of the page
-    size_t dsdt_max = L4_PAGESIZE - (dsdt - rsdp);
-
-    auto acpi_mem =
-      Vmm::Region::ss(Vmm::Guest_addr(Phys_start_addr),
-                      dsdt - _dest_addr + Header_size, Vmm::Region_type::Ram);
-    // Throws an exception if the ACPI memory region isn't within guest RAM.
-    _ram->guest2host<l4_addr_t>(acpi_mem);
-
-    // Clear memory because we do not rely on the DS provider to do this for
-    // us, and we must not have spurious values in Acpi tables.
-    memset(reinterpret_cast<void *>(rsdp), 0, dsdt_max);
-
-    write_rsdp(reinterpret_cast<ACPI_TABLE_RSDP *>(rsdp), rsdt);
-    write_rsdt(reinterpret_cast<ACPI_TABLE_RSDT *>(rsdt), madt, fadt);
-    write_fadt(reinterpret_cast<ACPI_TABLE_FADT *>(fadt), dsdt, facs);
-    write_madt(reinterpret_cast<ACPI_TABLE_MADT *>(madt), cpus);
-    write_facs(reinterpret_cast<ACPI_TABLE_FACS *>(facs));
-    write_dsdt(reinterpret_cast<ACPI_TABLE_HEADER *>(dsdt), dsdt_max);
-  }
-
-private:
-  /**
-   * Compute guest-physical address of target table.
-   *
-   * \param virt_target_addr  Virtual address of the target table.
-   *
-   * \return 32-bit guest-physical address of the target table.
-   */
-  UINT32 acpi_phys_addr(l4_addr_t virt_target_addr) const
-  {
-    return Phys_start_addr + static_cast<UINT32>(virt_target_addr - _dest_addr);
-  }
 
   /**
    * Compute table checksums.
@@ -243,6 +176,11 @@ private:
       sum += table[i];
 
     return -sum;
+  }
+
+  l4_size_t madt_size(unsigned cpus)
+  {
+    return Madt_basic_size + Ioapic_size + cpus * Lapic_size;
   }
 
   /**
@@ -265,7 +203,7 @@ private:
    * \param value  String to write.
    * \param len    Length of the identifier field.
    */
-  void write_identifier(char *dest, char const *value, size_t len)
+  void write_identifier(char *dest, char const *value, l4_size_t len)
   {
     auto value_length = strlen(value);
 
@@ -304,18 +242,16 @@ private:
    * \param t     Pointer to the destination.
    * \param rsdt  Address of the RSDT.
    */
-  void write_rsdp(ACPI_TABLE_RSDP *t, l4_addr_t rsdt_addr)
+  void write_rsdp(ACPI_TABLE_RSDP *t, l4_uint32_t rsdt_addr)
   {
     memcpy(t->Signature, ACPI_SIG_RSDP, sizeof(t->Signature));
     cxx::write_now<l4_uint8_t>(&(t->Checksum), 0U);
     write_identifier(t->OemId, "L4RE", ACPI_OEM_ID_SIZE);
     t->Revision = 2; // ACPI 2.0+
-    t->RsdtPhysicalAddress = acpi_phys_addr(rsdt_addr);
-    t->Checksum = compute_checksum(t, Rsdp_v1_size);
+    t->RsdtPhysicalAddress = rsdt_addr;
     t->Length = Rsdp_size;
     t->XsdtPhysicalAddress = 0; // For now we don't implement the XSDT.
     cxx::write_now<l4_uint8_t>(&(t->ExtendedChecksum), 0U);
-    t->ExtendedChecksum = compute_checksum(t, Rsdp_size);
   }
 
   /**
@@ -328,17 +264,16 @@ private:
    * \param madt  Address of the MADT.
    * \param fadt  Address of the FADT.
    */
-  void write_rsdt(ACPI_TABLE_RSDT *t, l4_addr_t madt_addr, l4_addr_t fadt_addr)
+  void write_rsdt(ACPI_TABLE_RSDT *t,
+                  l4_uint32_t madt_addr, l4_uint32_t fadt_addr)
   {
     auto header = &(t->Header);
     write_header(header, ACPI_SIG_RSDT, Rsdt_size);
 
     // The acpi_table_rsdt struct defines only one entry, but we simply use the
     // extra space allocated in the header.
-    t->TableOffsetEntry[0] = acpi_phys_addr(madt_addr);
-    t->TableOffsetEntry[1] = acpi_phys_addr(fadt_addr);
-
-    compute_checksum(header);
+    t->TableOffsetEntry[0] = madt_addr;
+    t->TableOffsetEntry[1] = fadt_addr;
   }
 
   /**
@@ -364,7 +299,8 @@ private:
    * \param dsdt_addr  Address of the DSDT.
    * \param facs_addr  Address of the FACS.
    */
-  void write_fadt(ACPI_TABLE_FADT *t, l4_addr_t dsdt_addr, l4_addr_t facs_addr)
+  void write_fadt(ACPI_TABLE_FADT *t,
+                  l4_uint32_t dsdt_addr, l4_uint32_t facs_addr)
   {
     auto header = &(t->Header);
     write_header(header, ACPI_SIG_FADT, Fadt_size);
@@ -379,9 +315,9 @@ private:
     // up for finding PCI devices.
     // t->Flags = (1 << 20); // HW_REDUCED_ACPI
 
-    t->Dsdt = acpi_phys_addr(dsdt_addr);
+    t->Dsdt = dsdt_addr;
     t->XDsdt = 0; // For now we don't implement the extended DSDT.
-    t->Facs = acpi_phys_addr(facs_addr);
+    t->Facs = facs_addr;
     t->XFacs = 0;
     Facs_storage::get()->set_gaddr(t->Facs);
 
@@ -391,8 +327,6 @@ private:
     std::vector<Acpi_device const*> const &devs = Acpi_device_hub::get()->devices();
     for (auto const &d: devs)
       d->amend_fadt(t);
-
-    compute_checksum(header);
   }
 
   /**
@@ -406,10 +340,9 @@ private:
    */
   void write_madt(ACPI_TABLE_MADT *t, unsigned cpus)
   {
-    auto madt_size = Madt_basic_size + Ioapic_size + cpus * Lapic_size;
     auto header = &(t->Header);
 
-    write_header(header, ACPI_SIG_MADT, madt_size);
+    write_header(header, ACPI_SIG_MADT, madt_size(cpus));
 
     t->Address = Gic::Lapic_access_handler::Mmio_addr;
     // ACPI 6.3 Specification, Table 5-44:
@@ -441,8 +374,6 @@ private:
         lapics[i].Id = i;
         lapics[i].LapicFlags = 1; // Enable CPU.
       }
-
-    compute_checksum(header);
   }
 
   /**
@@ -451,27 +382,144 @@ private:
    * \param t         Pointer to the destination.
    * \param max_size  Maximum size this table can use.
    *
+   * \returns Amount of bytes written.
+   *
    * XXX stub implementation, add actual device info.
    * Defined in section 5.2.11.1 of the ACPI Specification.
    */
-  void write_dsdt(ACPI_TABLE_HEADER *t, size_t max_size)
+  l4_size_t write_dsdt(ACPI_TABLE_HEADER *t, l4_size_t max_size)
   {
-    size_t dsdt_size = Header_size;
+    l4_size_t dsdt_size = Header_size;
     void *ptr = reinterpret_cast<void*>(reinterpret_cast<l4_addr_t>(t)
                                         + Header_size);
     std::vector<Acpi_device const*> const &devs = Acpi_device_hub::get()->devices();
     for (auto const &d: devs)
       {
-        size_t s = d->amend_dsdt(ptr, max_size - dsdt_size);
+        l4_size_t s = d->amend_dsdt(ptr, max_size - dsdt_size);
         dsdt_size += s;
         ptr = reinterpret_cast<void *>(reinterpret_cast<l4_addr_t>(ptr) + s);
       }
     write_header(t, ACPI_SIG_DSDT, dsdt_size);
+
+    return dsdt_size;
+  }
+};
+
+class Bios_tables : public Tables
+{
+  enum : l4_uint32_t
+  {
+    /**
+     * Physical location of the RSDP according to section 5.2.5.1 of the ACPI
+     * Specification.
+     */
+    Phys_start_addr = 0x0E0000
+  };
+
+public:
+  /**
+   * ACPI control structure.
+   *
+   * \param ram  Guest RAM.
+   */
+  Bios_tables(cxx::Ref_ptr<Vmm::Vm_ram> ram)
+  {
+    info.printf("Initialize legacy BIOS ACPI tables.\n");
+    _dest_addr = ram->guest2host<l4_addr_t>(Vmm::Guest_addr(Phys_start_addr));
+    _ram = ram;
+  }
+
+  /**
+   * Calculate positions for each table and write them in place.
+   */
+  void write_to_guest(unsigned cpus)
+  {
+    auto madt_size = Madt_basic_size + Ioapic_size + cpus * Lapic_size;
+
+    l4_addr_t const rsdp = _dest_addr;
+    l4_addr_t const rsdt = l4_round_size(rsdp + Rsdp_size, 4);
+    l4_addr_t const fadt = l4_round_size(rsdt + Rsdt_size, 4);
+    l4_addr_t const madt = l4_round_size(fadt + Fadt_size, 4);
+    l4_addr_t const facs = l4_round_size(madt + madt_size, 4);
+    l4_addr_t const dsdt = l4_round_size(facs + Facs_size, 4);
+    // we allow the dsdt to take up the rest of the page
+    l4_size_t dsdt_max = L4_PAGESIZE - (dsdt - rsdp);
+
+    auto acpi_mem =
+      Vmm::Region::ss(Vmm::Guest_addr(Phys_start_addr),
+                      dsdt - _dest_addr + Header_size, Vmm::Region_type::Ram);
+    // Throws an exception if the ACPI memory region isn't within guest RAM.
+    _ram->guest2host<l4_addr_t>(acpi_mem);
+
+    // Clear memory because we do not rely on the DS provider to do this for
+    // us, and we must not have spurious values in Acpi tables.
+    memset(reinterpret_cast<void *>(rsdp), 0, dsdt_max);
+
+    write_rsdp(reinterpret_cast<ACPI_TABLE_RSDP *>(rsdp), acpi_phys_addr(rsdt));
+    write_rsdt(reinterpret_cast<ACPI_TABLE_RSDT *>(rsdt),
+               acpi_phys_addr(madt), acpi_phys_addr(fadt));
+    write_fadt(reinterpret_cast<ACPI_TABLE_FADT *>(fadt),
+               acpi_phys_addr(dsdt), acpi_phys_addr(facs));
+    write_madt(reinterpret_cast<ACPI_TABLE_MADT *>(madt), cpus);
+    write_facs(reinterpret_cast<ACPI_TABLE_FACS *>(facs));
+    write_dsdt(reinterpret_cast<ACPI_TABLE_HEADER *>(dsdt), dsdt_max);
+  }
+
+protected:
+  void write_rsdp(ACPI_TABLE_RSDP *t, l4_uint32_t rsdt_addr)
+  {
+    Tables::write_rsdp(t, rsdt_addr);
+    t->Checksum = compute_checksum(t, Rsdp_v1_size);
+    t->ExtendedChecksum = compute_checksum(t, Rsdp_size);
+  }
+
+  void write_rsdt(ACPI_TABLE_RSDT *t,
+                  l4_uint32_t madt_addr, l4_uint32_t fadt_addr)
+  {
+    Tables::write_rsdt(t, madt_addr, fadt_addr);
+    compute_checksum(&(t->Header));
+  }
+
+  void write_facs(ACPI_TABLE_FACS *t)
+  {
+    Tables::write_facs(t);
+  }
+
+  void write_fadt(ACPI_TABLE_FADT *t,
+                  l4_uint32_t dsdt_addr, l4_uint32_t facs_addr)
+  {
+    Tables::write_fadt(t, dsdt_addr, facs_addr);
+    compute_checksum(&(t->Header));
+  }
+
+  void write_madt(ACPI_TABLE_MADT *t, unsigned cpus)
+  {
+    Tables::write_madt(t, cpus);
+    compute_checksum(&(t->Header));
+  }
+
+  void write_dsdt(ACPI_TABLE_HEADER *t, l4_size_t max_size)
+  {
+    Tables::write_dsdt(t, max_size);
     compute_checksum(t);
+  }
+
+private:
+  /**
+   * Compute guest-physical address of target table.
+   *
+   * \param virt_target_addr  Virtual address of the target table.
+   *
+   * \return 32-bit guest-physical address of the target table.
+   */
+  l4_uint32_t acpi_phys_addr(l4_addr_t virt_target_addr) const
+  {
+    return Phys_start_addr + static_cast<l4_uint32_t>(virt_target_addr - _dest_addr);
   }
 
   l4_addr_t _dest_addr;
   cxx::Ref_ptr<Vmm::Vm_ram> _ram;
 };
+
 
 } // namespace Acpi
