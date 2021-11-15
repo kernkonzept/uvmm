@@ -117,6 +117,8 @@ public:
 
   int handle_mmio(l4_addr_t pfa, Vcpu_ptr vcpu)
   {
+    int ret = -L4_EFAULT;
+
     {
       std::unique_lock<std::mutex> lock(_memmap_lock);
       Vm_mem::const_iterator f = _memmap.find(Region(Guest_addr(pfa)));
@@ -127,18 +129,17 @@ public:
           cxx::Ref_ptr<Mmio_device> device = f->second;
           lock.unlock();
 
-          return device->access(pfa, pfa - region.start.get(),
-                                vcpu, _task.get(),
-                                region.start.get(), region.end.get());
+          ret = device->access(pfa, pfa - region.start.get(),
+                               vcpu, _task.get(),
+                               region.start.get(), region.end.get());
+          if (ret >= 0)
+            return ret;
         }
     }
 
     auto insn = vcpu.decode_mmio();
     warn().printf("Invalid %s 0x%lx, ip 0x%lx! %sing...\n",
-                  insn.access == Vmm::Mem_access::Load
-                    ? "load from"
-                    : (insn.access == Vmm::Mem_access::Store ? "store to"
-                                                             : "access at"),
+                  vcpu.pf_write() ? "write to" : "read from",
                   pfa, vcpu->r.ip,
                   _fault_mode == Fault_mode::Ignore
                     ? "Ignor"
@@ -162,7 +163,7 @@ public:
         break;
       }
 
-    return -L4_EFAULT;
+    return ret;
   }
 
   /**
