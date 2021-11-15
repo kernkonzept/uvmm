@@ -3,6 +3,7 @@
  * Copyright (C) 2021 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  */
+#include <l4/sys/cxx/consts>
 #include "address_space_manager.h"
 
 namespace Vmm {
@@ -21,28 +22,33 @@ int Address_space_manager::get_phys_mapping(L4::Cap<L4Re::Dataspace> ds,
   return err;
 }
 
-void Address_space_manager::add_ram_iommu(Guest_addr vm_start, l4_addr_t start,
+void Address_space_manager::add_ram_iommu(Guest_addr vm_start, l4_addr_t src_start,
                                           l4_size_t size)
 {
-  l4_addr_t target_addr = vm_start.get();
-  l4_addr_t end = start + size - 1;
+  l4_addr_t src_end   = src_start + size;
+  l4_addr_t dst_start = vm_start.get();
+  l4_addr_t dst_end   = dst_start + size;
 
-  warn().printf("Add RAM Iommu: [0x%lx, 0x%lx] -> [0x%lx, 0x%lx]\n", start,
-                end, target_addr, target_addr + size - 1);
+  // Must be page aligned
+  assert(l4_trunc_page(src_start) == src_start);
+  assert(l4_trunc_page(dst_start) == dst_start);
 
-  l4_addr_t addr = l4_trunc_page(start);
-  unsigned char order =
-    l4_fpage_max_order(L4_LOG2_PAGESIZE, start, addr, start + size);
+  warn().printf("Add RAM Iommu: [0x%lx, 0x%lx] -> [0x%lx, 0x%lx]\n", src_start,
+                src_end - 1, dst_start, dst_end - 1);
 
   // map all pages of region into DMA space
-  while (start < end)
+  while (src_start < src_end - 1)
     {
+      // Make sure the order fits both send and receive address
+      unsigned char order = cxx::min(
+        L4::max_order(L4_LOG2_PAGESIZE, src_start, src_start, src_end),
+        L4::max_order(L4_LOG2_PAGESIZE, dst_start, dst_start, dst_end));
       L4Re::chksys(_kdma_space->map(L4Re::This_task,
-                                    l4_fpage(start, order, L4_FPAGE_RWX),
-                                    target_addr),
+                                    l4_fpage(src_start, order, L4_FPAGE_RW),
+                                    dst_start),
                    "Map guest RAM into KDMA space");
-      start += 1UL << order;
-      target_addr += 1UL << order;
+      src_start += 1UL << order;
+      dst_start += 1UL << order;
     }
 }
 
