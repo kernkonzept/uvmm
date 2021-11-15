@@ -16,7 +16,8 @@ asm
  "  .fpu neon                     \n"  // be able to access d16-d31
  "  mov    r6, sp                 \n"  // r6: save sp
  "  bic    sp, #7                 \n"
- "  sub    sp, sp, #(16 + 32*4)   \n"  // Why is there a gap of 16 bytes?
+ "  sub    sp, sp, #(16 + 32*8)   \n"  // Why is there a gap of 16 bytes?
+                                       // 32 double precision registers, 8 bytes
  "  mrc    p15, 0, r7, c1, c0, 2  \n"  // r7: save CPACR
  "  orr    r8, r7, #0x500000      \n"  // enable cp12+cp13 for PL1
  "  mcr    p15, 0, r8, c1, c0, 2  \n"
@@ -26,11 +27,11 @@ asm
  "  movw   r9, #:lower16:save_32r \n"
  "  movt   r9, #:upper16:save_32r \n"
  "  ldr    r9, [r9]               \n"  // r9: 0: don't save; 1: save d16-d31
- "  add    r10, sp, #(16 + 0*4)   \n"  // r10: address of d0-d15
+ "  add    r10, sp, #(16 + 0*8)   \n"  // r10: address of d0-d15
  "  vstm   r10, {d0-d15}          \n"
  "  cmp    r9, #0                 \n"
  "  beq    1f                     \n"
- "  add    r11, sp, #(16 + 16*4)  \n"  // r11: address of d16-d31
+ "  add    r11, sp, #(16 + 16*8)  \n"  // r11: address of d16-d31
  "  vstm   r11, {d16-d31}         \n"
  "1:                              \n"
  "  mov    r4, r0                 \n"  // r4: save r0
