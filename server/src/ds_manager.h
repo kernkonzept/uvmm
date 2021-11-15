@@ -112,6 +112,9 @@ public:
    */
   bool is_mapped() const
   { return _local.is_valid(); }
+
+  L4Re::Rm::Region_flags local_flags() const
+  { return _local_flags; }
 };
 
 }

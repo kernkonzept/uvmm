@@ -37,10 +37,12 @@ public:
    * \param ds       L4Re Dataspace that represents the RAM for the VM.
    * \param size     Size of the region (default: use dataspace size).
    * \param offset   Offset into the dataspace.
+   * \param flags    Region manager flags of the mapping
    */
   Ram_ds(L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap ds,
-         l4_size_t size, l4_addr_t offset)
-  : Ds_manager(ds, offset, size, L4Re::Rm::F::RWX,
+         l4_size_t size, l4_addr_t offset,
+         L4Re::Rm::Region_flags flags = L4Re::Rm::F::RWX)
+  : Ds_manager(ds, offset, size, flags,
                sizeof(l4_umword_t) == 8 && size >= Ram_hugepagesize
                ? Ram_hugepageshift : L4_SUPERPAGESHIFT),
     _phys_size(0U)
@@ -99,6 +101,8 @@ public:
   l4_addr_t ds_offset() const noexcept { return offset(); }
 
   bool has_phys_addr() const noexcept { return _phys_size > 0; }
+
+  bool writable() const { return local_flags() & L4Re::Rm::F::W; }
 
 private:
   /// Offset between guest-physical and host-virtual address.

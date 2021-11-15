@@ -138,9 +138,10 @@ Vmm::Ram_free_list::load_file_to_back(Vm_ram *ram, char const *name,
 
 l4_size_t
 Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, Vmm::Guest_addr baseaddr,
-                               l4_addr_t ds_offset, l4_size_t size, Vm_mem *memmap)
+                               l4_addr_t ds_offset, l4_size_t size, Vm_mem *memmap,
+                               L4Re::Rm::Region_flags flags)
 {
-  cxx::Ref_ptr<Ram_ds> r = cxx::make_ref_obj<Ram_ds>(ds, size, ds_offset);
+  cxx::Ref_ptr<Ram_ds> r = cxx::make_ref_obj<Ram_ds>(ds, size, ds_offset, flags);
 
   if (!r || r->setup(baseaddr, as_mgr()) < 0)
     return -1;

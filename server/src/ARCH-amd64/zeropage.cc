@@ -36,7 +36,8 @@ void Zeropage::cfg_e820(Vm_ram *ram)
   ram->foreach_region([this, &last_addr](Vmm::Ram_ds const &r)
   {
     if (_e820_idx < Max_e820_entries)
-      add_e820_entry(r.vm_start().get(), r.size(), E820_ram);
+      add_e820_entry(r.vm_start().get(), r.size(),
+                     r.writable() ? E820_ram : E820_reserved);
     last_addr = r.vm_start().get() + r.size();
   });
 

@@ -222,4 +222,10 @@
             };
         };
 
+        rom@ffc84000 {
+            compatible = "l4vmm,rom";
+            reg = <0x0 0xffc84000 0x0 0x37c000>;
+            l4vmm,dscap = "bios_code";
+        };
+
 };

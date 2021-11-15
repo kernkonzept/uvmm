@@ -192,18 +192,6 @@ public:
   Vmm::Address_space_manager_mode_if const *as_mgr_if() const
   { return static_cast<Vmm::Address_space_manager_mode_if *>(_as_mgr.get()); }
 
-private:
-  cxx::Ref_ptr<Ram_ds> find_region(Vmm::Guest_addr addr, l4_size_t size) const
-  {
-    for (auto const &r : _regions)
-      {
-        if (addr >= r->vm_start() && addr - r->vm_start() + size <= r->size())
-          return r;
-      }
-
-    return nullptr;
-  }
-
   /**
    * Add a new RAM region.
    *
@@ -217,7 +205,20 @@ private:
    */
   l4_size_t add_memory_region(L4::Cap<L4Re::Dataspace> ds,
                               Vmm::Guest_addr baseaddr, l4_addr_t ds_offset,
-                              l4_size_t size, Vm_mem *memmap);
+                              l4_size_t size, Vm_mem *memmap,
+                              L4Re::Rm::Region_flags flags = L4Re::Rm::F::RWX);
+
+private:
+  cxx::Ref_ptr<Ram_ds> find_region(Vmm::Guest_addr addr, l4_size_t size) const
+  {
+    for (auto const &r : _regions)
+      {
+        if (addr >= r->vm_start() && addr - r->vm_start() + size <= r->size())
+          return r;
+      }
+
+    return nullptr;
+  }
 
   long add_from_dt_node(Vm_mem *memmap, bool *found, Vdev::Dt_node const &node);
   void setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,

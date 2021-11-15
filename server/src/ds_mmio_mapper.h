@@ -121,7 +121,7 @@ private:
     long res;
     l4_addr_t ls = local_start();
     // Make sure that the page is currently mapped.
-    res = page_in(ls + offset, true);
+    res = page_in(ls + offset, vcpu.pf_write());
 
     if (res >= 0)
       {
