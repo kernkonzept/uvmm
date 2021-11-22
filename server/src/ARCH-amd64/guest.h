@@ -56,6 +56,9 @@ public:
 
   void show_state_interrupts(FILE *, Vcpu_ptr) {}
 
+  void register_io_device(cxx::Ref_ptr<Vmm::Io_device> const &dev,
+                          Region_type type,
+                          Vdev::Dt_node const &node, size_t index = 0);
   void add_io_device(Io_region const &region,
                      cxx::Ref_ptr<Io_device> const &dev);
   void del_io_device(Io_region const &region);

@@ -71,6 +71,8 @@ public:
                             Region_type type,
                             Vdev::Dt_node const &node, size_t index = 0);
 
+  void register_io_device(cxx::Ref_ptr<Vmm::Io_device> const &,
+                          Region_type, Vdev::Dt_node const &, size_t = 0) {}
   void add_io_device(Io_region const &, cxx::Ref_ptr<Io_device> const &) {}
   void del_io_device(Io_region const &) {}
 
