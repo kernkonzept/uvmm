@@ -549,12 +549,23 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
         auto qual = vms->vmx_read(VMCS_EXIT_QUALIFICATION);
         unsigned qwidth = qual & 7;
         bool is_read = qual & 8;
+        bool is_string = qual & 16;
         unsigned port = (qual >> 16) & 0xFFFFU;
 
         Dbg(Dbg::Dev, Dbg::Trace)
           .printf("VM exit: IO port access with exit qualification 0x%llx: "
                   "%s port 0x%x\n",
                   qual, is_read ? "read" : "write", port);
+
+        if (is_string)
+          {
+            warn().printf("Unhandled string IO instruction @ 0x%lx: %s%s, port 0x%x! Skipped.\n",
+                          vms->ip(), (qual & 0x20) ? "REP " : "",
+                          is_read ? "INS" : "OUTS", port);
+            // This is not entirely correct: SI/DI not incremented, REP prefix
+            // not handled.
+            return Jump_instr;
+          }
 
         if (port == 0xcfb)
           Dbg(Dbg::Dev, Dbg::Trace)
