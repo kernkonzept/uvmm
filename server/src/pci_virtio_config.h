@@ -25,6 +25,7 @@ namespace Vdev {
     Transitional_device_pci_revision_id     = 0x0,
     Non_transitional_device_pci_revision_id = 0x1,
     Virtio_msix_no_vector                   = 0xffff,
+    Virtio_pci_subsystem_id_minimum         = 0x40,
   };
 
   enum Virtio_cfg_types

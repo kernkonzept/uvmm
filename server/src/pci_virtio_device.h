@@ -95,7 +95,7 @@ private:
     // (see virtio 1.0 cs4)
     hdr->device_id = Virtio_pci_device_id_base + dev_cfg->device;
     hdr->revision_id = Non_transitional_device_pci_revision_id;
-    hdr->subsystem_id = dev_cfg->device;
+    hdr->subsystem_id = Virtio_pci_subsystem_id_minimum;
     // hdr->subsystem_id && hdr->subsystem_vendor: virtio spec 1.0 cs4: optional
     hdr->status = Interrupt_status_bit | Capability_list_bit;
     hdr->header_type = Multi_func_bit;
