@@ -39,11 +39,17 @@ class Pci_host_generic:
   Pci_header::Type1 const *header() const
   { return get_header<Pci_header::Type1>(); }
 
+  void init_bus_range(Dt_node const &node);
+  void init_bridge_window(Dt_node const &node);
+
 public:
-  explicit Pci_host_generic(Device_lookup *devs,
+  explicit Pci_host_generic(Device_lookup *devs, Dt_node const &node,
                             cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
   : Pci_host_bridge(devs, msix_ctrl)
   {
+    init_bus_range(node);
+    init_bridge_window(node);
+
     // Linux' x86 PCI_direct code sanity checks for a device with class code
     // PCI_CLASS_DISPLAY_VGA(0x0300) or PCI_CLASS_BRIDGE_HOST(0x00) or for a
     // device of vendor INTEL or COMPAQ.
@@ -56,7 +62,6 @@ public:
     setup_devices();
   }
 
-  void init_bus_range(Dt_node const &node);
   void init_dev_resources(Hw_pci_device *) override;
 
   /**
@@ -178,6 +183,11 @@ public:
     *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x43]) =
       hdr->subordinate_bus_num - hdr->secondary_bus_num + 1U;
 
+    // Update "I/O window" with actual values from device tree
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x55]) = _io_base;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x57]) = _io_base + _io_size - 1U;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x5b]) = _io_size;
+
     // Update "MMIO window" with actual values from device tree
     *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x67]) = _mmio_base;
     *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x6b]) = _mmio_base + _mmio_size - 1U;
@@ -211,6 +221,8 @@ private:
 
   l4_uint64_t _mmio_base = 0;
   l4_uint64_t _mmio_size = 0;
+  l4_uint16_t _io_base = 0xffff;
+  l4_uint16_t _io_size = 0;
 }; // class Pci_host_generic
 
 /**
@@ -390,10 +402,54 @@ Pci_host_generic::init_bus_range(Dt_node const &node)
   auto *const hdr = header();
   hdr->secondary_bus_num = (l4_uint8_t)fdt32_to_cpu(bus_range[0]);
   hdr->subordinate_bus_num = (l4_uint8_t)fdt32_to_cpu(bus_range[1]);
+}
 
-  node.get_reg_val(0, &_mmio_base, &_mmio_size);
+/**
+ * Retrieve bridge MMIO and I/O windows from ranges property.
+ *
+ * The actual values are irrelevant for uvmm. They are only gathered to be
+ * forwarded to the guest via ACPI. See amend_dsdt() above.
+ */
+void
+Pci_host_generic::init_bridge_window(Dt_node const &node)
+{
+  int prop_size;
+  auto prop = node.get_prop<fdt32_t>("ranges", &prop_size);
+  if (!prop)
+    L4Re::throw_error(-L4_EINVAL, "missing ranges property");
+
+  auto parent = node.parent_node();
+  auto parent_addr_cells = node.get_address_cells(parent);
+  size_t child_addr_cells = node.get_address_cells(node);
+  size_t child_size_cells = node.get_size_cells(node);
+
+  unsigned range_size = child_addr_cells + parent_addr_cells + child_size_cells;
+  if (prop_size % range_size != 0)
+    L4Re::throw_error(-L4_EINVAL, "invalid ranges property");
+
+  for (auto end = prop + prop_size; prop < end; prop += range_size)
+    {
+      auto flags = Dtb::Reg_flags::pci(fdt32_to_cpu(*prop));
+      Dtb::Cell parent_base(prop + child_addr_cells, parent_addr_cells);
+      Dtb::Cell size(prop + child_addr_cells + parent_addr_cells,
+                     child_size_cells);
+
+      if (flags.is_mmio32())
+        {
+          _mmio_base = parent_base.get_uint64();
+          _mmio_size = size.get_uint64();
+        }
+      else if (flags.is_ioport())
+        {
+          _io_base = parent_base.get_uint64();
+          _io_size = size.get_uint64();
+        }
+    }
+
   trace().printf("MMIO window at [0x%llx, 0x%llx]\n", _mmio_base,
                  _mmio_base + _mmio_size - 1U);
+  trace().printf("I/O window at [0x%x, 0x%x]\n", _io_base,
+                 _io_base + _io_size - 1U);
 }
 
 void
@@ -422,8 +478,8 @@ struct F : Factory
         return nullptr;
       }
 
-    auto dev = make_device<Pci_host_generic>(devs, devs->get_or_create_mc_dev(node));
-    dev->init_bus_range(node);
+    auto dev = make_device<Pci_host_generic>(devs, node,
+                                             devs->get_or_create_mc_dev(node));
 
     auto io_cfg_connector = make_device<Pci_bus_cfg_io>(dev);
     auto region = Vmm::Io_region(0xcf8, 0xcff, Vmm::Region_type::Virtual);

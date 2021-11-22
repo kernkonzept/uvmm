@@ -773,9 +773,6 @@ struct Pci_device : public virtual Vdev::Dev_ref
         else if (bar.type == Pci_cfg_bar::Unused_empty)
           continue;
 
-        // Initial map address is equal to io address
-        bar.map_addr = bar.io_addr;
-
         info().printf("  bar[%u] addr=0x%llx size=0x%llx type=%s\n", i,
                       bar.io_addr, bar.size, bar.to_string());
       }
@@ -846,6 +843,45 @@ public:
     memset(&_hdr, 0, sizeof(_hdr));
     _last_caps_next_ptr = &get_header<Pci_header::Type0>()->cap_ptr;
     _next_free_idx = 0x40; // first byte after the PCI header;
+  }
+
+  /**
+   * Construct virtual PCI device from device tree node.
+   *
+   * This implies a type0 device.
+   */
+  Virt_pci_device(Vdev::Dt_node const &node)
+  : Virt_pci_device()
+  {
+    l4_uint64_t size;
+    Dtb::Reg_flags flags;
+
+    // First reg entry shall be the config space. Note that we ignore the
+    // assigned bus/device/function numbers. This might change in the future!
+    if (node.get_reg_size_flags(0, nullptr, &flags) < 0)
+      L4Re::throw_error(-L4_EINVAL, "invalid PCI dev reg property");
+    if (!flags.is_cfgspace())
+      L4Re::throw_error(-L4_EINVAL, "invalid PCI dev reg property");
+
+    for (int i = 1; node.get_reg_size_flags(i, &size, &flags) >= 0; i++)
+      {
+        unsigned bar = (flags.pci_reg() - Pci_hdr_base_addr0_offset) / 4U;
+        if (bar >= Bar_num_max_type0)
+          L4Re::throw_error(-L4_EINVAL,
+                            "PCI dev reg property must reference valid BAR");
+        if (bars[bar].type != Pci_cfg_bar::Type::Unused_empty)
+          L4Re::throw_error(-L4_EINVAL, "BAR must be defined only once");
+        check_power_of_2(size, "BAR size must be power of 2");
+
+        if (flags.is_mmio64())
+          set_mem64_space<Pci_header::Type0>(bar, 0, size);
+        else if (flags.is_mmio32())
+          set_mem_space<Pci_header::Type0>(bar, 0, size);
+        else if (flags.is_ioport())
+          set_io_space<Pci_header::Type0>(bar, 0, size);
+        else
+          L4Re::throw_error(-L4_EINVAL, "invalid PCI dev reg property");
+      }
   }
 
   /**
@@ -950,84 +986,6 @@ public:
     return ret;
   }
 
-  /**
-   * Get PCI flags value of a register in the DT-PCI node.
-   *
-   * \param node     DT node to get the register flags of.
-   * \param reg_num  Index of the 'reg' entry.
-   *
-   * \return PCI flags specified in the DT for the specified reg entry.
-   */
-  static l4_uint32_t dt_get_reg_flags(Vdev::Dt_node const &node, int reg_num)
-  {
-    auto parent = node.parent_node();
-    size_t addr_cells = node.get_address_cells(parent);
-    size_t size_cells = node.get_size_cells(parent);
-
-    if (addr_cells != 3 || size_cells != 2)
-      L4Re::chksys(-L4_EINVAL,
-                   "PCI device register lengths are three (address) "
-                   "and two (size).");
-
-    int const reg_len = addr_cells + size_cells;
-    int dt_regs_size = 0;
-    auto dt_regs = node.get_prop<fdt32_t>("reg", &dt_regs_size);
-    assert(reg_num < (dt_regs_size / reg_len));
-
-    for (int i = 0; i < 2; ++i)
-      Dbg().printf("dt_regs[%i]: 0x%x\n", i, fdt32_to_cpu(dt_regs[i*reg_len]));
-
-    return fdt32_to_cpu(dt_regs[reg_num * reg_len]);
-  }
-
-  /**
-   * Get IO-Reg values of the PCI-DT node, without translation through the
-   * parent.
-   *
-   * The IO regs entry defines absolute reset values for the IO area of the
-   * device, which are not translated through the PCI host bridge ranges
-   * property. Attempts to do so result in a translation error.
-   *
-   * It is slightly modified copy of Dtb::Node::get_reg_val().
-   *
-   * \see Dtb::Node::get_reg_val()
-   */
-  static int dt_get_untranslated_reg_val(Vdev::Dt_node node, int index,
-                                         l4_uint64_t *address,
-                                         l4_uint64_t *size)
-  {
-    auto parent = node.parent_node();
-    size_t addr_cells = node.get_address_cells(parent);
-    size_t size_cells = node.get_size_cells(parent);
-    int rsize = addr_cells + size_cells;
-
-    int prop_size;
-    auto *prop = node.get_prop<fdt32_t>("reg", &prop_size);
-    if (!prop && prop_size < 0)
-      return prop_size;
-
-    if (!prop)
-      return FDT_ERR_INTERNAL;
-
-    if (prop_size < rsize * (index + 1))
-      return Dt_node::ERR_BAD_INDEX;
-
-    prop += rsize * index;
-
-    // ignore flags
-    prop += 1;
-    addr_cells -= 1;
-    Dtb::Reg reg{Dtb::Cell{prop, addr_cells},
-                 Dtb::Cell(prop + addr_cells, size_cells)};
-
-    if (address)
-      *address = reg.address.get_uint64();
-    if(size)
-      *size = reg.size.get_uint64();
-
-    return 0;
-  }
-
   void add_decoder_resources(Vmm::Guest *vmm, l4_uint32_t access) override;
   void del_decoder_resources(Vmm::Guest *vmm, l4_uint32_t access) override;
 
@@ -1077,6 +1035,13 @@ private:
       trace().printf("config access 0x%x(%d): out of range\n", reg, width);
 
     return ret;
+  }
+
+  inline void
+  check_power_of_2(l4_uint64_t size, char const *err)
+  {
+    if (size & (size - 1))
+      L4Re::chksys(-L4_EINVAL, err);
   }
 
 protected:
@@ -1141,23 +1106,39 @@ protected:
   }
 
   /**
-   * Configure a BAR address as memory BAR address.
+   * Configure a BAR address as 32-bit memory BAR address.
    *
    * \param bar   BAR number
    * \param addr  Address to write to BAR.
    * \param size  Size of the memory referenced by `addr`.
    */
   template <typename TYPE>
-  void set_mem_space(unsigned bar, l4_uint32_t addr, l4_size_t size)
+  void set_mem_space(unsigned bar, l4_uint32_t addr, l4_uint32_t size)
   {
     assert_bar_type_size<TYPE>(bar);
 
-    // memory space: [0] mem space indicator := 0;
-    // [2:1] type: 00 = 32bit, 10 = 64bit;
-    // [3] prefetch;
     bars[bar].map_addr = addr & ~Bar_mem_attr_mask;
     bars[bar].type = Pci_cfg_bar::Type::MMIO32;
-    // TODO support mmio64 as well
+    set_bar_size(bar, size);
+  }
+
+  /**
+   * Configure a BAR address as 64-bit memory BAR address.
+   *
+   * Attention: this will occupy *two* BAR registers!
+   *
+   * \param bar   BAR number
+   * \param addr  Address to write to BAR.
+   * \param size  Size of the memory referenced by `addr`.
+   */
+  template <typename TYPE>
+  void set_mem64_space(unsigned bar, l4_uint64_t addr, l4_uint64_t size)
+  {
+    assert_bar_type_size<TYPE>(bar);
+
+    bars[bar + 0].map_addr = addr & ~Bar_mem_attr_mask;
+    bars[bar + 0].type = Pci_cfg_bar::Type::MMIO64;
+    bars[bar + 1].type = Pci_cfg_bar::Type::Reserved_mmio64_upper;
     set_bar_size(bar, size);
   }
 
@@ -1168,13 +1149,13 @@ protected:
    * \param bar   BAR number.
    * \param size  BAR size.
    */
-  void set_bar_size(unsigned bar, l4_size_t size)
+  void set_bar_size(unsigned bar, l4_uint64_t size)
   {
     // Keep in mind that __builtin_clzl(0) is undefined.
     if (size < 16)
       size = 16;
     else
-      size = 1UL << (8 * sizeof(unsigned long) - __builtin_clzl(size - 1));
+      size = 1ULL << (8 * sizeof(unsigned long long) - __builtin_clzll(size - 1U));
     bars[bar].size = size;
   }
 };

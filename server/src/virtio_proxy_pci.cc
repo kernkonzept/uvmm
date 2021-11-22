@@ -15,16 +15,18 @@
 
 
 class Virtio_proxy_pci
-: public Vdev::Virtio_proxy<Virtio_proxy_pci>,
-  public Vdev::Pci::Virtio_device_pci<Virtio_proxy_pci>,
+: public Vdev::Pci::Virtio_device_pci<Virtio_proxy_pci>,
+  public Vdev::Virtio_proxy<Virtio_proxy_pci>,
   public Virtio::Pci_connector<Virtio_proxy_pci>
 {
 public:
-  Virtio_proxy_pci(L4::Cap<L4virtio::Device> device, l4_uint64_t config_sz,
+  Virtio_proxy_pci(Vdev::Dt_node const &node, unsigned num_msix_entries,
+                   L4::Cap<L4virtio::Device> device,
                    unsigned nnq_id, Vmm::Vm_ram *ram,
                    Gic::Msix_dest const &msix_dest)
-  : Virtio_proxy<Virtio_proxy_pci>(device, config_sz, nnq_id, ram),
-    Virtio_device_pci<Virtio_proxy_pci>(),
+  : Virtio_device_pci<Virtio_proxy_pci>(node, num_msix_entries),
+    // 0x100: size of the virtio config header
+    Virtio_proxy<Virtio_proxy_pci>(device, 0x100 + device_config_len(), nnq_id, ram),
     Virtio::Pci_connector<Virtio_proxy_pci>(),
     _evcon(msix_dest)
   {}
@@ -72,27 +74,6 @@ struct F : Factory
     if (!cap)
       return nullptr;
 
-    l4_uint64_t dt_msi_base = 0, dt_msi_size = 0;
-    node.get_reg_val(0, &dt_msi_base, &dt_msi_size);
-
-    l4_uint64_t dt_base = 0, dt_size = 0;
-    Virt_pci_device::dt_get_untranslated_reg_val(node, 1, &dt_base, &dt_size);
-
-    info().printf("Proxy base & size 0x%llx, 0x%llx\nMSI-X memory address & "
-                  "size: 0x%llx, 0x%llx\n",
-                  dt_base, dt_size, dt_msi_base, dt_msi_size);
-
-    check_dt_io_mmio_constraints(dt_msi_base, dt_msi_size, dt_base, dt_size);
-
-    l4_size_t cfgsz = dt_size - Num_pci_connector_ports;
-    warn().printf("cfgsize is 0x%lx\n", cfgsz);
-
-    Device_register_entry regs[] =
-      {{dt_msi_base, dt_msi_size, Virt_pci_device::dt_get_reg_flags(node, 0)},
-       {dt_base, dt_size, Virt_pci_device::dt_get_reg_flags(node, 1)}};
-
-    check_dt_regs_flag(regs);
-
     auto *pci = dynamic_cast<Pci_host_bridge *>(
       devs->device_from_node(node.parent_node()).get());
 
@@ -110,18 +91,16 @@ struct F : Factory
 
     auto vmm = devs->vmm();
 
-    auto dev_id = pci->alloc_dev_id();
-    // cfgsz + 0x100 => DT tells dev config size; add virtio config hdr
-    auto proxy =
-      make_device<Virtio_proxy_pci>(cap, cfgsz + 0x100, nnq_id, devs->ram().get(),
-                                    pci->msix_dest(dev_id));
-
-    proxy->register_irq(vmm->registry());
-
     // Only two MSIs (config & VQ). l4virtio supports only shared IRQs for all
     // VQs.
+    auto dev_id = pci->alloc_dev_id();
     int const num_msix = 2;
-    proxy->configure(regs, num_msix, cfgsz);
+    auto proxy =
+      make_device<Virtio_proxy_pci>(node, num_msix, cap, nnq_id,
+                                    devs->ram().get(), pci->msix_dest(dev_id));
+
+    proxy->register_irq(vmm->registry());
+    proxy->init_virtio_pci_device();
     pci->register_device(proxy);
 
     return proxy;

@@ -634,7 +634,9 @@ public:
   }
 
   /**
-   * Get address/size pair from reg property
+   * Get address/size pair from reg property.
+   *
+   * Note that in case of a PCI device the `index` is the BAR register (0..5).
    *
    * \param[in]  index             Index of pair
    * \param[out] address           Store address in *address if address != 0
@@ -657,7 +659,9 @@ public:
     int rsize = addr_cells + size_cells;
 
     int prop_size;
-    auto *prop = get_prop<fdt32_t>("reg", &prop_size);
+    auto *prop = get_prop<fdt32_t>(parent.is_pci_bus() ? "assigned-addresses"
+                                                       : "reg",
+                                   &prop_size);
     if (!prop && prop_size < 0)
       return prop_size;
 
@@ -683,6 +687,49 @@ public:
       *flags = parent.get_flags(prop);
 
     return res ? 0 : -ERR_NOT_TRANSLATABLE;
+  }
+
+  /**
+   * Get size and/or flags of reg entry.
+   *
+   * \param[in]  index   Index of reg property entry
+   * \param[out] size    Store size in *size if size != 0
+   * \param[out] flags   Store Reg_flags of address if flags != 0
+   *
+   * The reg property is not translated into the root address space. In case
+   * of a PCI device the `flags` will hold the information about type and
+   * BAR register index.
+   */
+  int get_reg_size_flags(int index, l4_uint64_t *size, Reg_flags *flags) const
+  {
+    auto parent = parent_node();
+    size_t addr_cells = get_address_cells(parent);
+    size_t size_cells = get_size_cells(parent);
+    int rsize = addr_cells + size_cells;
+
+    int prop_size;
+    auto *prop = get_prop<fdt32_t>("reg", &prop_size);
+    if (!prop && prop_size < 0)
+      return prop_size;
+
+    if (!prop)
+      return -FDT_ERR_INTERNAL;
+
+    if (prop_size < rsize * (index + 1))
+      return -ERR_BAD_INDEX;
+
+    prop += rsize * index;
+
+    Cell sz(prop + addr_cells, size_cells);
+    if (!sz.is_uint64())
+      return -ERR_RANGE;
+
+    if (size)
+      *size = sz.get_uint64();
+    if (flags)
+      *flags = parent.get_flags(prop);
+
+    return 0;
   }
 
   /**
@@ -1048,6 +1095,7 @@ bool
 Node<ERR>::translate_reg(Node const &parent, Cell *address, Cell const &size) const
 {
   static Cell no_reg_mask;
+  static Cell pci_bus_reg_mask{0x03000000U, 0xffffffffU, 0xffffffffU};
   static Cell isa_bus_reg_mask{0xffffffffU};
 
   if (parent.is_root_node())
@@ -1067,7 +1115,15 @@ Node<ERR>::translate_reg(Node const &parent, Cell *address, Cell const &size) co
   auto child_size = get_size_cells(parent);
 
   Cell const *mask = &no_reg_mask;
-  if (parent.is_isa_bus())
+  if (parent.is_pci_bus())
+    {
+      if (child_addr != 3 || child_size != 2)
+        ERR(this, "Invalid reg size %u/%u", child_addr, child_size);
+
+      mask = &pci_bus_reg_mask;
+      *address &= pci_bus_reg_mask;
+    }
+  else if (parent.is_isa_bus())
     {
       if (child_addr != 2 || child_size != 1)
         ERR(this, "Invalid reg size %u/%u", child_addr, child_size);

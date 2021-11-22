@@ -24,13 +24,15 @@ class Virtio_console_pci
   public Virtio::Pci_connector<Virtio_console_pci>
 {
 public:
-  Virtio_console_pci(Vmm::Vm_ram *ram, L4::Cap<L4::Vcon> con,
+  Virtio_console_pci(Vdev::Dt_node const &node, unsigned num_msix_entries,
+                     Vmm::Vm_ram *ram, L4::Cap<L4::Vcon> con,
                      Gic::Msix_dest const &msix_dest)
   : Virtio_console(ram, con),
-    Virtio_device_pci<Virtio_console_pci>(),
+    Virtio_device_pci<Virtio_console_pci>(node, num_msix_entries),
     Virtio::Pci_connector<Virtio_console_pci>(),
     _evcon(msix_dest)
   {
+    init_virtio_pci_device();
   }
 
   Virtio::Event_connector_msix *event_connector() { return &_evcon; }
@@ -63,24 +65,6 @@ struct F : Factory
                                     Vdev::Dt_node const &node) override
   {
     info().printf("Create virtual PCI console\n");
-    l4_uint64_t dt_msi_base = 0, dt_msi_size = 0;
-    node.get_reg_val(0, &dt_msi_base, &dt_msi_size);
-
-    l4_uint64_t dt_base = 0;
-    l4_uint64_t dt_size = 0;
-    Virt_pci_device::dt_get_untranslated_reg_val(node, 1, &dt_base, &dt_size);
-
-    info().printf("Console base & size: 0x%llx, 0x%llx\nMSI-X memory address & "
-                  "size: 0x%llx, 0x%llx\n",
-                  dt_base, dt_size, dt_msi_base, dt_msi_size);
-
-    check_dt_io_mmio_constraints(dt_msi_base, dt_msi_size, dt_base, dt_size);
-
-    Device_register_entry regs[] =
-      {{dt_msi_base, dt_msi_size, Virt_pci_device::dt_get_reg_flags(node, 0)},
-       {dt_base, dt_size, Virt_pci_device::dt_get_reg_flags(node, 1)}};
-
-    check_dt_regs_flag(regs);
 
     auto *pci = dynamic_cast<Pci_host_bridge *>(
       devs->device_from_node(node.parent_node()).get());
@@ -97,13 +81,12 @@ struct F : Factory
       return nullptr;
 
     auto dev_id = pci->alloc_dev_id();
-    auto vmm = devs->vmm();
-    auto console = make_device<Virtio_console_pci>(devs->ram().get(), cap,
-                                                   pci->msix_dest(dev_id));
-
-    console->register_obj(vmm->registry());
     unsigned num_msix = 5;
-    console->configure(regs, num_msix);
+    auto console =
+      make_device<Virtio_console_pci>(node, num_msix, devs->ram().get(), cap,
+                                      pci->msix_dest(dev_id));
+
+    console->register_obj(devs->vmm()->registry());
     pci->register_device(console, dev_id);
 
     info().printf("Console: %p\n", console.get());
