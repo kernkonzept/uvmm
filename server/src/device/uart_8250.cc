@@ -277,6 +277,12 @@ public:
 
   void write(unsigned reg, char size, l4_uint32_t value, unsigned)
   {
+    if (!_enabled)
+      {
+        attach_con_irq();
+        _enabled = true;
+      }
+
     switch (reg >> _regshift)
       {
       case Rbr_thr_dll:
@@ -296,8 +302,6 @@ public:
                 _iir.set_write_irq();
                 _sink.inject();
               }
-            if (_ier.rda())
-              attach_con_irq();
           }
         break;
       case Iir:
@@ -373,6 +377,7 @@ private:
   L4::Cap<L4::Irq> _con_irq;
   l4_uint64_t _regshift;
   Vmm::Irq_sink _sink;
+  bool _enabled = false;
 
   Ier_reg _ier;
   Iir_reg _iir;
