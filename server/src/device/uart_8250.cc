@@ -202,8 +202,7 @@ public:
         return;
       }
 
-    attr.l_flags &= ~L4_VCON_ECHO;
-    attr.o_flags &= ~L4_VCON_ONLRET;
+    attr.set_raw();
     L4Re::chksys(con->set_attr(&attr), "console set_attr");
   }
 
