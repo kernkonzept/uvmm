@@ -21,6 +21,80 @@ extern "C" {
 namespace Dtb {
 
 /**
+ * Meta data about reg property.
+ *
+ * Depending on the bus type additionaly information is stored about a reg
+ * property in the high word of the child node address.
+ */
+class Reg_flags
+{
+  // Internally stored in PCI device tree binding representation.
+  enum
+  {
+    Reg_flags_pci_reg_mask      = 0xff,
+    Reg_flags_pci_func_mask     = 0x07,
+    Reg_flags_pci_func_shift    = 8,
+    Reg_flags_pci_device_mask   = 0x1f,
+    Reg_flags_pci_device_shift  = 11,
+    Reg_flags_pci_bus_mask      = 0xff,
+    Reg_flags_pci_bus_shift     = 16,
+
+    Reg_flags_type_mask      = 0x03UL << 24,
+    Reg_flags_type_cfgspace  = 0x00UL << 24,
+    Reg_flags_type_ioport    = 0x01UL << 24,
+    Reg_flags_type_mmio_32   = 0x02UL << 24,
+    Reg_flags_type_mmio_64   = 0x03UL << 24,
+
+    Reg_flags_aliased            = 1UL << 29,
+    Reg_flags_mmio_prefetchable  = 1UL << 30,
+    Reg_flags_non_relocatable    = 1UL << 31,
+  };
+
+  Reg_flags(l4_uint32_t flags) : _flags(flags) {}
+
+public:
+  Reg_flags() = default;
+  Reg_flags(Reg_flags const &other) : _flags(other._flags) {}
+
+  Reg_flags &operator=(Reg_flags const &other)
+  { _flags = other._flags; return *this; }
+
+  static Reg_flags pci(l4_uint32_t f) { return Reg_flags(f); }
+  static Reg_flags ioport() { return Reg_flags(Reg_flags_type_ioport); }
+  static Reg_flags mmio() { return Reg_flags(Reg_flags_type_mmio_32); }
+
+  inline bool is_cfgspace() const
+  { return (_flags & Reg_flags_type_mask) == Reg_flags_type_cfgspace; }
+
+  inline bool is_ioport() const
+  { return (_flags & Reg_flags_type_mask) == Reg_flags_type_ioport; }
+
+  inline bool is_mmio32() const
+  { return (_flags & Reg_flags_type_mask) == Reg_flags_type_mmio_32; }
+
+  inline bool is_mmio64() const
+  { return (_flags & Reg_flags_type_mask) == Reg_flags_type_mmio_64; }
+
+  inline bool is_mmio() const
+  { return is_mmio32() || is_mmio64(); }
+
+  inline unsigned pci_reg() const
+  { return _flags & Reg_flags_pci_reg_mask; }
+
+  inline unsigned pci_function() const
+  { return (_flags >> Reg_flags_pci_func_shift) & Reg_flags_pci_func_mask; }
+
+  inline unsigned pci_device() const
+  { return (_flags >> Reg_flags_pci_device_shift) & Reg_flags_pci_device_mask; }
+
+  inline unsigned pci_bus() const
+  { return (_flags >> Reg_flags_pci_bus_shift) & Reg_flags_pci_bus_mask; }
+
+private:
+  l4_uint32_t _flags = 0;
+};
+
+/**
  * Wrapper around the actual device tree memory to allow results caching of
  * certain functions. 'fdt' functions altering the tree have to use the
  * implemented wrapper functions. 'fdt_' functions reading the tree use dt() to
@@ -565,8 +639,8 @@ public:
    * \param[in]  index             Index of pair
    * \param[out] address           Store address in *address if address != 0
    * \param[out] size              Store size in *size if size != 0
-   * \param[int] check_range       If true, check whether address/size fit into
-   *                               l4_addr_t
+   * \param[out] flags             Store Reg_flags of address
+   *
    * \retval -ERR_BAD_INDEX        node does not have a reg entry with the
    *                               specified index
    * \retval -ERR_RANGE            a reg value does not fit into a 64bit value
@@ -574,7 +648,8 @@ public:
    * \retval <0                    other fdt related errors
    * \retval 0                     ok
    */
-  int get_reg_val(int index, l4_uint64_t *address, l4_uint64_t *size) const
+  int get_reg_val(int index, l4_uint64_t *address, l4_uint64_t *size,
+                  Reg_flags *flags = nullptr) const
   {
     auto parent = parent_node();
     size_t addr_cells = get_address_cells(parent);
@@ -604,6 +679,8 @@ public:
       *address = reg.address.get_uint64();
     if (size)
       *size = reg.size.get_uint64();
+    if (flags)
+      *flags = parent.get_flags(prop);
 
     return res ? 0 : -ERR_NOT_TRANSLATABLE;
   }
@@ -811,6 +888,44 @@ private:
    */
   bool translate_reg(Node const &parent, Cell *address, Cell const &size) const;
 
+  /**
+   * Get flags from reg property of a child.
+   *
+   * Depending on the bus type, the first reg property word has some
+   * information about the reg entry.
+   *
+   * \param[in] reg   Pointer first word of reg property
+   */
+  Reg_flags get_flags(fdt32_t const *reg) const
+  {
+    Reg_flags ret;
+
+    l4_uint32_t addr = fdt32_to_cpu(*reg);
+    if (is_pci_bus())
+      ret = Reg_flags::pci(addr);
+    else if (is_isa_bus())
+      ret = (addr & 0x01U) ? Reg_flags::ioport() : Reg_flags::mmio();
+    else
+      ret = Reg_flags::mmio();
+
+    return ret;
+  }
+
+  bool is_pci_bus() const
+  {
+    char const *devtype = get_prop<char>("device_type", nullptr);
+    return devtype && strcmp(devtype, "pci") == 0;
+  }
+
+  bool is_isa_bus() const
+  {
+    char const *devtype = get_prop<char>("device_type", nullptr);
+    if (!devtype)
+      return false;
+
+    return strcmp(devtype, "isa") == 0 || strcmp(devtype, "eisa") == 0;
+  }
+
   Fdt *_fdt;
   int _node;
 };
@@ -932,6 +1047,9 @@ template<typename ERR>
 bool
 Node<ERR>::translate_reg(Node const &parent, Cell *address, Cell const &size) const
 {
+  static Cell no_reg_mask;
+  static Cell isa_bus_reg_mask{0xffffffffU};
+
   if (parent.is_root_node())
     return true;
 
@@ -948,6 +1066,16 @@ Node<ERR>::translate_reg(Node const &parent, Cell *address, Cell const &size) co
   auto parent_addr = parent.get_address_cells(parent_parent);
   auto child_size = get_size_cells(parent);
 
+  Cell const *mask = &no_reg_mask;
+  if (parent.is_isa_bus())
+    {
+      if (child_addr != 2 || child_size != 1)
+        ERR(this, "Invalid reg size %u/%u", child_addr, child_size);
+
+      mask = &isa_bus_reg_mask;
+      *address &= isa_bus_reg_mask;
+    }
+
   unsigned range_size = child_addr + parent_addr + child_size;
   if (prop_size % range_size != 0)
     ERR("%s: Unexpected property size %d/%d/%d vs %d",
@@ -956,7 +1084,7 @@ Node<ERR>::translate_reg(Node const &parent, Cell *address, Cell const &size) co
 
   for (auto end = prop + prop_size; prop < end; prop += range_size)
     {
-      Range range{Cell(prop, child_addr),
+      Range range{Cell(prop, child_addr) & *mask,
                   Cell(prop + child_addr, parent_addr),
                   Cell(prop + child_addr + parent_addr, child_size)};
       if (range.translate(address, size))

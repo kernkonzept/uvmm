@@ -4,7 +4,9 @@
  * Information sources:
  *  https://github.com/devicetree-org/devicetree-specification/releases/tag/v0.3
  *  For PCI reg cell encoding:
- *    https://www.devicetree.org/open-firmware/bindings/pci/pci2_1.pdf
+ *    [1] https://www.devicetree.org/open-firmware/bindings/pci/pci2_1.pdf
+ *  For (E)ISA reg cell encoding:
+ *    [2] https://www.devicetree.org/open-firmware/bindings/isa/isa0_4d.ps
  */
 
 /dts-v1/;
@@ -107,8 +109,34 @@
             reg = <0x0 0x0 0x0 0x0>;
         };
 
+        isa {
+            device_type = "eisa";
+            #address-cells = <2>;
+            #size-cells = <1>;
+            // The first cell of a child nodes reg property encodes the
+            // following information. See the ISA bus device-tree binding [2]
+            // for more details:
+            //
+            //  [2] 11-bit aliased (IOPORT only)
+            //  [1] 10-bit aliased (IOPORT only)
+            //  [0] 0=MMIO32, 1=IOPORT
+            //
+            // The standard ranges property defines the translation of child
+            // reg address entries into the parent address space. Effectively
+            // removes the upper word. For the purpose of the ISA translation,
+            // only bit [0] is considered of the first word.
+            ranges = <0x0 0x0 0x0 0x0 0xffffffff
+                      0x1 0x0 0x0 0x0     0x1000>;
+
+            // example {
+            //    reg = < 0x0 0xA0000 0x20000     // MMIO [0xA0000-0xBFFFF]
+            //            0x1   0x3C0    0x20 >   // IO   [0x3C0-0x3DF]
+            // }
+        };
+
         pci0: pci@aa000000 {
             compatible = "virt-pci-bridge";
+            device_type = "pci";
             // reg 1: MMIO memory region for PCI devices
             reg = <0x0 0xaa000000 0x0 0x01000000>;
             interrupt-parent = <&IOAPIC>;

@@ -5,6 +5,7 @@ extern "C" {
 }
 
 #include <cassert>
+#include <initializer_list>
 
 namespace Dtb {
 
@@ -58,6 +59,17 @@ public:
 
     for (unsigned i = 0, offs = Max_size - size; i < size; ++i)
       _values[offs + i] = fdt32_to_cpu(values[i]);
+  }
+
+  Cell(std::initializer_list<uint32_t> l)
+  {
+    assert(l.size() <= Max_size);
+    for (auto &v: _values)
+      v = 0;
+
+    unsigned i = Max_size - l.size();
+    for (uint32_t v : l)
+      _values[i++] = v;
   }
 
   /**
@@ -147,6 +159,21 @@ public:
       }
     // XXX no overflow check yet
     return result;
+  }
+
+  Cell operator & (Cell const &other) const
+  {
+    Cell result;
+    for (int i = 0; i < Max_size; i++)
+      result._values[i] = _values[i] & other._values[i];
+    return result;
+  }
+
+  Cell& operator &= (Cell const &other)
+  {
+    for (int i = 0; i < Max_size; i++)
+      _values[i] &= other._values[i];
+    return *this;
   }
 
   /**
