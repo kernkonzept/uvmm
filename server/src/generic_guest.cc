@@ -34,12 +34,23 @@ Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
                                     Vdev::Dt_node const &node, size_t index)
 {
   l4_uint64_t base, size;
-  int res = node.get_reg_val(index, &base, &size);
+  Dtb::Reg_flags flags;
+  int res = node.get_reg_val(index, &base, &size, &flags);
   if (res < 0)
     {
-      Err().printf("Failed to read 'reg' from node %s: %s\n",
-                   node.get_name(), node.strerror(res));
-      throw L4::Runtime_error(-L4_EINVAL);
+      Err().printf("Failed to read 'reg' with index %lu from node %s: %s\n",
+                   index, node.get_name(), node.strerror(res));
+      L4Re::throw_error(
+        -L4_EINVAL,
+        "Node has enough reg property entries for given index.");
+    }
+
+  if (!flags.is_mmio())
+    {
+      Err()
+        .printf("Invalid 'reg' property at index %lu of node %s: not an mmio region\n",
+                index, node.get_name());
+      L4Re::throw_error(-L4_EINVAL, "Reg property contains an MMIO region.");
     }
 
   add_mmio_device(Region::ss(Vmm::Guest_addr(base), size, type), dev);
