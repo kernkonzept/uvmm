@@ -137,7 +137,6 @@ public:
     for (auto &q : _vqs)
       {
         q.disable();
-        q.config.num_max = Console_queue_length;
         q.config.ready = 0;
       }
   }

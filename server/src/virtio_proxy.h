@@ -308,13 +308,17 @@ public:
   void virtio_device_config_written(unsigned)
   {}
 
-  L4virtio::Device::Config_queue *current_virtqueue_config()
+  L4virtio::Device::Config_queue *virtqueue_config(unsigned qn)
   {
-    unsigned qn = _dev.device_config()->queue_sel;
     if (qn >= _dev.device_config()->num_queues)
       return nullptr;
 
     return _dev.queue_config(qn);
+  }
+
+  L4virtio::Device::Config_queue *current_virtqueue_config()
+  {
+    return virtqueue_config(_dev.device_config()->queue_sel);
   }
 
   void virtio_queue_ready(unsigned ready)

@@ -24,6 +24,17 @@ namespace Virtio {
 template<typename DEV>
 class Pci_connector : public Vmm::Io_device
 {
+  void init_queue_sizes()
+  {
+    auto vcfg = dev()->virtio_cfg();
+    for (unsigned i = 0; i < vcfg->num_queues; i++)
+      {
+        auto *qc = dev()->virtqueue_config(i);
+        assert(!qc->ready);
+        qc->num = qc->num_max;
+      }
+  }
+
 public:
   void io_in(unsigned port, Vmm::Mem_access::Width wd, l4_uint32_t *value) override
   {
@@ -90,8 +101,7 @@ public:
       case 24: // queue size (max)
         {
           auto *qc = dev()->current_virtqueue_config();
-          result = qc ? (qc->ready ? qc->num : qc->num_max)
-                      : 0;
+          result = qc ? qc->num : 0;
           trace().printf("read queue size %i\n", result);
           break;
         }
@@ -211,6 +221,8 @@ public:
 
       case 20: // device status
         dev()->virtio_set_status(value);
+        if (!value)
+          init_queue_sizes();
         break;
 
       case 22: // queue select
@@ -236,19 +248,21 @@ public:
         }
 
       case 28: // queue_enable
-        if (dev()->msix_enabled())
-          {
-            auto *qc = dev()->current_virtqueue_config();
-            if (qc)
-              {
-                auto sel = vcfg->queue_sel;
-                if (sel < (sizeof(_virtqueue_msix_index)
-                           / sizeof(_virtqueue_msix_index[0])))
-                  qc->driver_notify_index = _virtqueue_msix_index[sel];
-              }
-          }
+        {
+          auto *qc = dev()->current_virtqueue_config();
+          if (value && qc)
+            {
+              if (dev()->msix_enabled())
+                {
+                  auto sel = vcfg->queue_sel;
+                  if (sel < (sizeof(_virtqueue_msix_index)
+                             / sizeof(_virtqueue_msix_index[0])))
+                    qc->driver_notify_index = _virtqueue_msix_index[sel];
+                }
+            }
 
-        dev()->virtio_queue_ready(1);
+          dev()->virtio_queue_ready(value);
+        }
         break;
 
       case 32: // queue_desc[31:0]

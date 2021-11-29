@@ -140,6 +140,12 @@ public:
     return virtqueue(_cfg_header->queue_sel);
   }
 
+  Queue_config *virtqueue_config(unsigned qn)
+  {
+    auto *q = virtqueue(qn);
+    return q ? &q->config : nullptr;
+  }
+
   Queue_config *current_virtqueue_config()
   {
     auto *q = current_virtqueue();
