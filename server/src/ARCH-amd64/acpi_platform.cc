@@ -50,14 +50,14 @@ public:
     Ports_start     = 0x1800,
     Smi_command     = Ports_start,
     Pm1a_cmd_block  = Smi_command + 1, // 0x1801
-    Pm1a_cmd_length = 2, // 2 bytes
-    Pm2_cmd_block   = Pm1a_cmd_block + Pm1a_cmd_length, // 0x1811
-    Pm2_cmd_length  = 1,  // 1 byte
-    Pm1a_event_block= Pm2_cmd_block + Pm2_cmd_length,   // 0x1819
+    Pm1a_cmd_length = 2, // 2 ports
+    Pm2_cmd_block   = Pm1a_cmd_block + Pm1a_cmd_length, // 0x1803
+    Pm2_cmd_length  = 1,  // 1 port
+    Pm1a_event_block= Pm2_cmd_block + Pm2_cmd_length,   // 0x1804
     Pm1a_sts        = Pm1a_event_block,
-    Pm1a_en         = Pm1a_event_block+2,
+    Pm1a_en         = Pm1a_event_block + 2,
     Pm1_event_length= 4,
-    Reset_register  = Pm1a_event_block + Pm1_event_length,
+    Reset_register  = Pm1a_event_block + Pm1_event_length, // 0x1808
     Ports_end       = Reset_register + 1,
   };
 
