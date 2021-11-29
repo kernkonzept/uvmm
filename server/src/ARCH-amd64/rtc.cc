@@ -44,7 +44,6 @@ class Rtc : public Vmm::Io_device, public Vdev::Device
   unsigned _reg_a = 0;
   unsigned _reg_b = Mode_24h;
   unsigned _reg_c = 0;
-  unsigned _reg_d = 0;
 
   enum Register: unsigned
   {
@@ -72,7 +71,24 @@ class Rtc : public Vmm::Io_device, public Vdev::Device
   {
     Mode_24h = 0x2,
     Binary_format = 0x4,
+    Update_ended_interrupt_enable = 0x10,
+    Alarm_interrupt_enable = 0x20,
+    Periodic_interrupt_enable = 0x40,
+
     Format_mask = 0xfffffff8,
+  };
+
+  enum Status_reg_c : unsigned
+  {
+    Update_ended_interrupt_flag = 0x10,
+    Alarm_interrupt_flag = 0x20,
+    Periodic_interrupt_flag = 0x40,
+    Interrupt_request_flag = 0x80,
+  };
+
+  enum Status_reg_d : unsigned
+  {
+    Valid_ram_and_time = 0x80,
   };
 
   // convert to BCD if needed
@@ -96,10 +112,8 @@ class Rtc : public Vmm::Io_device, public Vdev::Device
         _reg_b = value | Mode_24h;
         break;
       case Reg_c:
-        _reg_c = value;
-        break;
       case Reg_d:
-        _reg_d = value;
+        warn().printf("Write to RO reg (%u)\n", _reg_sel);
         break;
       default:
         if (Ram_start > _reg_sel || _reg_sel > Ram_end)
@@ -120,11 +134,13 @@ class Rtc : public Vmm::Io_device, public Vdev::Device
         return _reg_b;
         break;
       case Reg_c:
-        return _reg_c;
-        break;
+        {
+          unsigned ret = _reg_c;
+          _reg_c = 0;
+          return ret;
+        }
       case Reg_d:
-        return _reg_d;
-        break;
+        return Valid_ram_and_time;
       }
 
     const time_t seconds = L4rtc_hub::get()->seconds_since_epoch();
