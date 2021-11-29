@@ -154,6 +154,10 @@ Vmx_state::write_msr(unsigned msr, l4_uint64_t value)
       }
     case 0x8b: // IA32_BIOS_SIGN_ID
     case 0x140:  // unknown in Intel 6th gen, but MISC_FEATURE register for xeon
+      break;
+    case 0x1a0:
+      warn().printf("Writing MSR 0x%x IA32_MISC_ENABLED 0x%llx\n", msr, value);
+      break;
     case 0xe01: // MSR_UNC_PERF_GLOBAL_CTRL
       // can all be savely ignored
       break;
