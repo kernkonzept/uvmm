@@ -22,7 +22,7 @@ namespace Vdev {
  */
 class Microcode_revision : public Vmm::Msr_device
 {
-  enum { Ia32_bios_sign_id = 0x8d};
+  enum { Ia32_bios_sign_id = 0x8b };
 
 public:
   Microcode_revision(Vmm::Vcpu_ptr vcpu)

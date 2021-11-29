@@ -73,7 +73,7 @@ Vmx_state::read_msr(unsigned msr, l4_uint64_t *value) const
     {
       switch (msr)
         {
-        case 0x8b: // IA32_BIOS_SIGN_ID
+        case 0x17: // IA32_PLATFORM_ID
         case 0x1a0: // IA32_MISC_ENABLE
           *value = 0U;
           break;
