@@ -325,6 +325,11 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
       trace.printf("Adding region @0x%llx (size = 0x%llx remaining = 0x%llx)\n",
                    reg_addr, reg_size, remain);
 
+      // If the size 0 was specified it means the user wants to use the
+      // remaining available space.
+      if (reg_size == 0)
+        reg_size = remain;
+
       l4_uint64_t map_size = cxx::min(reg_size, remain);
 
       if (map_size & ~L4_PAGEMASK)

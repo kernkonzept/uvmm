@@ -15,11 +15,14 @@
 
     memory@0 {
         device_type = "memory";
+        // Ram starts at 128MB
+        // Size will be updated by uvmm based on ds size
+        reg = <0x8000000 0x0>;
         l4vmm,dscap = "ram";
     };
 
     icsoc {
-        ranges = <0x0 0x01400000 0x3000>;
+        ranges = <0x0 0x40000 0x3000>;
     };
 
     timer {
@@ -44,7 +47,7 @@
     };
 
     l4vmm {
-        ranges = <0x0  0x30000000  0x21000>;
+        ranges = <0x0 0x10000 0x21000>;
     };
 
     psci {
