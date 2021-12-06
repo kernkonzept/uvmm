@@ -43,10 +43,10 @@ struct Mem_access
       return 0;
 
     switch (width) {
-      case Wd8:  return *reinterpret_cast<l4_uint8_t *>(addr);
-      case Wd16: return *reinterpret_cast<l4_uint16_t *>(addr);
-      case Wd32: return *reinterpret_cast<l4_uint32_t *>(addr);
-      case Wd64: return *reinterpret_cast<l4_uint64_t *>(addr);
+      case Wd8:  return *reinterpret_cast<l4_uint8_t volatile *>(addr);
+      case Wd16: return *reinterpret_cast<l4_uint16_t volatile *>(addr);
+      case Wd32: return *reinterpret_cast<l4_uint32_t volatile *>(addr);
+      case Wd64: return *reinterpret_cast<l4_uint64_t volatile *>(addr);
       default: break;
     }
 
@@ -62,10 +62,10 @@ struct Mem_access
 
     switch (width)
       {
-      case Wd8:  *reinterpret_cast<l4_uint8_t *>(addr) = value;  break;
-      case Wd16: *reinterpret_cast<l4_uint16_t *>(addr) = value; break;
-      case Wd32: *reinterpret_cast<l4_uint32_t *>(addr) = value; break;
-      case Wd64: *reinterpret_cast<l4_uint64_t *>(addr) = value; break;
+      case Wd8:  *reinterpret_cast<l4_uint8_t volatile *>(addr) = value;  break;
+      case Wd16: *reinterpret_cast<l4_uint16_t volatile *>(addr) = value; break;
+      case Wd32: *reinterpret_cast<l4_uint32_t volatile *>(addr) = value; break;
+      case Wd64: *reinterpret_cast<l4_uint64_t volatile *>(addr) = value; break;
       default: return -L4_EINVAL;
       }
 
