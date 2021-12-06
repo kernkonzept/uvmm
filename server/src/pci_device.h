@@ -228,7 +228,7 @@ struct Pci_msix_cap : Pci_cap
   struct Offset_bir
   {
     l4_uint32_t raw;
-    CXX_BITFIELD_MEMBER(3, 31, offset, raw);
+    CXX_BITFIELD_MEMBER_UNSHIFTED(3, 31, offset, raw);
     CXX_BITFIELD_MEMBER(0, 2, bir, raw);
   };
   Offset_bir tbl;

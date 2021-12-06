@@ -203,7 +203,7 @@ void Pci_host_bridge::register_msix_table_page(
   unsigned max_msis = hwdev->msix_cap.ctrl.max_msis() + 1;
 
   l4_addr_t table_addr =
-    hwdev->bars[bir].map_addr + hwdev->msix_cap.tbl.offset().get();
+    hwdev->bars[bir].map_addr + hwdev->msix_cap.tbl.offset();
   l4_addr_t table_end = table_addr + max_msis * Msix::Entry_size - 1;
 
   l4_addr_t table_page = l4_trunc_page(table_addr);
