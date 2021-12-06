@@ -19,6 +19,10 @@
 
 #include <type_traits>
 
+namespace Vmm {
+  class Guest;
+}
+
 namespace Vdev { namespace Pci {
 
 enum Pci_status_register
@@ -61,6 +65,7 @@ enum Pci_config_consts
   Bar_mem_type_64bit = 0x1 << 2, /// type bits[2:1] 10 = 64bit
   Bar_mem_attr_mask = 0xf,
   Bar_mem_prefetch_bit = 0x8,
+  Bar_mem_non_prefetch_bit = 0x0,
   Bar_num_max_type0 = 6,
   Bar_num_max_type1 = 2,
 };
@@ -69,12 +74,15 @@ enum Pci_config_consts
  * PCI BAR configuration.
  *
  * Internal representation of a PCI base address register (BAR) configuration.
+ * For 64 bit BARs the lower structure holds the full address and the upper
+ * structure is reserved.
  */
 struct Pci_cfg_bar
 {
   enum Type
   {
-    Unused, /// Not used
+    Unused_empty, /// Not used
+    Reserved_mmio64_upper,  /// Reserved for upper word of previous MMIO64
     MMIO32, /// 32bit MMIO
     MMIO64, /// 64bit MMIO
     IO      /// IO space
@@ -82,16 +90,20 @@ struct Pci_cfg_bar
 
   l4_uint64_t io_addr = 0;  /// Address used by IO
   l4_uint64_t map_addr = 0; /// Address to use for the guest mapping
+  l4_uint64_t mapped_addr = 0;  /// Address of current guest mapping
   l4_uint64_t size = 0;       /// Size of the region
-  Type type = Unused;       /// Type of the BAR
+  Type type = Unused_empty;       /// Type of the BAR
+  bool prefetchable = false;  /// Prefetchable MMIO region?
 
-  static const char *to_string(Type t)
+  char const *to_string() const
   {
-    switch(t)
+    switch(type)
     {
       case IO: return "io";
-      case MMIO32: return "mmio32";
-      case MMIO64: return "mmio64";
+      case MMIO32: return prefetchable ? "mmio32 (prefetchable)"
+                                       : "mmio32 (non-prefetchable)";
+      case MMIO64: return prefetchable ? "mmio64 (prefetchable)"
+                                       : "mmio64 (non-prefetchable)";
       default: return "unused";
     }
   }
@@ -119,10 +131,12 @@ enum Pci_cap_mask : l4_uint8_t
 
 enum
 {
-  // see PCI Local Bus Specification V.3 (2004) Section 6.1
+  // see PCI Local Bus Specification V.3 (2004) Section 6.1 and PCI-to-PCI
+  // Bridge Architecture Specification Revision 1.1 Section 3.2
   Pci_hdr_vendor_id_offset = 0x0,
   Pci_hdr_device_id_offset = 0x2,
   Pci_hdr_command_offset = 0x4,
+  Pci_hdr_command_length = 0x10,
   Pci_hdr_status_offset = 0x6,
   Pci_hdr_status_length = 0x10,
   Pci_hdr_revision_id_offset = 0x8,
@@ -133,20 +147,51 @@ enum
   Pci_hdr_bist_offset = 0xf,
   Pci_hdr_base_addr0_offset = 0x10,
   Pci_hdr_base_addr1_offset = 0x14,
-  Pci_hdr_base_addr2_offset = 0x18,
-  Pci_hdr_base_addr3_offset = 0x1c,
-  Pci_hdr_base_addr4_offset = 0x20,
-  Pci_hdr_base_addr5_offset = 0x24,
-  Pci_hdr_card_bus_offset = 0x28,
-  Pci_hdr_subsystem_vendor_id_offset = 0x2c,
-  Pci_hdr_subsystem_id_offset = 0x2e,
-  Pci_hdr_expansion_rom_offset = 0x30,
   Pci_hdr_capability_offset = 0x34,
   Pci_hdr_interrupt_line_offset = 0x3c,
   Pci_hdr_interrupt_pin_offset = 0x3d,
   Pci_hdr_interrupt_pin_max = 0x4,
-  Pci_hdr_min_time_offset = 0x3e,
-  Pci_hdr_max_latency_offset = 0x3f,
+
+  Pci_hdr_type0_base_addr0_offset = Pci_hdr_base_addr0_offset,
+  Pci_hdr_type0_base_addr1_offset = Pci_hdr_base_addr1_offset,
+  Pci_hdr_type0_base_addr2_offset = 0x18,
+  Pci_hdr_type0_base_addr3_offset = 0x1c,
+  Pci_hdr_type0_base_addr4_offset = 0x20,
+  Pci_hdr_type0_base_addr5_offset = 0x24,
+  Pci_hdr_type0_card_bus_offset = 0x28,
+  Pci_hdr_type0_subsystem_vendor_id_offset = 0x2c,
+  Pci_hdr_type0_subsystem_id_offset = 0x2e,
+  Pci_hdr_type0_expansion_rom_offset = 0x30,
+  Pci_hdr_type0_capability_offset = Pci_hdr_capability_offset,
+  Pci_hdr_type0_interrupt_line_offset = Pci_hdr_interrupt_line_offset,
+  Pci_hdr_type0_interrupt_pin_offset = Pci_hdr_interrupt_pin_offset,
+  Pci_hdr_type0_interrupt_pin_max = Pci_hdr_interrupt_pin_max,
+  Pci_hdr_type0_min_time_offset = 0x3e,
+  Pci_hdr_type0_max_latency_offset = 0x3f,
+
+  Pci_hdr_type1_base_addr0_offset = Pci_hdr_base_addr0_offset,
+  Pci_hdr_type1_base_addr1_offset = Pci_hdr_base_addr1_offset,
+  Pci_hdr_type1_primary_bus_offset = 0x18,
+  Pci_hdr_type1_secondary_bus_offset = 0x19,
+  Pci_hdr_type1_subordinate_bus_offset = 0x1a,
+  Pci_hdr_type1_secondary_latency_offset = 0x1b,
+  Pci_hdr_type1_io_base_offset = 0x1c,
+  Pci_hdr_type1_io_limit_offset = 0x1d,
+  Pci_hdr_type1_secondary_status_offset = 0x1e,
+  Pci_hdr_type1_memory_base_offset = 0x20,
+  Pci_hdr_type1_memory_limit_offset = 0x22,
+  Pci_hdr_type1_prefetchable_memory_base_offset = 0x24,
+  Pci_hdr_type1_prefetchable_memory_limit_offset = 0x26,
+  Pci_hdr_type1_prefetchable_base_upper_offset = 0x28,
+  Pci_hdr_type1_prefetchable_limit_upper_offset = 0x2c,
+  Pci_hdr_type1_io_base_upper_offset = 0x30,
+  Pci_hdr_type1_io_limit_upper_offset = 0x32,
+  Pci_hdr_type1_capabilities_offset = Pci_hdr_capability_offset,
+  Pci_hdr_type1_expansion_rom_offset = 0x38,
+  Pci_hdr_type1_interrupt_line_offset = Pci_hdr_interrupt_line_offset,
+  Pci_hdr_type1_interrupt_pin_offset = Pci_hdr_interrupt_pin_offset,
+  Pci_hdr_type1_interrupt_pin_max = Pci_hdr_interrupt_pin_max,
+  Pci_hdr_type1_bridge_control_offset = 0x3e,
 };
 
 enum : l4_uint8_t
@@ -360,10 +405,10 @@ struct Pci_device : public virtual Vdev::Dev_ref
 {
   virtual ~Pci_device() = default;
 
-  virtual void cfg_write(unsigned reg,
-                         l4_uint32_t value, Vmm::Mem_access::Width width) = 0;
-  virtual void cfg_read(unsigned reg,
-                        l4_uint32_t *value, Vmm::Mem_access::Width width) = 0;
+  virtual void cfg_write_raw(unsigned reg, l4_uint32_t value,
+                             Vmm::Mem_access::Width width) = 0;
+  virtual void cfg_read_raw(unsigned reg, l4_uint32_t *value,
+                            Vmm::Mem_access::Width width) = 0;
 
 
   /*
@@ -382,10 +427,10 @@ struct Pci_device : public virtual Vdev::Dev_ref
   void enable_access(l4_uint32_t access)
   {
     l4_uint32_t cmd_reg = 0;
-    cfg_read(Pci_hdr_command_offset, &cmd_reg, Vmm::Mem_access::Wd16);
+    cfg_read_raw(Pci_hdr_command_offset, &cmd_reg, Vmm::Mem_access::Wd16);
     // Reenable bar access
-    cfg_write(Pci_hdr_command_offset, cmd_reg | (access & Access_mask),
-              Vmm::Mem_access::Wd16);
+    cfg_write_raw(Pci_hdr_command_offset, cmd_reg | (access & Access_mask),
+                  Vmm::Mem_access::Wd16);
   }
 
   /*
@@ -401,9 +446,9 @@ struct Pci_device : public virtual Vdev::Dev_ref
   {
     // Disable any bar access
     l4_uint32_t cmd_reg = 0;
-    cfg_read(Pci_hdr_command_offset, &cmd_reg, Vmm::Mem_access::Wd16);
-    cfg_write(Pci_hdr_command_offset, cmd_reg & ~Access_mask,
-              Vmm::Mem_access::Wd16);
+    cfg_read_raw(Pci_hdr_command_offset, &cmd_reg, Vmm::Mem_access::Wd16);
+    cfg_write_raw(Pci_hdr_command_offset, cmd_reg & ~Access_mask,
+                  Vmm::Mem_access::Wd16);
 
     return cmd_reg & Access_mask;
   }
@@ -414,9 +459,9 @@ struct Pci_device : public virtual Vdev::Dev_ref
   unsigned read_bar_size(unsigned bar_offs, l4_uint32_t bar,
                          l4_uint32_t *bar_size)
   {
-    cfg_write(bar_offs, 0xffffffffUL, Vmm::Mem_access::Wd32);
-    cfg_read(bar_offs, bar_size, Vmm::Mem_access::Wd32);
-    cfg_write(bar_offs, bar, Vmm::Mem_access::Wd32);
+    cfg_write_raw(bar_offs, 0xffffffffUL, Vmm::Mem_access::Wd32);
+    cfg_read_raw(bar_offs, bar_size, Vmm::Mem_access::Wd32);
+    cfg_write_raw(bar_offs, bar, Vmm::Mem_access::Wd32);
     return bar_offs + 4;
   }
 
@@ -436,7 +481,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
     // Read the base address reg
     l4_uint32_t bar = 0;
     l4_uint32_t bar_size = 0;
-    cfg_read(bar_offs, &bar, Vmm::Mem_access::Wd32);
+    cfg_read_raw(bar_offs, &bar, Vmm::Mem_access::Wd32);
     if ((bar & Bar_type_mask) == Bar_io_space_bit) // IO bar
       {
         bar_offs = read_bar_size(bar_offs, bar, &bar_size);
@@ -473,7 +518,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
         size64 = bar_size;
 
         // Process the second 32bit
-        cfg_read(bar_offs, &bar, Vmm::Mem_access::Wd32);
+        cfg_read_raw(bar_offs, &bar, Vmm::Mem_access::Wd32);
         addr64 |= (l4_uint64_t)bar << 32; // shift to upper part
         bar_offs = read_bar_size(bar_offs, bar, &bar_size);
 
@@ -488,6 +533,105 @@ struct Pci_device : public virtual Vdev::Dev_ref
     return bar_offs;
   }
 
+  static unsigned expansion_rom_reg(bool type0)
+  {
+    return type0 ? Pci_hdr_type0_expansion_rom_offset
+                 : Pci_hdr_type1_expansion_rom_offset;
+  }
+
+  static bool is_bar_reg(bool type0, unsigned reg)
+  {
+    unsigned max_bar_offset = type0 ? Pci_hdr_type0_base_addr5_offset + 3
+                                    : Pci_hdr_type1_base_addr1_offset + 3;
+    unsigned expansion_rom = expansion_rom_reg(type0);
+
+    return (reg >= Pci_hdr_base_addr0_offset && reg <= max_bar_offset) ||
+           (reg >= expansion_rom             && reg <= expansion_rom + 3);
+  }
+
+  /**
+   * Read BAR register value.
+   *
+   * \return True if this was a BAR register, otherwise false.
+   */
+  bool cfg_read_bar(unsigned reg, l4_uint32_t *value,
+                    Vmm::Mem_access::Width width);
+
+  /**
+   * Get BAR register value from shadow copy.
+   */
+  l4_uint32_t get_bar_regval(unsigned bar) const;
+
+  /**
+   * Write BAR register value.
+   *
+   * \return True if this was a BAR register, otherwise false.
+   */
+  bool cfg_write_bar(unsigned reg, l4_uint32_t value,
+                    Vmm::Mem_access::Width width);
+
+  /**
+   * Update BAR values from register value.
+   *
+   * Applies the required masking. BAR updates are only permissible if the
+   * respective address space decoder is disabled. Otherwise we loose track
+   * of where the current mapping in the guest physical address space is.
+   */
+  void update_bar(unsigned bar, l4_uint32_t value);
+
+  /**
+   * Remap all bars if necessary.
+   *
+   * Checks for all bars if the base address has changed and remap the mmio
+   * handler to the new address if necessary.
+   *
+   * Note: This also unmaps any previous child mappings of the previous used
+   * region in the vm_task.
+   */
+  void remap_bars(Vmm::Guest *vmm)
+  {
+    remap_mmio_bars(vmm);
+  }
+
+  /**
+   * Remap MMIO bars if necessary.
+   */
+  void remap_mmio_bars(Vmm::Guest *vmm);
+
+  /**
+   * Read from config page.
+   *
+   * The BAR register content is kept in a shadow copy in the `bars` array.
+   * Access to these registers are diverted there. Anything else goes to the
+   * underlying HW or virtual device.
+   */
+  void cfg_read(unsigned reg, l4_uint32_t *value, Vmm::Mem_access::Width width)
+  {
+    if (!cfg_read_bar(reg, value, width))
+      cfg_read_raw(reg, value, width);
+  }
+
+  /**
+   * Write to config page.
+   *
+   * If the command register is updated the respective decoder resources will
+   * be added or removed from the guest address space. Updates of the BAR
+   * registers are diverted to the internal `bars` shadow array. Anything else
+   * goes to the underlying HW or virtual device.
+   */
+  void cfg_write(Vmm::Guest *vmm, unsigned reg, l4_uint32_t value,
+                 Vmm::Mem_access::Width width)
+  {
+    // When memory reads get enabled for a device we need to check if some
+    // of the bar base addresses have changed and in this case need to do a
+    // remap of them.
+    if (reg == Pci_hdr_command_offset && value & Memory_space_bit)
+      remap_bars(vmm);
+
+    if (!cfg_write_bar(reg, value, width))
+      cfg_write_raw(reg, value, width);
+  }
+
   //
   // *** PCI cap ************************************************************
   //
@@ -499,10 +643,10 @@ struct Pci_device : public virtual Vdev::Dev_ref
       return;
 
     l4_uint32_t ctrl = 0;
-    cfg_read(msix_cap_addr + 2, &ctrl, Vmm::Mem_access::Wd16);
+    cfg_read_raw(msix_cap_addr + 2, &ctrl, Vmm::Mem_access::Wd16);
     msix_cap.ctrl.raw = (l4_uint16_t)ctrl;
-    cfg_read(msix_cap_addr + 4, &msix_cap.tbl.raw, Vmm::Mem_access::Wd32);
-    cfg_read(msix_cap_addr + 8, &msix_cap.pba.raw, Vmm::Mem_access::Wd32);
+    cfg_read_raw(msix_cap_addr + 4, &msix_cap.tbl.raw, Vmm::Mem_access::Wd32);
+    cfg_read_raw(msix_cap_addr + 8, &msix_cap.pba.raw, Vmm::Mem_access::Wd32);
 
     has_msix = true;
   }
@@ -516,7 +660,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
     msi_cap.offset = msi_cap_addr;
 
     l4_uint32_t ctrl = 0;
-    cfg_read(msi_cap_addr + 2, &ctrl, Vmm::Mem_access::Wd16);
+    cfg_read_raw(msi_cap_addr + 2, &ctrl, Vmm::Mem_access::Wd16);
     msi_cap.ctrl.raw = static_cast<l4_uint16_t>(ctrl);
 
     // Disable multi MSI, as we don't support it, yet.
@@ -537,14 +681,14 @@ struct Pci_device : public virtual Vdev::Dev_ref
   unsigned get_capability(l4_uint8_t cap_type)
   {
     l4_uint32_t val = 0;
-    cfg_read(Pci_hdr_status_offset, &val, Vmm::Mem_access::Wd16);
+    cfg_read_raw(Pci_hdr_status_offset, &val, Vmm::Mem_access::Wd16);
     if (!(val & Pci_header_status_capability_bit))
       {
         trace().printf("Pci_header_status_capability_bit is not set.\n");
         return 0;
       }
 
-    cfg_read(Pci_hdr_capability_offset, &val, Vmm::Mem_access::Wd8);
+    cfg_read_raw(Pci_hdr_capability_offset, &val, Vmm::Mem_access::Wd8);
 
     l4_uint8_t next_cap = val & Pci_cap_mask::Next_cap;
 
@@ -556,7 +700,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
 
     while (true)
       {
-        cfg_read(next_cap, &val, Vmm::Mem_access::Wd16);
+        cfg_read_raw(next_cap, &val, Vmm::Mem_access::Wd16);
         l4_uint8_t cap_id = val & Pci_cap_mask::Cap_id;
         trace().printf("get_capability: found cap id 0x%x (cap addr 0x%x)\n",
                        cap_id, next_cap);
@@ -577,34 +721,41 @@ struct Pci_device : public virtual Vdev::Dev_ref
 
   /**
    * Parses all bars for a specific device.
+   *
+   * Only used for Hw_pci_device devices to sync the BAR shadow copy with the
+   * actual state on the vbus. Guest writes are only working on the shadow copy
+   * afterwards.
    */
   void parse_device_bars()
   {
     unsigned const max_bar_offset =
       get_header_type() == Pci_header_type::Type0
-        ? Pci_hdr_base_addr5_offset
-        : Pci_hdr_base_addr1_offset;
+        ? Pci_hdr_type0_base_addr5_offset
+        : Pci_hdr_type1_base_addr1_offset;
 
-    // Disable any bar access
+    // Disable all access because read_bar() actually modifies the BARs to
+    // detect the size.
     l4_uint32_t access = disable_access();
 
-    for (unsigned bar_offs = Pci_hdr_base_addr0_offset, i = 0;
-         bar_offs <= max_bar_offset; ++i)
+    unsigned bar_offs = Pci_hdr_base_addr0_offset;
+    while (bar_offs <= max_bar_offset)
       {
+        unsigned i = (bar_offs - Pci_hdr_base_addr0_offset) / 4U;
         Pci_cfg_bar &bar = bars[i];
 
         // Read one bar configuration
         bar_offs = read_bar(bar_offs, &bar.io_addr, &bar.size, &bar.type);
 
-        if (bar.type == Pci_cfg_bar::Unused)
+        if (bar.type == Pci_cfg_bar::MMIO64)
+          bars[i + 1].type = Pci_cfg_bar::Reserved_mmio64_upper;
+        else if (bar.type == Pci_cfg_bar::Unused_empty)
           continue;
 
         // Initial map address is equal to io address
-        bar.map_addr = bar.io_addr;
-
+        bar.mapped_addr = bar.map_addr = bar.io_addr;
 
         info().printf("  bar[%u] addr=0x%llx size=0x%llx type=%s\n", i,
-                      bar.io_addr, bar.size, Pci_cfg_bar::to_string(bar.type));
+                      bar.io_addr, bar.size, bar.to_string());
       }
 
     // Reenable bar access
@@ -642,7 +793,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
   l4_uint8_t get_header_field()
   {
     l4_uint32_t header_type = 0U;
-    cfg_read(Pci_hdr_type_offset, &header_type, Vmm::Mem_access::Wd8);
+    cfg_read_raw(Pci_hdr_type_offset, &header_type, Vmm::Mem_access::Wd8);
     return header_type & 0xff;
   }
 
@@ -681,8 +832,8 @@ public:
    * \param[out] value  The value returned by the read. -1 if failed.
    * \param      width  The width of the register access.
    */
-  void cfg_read(unsigned reg, l4_uint32_t *value,
-                Vmm::Mem_access::Width width) override
+  void cfg_read_raw(unsigned reg, l4_uint32_t *value,
+                    Vmm::Mem_access::Width width) override
   {
     using Vmm::Mem_access;
 
@@ -711,8 +862,8 @@ public:
    * \param value  Value to write to `reg`.
    * \param width  Width of the memory access.
    */
-  void cfg_write(unsigned reg, l4_uint32_t value,
-                 Vmm::Mem_access::Width width) override
+  void cfg_write_raw(unsigned reg, l4_uint32_t value,
+                     Vmm::Mem_access::Width width) override
   {
     using Vmm::Mem_access;
 
@@ -722,33 +873,6 @@ public:
     if (   reg == Pci_hdr_status_offset
         && ((8U << width)) == Pci_hdr_status_length)
       return;
-
-    unsigned const max_bar_offset =
-      get_header_type() == Pci_header_type::Type0
-      ? Pci_hdr_base_addr5_offset
-      : Pci_hdr_base_addr1_offset;
-
-    if (reg >= Pci_hdr_base_addr0_offset && reg <= max_bar_offset) // PCI BAR
-      {
-        // According to PCI Spec. 3.0, Chapter 3.2.2.3..2
-        // A bridge must implement configuration access only via full dword.
-        if (width != Mem_access::Wd32)
-          {
-            dbg().printf("BAR[%u] write width = %d, value = %08x. Ignoring.\n",
-                         (reg - 0x10) / 4, width, value);
-            return;
-          }
-
-        // The BAR size (power of 2!) defines which bits are writable.
-        l4_uint32_t size = bars[(reg - 0x10) / 4].size;
-        l4_uint32_t bar  = _hdr.dword[reg / 4];
-        l4_uint32_t mask = ~size + 1;
-
-        // TODO: Needs adaption for 64-bit BARs!
-        value &= mask;
-        bar   &= ~mask;
-        value |= bar;
-      }
 
     reg >>= width;
     switch (width)
@@ -972,7 +1096,7 @@ protected:
   {
     assert_bar_type_size<TYPE>(bar);
 
-    bars[bar].map_addr = addr & ~Bar_io_attr_mask;
+    bars[bar].mapped_addr = bars[bar].map_addr = addr & ~Bar_io_attr_mask;
     bars[bar].type = Pci_cfg_bar::Type::IO;
     get_header<TYPE>()->base_addr_regs[bar] =
       bars[bar].map_addr | Bar_io_space_bit;
@@ -994,7 +1118,7 @@ protected:
     // memory space: [0] mem space indicator := 0;
     // [2:1] type: 00 = 32bit, 10 = 64bit;
     // [3] prefetch;
-    bars[bar].map_addr = addr & ~Bar_mem_attr_mask;
+    bars[bar].mapped_addr = bars[bar].map_addr = addr & ~Bar_mem_attr_mask;
     bars[bar].type = Pci_cfg_bar::Type::MMIO32;
     // TODO support mmio64 as well
     get_header<TYPE>()->base_addr_regs[bar] = (addr & ~Bar_mem_attr_mask);

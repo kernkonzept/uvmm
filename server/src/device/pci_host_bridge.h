@@ -69,8 +69,8 @@ public:
         }
     }
 
-    void cfg_write(unsigned reg, l4_uint32_t value, Vmm::Mem_access::Width width)
-      override
+    void cfg_write_raw(unsigned reg, l4_uint32_t value,
+                       Vmm::Mem_access::Width width) override
     {
       if (has_msi && msi_cap_write(reg, value, width))
         return;
@@ -79,8 +79,8 @@ public:
                    "PCI config space access: write\n");
     }
 
-    void cfg_read(unsigned reg, l4_uint32_t *value, Vmm::Mem_access::Width width)
-      override
+    void cfg_read_raw(unsigned reg, l4_uint32_t *value,
+                      Vmm::Mem_access::Width width) override
     {
       if (has_msi && msi_cap_read(reg, value, width))
         return;
@@ -145,8 +145,8 @@ public:
     if (devid >= _devices.size())
       return value;
 
-    if (device(devid))
-      device(devid)->cfg_read(reg, &value, width);
+    if (auto dev = device(devid))
+      dev->cfg_read(reg, &value, width);
 
     if (0)
       trace().printf("read cfg dev=%u width=%d raw=0x%x val=0x%x\n",
@@ -162,23 +162,9 @@ public:
     if (devid >= _devices.size())
       return;
 
-    if (devid == 0)
-        // Virtual bridge
-        // - no bar support
-        // - no expansion ROM support
-        if ((   reg >= Pci_hdr_base_addr0_offset
-             && reg <= Pci_hdr_base_addr5_offset)
-            ||  reg == Pci_hdr_expansion_rom_offset)
-          return;
-
-    // When memory reads get enabled for a device we need to check if some
-    // of the bar base addresses have changed and in this case need to do a
-    // remap of them.
-    if (reg == Pci_hdr_command_offset && value & Memory_space_bit)
-      remap_bars(device(devid));
     // Pass-through to device
-    if (device(devid))
-      device(devid)->cfg_write(reg, value, width);
+    if (auto dev = device(devid))
+      dev->cfg_write(_vmm, reg, value, width);
 
     if (0)
       info().printf("write cfg dev=%u width=%d reg=0x%x, value=0x%x\n",
@@ -266,85 +252,6 @@ protected:
   virtual void init_dev_resources(Hw_pci_device *) = 0;
 
 public:
-  /**
-   * Remap all bars if necessary.
-   *
-   * Checks for all bars if the base address has changed and remap the mmio
-   * handler to the new address if necessary.
-   *
-   * Note: This also unmaps any previous child mappings of the previous used
-   * region in the vm_task.
-   */
-  void remap_bars(Pci_device *hw_dev) const
-  {
-    remap_mmio_bars(hw_dev);
-  }
-
-  /**
-   * Remap MMIO bars if necessary.
-   */
-  void remap_mmio_bars(Pci_device *hw_dev) const
-  {
-    assert(hw_dev != nullptr);
-    // Disable any bar access
-    l4_uint32_t access = hw_dev->disable_access();
-
-    // BAR indicator register. Used to determine MSIX-emulation memory.
-    unsigned bir = Pci_config_consts::Bar_num_max_type0;
-    if (hw_dev->has_msix)
-      bir = hw_dev->msix_cap.tbl.bir();
-
-    for (unsigned bar_offs = Pci_hdr_base_addr0_offset, i = 0;
-         bar_offs <= Pci_hdr_base_addr5_offset; ++i)
-      {
-        if (bar_offs == bir) // we currently cannot move the bir
-          continue;
-
-        Pci_cfg_bar &bar = hw_dev->bars[i];
-        // We are only interested in mmio regions
-        if (bar.type == Pci_cfg_bar::IO || bar.type == Pci_cfg_bar::Unused)
-          {
-            bar_offs += 4;
-            continue;
-          }
-
-        l4_uint64_t addr = 0, size = 0;
-        Pci_cfg_bar::Type type = Pci_cfg_bar::Unused;
-        // Read the current device bar configuration
-        bar_offs = hw_dev->read_bar(bar_offs, &addr, &size, &type);
-        // If the address has changed we need to do a remap
-        if (bar.map_addr != addr)
-          {
-            trace().printf("command remap [%u] io_addr=0x%llx -> "
-                           "map_addr=0x%llx (from: map_addr=0x%llx) "
-                           "size=0x%llx type=%s\n", i, bar.io_addr, addr,
-                           bar.map_addr, bar.size,
-                           Pci_cfg_bar::to_string(bar.type));
-            auto old_region = Vmm::Region::ss(Vmm::Guest_addr(bar.map_addr),
-                                              bar.size,
-                                              Vmm::Region_type::Vbus,
-                                              Vmm::Region_flags::Moveable);
-            // Instruct the vm map to use the new start address
-            _vmm->remap_mmio_device(old_region, Vmm::Guest_addr(addr));
-            // Unmap any child mappings which may be happened in the meantime
-            auto vm_task = _vmm->vm_task();
-            l4_addr_t src = bar.map_addr;
-            assert(bar.size);
-
-            while (src < bar.map_addr + bar.size - 1)
-              {
-                vm_task->unmap(l4_fpage(src, L4_PAGESHIFT, 0), L4_FP_ALL_SPACES);
-                src += L4_PAGESIZE;
-              }
-            // Update our internal mapping address
-            bar.map_addr = addr;
-          }
-      }
-
-    // Reenable bar access
-    hw_dev->enable_access(access);
-  }
-
   /**
    * Register a UVMM emulated device.
    *

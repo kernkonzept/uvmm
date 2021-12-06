@@ -261,7 +261,8 @@ Pci_host_generic::init_dev_resources(Hw_pci_device *hwdev)
 
   for (int i = 0; i < Pci_config_consts::Bar_num_max_type0; ++i)
     {
-      if (i == bir || hwdev->bars[i].type == Pci_cfg_bar::Type::Unused)
+      if (i == bir || hwdev->bars[i].type == Pci_cfg_bar::Type::Unused_empty
+          || hwdev->bars[i].type == Pci_cfg_bar::Type::Reserved_mmio64_upper)
         continue;
 
       Guest_addr addr(hwdev->bars[i].map_addr);

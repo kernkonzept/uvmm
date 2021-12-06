@@ -231,7 +231,8 @@ private:
 
     for (int i = 0; i < Pci_config_consts::Bar_num_max_type0; ++i)
       {
-        if (i == bir || hwdev->bars[i].type == Pci_cfg_bar::Type::Unused
+        if (i == bir || hwdev->bars[i].type == Pci_cfg_bar::Type::Unused_empty
+            || hwdev->bars[i].type == Pci_cfg_bar::Type::Reserved_mmio64_upper
             || hwdev->bars[i].type == Pci_cfg_bar::Type::IO)
           continue;
 
