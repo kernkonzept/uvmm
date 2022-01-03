@@ -106,6 +106,10 @@ public:
       L4Re::chksys(ret, "Receive notification IRQ from device");
 
     _queue_irqs.resize(_config->num_queues);
+
+    // Flush initial config page content
+    l4_cache_clean_data((l4_addr_t)_config.get(),
+                        (l4_addr_t)_config.get() + _config_page_size);
   }
 
 
