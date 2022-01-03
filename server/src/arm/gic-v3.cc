@@ -287,9 +287,9 @@ private:
   };
 
   cxx::unique_ptr<l4_uint64_t[]> _router;
-  Redist _redist;
+  cxx::Ref_ptr<Redist> _redist;
   l4_uint64_t _redist_size;
-  Sgir_sysreg _sgir;
+  cxx::Ref_ptr<Sgir_sysreg> _sgir;
 
   enum { Gicd_ctlr_must_set = 5UL << 4 }; // DS, ARE
 
@@ -301,10 +301,9 @@ public:
   explicit Dist_v3(unsigned tnlines)
   : Dist(tnlines, 255),
     _router(cxx::make_unique<l4_uint64_t[]>(32 * tnlines)),
-    _redist(this), _sgir(this)
+    _redist(new Redist(this)), _sgir(new Sgir_sysreg(this))
   {
     ctlr = Gicd_ctlr_must_set;
-    _redist.add_ref(); // we keep always a ref to our redist :)
   }
 
   void setup_cpu(Vmm::Vcpu_ptr vcpu, L4::Cap<L4::Thread> thread) override
@@ -334,7 +333,6 @@ public:
   setup_gic(Vdev::Device_lookup *devs, Vdev::Dt_node const &node) override
   {
     cxx::Ref_ptr<Dist_v3> self(this);
-    cxx::Ref_ptr<Redist> redist(&_redist);
     l4_uint64_t base;
 
     int res = node.get_reg_val(1, &base, &_redist_size);
@@ -352,12 +350,11 @@ public:
         L4Re::throw_error(-L4_EINVAL, "Setup GICv3");
       }
 
-    devs->vmm()->register_mmio_device(redist, Vmm::Region_type::Virtual, node, 1);
+    devs->vmm()->register_mmio_device(_redist, Vmm::Region_type::Virtual, node, 1);
     devs->vmm()->register_mmio_device(self, Vmm::Region_type::Virtual, node);
 
-    _sgir.add_ref(); // we aggregate this so count our own reference
-    devs->vmm()->add_sys_reg_aarch64(3, 0, 12, 11, 5, cxx::ref_ptr(&_sgir));
-    devs->vmm()->add_sys_reg_aarch32_cp64(15, 0, 12, cxx::ref_ptr(&_sgir));
+    devs->vmm()->add_sys_reg_aarch64(3, 0, 12, 11, 5, _sgir);
+    devs->vmm()->add_sys_reg_aarch32_cp64(15, 0, 12, _sgir);
 
     node.setprop_string("compatible", "arm,gic-v3");
 
