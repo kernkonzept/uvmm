@@ -266,6 +266,8 @@ public:
           vcfg->queue_desc = qc->desc_addr;
           vcfg->queue_avail = qc->avail_addr;
           vcfg->queue_used = qc->used_addr;
+          // Only queue_num_max/queue_ready are read by the guest. So no cache
+          // write back for the *_addr fields is necessary.
           writeback_cache(&vcfg->queue_num_max);
           writeback_cache(&vcfg->queue_ready);
           break;
