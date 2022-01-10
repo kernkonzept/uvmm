@@ -47,14 +47,14 @@ class Cpu_dev_array
 
     unsigned next_free()
     {
-      if (_next_id > _max_cpus)
+      if (_next_id >= _max_cpus)
         return Invalid_id;
 
       auto scheduler = L4Re::Env::env()->scheduler();
       while (!(_cs.map & (1UL << _next_id)))
         {
           ++_next_id;
-          if (_next_id > _max_cpus)
+          if (_next_id >= _max_cpus)
             return Invalid_id;
           l4_umword_t new_offset = _next_id / (sizeof(l4_umword_t) * 8);
           if (new_offset != _offset)
