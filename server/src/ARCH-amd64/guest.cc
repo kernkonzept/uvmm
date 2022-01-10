@@ -577,14 +577,20 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
       return L4_EOK;
 
     case Exit::Exec_halt:
-      trace().printf("HALT 0x%llx!\n", vms->vmx_read(VMCS_GUEST_RIP));
-      vms->vmx_write(VMCS_GUEST_ACTIVITY_STATE, 1);
+      if (0)
+        info().printf("vcpu%i:HALT @ 0x%llx! Activity state 0x%llx\n",
+                      vcpu.get_vcpu_id(), vms->vmx_read(VMCS_GUEST_RIP),
+                      vms->vmx_read(VMCS_GUEST_ACTIVITY_STATE));
+
+      vms->set_activity_state(Vmx_state::Activity_state::Halt);
 
       if (!lapic(vcpu)->is_irq_pending())
         wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
 
-      vms->unhalt();
-      return L4_EOK;
+     // no need to change the activity state as a vectoring VM-entry sets
+     // the activity state to active (see Intel SDM: 26.7.2)
+
+      return Jump_instr;
 
     case Exit::Cr_access:
       return vms->handle_cr_access(regs);

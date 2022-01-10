@@ -58,6 +58,14 @@ public:
       Exit_reason_max = 64
   };
 
+  enum Activity_state : unsigned
+  {
+    Active = 0,
+    Halt = 1,
+    Shutdown = 2,
+    Wait_sipi = 3
+  };
+
   enum Vmx_primary_vm_execution_controls : unsigned long
   {
     Int_window_exit_bit = (1UL << 2),
@@ -103,10 +111,16 @@ public:
   Vmx_state(void *vmcs) : _vmcs(vmcs) {}
   ~Vmx_state() = default;
 
+  void set_activity_state(Activity_state s)
+  { vmx_write(VMCS_GUEST_ACTIVITY_STATE, s); }
+
+  l4_uint32_t activity_state() const
+  { return vmx_read(VMCS_GUEST_ACTIVITY_STATE); }
+
   void init_state() override
   {
     vmx_write(VMCS_LINK_POINTER, 0xffffffffffffffffULL);
-    vmx_write(VMCS_GUEST_ACTIVITY_STATE, 0);
+    set_activity_state(Active);
     // reflect all guest exceptions back to the guest.
     vmx_write(VMCS_EXCEPTION_BITMAP, 0xffff0000);
 
@@ -321,13 +335,14 @@ public:
 
   /**
    * This function checks if interrupts are enabled and no event injection is
-   * in flight.
+   * in flight and the core's activity state allows interrupts.
    *
    * \return true  iff we can inject in an interrupt into the guest
    */
   bool can_inject_interrupt() const
   {
-    return interrupts_enabled() && !event_injected();
+    return interrupts_enabled() && !event_injected()
+           && activity_state() < Activity_state::Shutdown;
   }
 
   void disable_interrupt_window() override
@@ -405,10 +420,6 @@ public:
       vmx_write(VMCS_VM_ENTRY_EXCEPTION_ERROR, err_code);
 
     vmx_write(VMCS_VM_ENTRY_INTERRUPT_INFO, info.field);
-    if (vmx_read(VMCS_GUEST_ACTIVITY_STATE) == 1) // HLT
-      {
-        vmx_write(VMCS_GUEST_ACTIVITY_STATE, 0);
-      }
   }
 
   void inject_interrupt(unsigned irq) override
@@ -429,13 +440,6 @@ public:
   {
     using Int_type = Vmx_int_info_field::Int_type;
     inject_event(exc_num, Int_type::Hardware_exception, deliver_err, err_code);
-  }
-
-  void unhalt() override
-  {
-    jump_instruction();
-    // XXX should we verify that the processor is in HLT state?
-    vmx_write(VMCS_GUEST_ACTIVITY_STATE, 0);
   }
 
   l4_uint64_t vmx_read(unsigned int field) const

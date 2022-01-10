@@ -27,7 +27,6 @@ public:
 
   virtual void jump_instruction() = 0;
   virtual void inject_interrupt(unsigned vec) = 0;
-  virtual void unhalt() = 0;
 
   virtual void disable_interrupt_window() = 0;
   virtual void enable_interrupt_window() = 0;
