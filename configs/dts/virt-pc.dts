@@ -25,6 +25,7 @@
         IOAPIC: ioapic {
             compatible = "intel,ioapic";
             interrupt-controller;
+            #address-cells = <0>;
             #interrupt-cells = <1>;
         };
 
@@ -62,6 +63,7 @@
           reg = <0x0 0x0 0x0 0x0>;
           msi-parent = <&msi_ctrl>;
           interrupt-controller;
+          #address-cells = <0>;
           #interrupt-cells = <1>;
         };
 
