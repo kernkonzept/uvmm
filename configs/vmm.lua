@@ -73,7 +73,12 @@ function start_vm(options)
 
   local cmdline = {};
   if options.fdt then
-    cmdline[#cmdline+1] = "-d" .. options.fdt;
+    if type(options.fdt) ~= "table" then
+      options.fdt = { options.fdt }
+    end
+    for _,v in ipairs(options.fdt) do
+      cmdline[#cmdline+1] = "-d" .. v;
+    end
   end
 
   if options.bootargs then
