@@ -587,8 +587,9 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
       if (!lapic(vcpu)->is_irq_pending())
         wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
 
-     // no need to change the activity state as a vectoring VM-entry sets
-     // the activity state to active (see Intel SDM: 26.7.2)
+      // We cannot be sure that the pending interrupt is also injectable, thus
+      // we set the activity state unconditionally.
+      vms->set_activity_state(Vmx_state::Activity_state::Active);
 
       return Jump_instr;
 
