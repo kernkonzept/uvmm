@@ -326,6 +326,11 @@ public:
     return dev_id;
   }
 
+  cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl()
+  {
+    return _msix_ctrl;
+  }
+
 private:
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI vbus"); }
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI vbus"); }

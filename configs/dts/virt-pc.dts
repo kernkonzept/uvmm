@@ -171,7 +171,6 @@
               // described at the ranges property above.
               reg = <0x02000000 0x0 0xaa000000 0x0 0x2000
                      0x01000000 0x0 0x800 0x0 0x80>;
-              msi-parent = <&msi_ctrl>;
               l4vmm,vdev = "console";
             };
 
@@ -180,7 +179,6 @@
                 // The reg property requirements are described in virtio_uart.
                 reg = <0x2000000 0x0 0xaa002000 0x0 0x2000
                        0x1000000 0x0 0x700 0x0 0x80>;
-                msi-parent = <&msi_ctrl>;
                 l4vmm,virtiocap = "net";
                 l4vmm,vdev = "proxy";
             };

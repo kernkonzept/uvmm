@@ -91,9 +91,6 @@ struct F : Factory
         return nullptr;
       }
 
-    auto msi_distr = devs->get_or_create_mc_dev(node);
-    Dbg().printf("Msix controller %p\n", msi_distr.get());
-
     auto cap = Vdev::get_cap<L4::Vcon>(node, "l4vmm,virtiocap",
                                        L4Re::Env::env()->log());
     if (!cap)
@@ -101,7 +98,7 @@ struct F : Factory
 
     auto vmm = devs->vmm();
     auto console = make_device<Virtio_console_pci>(devs->ram().get(), cap,
-                                                   msi_distr);
+                                                   pci->msix_ctrl());
 
     console->register_obj(vmm->registry());
     unsigned num_msix = 5;

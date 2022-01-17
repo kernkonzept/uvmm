@@ -102,9 +102,6 @@ struct F : Factory
         return nullptr;
       }
 
-    auto msi_distr = devs->get_or_create_mc_dev(node);
-    Dbg().printf("Msi controller %p\n", msi_distr.get());
-
     int sz;
     unsigned nnq_id = -1U;
     auto const *prop = node.get_prop<fdt32_t>("l4vmm,no-notify", &sz);
@@ -116,7 +113,7 @@ struct F : Factory
     // cfgsz + 0x100 => DT tells dev config size; add virtio config hdr
     auto proxy =
       make_device<Virtio_proxy_pci>(cap, cfgsz + 0x100, nnq_id, devs->ram().get(),
-                                    msi_distr);
+                                    pci->msix_ctrl());
 
     proxy->register_irq(vmm->registry());
 
