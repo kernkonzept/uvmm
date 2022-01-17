@@ -29,7 +29,7 @@ enum : unsigned long
  * Handle exits due to HW/SW exceptions, NMIs, and external interrupts.
  *
  * Bit 11, error_valid, is not set if, an external interrupt occurred and
- * 'acknowledge interrupt on exit' the is not set in the exit controls.
+ * 'acknowledge interrupt on exit' is not set in the exit controls.
  */
 int
 Vmx_state::handle_exception_nmi_ext_int()
