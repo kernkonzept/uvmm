@@ -49,6 +49,11 @@ fxsave64(char *addr)
 
 namespace Vmm {
 
+// Notification to add a stringified exit reason when Exit_reason_max changes.
+static_assert(   sizeof(str_exit_reason) / sizeof(*str_exit_reason)
+              == static_cast<unsigned>(Vmx_state::Exit::Exit_reason_max),
+              "One stringification exists for each VMX exit reason.");
+
 Guest *
 Guest::create_instance()
 {
@@ -636,17 +641,20 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
       return L4_EOK;
 
     default:
-      Dbg().printf("Exit at guest IP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
-                   vms->ip(), vms->vmx_read(VMCS_EXIT_REASON),
-                   vms->vmx_read(VMCS_EXIT_QUALIFICATION));
-      if (reason <= Exit::Exit_reason_max)
-        Dbg().printf("Unhandled exit reason: %s (%d)\n",
-                     str_exit_reason[(int)reason],
-                     static_cast<unsigned>(reason));
-      else
-        Dbg().printf("Unknown exit reason: 0x%x\n",
-                     static_cast<unsigned>(reason));
-      return -L4_ENOSYS;
+      {
+        Dbg().printf("Exit at guest IP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
+                     vms->ip(), vms->vmx_read(VMCS_EXIT_REASON),
+                     vms->vmx_read(VMCS_EXIT_QUALIFICATION));
+
+        unsigned reason_u = static_cast<unsigned>(reason);
+        if (reason_u < sizeof(str_exit_reason) / sizeof(*str_exit_reason))
+          Dbg().printf("Unhandled exit reason: %s (%d)\n",
+                       str_exit_reason[reason_u], reason_u);
+        else
+          Dbg().printf("Unknown exit reason: 0x%x\n", reason_u);
+
+        return -L4_ENOSYS;
+      }
     }
 }
 

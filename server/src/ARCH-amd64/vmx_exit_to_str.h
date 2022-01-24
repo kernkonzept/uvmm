@@ -6,6 +6,7 @@
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
+#pragma once
 
 namespace Vmm {
 
@@ -70,12 +71,17 @@ static const char *str_exit_reason[] =
   /* 56 */ "APIC write",
   /* 57 */ "RDRAND instruction",
   /* 58 */ "INVPCID instruction",
-  /* 59 */ "VMFUNC instruction",
-  /* 60 */ "RDSEED instruction",
-  /* 61 */ "",
-  /* 62 */ "",
+  /* 59 */ "VM function invoked",
+  /* 60 */ "ENCLS instruction",
+  /* 61 */ "RDSEED instruction",
+  /* 62 */ "Page-modification log full event",
   /* 63 */ "XSAVES instruction",
   /* 64 */ "XRSTORS instruction",
+  /* 65 */ "",
+  /* 66 */ "SPP-related event",
+  /* 67 */ "UMWAIT instruction",
+  /* 68 */ "TPAUSE instruction",
+  /* 69 */ "LOADIWKEY instruction"
 };
 
 } // namespace Vmm
