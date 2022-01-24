@@ -34,8 +34,7 @@ enum : unsigned long
 int
 Vmx_state::handle_exception_nmi_ext_int()
 {
-  auto interrupt_info = Vmx_int_info_field(
-    (l4_uint32_t)vmx_read(VMCS_VM_EXIT_INTERRUPT_INFO));
+  Vm_exit_int_info interrupt_info = exit_int_info();
 
   l4_uint32_t interrupt_error = 0;
   if (interrupt_info.error_valid())

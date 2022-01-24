@@ -365,8 +365,7 @@ public:
    */
   bool event_injected() const
   {
-    return Vmx_int_info_field(vmx_read(VMCS_VM_ENTRY_INTERRUPT_INFO)
-                              & ((1ULL << 32) - 1)).valid();
+    return entry_int_info().valid();
   }
 
   /**
@@ -432,6 +431,19 @@ public:
       valid().set(v);
     }
   };
+
+  /// Type alias to handle VM-exit interrupt data.
+  using Vm_exit_int_info = Vmx_int_info_field;
+  /// Type alias to handle VM-entry event injection data.
+  using Vm_entry_int_info = Vmx_int_info_field;
+
+  /// Get VM-exit interrupt information data.
+  Vm_exit_int_info exit_int_info() const
+  { return Vm_exit_int_info(vmx_read(VMCS_VM_EXIT_INTERRUPT_INFO)); }
+
+  /// Get the current VM-entry interrupt information data.
+  Vm_entry_int_info entry_int_info() const
+  { return Vm_entry_int_info(vmx_read(VMCS_VM_ENTRY_INTERRUPT_INFO)); }
 
   enum Deliver_error_code : unsigned
   {
