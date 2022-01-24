@@ -28,7 +28,7 @@ struct Eoi_handler
 {
   virtual void eoi() = 0;
 protected:
-  ~Eoi_handler() = default;
+  virtual ~Eoi_handler() = default;
 };
 
 /**
