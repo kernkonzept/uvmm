@@ -110,16 +110,16 @@ void Pci_device::update_bar(unsigned bar, l4_uint32_t value)
     case Pci_cfg_bar::MMIO64:
       if (enabled_decoders & Memory_space_bit)
         {
-          warn().printf("Ignore update of BAR[%u]! MMIO decoding enabled.\n",
-                        bar);
+          info().printf(
+            "Ignore update of BAR[%u] while MMIO decoding is enabled.\n", bar);
           return;
         }
       break;
     case Pci_cfg_bar::IO:
       if (enabled_decoders & Io_space_bit)
         {
-          warn().printf("Ignore update of BAR[%u]! IO decoding enabled.\n",
-                        bar);
+          info().printf(
+            "Ignore update of BAR[%u] while IO decoding is enabled.\n", bar);
           return;
         }
       break;
