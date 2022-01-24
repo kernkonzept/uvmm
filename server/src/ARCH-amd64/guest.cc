@@ -557,7 +557,14 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
                        "qualification 0x%llx\n",
                        static_cast<unsigned>(reason), guest_phys_addr, qual);
 
-        switch(handle_mmio(guest_phys_addr, vcpu))
+        auto ret = handle_mmio(guest_phys_addr, vcpu);
+
+        // EPT violation was handled check for IDT vectoring
+        Vmx_state::Idt_vectoring_info vinfo = vms->idt_vectoring_info();
+        if (vinfo.valid())
+          vms->inject_event(vinfo);
+
+        switch(ret)
           {
           case Retry: return L4_EOK;
           case Jump_instr: return Jump_instr;
@@ -576,6 +583,14 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
 
     // VMX specific exits
     case Exit::Exception_or_nmi:
+      {
+        Vmx_state::Idt_vectoring_info vinfo = vms->idt_vectoring_info();
+        if (vinfo.valid())
+          vms->inject_event(vinfo);
+      }
+      // FIXME entry info might be overwritten by exception handling
+      // currently this isn't fully fletched anyways so this works for now.
+      /* fall-through */
     case Exit::External_int:
       return vms->handle_exception_nmi_ext_int();
 
@@ -640,6 +655,13 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
       assert(0); // Not supported
       return L4_EOK;
 
+    case Exit::Task_switch:
+    case Exit::Apic_access:
+    case Exit::Ept_misconfig:
+    case Exit::Page_mod_log_full:
+    case Exit::Spp_related_event:
+      // These cases need to check IDT-vectoring info for validity!
+
     default:
       {
         Dbg().printf("Exit at guest IP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
@@ -698,6 +720,10 @@ Guest::run_vmx(Vcpu_ptr vcpu)
           if (tag.has_error())
             Dbg().printf("tag has error, but used as ack\n");
           process_pending_ipc(vcpu, l4_utcb());
+          // Handle Fiasco emulated VM-exit during event delivery.
+          Vmx_state::Idt_vectoring_info vinfo = vm->idt_vectoring_info();
+          if (vinfo.valid())
+            vm->inject_event(vinfo);
         }
       else if (e)
         {
