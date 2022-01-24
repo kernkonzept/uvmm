@@ -83,16 +83,7 @@ public:
     _src_id(src_id),
     _msix_ctrl(msix_ctrl),
     _virt_table(cxx::make_unique<Table_entry[]>(num_entries))
-  {
-    unsigned icu_nr_msis = msi_alloc->max_msis();
-    if (num_entries > icu_nr_msis)
-      {
-        Err().printf("ICU does not support enough MSIs. Requested %i; "
-                     "Supported %i\n",
-                     num_entries, icu_nr_msis);
-        L4Re::chksys(-L4_EINVAL, "Configure more MSIs for the vBus ICU.");
-      }
-  }
+  {}
 
   ~Virt_msix_table()
   {
