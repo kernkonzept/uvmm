@@ -15,6 +15,8 @@
 #include "vm_state.h"
 #include "debug.h"
 
+#include <cassert>
+
 namespace Vmm {
 
 class Vmx_state : public Vm_state
@@ -436,6 +438,8 @@ public:
   using Vm_exit_int_info = Vmx_int_info_field;
   /// Type alias to handle VM-entry event injection data.
   using Vm_entry_int_info = Vmx_int_info_field;
+  /// Type alias to handle event data stored in IDT-vectoring information.
+  using Idt_vectoring_info = Vmx_int_info_field;
 
   /// Get VM-exit interrupt information data.
   Vm_exit_int_info exit_int_info() const
@@ -444,6 +448,25 @@ public:
   /// Get the current VM-entry interrupt information data.
   Vm_entry_int_info entry_int_info() const
   { return Vm_entry_int_info(vmx_read(VMCS_VM_ENTRY_INTERRUPT_INFO)); }
+
+  /// Get a description of the VMCS' IDT-vectoring information field.
+  Idt_vectoring_info idt_vectoring_info() const
+  { return Idt_vectoring_info(vmx_read(VMCS_IDT_VECTORING_INFO)); }
+
+  /**
+   * Inject an event stored in IDT-vectoring information format.
+   *
+   * \param info  IDT-vectoring information field value.
+   */
+  void inject_event(Idt_vectoring_info const &info)
+  {
+    assert(info.valid());
+
+    vmx_write(VMCS_VM_ENTRY_INTERRUPT_INFO, info.field);
+    if (info.error_valid())
+      vmx_write(VMCS_VM_ENTRY_EXCEPTION_ERROR,
+                vmx_read(VMCS_IDT_VECTORING_ERROR));
+  }
 
   enum Deliver_error_code : unsigned
   {
