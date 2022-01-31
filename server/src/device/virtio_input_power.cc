@@ -67,7 +67,7 @@ public:
       Dbg(Dbg::Dev, Dbg::Info).printf("Pending request in queue %d\n", val);
   }
 
-  int inject_events(Virtio_input_event *events, size_t num)
+  int inject_events(l4virtio_input_event_t *events, size_t num)
   { return Virtio_input<Virtio_input_power_mmio>::inject_events(events, num); }
 
   bool inject_command(unsigned char c);
@@ -82,7 +82,7 @@ private:
     dev_cfg->u.bitmap[bit / elem_size] |= (1 << bit % elem_size);
   }
 
-  void inject_events(Virtio_input_event *events, size_t num, char const *msg)
+  void inject_events(l4virtio_input_event_t *events, size_t num, char const *msg)
   {
     int res = inject_events(events, num);
     if (res != static_cast<int>(num))
@@ -251,7 +251,7 @@ Virtio_input_power_mmio::handle_irq()
 void
 Virtio_input_power_mmio::inject_apm_suspend()
 {
-  Virtio_input_event events[] = {
+  l4virtio_input_event_t events[] = {
       {L4RE_EV_PWR, L4RE_KEY_SUSPEND, 1},
       {L4RE_EV_SYN, L4RE_SYN_REPORT, 1},
       {L4RE_EV_PWR, L4RE_KEY_SUSPEND, 0},
@@ -263,7 +263,7 @@ Virtio_input_power_mmio::inject_apm_suspend()
 void
 Virtio_input_power_mmio::inject_event(l4_uint16_t event, char const * msg)
 {
-  Virtio_input_event events[] = {
+  l4virtio_input_event_t events[] = {
       {L4RE_EV_KEY, event, 1},
       {L4RE_EV_SYN, L4RE_SYN_REPORT, 1},
       {L4RE_EV_KEY, event, 0},
@@ -276,7 +276,7 @@ bool
 Virtio_input_power_mmio::inject_command(unsigned char c)
 {
   auto event = Vdev::translate_char(c);
-  Vdev::Virtio_input_event events[] = {
+  l4virtio_input_event_t events[] = {
       {L4RE_EV_KEY, L4RE_KEY_LEFTALT, 1},
       {L4RE_EV_KEY, L4RE_KEY_SYSRQ, 1},
       {L4RE_EV_KEY, event, 1},

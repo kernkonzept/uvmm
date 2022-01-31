@@ -26,14 +26,6 @@
 
 namespace Vdev {
 
-struct Virtio_input_event {
-  // XXX little endian, we currently do not handle this for big endian
-  // platforms
-  l4_uint16_t type;
-  l4_uint16_t code;
-  l4_uint16_t value;
-};
-
 template <typename DEV>
 class Virtio_input
 : public Virtio::Dev
@@ -134,7 +126,7 @@ public:
   Virtio::Virtqueue *virtqueue(unsigned qn) override
   { return qn < Input_queue_num ? &_vqs[qn] : nullptr; }
 
-  int inject_events(Virtio_input_event *events, size_t num)
+  int inject_events(l4virtio_input_event_t *events, size_t num)
   {
     if (!num)
       return 0;
