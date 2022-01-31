@@ -30,6 +30,7 @@ struct Vcpu_time_info
   l4_uint64_t   system_time;
   l4_uint32_t   tsc_to_system_mul;
   l4_int8_t     tsc_shift;
+  // bit 0 is set, if all Vcpu_time_info instances show the same TSC value.
   l4_uint8_t    flags;
   l4_uint8_t    pad[2];
 };
@@ -165,6 +166,8 @@ public:
     {
       Kvm_feature_clocksource = 1UL,       // clock at msr 0x11 & 0x12
       Kvm_feature_clocksource2 = 1UL << 3, // clock at msrs 0x4b564d00 & 01;
+      // host communicates synchronized KVM clocks via Vcpu_time_info.flags[0]
+      Kvm_feature_clocksource_stable_bit = 1UL << 24,
     };
 
     switch (regs->ax)
@@ -176,7 +179,7 @@ public:
           *d = 0x4d;       // "M\0\0\0"
           return true;
         case 0x40000001:
-          *a = Kvm_feature_clocksource2;
+          *a = Kvm_feature_clocksource2 | Kvm_feature_clocksource_stable_bit;
           *d = 0;
           *b = *c = 0;
           return true;
