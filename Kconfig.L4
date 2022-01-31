@@ -119,6 +119,12 @@ config UVMM_VDEV_VIRTIO_POWER
 	help
 	  Support sending power events via Virtio-input.
 
+config UVMM_VDEV_VIRTIO_INPUT
+	bool "Forward L4Re::Events via Virtio-input"
+	default y
+	help
+	  Support forwarding input device events via Virtio-input.
+
 config UVMM_VDEV_VIRQ
 	bool "Forward L4 interrupts"
 	default y
