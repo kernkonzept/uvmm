@@ -127,6 +127,45 @@ public:
   Virtio::Virtqueue *virtqueue(unsigned qn) override
   { return qn < Input_queue_num ? &_vqs[qn] : nullptr; }
 
+  bool inject_event(l4virtio_input_event_t &event)
+  {
+    auto *q = &_vqs[0];
+    if (!q->ready())
+      {
+        Err().printf("Virtio_input: not ready yet\n");
+        return false;
+      }
+
+    auto req = q->next_avail();
+
+    if (!req)
+      {
+        Dbg(Dbg::Dev, Dbg::Warn, "virtio")
+          .printf("Virtio_input: No request available\n");
+        return false;
+      }
+
+    Request_processor rp;
+    Payload p;
+
+    rp.start(this, req, &p);
+
+    // Check consistency of buffer
+    if (!p.writable || p.len < sizeof(event))
+      {
+        Dbg(Dbg::Dev, Dbg::Warn, "virtio")
+          .printf("Virtio_input: buffer %s\n",
+                  p.writable ? "read only" : "too small");
+        // return it to the queue with 0 content
+        q->consumed(req, 0);
+        return false;
+      }
+
+    memcpy(p.data, &event, sizeof(event));
+    q->consumed(req, sizeof(event));
+    return true;
+  }
+
   int inject_events(l4virtio_input_event_t *events, size_t num)
   {
     if (!num)
@@ -141,36 +180,19 @@ public:
         return 0;
       }
 
-    Request_processor rp;
-    Payload p;
-
     for (injected = 0; injected < num; ++injected)
       {
-        auto req = q->next_avail();
-
-        if (!req)
-          {
-            Dbg(Dbg::Dev, Dbg::Warn, "virtio")
-              .printf("Virtio_input: No request available\n");
-            break;
-          }
-
-        rp.start(this, req, &p);
-
-        // Check consistency of buffer
-        if (!p.writable || p.len < sizeof(events[0]))
-          {
-            Dbg(Dbg::Dev, Dbg::Warn, "virtio")
-              .printf("Virtio_input: buffer %s\n",
-                      p.writable ? "read only" : "too small");
-            // return it to the queue with 0 content
-            q->consumed(req, 0);
-            break;
-          }
-
-        memcpy(p.data, &events[injected], sizeof(events[0]));
-        q->consumed(req, sizeof(events[0]));
+        if (!inject_event(events[injected]))
+          break;
       }
+
+    notify_events();
+    return injected;
+  }
+
+  void notify_events()
+  {
+    auto *q = &_vqs[0];
 
     // If we end up here we either successfully injected events or got an error
     // while doing so (e.g. no buffer available anymore). We notify the guest if
@@ -188,8 +210,6 @@ public:
         ev.set(q->config.driver_notify_index);
         dev()->event_connector()->send_events(cxx::move(ev));
       }
-
-    return injected;
   }
 
 private:
