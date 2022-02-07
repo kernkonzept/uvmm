@@ -476,9 +476,11 @@ struct Pci_device : public virtual Vdev::Dev_ref
   /**
    * Update the guest resource registration.
    *
+   * \param  Lower byte of the command register of the PCI config space.
+   *
    * Will add or remove the resources for the enabled/disabled address space.
    */
-  void update_decoders(Vmm::Guest *vmm, l4_uint32_t value)
+  void update_decoders(Vmm::Guest *vmm, l4_uint8_t value)
   {
     l4_uint32_t diff = (enabled_decoders ^ value) & Access_mask;
 
@@ -640,9 +642,8 @@ struct Pci_device : public virtual Vdev::Dev_ref
   void cfg_write(Vmm::Guest *vmm, unsigned reg, l4_uint32_t value,
                  Vmm::Mem_access::Width width)
   {
-    if (reg == Pci_hdr_command_offset
-        && (8U << width) == Pci_hdr_command_length)
-      update_decoders(vmm, value);
+    if (reg == Pci_hdr_command_offset)
+      update_decoders(vmm, value & 0xffU); // mask value to byte size.
 
     if (!cfg_write_bar(reg, value, width))
       cfg_write_raw(reg, value, width);
