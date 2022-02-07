@@ -1,10 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
- * Copyright (C) 2017 Kernkonzept GmbH.
+ * Copyright (C) 2017, 2019, 2021-2022 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *            Benjamin Lamowski <benjamin.lamowski@kernkonzept.com>
- *
- * This file is distributed under the terms of the GNU General Public
- * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
 
 #include <l4/util/cpu.h>
