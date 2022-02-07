@@ -243,7 +243,9 @@ private:
 
     // Allocate the number with the vBus ICU
     long msi =
-      L4Re::chksys(_msi_alloc->alloc_msi(), "MSI-X vector allocation failed.");
+      L4Re::chksys(_msi_alloc->alloc_msi(),
+                   "MSI-X vector allocation failed. "
+                   "Please increase the 'Property.num_msis' on vbus.");
 
     // allocate IRQ object and bind it to the ICU
     auto msi_src = Vdev::make_device<Msix_src>(entry, _msix_ctrl, msi);
