@@ -32,6 +32,7 @@ SRC_CC-$(CONFIG_UVMM_MONITOR)       += monitor/monitor.cc
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_MONITOR) += debugger/generic_guest_debugger.cc
 SRC_CC                         += debug.cc
 
+CXXFLAGS-$(CONFIG_UVMM_EXTERNAL_RTC)  += -DEXTERNAL_RTC
 CXXFLAGS-$(CONFIG_UVMM_MONITOR)       += -DCONFIG_MONITOR
 CXXFLAGS-amd64-l4f-$(CONFIG_UVMM_MONITOR) += -DGUEST_DEBUGGER_SUPPORT
 endif

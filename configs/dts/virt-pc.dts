@@ -101,6 +101,8 @@
 
         rtc {
             compatible = "virt-rtc";
+            interrupt-parent = <&IOAPIC>;
+            interrupts = <8>;
             reg = <0x0 0x0 0x0 0x0>;
         };
 
