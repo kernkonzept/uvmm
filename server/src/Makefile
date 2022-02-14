@@ -13,8 +13,7 @@ SYSTEMS         = arm-l4f mips-l4f arm64-l4f amd64-l4f
 TARGET          = uvmm
 
 REQUIRES_LIBS   = libstdc++ libio-vbus libfdt libpthread
-REQUIRES_LIBS-amd64 = acpica
-REQUIRES_LIBS   += $(REQUIRES_LIBS-$(ARCH))
+REQUIRES_LIBS_amd64 = acpica
 
 SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   cpu_dev_array.cc generic_cpu_dev.cc \
