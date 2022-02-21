@@ -1043,6 +1043,7 @@ private:
   template <typename TYPE>
   static void assert_bar_type_size(unsigned bar)
   {
+    (void)bar;
     if (std::is_same<Pci_header::Type0, TYPE>::value)
       assert(bar < Bar_num_max_type0);
     else if (std::is_same<Pci_header::Type1, TYPE>::value)
