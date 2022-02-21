@@ -111,8 +111,8 @@ public:
   /// Write to the emulated MSI-X memory.
   void write(unsigned reg, char size, l4_umword_t value, unsigned)
   {
-    warn().printf("PASS_THROUGH_MEM: write @ 0x%x (0x%x): 0x%lx\n",
-                  reg, size, value);
+    trace().printf("PASS_THROUGH_MEM: write @ 0x%x (0x%x): 0x%lx\n",
+                   reg, size, value);
 
     Vmm::Mem_access::write_width(
       reinterpret_cast<l4_addr_t>(_virt_table.get()) + reg, value, size);
@@ -164,7 +164,7 @@ private:
   {
     enum { Vector_offset = 12 };
 
-    warn().printf("%s MSI-X entry %u\n", mask ? "masking" : "unmasking", idx);
+    trace().printf("%s MSI-X entry %u\n", mask ? "masking" : "unmasking", idx);
 
     unsigned reg = idx * Entry_size + Vector_offset;
     l4_umword_t val = _con->read(reg, Vmm::Mem_access::Wd32);
@@ -205,7 +205,7 @@ private:
       return false;
 
     // If the entry is present, we just unmask the entry on the device.
-    warn().printf("reconfiguring\n");
+    trace().printf("reconfiguring\n");
     msi_entry_mask_ctrl(idx, false);
 
     return true;
@@ -238,8 +238,8 @@ private:
 
     Table_entry const *entry = &_virt_table[idx];
 
-    warn().printf("Configure MSI-X entry number %u for entry (0x%llx, 0x%x)\n",
-                  idx, entry->addr, entry->data);
+    trace().printf("Configure MSI-X entry number %u for entry (0x%llx, 0x%x)\n",
+                   idx, entry->addr, entry->data);
 
     // Allocate the number with the vBus ICU
     long msi =
@@ -268,8 +268,8 @@ private:
                                              &msiinfo),
                  "Acquire MSI entry from vBus.");
 
-    warn().printf("msi address: 0x%llx, data 0x%x\n", msiinfo.msi_addr,
-                  msiinfo.msi_data);
+    trace().printf("msi address: 0x%llx, data 0x%x\n", msiinfo.msi_addr,
+                   msiinfo.msi_data);
 
     // write to device memory
     write_dev_msix_entry(idx, msiinfo);
