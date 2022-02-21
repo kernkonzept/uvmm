@@ -144,7 +144,7 @@ Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, Vmm::Guest_addr base
   if (!r || r->setup(baseaddr, as_mgr()) < 0)
     return -1;
 
-  auto dsdev = Vdev::make_device<Ds_handler>(r);
+  auto dsdev = Vdev::make_device<Ds_handler>(r, L4_FPAGE_RWX);
   memmap->add_mmio_device(Region::ss(r->vm_start(), r->size(), Region_type::Ram),
                           std::move(dsdev));
 

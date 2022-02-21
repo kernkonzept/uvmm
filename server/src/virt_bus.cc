@@ -84,9 +84,12 @@ Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
             }
           else
             {
+              L4_fpage_rights rights = res.flags & L4VBUS_RESOURCE_F_MEM_READ_ONLY
+                                       ? L4_FPAGE_RO : L4_FPAGE_RW;
               auto handler = Vdev::make_device<Ds_handler>(
                   cxx::make_ref_obj<Ds_manager>(io_ds(), res.start, size,
-                                                L4Re::Rm::F::RW)
+                                                L4Re::Rm::Region_flags(rights)),
+                  rights
                 );
               devs->vmm()->add_mmio_device(region, handler);
             }

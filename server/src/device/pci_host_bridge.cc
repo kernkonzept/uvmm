@@ -138,7 +138,7 @@ Pci_host_bridge::Hw_pci_device::add_msix_bar_resources(Pci_cfg_bar const &bar)
                                Vmm::Region_flags::Moveable);
       warn().printf("Register MMIO region in MSI-X bar: [0x%lx, 0x%lx]\n",
                     region.start.get(), region.end.get());
-      parent->_vmm->add_mmio_device(region, make_device<Ds_handler>(m, 0));
+      parent->_vmm->add_mmio_device(region, make_device<Ds_handler>(m));
     }
 
   if (before_partial_size)
@@ -179,7 +179,8 @@ Pci_host_bridge::Hw_pci_device::add_msix_bar_resources(Pci_cfg_bar const &bar)
                     region.start.get(), region.end.get());
       l4_addr_t mgr_offset = after_pages_start - before_pages_start;
       parent->_vmm->add_mmio_device(region,
-                                    make_device<Ds_handler>(m, mgr_offset));
+                                    make_device<Ds_handler>(m, L4_FPAGE_RW,
+                                                            mgr_offset));
     }
 }
 

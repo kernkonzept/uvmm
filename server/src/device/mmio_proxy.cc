@@ -138,7 +138,7 @@ private:
 
     node.set_reg_val(phys, sz, false);
 
-    auto handler = Vdev::make_device<Ds_handler>(mgr, offset);
+    auto handler = Vdev::make_device<Ds_handler>(mgr, L4_FPAGE_RW, offset);
     devs->vmm()->register_mmio_device(handler, Vmm::Region_type::Ram, node, 0);
   }
 
@@ -194,7 +194,7 @@ private:
 
         if (sz)
           {
-            auto handler = Vdev::make_device<Ds_handler>(mgr, offs);
+            auto handler = Vdev::make_device<Ds_handler>(mgr, L4_FPAGE_RW, offs);
             devs->vmm()->register_mmio_device(handler, Vmm::Region_type::Virtual, node, index);
 
             if (dma.is_valid())

@@ -38,8 +38,9 @@ public:
   };
 
   explicit Ds_handler(cxx::Ref_ptr<Vmm::Ds_manager> ds,
+                      L4_fpage_rights rights = L4_FPAGE_RW,
                       l4_addr_t offset = 0, Flags flags = Map_eager)
-  : _ds(ds), _offset(offset), _flags(flags)
+  : _ds(ds), _rights(rights), _offset(offset), _flags(flags)
   {
     l4_addr_t page_offs = offset & ~L4_PAGEMASK;
     if (page_offs)
@@ -50,6 +51,9 @@ public:
 private:
   /// manager for a portion of a dataspace + local mapping
   cxx::Ref_ptr<Vmm::Ds_manager> _ds;
+
+  /// Stores the rights for the mapping into the guest
+  L4_fpage_rights _rights;
 
   /// Stores the offset relative to the offset in the Ds_manager
   l4_addr_t _offset;
@@ -85,6 +89,10 @@ private:
     if (!dsh || (_ds->dataspace() != dsh->_ds->dataspace()))
       return false;
 
+    // same rights?
+    if (_rights != dsh->_rights)
+      return false;
+
     // reference the same part of the data space?
     return (full_offset() + (start_other - start_this)) == dsh->full_offset();
   }
@@ -94,8 +102,7 @@ private:
                  Vmm::Guest_addr end) override
   {
     if (_flags & Map_eager)
-      map_guest_range(vm_task, start, local_start(), end - start + 1,
-                      L4_FPAGE_RWX);
+      map_guest_range(vm_task, start, local_start(), end - start + 1, _rights);
   }
 
   /**
@@ -123,10 +130,18 @@ private:
         // client.
         unsigned char ps = get_page_shift(pfa, min, max, offset, ls);
 
+        if (vcpu.pf_write() && !(_rights & L4_FPAGE_W))
+          {
+            Err().printf(
+              "not handling VM write access @ %lx ip=%lx on read-only area\n",
+               pfa, vcpu->r.ip);
+            return -L4_EPERM;
+          }
+
         res = l4_error(
                 vm_task->map(L4Re::This_task,
                              l4_fpage(l4_trunc_size(ls + offset, ps),
-                                      ps, L4_FPAGE_RWX),
+                                      ps, _rights),
                              l4_trunc_size(pfa, ps)));
       }
 
@@ -170,8 +185,9 @@ public:
   };
 
   explicit Ds_handler(cxx::Ref_ptr<Vmm::Ds_manager> const &ds,
+                      L4_fpage_rights rights = L4_FPAGE_RW,
                       l4_addr_t offset = 0, Flags flags = Map_eager)
-  : _ds(ds->dataspace()), _offset(ds->offset() + offset)
+  : _ds(ds->dataspace()), _rights(rights), _offset(ds->offset() + offset)
   {
     (void)flags;
   }
@@ -179,6 +195,9 @@ public:
 private:
   /// just keep the dataspace cap (no local region is needed)
   L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap _ds;
+
+  /// store the rights for the mapping into the guest
+  L4_fpage_rights _rights;
 
   /// store the offset relative to the start of the dataspace.
   l4_addr_t _offset;
@@ -189,6 +208,10 @@ private:
     // same device type and same underlying dataspace?
     auto dsh = dynamic_cast<Ds_handler *>(other.get());
     if (!dsh || (_ds != dsh->_ds))
+      return false;
+
+    // same rights?
+    if (_rights != dsh->_rights)
       return false;
 
     // reference the same part of the data space?
@@ -204,12 +227,16 @@ private:
   int access(l4_addr_t pfa, l4_addr_t offset, Vmm::Vcpu_ptr vcpu,
              L4::Cap<L4::Vm> vm_task, l4_addr_t min, l4_addr_t max) override
   {
-    long res;
-    L4Re::Dataspace::Flags f = L4Re::Dataspace::F::RX;
-    if (vcpu.pf_write())
-      f |= L4Re::Dataspace::F::W;
+    if (vcpu.pf_write() && !(_rights & L4_FPAGE_W))
+      {
+        Err().printf(
+          "not handling VM write access @ %lx ip=%lx on read-only area\n",
+           pfa, vcpu->r.ip);
+        return -L4_EPERM;
+      }
 
-    res = _ds->map(offset + _offset, f, pfa, min, max, vm_task);
+    long res = _ds->map(offset + _offset, L4Re::Dataspace::Flags(_rights),
+                        pfa, min, max, vm_task);
 
     if (res < 0)
       {
