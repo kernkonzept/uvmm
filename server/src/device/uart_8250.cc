@@ -3,6 +3,7 @@
  * Copyright (C) 2017,2020,2021 Kernkonzept GmbH.
  * Author(s): Phillip Raffeck <phillip.raffeck@kernkonzept.com>
  *            Steffen Liebergeld <steffen.liebergeld@kernkonzept.com>
+ *            Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
@@ -136,6 +137,7 @@ class Uart_8250_base
     bool write_irq() const { return id() == Thre; }
 
     void clear() { raw = 1; }
+    bool cleared() const { return raw == 1; }
   };
 
   /// Line Control Register
@@ -161,6 +163,8 @@ class Uart_8250_base
     Lsr_reg() : raw(0x60) {}
     explicit Lsr_reg(l4_uint8_t v) : raw(v) {}
 
+    /// Set, when data can be written.
+    CXX_BITFIELD_MEMBER(5, 5, thre, raw);
     /// Break interrupt.
     CXX_BITFIELD_MEMBER(4, 4, bi, raw);
     /// Framing error.
@@ -209,11 +213,8 @@ public:
   void handle_irq()
   {
     _lsr.dr() = 1;
-    if (_ier.rda())
-      {
-        _iir.set_data_irq();
-        _sink.inject();
-      }
+    if (!_iir.error_irq()) // error has higher prio. Don't overwrite.
+      signal_readable();
   }
 
   void attach_con_irq()
@@ -223,7 +224,8 @@ public:
 
   void register_obj(L4::Registry_iface *registry)
   {
-    _con_irq = L4Re::chkcap(registry->register_irq_obj(this), "Registering 8250 device");
+    _con_irq =
+      L4Re::chkcap(registry->register_irq_obj(this), "Registering 8250 device");
   }
 
   l4_uint32_t read(unsigned reg, char size, unsigned)
@@ -258,6 +260,12 @@ public:
           {
             _iir.clear();
             _sink.ack();
+            // If we got input while in error state, we need to tell the guest
+            // about it.
+            if (_lsr.dr())
+              signal_readable();
+            else
+              signal_writeable();
           }
         break;
       case Msr:
@@ -296,11 +304,11 @@ public:
         else
           {
             _ier.raw = value;
-            if (_ier.thre())
-              {
-                _iir.set_write_irq();
-                _sink.inject();
-              }
+
+            if (_lsr.dr())
+              signal_readable();
+            else
+              signal_writeable();
           }
         break;
       case Iir:
@@ -331,23 +339,19 @@ public:
 private:
   l4_uint32_t read_char()
   {
+    _sink.ack(); // always ack the sink to allow new IRQs to pass-through it.
+
     int err;
-    char buf;
+    char buf = 0;
 
     err = _con->read(&buf, 1);
     if (err < 0)
       {
         warn.printf("Error while reading from vcon: %d\n", err);
-        _lsr.set_error();
-        if (_ier.rls())
-          {
-            _iir.set_error_irq();
-            _sink.inject();
-          }
+        signal_error();
         return 0;
       }
 
-    _sink.ack();
     if (err <= 1)
       {
         _iir.clear();
@@ -359,17 +363,55 @@ private:
 
   void write_char(char c)
   {
+    _sink.ack(); // always ack the sink to allow new IRQs to pass-through it.
+
     if (_iir.write_irq())
-      {
-        _iir.clear();
-        _sink.ack();
-      }
+      _iir.clear(); // if the IIR got overwritten, do not change it
+
     _con->write(&c, 1);
-    if (_ier.thre())
+
+    // check if IIR shows read data available, it has higher priority.
+    if (!_iir.cleared() && _iir.data_irq())
       {
-        _iir.set_write_irq();
-        _sink.inject();
+        // IIR got overwritten between IIR read and THR write
+        if (_ier.rda())
+          _sink.inject();
       }
+    else if (_iir.cleared())
+      {
+        // Nothing there to read, write has highest prio.
+        signal_writeable();
+      }
+  }
+
+  void signal_writeable()
+  {
+    _lsr.thre() = 1;
+    if (!_ier.thre())
+      return;
+
+    _iir.set_write_irq();
+    _sink.inject();
+  }
+
+  void signal_readable()
+  {
+    _lsr.dr() = 1;
+    if (!_ier.rda())
+      return;
+
+    _iir.set_data_irq();
+    _sink.inject();
+  }
+
+  void signal_error()
+  {
+    _lsr.set_error();
+    if (!_ier.rls())
+      return;
+
+    _iir.set_error_irq();
+    _sink.inject();
   }
 
   L4::Cap<L4::Vcon> _con;
