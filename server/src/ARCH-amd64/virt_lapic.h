@@ -15,6 +15,7 @@
 #include <l4/re/rm>
 #include <l4/re/util/unique_cap>
 #include <l4/sys/vcpu.h>
+#include <l4/util/rdtsc.h>
 
 #include "irq.h"
 #include "timer.h"
@@ -36,8 +37,43 @@ using L4Re::Rm;
 
 namespace Gic {
 
-class Virt_lapic : public Vdev::Timer, public Ic
+class Apic_timer;
+
+class Virt_lapic : public Ic
 {
+  // These MSRs correspond to the xAPIC MMIO registers.
+  // see reg2msr for reference
+  enum : l4_uint32_t
+  {
+    Msr_ia32_apic_base = 0x1b,
+    Msr_ia32_tsc_deadline = 0x6e0,
+    Msr_ia32_x2apic_apicid = 0x802,
+    Msr_ia32_x2apic_version = 0x803,
+    Msr_ia32_x2apic_tpr = 0x808,
+    Msr_ia32_x2apic_ppr = 0x80a,
+    Msr_ia32_x2apic_eoi = 0x80b,
+    Msr_ia32_x2apic_ldr = 0x80d,
+    // This is only available in xapic mode
+    // It is documented in the intel manual chapter 10.6.2.2
+    Mmio_apic_destination_format_register = 0x80e,
+    Msr_ia32_x2apic_sivr = 0x80f,
+    Msr_ia32_x2apic_isr7 = 0x817,
+    Msr_ia32_x2apic_tmr7 = 0x81f,
+    Msr_ia32_x2apic_irr7 = 0x827,
+    Msr_ia32_x2apic_esr = 0x828,
+    Msr_ia32_x2apic_lvt_cmci = 0x82f,
+    Msr_ia32_x2apic_lvt_timer = 0x832,
+    Msr_ia32_x2apic_lvt_thermal = 0x833,
+    Msr_ia32_x2apic_lvt_pmi = 0x834,
+    Msr_ia32_x2apic_lvt_lint0 = 0x835,
+    Msr_ia32_x2apic_lvt_lint1 = 0x836,
+    Msr_ia32_x2apic_lvt_error = 0x837,
+    Msr_ia32_x2apic_init_count = 0x838,
+    Msr_ia32_x2apic_cur_count = 0x839,
+    Msr_ia32_x2apic_div_conf = 0x83e,
+    Msr_ia32_x2apic_self_ipi = 0x83f,
+  };
+
   class Irq_register
   {
     enum : l4_uint8_t
@@ -126,45 +162,6 @@ class Virt_lapic : public Vdev::Timer, public Ic
     l4_uint32_t err;
     l4_uint32_t tmr_init;
     l4_uint32_t tmr_cur;
-  };
-
-  struct Timer_div
-  {
-    l4_uint32_t raw;
-    CXX_BITFIELD_MEMBER_RO(3, 3, upper, raw);
-    CXX_BITFIELD_MEMBER_RO(0, 1, lower, raw);
-
-    Timer_div() : raw(0U) {}
-    Timer_div(l4_uint32_t val) : raw(val) {}
-    Timer_div(Timer_div const &o) : raw(o.raw) {}
-
-    Timer_div &operator = (const Timer_div &) = default;
-
-    unsigned divisor() const
-    {
-      unsigned shift = lower() + (upper() << 2);
-
-      return shift == 7 ? 1 : 2u << shift;
-    }
-  };
-
-  struct Timer_reg
-  {
-    l4_uint32_t raw;
-    CXX_BITFIELD_MEMBER(17, 18, mode, raw);
-    CXX_BITFIELD_MEMBER(16, 16, masked, raw);
-    CXX_BITFIELD_MEMBER(12, 12, pending, raw);
-    CXX_BITFIELD_MEMBER(0, 7, vector, raw);
-
-    Timer_reg() : raw(0x00010000) {}
-    explicit Timer_reg(l4_uint32_t t) : raw(t) {}
-
-    Timer_reg &operator = (l4_uint32_t t) { raw = t; return *this; }
-
-    bool one_shot() const { return !mode(); }
-    bool periodic() const { return mode() == 1; }
-    bool tsc_deadline() const { return mode() == 2; }
-    void disarm() { masked() = 1; }
   };
 
   enum XAPIC_consts : unsigned
@@ -266,9 +263,6 @@ public:
 
   int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override;
 
-  // Timer interface
-  void tick() override;
-
   // APIC soft Irq to force VCPU to handle IRQs
   void irq_trigger(l4_uint32_t irq, bool irr = true);
   void nmi();
@@ -346,6 +340,9 @@ public:
     _cpu->reschedule();
   }
 
+  cxx::Ref_ptr<Apic_timer> timer()
+  { return _apic_timer; }
+
   bool x2apic_mode() const { return _x2apic_enabled; }
 
 private:
@@ -353,16 +350,12 @@ private:
   static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "LAPIC"); }
   static Dbg info() { return Dbg(Dbg::Irq, Dbg::Info, "LAPIC"); }
 
+  cxx::Ref_ptr<Apic_timer> _apic_timer;
   L4Re::Util::Unique_cap<L4::Irq> _lapic_irq; /// IRQ to notify VCPU
   l4_uint32_t _lapic_x2_id;
   unsigned _lapic_version;
   std::mutex _int_mutex;
-  std::mutex _tmr_mutex;
   LAPIC_registers _regs;
-  Timer_reg _timer;
-  Timer_div _timer_div;
-  l4_uint64_t _tsc_deadline;
-  l4_kernel_clock_t _last_ticks_tsc;
   bool _x2apic_enabled;
   std::atomic<bool> _nmi_pending;
   Eoi_handler *_sources[256] = {};
@@ -865,5 +858,338 @@ private:
 
   cxx::Ref_ptr<Lapic_array> _apics;
 }; // class Msix_control
+
+/**
+ * Apic_timer; emulates a local APIC timer.
+ *
+ * Be aware that expired() is run on the timer thread with higher priority
+ * than the vcpu thread, which handles everything else. So whenever an IPC is
+ * involved, such as in enqueue_timeout(), dequeue_timeout() or irq_tigger()
+ * you must not hold the mutex.
+ */
+class Apic_timer: public Vdev::Timer,
+                  public L4::Ipc_svr::Timeout_queue::Timeout
+{
+  enum Timer
+  {
+    Frequency_hz = 1000000000ULL, // 1Ghz
+    Microseconds_per_second = 1000000ULL,
+  };
+
+  /// Divide Configuration Register
+  struct Divide_configuration_reg
+  {
+    l4_uint32_t raw;
+    CXX_BITFIELD_MEMBER_RO(3, 3, upper, raw);
+    CXX_BITFIELD_MEMBER_RO(0, 1, lower, raw);
+
+    Divide_configuration_reg() : raw(0U) {}
+    Divide_configuration_reg(l4_uint32_t val) : raw(val) {}
+    Divide_configuration_reg(Divide_configuration_reg const &o) : raw(o.raw) {}
+
+    Divide_configuration_reg &operator= (const Divide_configuration_reg &)
+      = default;
+
+    unsigned divisor() const
+    {
+      unsigned shift = lower() + (upper() << 2);
+
+      return shift == 7 ? 1 : 2u << shift;
+    }
+  };
+
+  /// LVT Timer Register
+  struct Lvt_timer_reg
+  {
+    l4_uint32_t raw;
+    CXX_BITFIELD_MEMBER(17, 18, mode, raw);
+    CXX_BITFIELD_MEMBER(16, 16, masked, raw);
+    CXX_BITFIELD_MEMBER(12, 12, pending, raw);
+    CXX_BITFIELD_MEMBER(0, 7, vector, raw);
+
+    Lvt_timer_reg() : raw(0x00010000) {}
+    explicit Lvt_timer_reg(l4_uint32_t t) : raw(t) {}
+
+    Lvt_timer_reg &operator = (l4_uint32_t t) { raw = t; return *this; }
+
+    bool one_shot() const { return !mode(); }
+    bool periodic() const { return mode() == 1; }
+    bool tsc_deadline() const { return mode() == 2; }
+    void disarm() { masked() = 1; }
+    char const *mode_string()
+    {
+      if (one_shot())
+        return "one shot";
+      if (periodic())
+        return "periodic";
+      if (tsc_deadline())
+        return "tsc deadline";
+      return "unknown";
+    }
+
+    void print()
+    {
+      Dbg().printf("timer: %s %s %s vector: %u\n",
+                   mode_string(),
+                   masked() ? "masked" : "unmasked",
+                   pending() ? "pending" : "",
+                   vector().get());
+    }
+  };
+
+public:
+  Apic_timer(Virt_lapic *lapic)
+  : _tmr_cur(0), _tmr_init(0), _div_reg(0), _lvt_reg(0x10000),
+    _virt_lapic(lapic)
+  {
+    l4_calibrate_tsc(l4re_kip());
+  }
+
+  l4_uint64_t read_tmr_cur()
+  {
+    std::lock_guard<std::mutex> lock(_tmr_mutex);
+
+    // In deadline mode the current count register always returns 0
+    if (_lvt_reg.tsc_deadline())
+      return 0;
+
+    if (_tmr_init == 0)
+      return 0;
+
+    l4_cpu_time_t now = l4_rdtsc();
+    l4_cpu_time_t diff_us = l4_tsc_to_us(now - _tsc_base);
+    l4_cpu_time_t frequency = Timer::Frequency_hz / _div_reg.divisor();
+    l4_cpu_time_t diff_ticks =
+      diff_us * frequency / Timer::Microseconds_per_second;
+
+    if (_lvt_reg.periodic())
+      {
+        _tmr_cur = (_tmr_init - diff_ticks) % _tmr_init;
+        return _tmr_cur;
+      }
+
+    if (diff_ticks >= _tmr_init)
+      _tmr_cur = 0;
+    else
+      _tmr_cur = _tmr_init - diff_ticks;
+
+    /// we do not inject interrupts here, but let them be injected from the
+    /// timer thread (expired())
+
+    return _tmr_cur;
+  }
+
+  /**
+   * Reads the tmr_init field.
+   *
+   * _tmr_init is only used on the vcpu thread, therefore we do not need to
+   * grab a lock.
+   **/
+  l4_uint64_t read_tmr_init()
+  {
+    return _tmr_init;
+  }
+
+  /**
+   * Calculate the next timeout in periodic and one_shot modes.
+   *
+   * The result is given in micro seconds (10^-6 seconds). The APIC timer runs
+   * with Timer::Frequency_hz. This function is also used in expired(),
+   * therefore we must take care of the mutex.
+   *
+   * \param ticks The requested amount of ticks of the APIC timer.
+   */
+  l4_uint64_t next_timeout_us(l4_uint64_t ticks)
+  {
+    l4_uint64_t divisor;
+    {
+      std::lock_guard<std::mutex> lock(_tmr_mutex);
+      divisor = _div_reg.divisor();
+    }
+
+    l4_kernel_clock_t kip = l4_kip_clock(l4re_kip());
+    l4_cpu_time_t frequency = Timer::Frequency_hz / divisor;
+    l4_cpu_time_t timeout_us =
+      ticks * Timer::Microseconds_per_second / frequency;
+
+    return kip + timeout_us;
+  }
+
+  void write_tmr_init(l4_uint64_t value)
+  {
+    // in tsc deadline mode writes to tmr_init are ignored
+    if (_lvt_reg.tsc_deadline())
+      return;
+
+    // reset old timeouts
+    dequeue_timeout(this);
+
+    Lvt_timer_reg lvt;
+    {
+      std::lock_guard<std::mutex> lock(_tmr_mutex);
+
+      lvt = Lvt_timer_reg(_lvt_reg);
+      _tmr_init = value;
+      _tmr_cur = value;
+      _tsc_base = l4_rdtsc();
+    }
+
+    if (value)
+      enqueue_timeout(this, next_timeout_us(value));
+  }
+
+  // _div_reg is only manipulated on the vcpu thread
+  // therefore we don't need a lock
+  l4_uint32_t read_divide_configuration_reg()
+  { return _div_reg.raw; }
+
+  void write_divide_configuration_reg(l4_uint32_t value)
+  {
+    l4_uint64_t init;
+    Lvt_timer_reg lvt;
+    {
+      std::lock_guard<std::mutex> lock(_tmr_mutex);
+
+      lvt = Lvt_timer_reg(_lvt_reg);
+      _div_reg.raw = value;
+      init = _tmr_init;
+    }
+
+    // changing this value modifies the speed of the APIC timer
+    // so we must reset the timeouts that we set up with the
+    // previous value
+
+    // the TSC Deadline timer is not affected by this
+    if (!lvt.tsc_deadline())
+      dequeue_timeout(this);
+
+    // only iff the guest programmed the timer do we need to set it up
+    if (init)
+      enqueue_timeout(this, next_timeout_us(init));
+  }
+
+  l4_uint32_t read_lvt_timer_reg()
+  { return _lvt_reg.raw; }
+
+  void write_lvt_timer_reg(l4_uint64_t value)
+  {
+    Lvt_timer_reg old_lvt(_lvt_reg);
+    Lvt_timer_reg new_lvt(value);
+
+    {
+      std::lock_guard<std::mutex> lock(_tmr_mutex);
+      _lvt_reg.raw = value;
+    }
+
+    if (old_lvt.pending() && !new_lvt.masked()
+        && old_lvt.vector() == new_lvt.vector())
+      irq_trigger(old_lvt.vector());
+
+    // setting a new timer mode disarms the timer
+    if (old_lvt.mode() != new_lvt.mode())
+      dequeue_timeout(this);
+  }
+
+  // timeout has expired
+  // inject interrupt iff periodic reenqueue to receive the next interrupt
+  // Note: this function is called on the timer thread
+  void expired()
+  {
+    bool periodic = false;
+    bool masked = false;
+    unsigned vector;
+    l4_uint64_t init;
+
+    {
+      std::lock_guard<std::mutex> lock(_tmr_mutex);
+      if (_lvt_reg.masked())
+        _lvt_reg.pending() = 1;
+
+      if (_lvt_reg.one_shot())
+        _tmr_cur = 0;
+
+      if (_lvt_reg.periodic())
+        {
+          periodic = true;
+          _tmr_cur = _tmr_init;
+        }
+
+      init = _tmr_init;
+      vector = _lvt_reg.vector();
+      masked = _lvt_reg.masked();
+      _tsc_deadline = 0;
+    }
+
+    if (!masked)
+      irq_trigger(vector);
+
+    if (periodic)
+      requeue_timeout(this, next_timeout_us(init));
+  }
+
+  // Timer interface
+  void tick()
+  {};
+
+  l4_uint64_t read_tsc_deadline_msr()
+  {
+    std::lock_guard<std::mutex> lock(_tmr_mutex);
+    if (!_lvt_reg.tsc_deadline())
+      return 0ULL;
+    return _tsc_deadline;
+  }
+
+  void write_tsc_deadline_msr(l4_uint64_t value)
+  {
+    if (!_lvt_reg.tsc_deadline())
+      {
+        Dbg().printf("guest programmed tsc deadline but tsc deadline mode not set\n");
+        return;
+      }
+
+    // a fresh TSC deadline value always resets previous timeouts
+    dequeue_timeout(this);
+
+    // writing a zero disarms the timer
+    if (value == 0)
+      return;
+
+    // handle TSC deadline timer mode
+    // the given value holds the target time stamp counter value
+    l4_cpu_time_t tsc = l4_rdtsc();
+    // if the desired timestamp already passed
+    // we inject directly without going to the timer thread
+    if (value < tsc)
+      {
+        std::lock_guard<std::mutex> lock(_tmr_mutex);
+        if (_lvt_reg.masked())
+          _lvt_reg.pending() = 1;
+        else
+          irq_trigger(_lvt_reg.vector());
+      }
+
+    if (0)
+      Dbg()
+        .printf("New TSC deadline: 0x%llx (now: 0x%llx) timer status: %x\n",
+                value, tsc, _lvt_reg.raw);
+
+    _tsc_deadline = value;
+
+    l4_kernel_clock_t t = l4_tsc_to_us(value - tsc);
+    l4_kernel_clock_t kip = l4_kip_clock(l4re_kip());
+    enqueue_timeout(this, kip + t);
+  }
+
+private:
+  void irq_trigger(l4_uint32_t irq)
+  { _virt_lapic->irq_trigger(irq); }
+
+  l4_uint64_t _tmr_cur, _tmr_init, _tsc_base;
+  Divide_configuration_reg _div_reg;
+  Lvt_timer_reg _lvt_reg;
+  Virt_lapic *_virt_lapic;
+  l4_uint64_t _tsc_deadline;
+  std::mutex _tmr_mutex;
+}; // class Apic_timer
 
 } // namespace Gic

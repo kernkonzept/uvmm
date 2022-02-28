@@ -8,7 +8,6 @@
 #include <l4/re/error_helper>
 #include <l4/re/util/cap_alloc>
 #include <l4/re/util/unique_cap>
-#include <l4/util/rdtsc.h>
 
 #include <climits>
 
@@ -28,7 +27,6 @@ Virt_lapic::Virt_lapic(unsigned id, cxx::Ref_ptr<Vmm::Cpu_dev> cpu)
                     "Allocate local APIC notification IRQ.")),
   _lapic_x2_id(id),
   _lapic_version(Lapic_version),
-  _last_ticks_tsc(0),
   _x2apic_enabled(false),
   _nmi_pending(false),
   _cpu(cpu)
@@ -44,6 +42,8 @@ Virt_lapic::Virt_lapic(unsigned id, cxx::Ref_ptr<Vmm::Cpu_dev> cpu)
   _regs.cmci = _regs.therm = _regs.perf = 0x00010000;
   _regs.lint[0] = _regs.lint[1] = _regs.err = 0x00010000;
   _regs.svr = 0x000000ff;
+
+  _apic_timer = Vdev::make_device<Apic_timer>(this);
 }
 
 void
@@ -99,59 +99,6 @@ Virt_lapic::get_eoi_handler(unsigned irq) const
 int
 Virt_lapic::dt_get_interrupt(fdt32_t const *, int, int *) const
 { return 1; }
-
-void
-Virt_lapic::tick()
-{
-  std::lock_guard<std::mutex> lock(_tmr_mutex);
-
-  if (0 & !_timer.masked())
-    {
-      static unsigned cnt = 0;
-      if ((++cnt % 100) == 0)
-        Dbg()
-          .printf("VAPIC: Tick TSC DL ? %s : %llx, now: %llx, _timer reg: %x\n",
-                  _timer.tsc_deadline() ? "yes" : "no", _tsc_deadline,
-                  l4_rdtsc(), _timer.raw);
-    }
-
-  if (_timer.tsc_deadline())
-    {
-      if (_tsc_deadline > 0 && _tsc_deadline <= l4_rdtsc())
-        {
-          if (_timer.masked())
-            _timer.pending() = 1;
-          else
-            irq_trigger(_timer.vector());
-
-          _tsc_deadline = 0;
-        }
-    }
-  else if (_regs.tmr_cur > 0)
-    {
-      l4_kernel_clock_t current_tsc = l4_rdtsc();
-      l4_kernel_clock_t tsc_diff = current_tsc - _last_ticks_tsc;
-      _last_ticks_tsc = current_tsc;
-
-      tsc_diff /= _timer_div.divisor();
-
-      if (_regs.tmr_cur < tsc_diff)
-        _regs.tmr_cur = 0;
-      else
-        _regs.tmr_cur -= tsc_diff;
-
-      if (_regs.tmr_cur == 0)
-        {
-          if (_timer.masked())
-            _timer.pending() = 1;
-          else
-            irq_trigger(_timer.vector());
-
-          if (_timer.periodic())
-            _regs.tmr_cur = _regs.tmr_init;
-        }
-    }
-}
 
 void
 Virt_lapic::nmi()
@@ -228,7 +175,7 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
 {
   switch (msr)
     {
-    case 0x1b: // APIC base, Vol. 3A 10.4.4
+    case Msr_ia32_apic_base: // APIC base, Vol. 3A 10.4.4
       *value = Lapic_access_handler::Mmio_addr | Apic_base_enabled;
 
       if (_lapic_x2_id == 0)
@@ -237,22 +184,24 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
       if (_x2apic_enabled)
         *value |= Apic_base_x2_enabled;
       break;
-    case 0x6e0: *value = _tsc_deadline; break;
-    case 0x802:
+    case Msr_ia32_tsc_deadline:
+      *value = _apic_timer->read_tsc_deadline_msr();
+      break;
+    case Msr_ia32_x2apic_apicid:
       *value = _x2apic_enabled
                  ? _lapic_x2_id
                  : (_lapic_x2_id << Xapic_mode_local_apic_id_shift);
       break;
-    case 0x803: *value = _lapic_version; break;
-    case 0x808: *value = _regs.tpr; break;
-    case 0x80a: *value = _regs.ppr; break;
-    case 0x80d: *value = _regs.ldr; break;
-    case 0x80e:
+    case Msr_ia32_x2apic_version: *value = _lapic_version; break;
+    case Msr_ia32_x2apic_tpr: *value = _regs.tpr; break;
+    case Msr_ia32_x2apic_ppr: *value = _regs.ppr; break;
+    case Msr_ia32_x2apic_ldr: *value = _regs.ldr; break;
+    case Mmio_apic_destination_format_register:
       // not existent in x2apic mode
       if (!_x2apic_enabled)
         *value = _regs.dfr;
       break;
-    case 0x80f: *value = _regs.svr; break;
+    case Msr_ia32_x2apic_sivr: *value = _regs.svr; break;
     case 0x810:
     case 0x811:
     case 0x812:
@@ -260,7 +209,9 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
     case 0x814:
     case 0x815:
     case 0x816:
-    case 0x817: *value = _regs.isr.get_reg(msr - 0x810); break;
+    case Msr_ia32_x2apic_isr7:
+      *value = _regs.isr.get_reg(msr - 0x810);
+      break;
     case 0x818:
     case 0x819:
     case 0x81a:
@@ -268,7 +219,9 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
     case 0x81c:
     case 0x81d:
     case 0x81e:
-    case 0x81f: *value = _regs.tmr.get_reg(msr - 0x818); break;
+    case Msr_ia32_x2apic_tmr7:
+      *value = _regs.tmr.get_reg(msr - 0x818);
+      break;
     case 0x820:
     case 0x821:
     case 0x822:
@@ -276,19 +229,27 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
     case 0x824:
     case 0x825:
     case 0x826:
-    case 0x827: *value = _regs.irr.get_reg(msr - 0x820); break;
-    case 0x828: *value = _regs.esr; break;
-    case 0x82f: *value = _regs.cmci; break;
+    case Msr_ia32_x2apic_irr7:
+      *value = _regs.irr.get_reg(msr - 0x820);
+      break;
+    case Msr_ia32_x2apic_esr: *value = _regs.esr; break;
+    case Msr_ia32_x2apic_lvt_cmci: *value = _regs.cmci; break;
     // 0x830 handled by Icr_handler
-    case 0x832: *value = _timer.raw; break;
-    case 0x833: *value = _regs.therm; break;
-    case 0x834: *value = _regs.perf; break;
-    case 0x835: *value = _regs.lint[0]; break;
-    case 0x836: *value = _regs.lint[1]; break;
-    case 0x837: *value = _regs.err; break;
-    case 0x838: *value = _regs.tmr_init; break;
-    case 0x839: *value = _regs.tmr_cur; break;
-    case 0x83e: *value = _timer_div.raw; break;
+    case Msr_ia32_x2apic_lvt_timer:
+      *value = _apic_timer->read_lvt_timer_reg();
+      break;
+    case Msr_ia32_x2apic_lvt_thermal: *value = _regs.therm; break;
+    case Msr_ia32_x2apic_lvt_pmi: *value = _regs.perf; break;
+    case Msr_ia32_x2apic_lvt_lint0: *value = _regs.lint[0]; break;
+    case Msr_ia32_x2apic_lvt_lint1: *value = _regs.lint[1]; break;
+    case Msr_ia32_x2apic_lvt_error: *value = _regs.err; break;
+    case Msr_ia32_x2apic_init_count:
+      *value = _apic_timer->read_tmr_init();
+      break;
+    case Msr_ia32_x2apic_cur_count: *value = _apic_timer->read_tmr_cur(); break;
+    case Msr_ia32_x2apic_div_conf:
+      *value = _apic_timer->read_divide_configuration_reg();
+      break;
 
     default: return false;
     }
@@ -304,7 +265,7 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
 {
   switch(msr)
     {
-    case 0x1b: // APIC base
+    case Msr_ia32_apic_base:
       _x2apic_enabled = value & Apic_base_x2_enabled;
       if (_x2apic_enabled)
         {
@@ -321,30 +282,23 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
         warn().printf(
           "Relocating the Local APIC Registers is not supported.\n");
       break;
-    case 0x6e0:
-      {
-        std::lock_guard<std::mutex> lock(_tmr_mutex);
-        _tsc_deadline = value;
-
-        if (0)
-          Dbg()
-            .printf("New TSC dealine: 0x%llx (now: 0x%llx) timer status: %x\n",
-                    value, l4_rdtsc(), _timer.raw);
-        break;
-      }
-    case 0x803: _lapic_version = value; break;
-    case 0x808: _regs.tpr = value; break;
-    case 0x80d:
+    case Msr_ia32_tsc_deadline:
+      _apic_timer->write_tsc_deadline_msr(value);
+      break;
+    case Msr_ia32_x2apic_version: _lapic_version = value; break;
+    case Msr_ia32_x2apic_tpr: _regs.tpr = value; break;
+    case Msr_ia32_x2apic_ldr:
       // not writable in x2apic mode
       if (!_x2apic_enabled)
         _regs.ldr = value;
       break;
-    case 0x80e:
+    case Mmio_apic_destination_format_register:
       // not existent in x2apic mode; writes by system software only in
       // disabled APIC state; which currently isn't supported. => write ignored
       break;
-    case 0x80f: _regs.svr = value; break; // TODO react on APIC SW en/disable
-    case 0x80b: // x2APIC EOI
+    case Msr_ia32_x2apic_sivr:
+      _regs.svr = value; break; // TODO react on APIC SW en/disable
+    case Msr_ia32_x2apic_eoi:
       {
         std::lock_guard<std::mutex> lock(_int_mutex);
         _regs.isr.clear_highest_irq();
@@ -354,33 +308,24 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
           Dbg().printf("WARNING: write to EOI not zero, 0x%llx\n", value);
         }
       break;
-    case 0x828: _regs.esr = 0; break;
-    case 0x82f: _regs.cmci = value; break;
+    case Msr_ia32_x2apic_esr: _regs.esr = 0; break;
+    case Msr_ia32_x2apic_lvt_cmci: _regs.cmci = value; break;
     // 0x830 handled by Icr_handler
-    case 0x832:
-      {
-        Timer_reg new_timer(value);
-
-        if (   _timer.pending() && !new_timer.masked()
-            && _timer.vector() == new_timer.vector())
-          irq_trigger(_timer.vector());
-
-        _timer = new_timer;
-        break;
-      }
-    case 0x833: _regs.therm = value; break;
-    case 0x834: _regs.perf = value; break;
-    case 0x835: _regs.lint[0] = value; break;
-    case 0x836: _regs.lint[1] = value; break;
-    case 0x837: _regs.err = value; break;
-    case 0x838:
-      _regs.tmr_init = value;
-      _regs.tmr_cur = value;
-      if (value == 0)
-        _timer.disarm();
+    case Msr_ia32_x2apic_lvt_timer:
+      _apic_timer->write_lvt_timer_reg(value);
       break;
-    case 0x83e: _timer_div = value; break;
-    case 0x83f: // IA32_X2APIC_SELF_IPI
+    case Msr_ia32_x2apic_lvt_thermal: _regs.therm = value; break;
+    case Msr_ia32_x2apic_lvt_pmi: _regs.perf = value; break;
+    case Msr_ia32_x2apic_lvt_lint0: _regs.lint[0] = value; break;
+    case Msr_ia32_x2apic_lvt_lint1: _regs.lint[1] = value; break;
+    case Msr_ia32_x2apic_lvt_error: _regs.err = value; break;
+    case Msr_ia32_x2apic_init_count:
+      _apic_timer->write_tmr_init(value);
+      break;
+    case Msr_ia32_x2apic_div_conf:
+      _apic_timer->write_divide_configuration_reg(value);
+      break;
+    case Msr_ia32_x2apic_self_ipi:
       if (_x2apic_enabled)
         irq_trigger(value & 0xff);
       else
