@@ -169,6 +169,21 @@ struct F : Vdev::Factory
         return 0;
       }
 
+    L4Re::Video::Goos::Info info;
+    if (auto err = gfb->goos()->info(&info))
+      {
+        Err().printf("Failed to get framebuffer information: %s\n",
+                     l4sys_errtostr(err));
+        return 0;
+      }
+
+    if (!info.auto_refresh())
+      {
+        Err().printf("fbdrv currently does not support framebuffers without "
+                     "the auto-refresh feature\n");
+        return 0;
+      }
+
     if (auto err = gfb->view_info(&fb_viewinfo))
       {
         Err().printf("Failed to get view information: %s\n",
