@@ -23,6 +23,7 @@
 #include "io_device.h"
 #include "mmio_device.h"
 #include "vcon_device.h"
+#include "pm_device_if.h"
 
 static Dbg warn(Dbg::Mmio, Dbg::Warn, "uart_8250");
 
@@ -68,7 +69,8 @@ namespace {
 class Uart_8250_base
 : public Vdev::Device,
   public Vcon_device,
-  public L4::Irqep_t<Uart_8250_base>
+  public L4::Irqep_t<Uart_8250_base>,
+  public Vdev::Pm_device
 {
   enum Regs
   {
@@ -165,6 +167,8 @@ class Uart_8250_base
     Lsr_reg() : raw(0x60) {}
     explicit Lsr_reg(l4_uint8_t v) : raw(v) {}
 
+    /// Set, when no transmission is running; clear by reading LSR.
+    CXX_BITFIELD_MEMBER(6, 6, temt, raw);
     /// Set, when data can be written.
     CXX_BITFIELD_MEMBER(5, 5, thre, raw);
     /// Break interrupt.
@@ -193,6 +197,8 @@ class Uart_8250_base
       pe() = 0;
       oe() = 0;
     }
+
+    void reset() { raw = 0x40; }
   };
 
 public:
@@ -328,6 +334,16 @@ public:
       };
   }
 
+  void pm_suspend() override
+  {
+    flush_cons();
+  }
+
+  void pm_resume() override
+  {
+    reset();
+  }
+
 private:
   l4_uint32_t read_char()
   {
@@ -404,6 +420,37 @@ private:
 
     _iir.set_error_irq();
     _sink.inject();
+  }
+
+  // Flush cons channel and drop the data to receive an IRQ on next input.
+  void flush_cons()
+  {
+    int const sz = 100;
+    char dummy[sz];
+    while (_con->read(dummy, sz) > sz)
+      ;
+
+    // clear IRQ sink
+    _sink.ack();
+  }
+
+  /**
+   * Reset the UART state.
+   *
+   * Write reset values to the registers, flush the cons channel and set the
+   * IRQ sink into cleared state.
+   */
+  void reset()
+  {
+    _ier.raw = 0;
+    _iir.clear();
+    _lsr.reset();
+    _lcr.raw = 0;
+    _scr = 0;
+    _dll = 0;
+    _dlm = 0;
+
+    flush_cons();
   }
 
   l4_uint64_t _regshift;
