@@ -20,7 +20,7 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   mmio_device.cc \
                   pm.cc vbus_event.cc vm_memmap.cc vm_ram.cc vm.cc \
                   address_space_manager.cc \
-                  device/rtc-hub.cc
+                  device/rtc-hub.cc pm_device_if.cc
 
 SRC_CC-$(CONFIG_UVMM_PCI_SUPPORT)       += pci_device.cc virt_pci_device.cc
 
