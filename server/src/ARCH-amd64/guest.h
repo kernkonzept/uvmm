@@ -28,6 +28,7 @@
 #include "vm_ram.h"
 #include "binary_loader.h"
 #include "event_recorder.h"
+#include "pm_device_if.h"
 
 namespace Vmm {
 
@@ -124,17 +125,22 @@ public:
 
   void suspend(l4_addr_t wake_vector)
   {
+    Vdev::Pm_device_registry::suspend_devices();
+
     if (!_pm->suspend())
       {
         warn().printf("System suspend not possible. Waking up immediately.\n");
+        Vdev::Pm_device_registry::resume_devices();
         return;
       }
 
     auto vcpu = _cpus->cpu(0)->vcpu();
     /* Go to sleep */
     vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+
     /* Back alive */
     _pm->resume();
+    Vdev::Pm_device_registry::resume_devices();
 
     vcpu.vm_state()->init_state();
     vcpu.vm_state()->setup_real_mode(wake_vector);
