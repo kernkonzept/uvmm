@@ -50,8 +50,9 @@ static std::terminate_handler old_terminate_handler;
 static void uvmm_terminate_handler()
 {
   // Tingling inhibitors would prevent proper system shutdown/reboot/suspend,
-  // so we must free them here.
-  vm_instance.pm()->free_inhibitors();
+  // so we must free them here, iff they're initialized already.
+  if (vm_instance.pm())
+    vm_instance.pm()->free_inhibitors();
   // The upstream terminate handler can show information about the exception
   // and do the cleanup.
   old_terminate_handler();
