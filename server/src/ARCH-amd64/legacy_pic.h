@@ -36,6 +36,11 @@ namespace Vdev {
  */
 class Legacy_pic : public Gic::Ic
 {
+  enum Config
+  {
+    Num_irqs = 16 // Number of IRQs supported by PIC
+  };
+
   enum Ports
   {
     Cmd_port = 0,
@@ -239,6 +244,12 @@ class Legacy_pic : public Gic::Ic
         _isr = 0;
       else
         _isr &= ~(1U << irq);
+
+      if (_is_master)
+        _pic->eoi(irq);
+      else
+        _pic->eoi(irq + 8);
+
       issue_next_interrupt();
     }
 
@@ -386,7 +397,7 @@ public:
   /// Issue a legacy interrupt in range [0, 15]
   void set(unsigned irq) override
   {
-    assert(irq < 16);
+    assert(irq < Num_irqs);
 
     int num = irq < 8 ? _master->trigger(irq) : _slave->trigger(irq - 8);
     // Do we need to set the _master line where the slave is wired to?
@@ -414,12 +425,27 @@ public:
 
   void clear(unsigned) override {}
 
-  void bind_eoi_handler(unsigned, Gic::Eoi_handler *) override
-  { assert(false); }
-
-  Gic::Eoi_handler *get_eoi_handler(unsigned) const override
+  void bind_eoi_handler(unsigned irq, Gic::Eoi_handler *handler) override
   {
-    return nullptr;
+    assert(irq < Num_irqs);
+    if (handler && _sources[irq])
+      throw L4::Runtime_error(-L4_EEXIST);
+
+    _sources[irq] = handler;
+  }
+
+  Gic::Eoi_handler *get_eoi_handler(unsigned irq) const override
+  {
+    assert(irq < Num_irqs);
+    return _sources[irq];
+  }
+
+  void eoi(unsigned irq)
+  {
+    assert(irq < Num_irqs);
+
+    if (_sources[irq])
+      _sources[irq]->eoi();
   }
 
   int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override
@@ -448,6 +474,7 @@ private:
   cxx::Ref_ptr<Chip> _master;
   cxx::Ref_ptr<Chip> _slave;
   cxx::Ref_ptr<Gic::Msix_controller> _distr;
+  Gic::Eoi_handler *_sources[Num_irqs];
 };
 
 } // namespace Vdev
