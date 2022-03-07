@@ -8,6 +8,7 @@
 
 #include "device_tree.h"
 #include "mmio_space_handler.h"
+#include "io_port_handler.h"
 #include "virt_bus.h"
 #include "guest.h"
 #include <l4/vbus/vbus_interfaces.h>
@@ -97,6 +98,18 @@ Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
             .printf("Registering IRQ resource %s.%.4s : 0x%lx\n",
                     dev.dev_info().name, resname, res.start);
           _irqs.mark_irq_present(res.start);
+        }
+      else if (res.type == L4VBUS_RESOURCE_PORT)
+        {
+          Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
+            .printf("Registering IO Port resource %s.%.4s : 0x%lx - 0x%lx\n",
+                    dev.dev_info().name, resname, res.start, res.end);
+          auto region = Io_region::ss(res.start, res.end - res.start + 1,
+                                      Vmm::Region_type::Vbus);
+          L4Re::chksys(_bus->request_ioport(&res),
+                       "Request IO port resource from vBus.");
+          auto handler = Vdev::make_device<Vdev::Io_port_handler>(res.start);
+          devs->vmm()->add_io_device(region, handler);
         }
     }
 }
