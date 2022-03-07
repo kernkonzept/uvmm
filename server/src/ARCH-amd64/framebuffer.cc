@@ -103,15 +103,15 @@ static void configure_framebuffer(void *zeropage)
   si->lfb_linelength = fb_viewinfo.bytes_per_line;
 
   // define color
-  si->lfb_depth  = fb_viewinfo.pixel_info.bits_per_pixel();
+  si->lfb_depth  = fb_viewinfo.pixel_info.bytes_per_pixel() * 8;
   si->red_size   = fb_viewinfo.pixel_info.r().size();
-  si->red_pos    = fb_viewinfo.pixel_info.r().shift();;
-  si->green_size = fb_viewinfo.pixel_info.g().size();;
-  si->green_pos  = fb_viewinfo.pixel_info.g().shift();;;
-  si->blue_size  = fb_viewinfo.pixel_info.b().size();;
-  si->blue_pos   = fb_viewinfo.pixel_info.b().shift();;;
-  si->rsvd_size  = 0;
-  si->rsvd_pos   = 0;
+  si->red_pos    = fb_viewinfo.pixel_info.r().shift();
+  si->green_size = fb_viewinfo.pixel_info.g().size();
+  si->green_pos  = fb_viewinfo.pixel_info.g().shift();
+  si->blue_size  = fb_viewinfo.pixel_info.b().size();
+  si->blue_pos   = fb_viewinfo.pixel_info.b().shift();
+  si->rsvd_size  = fb_viewinfo.pixel_info.padding().size();
+  si->rsvd_pos   = fb_viewinfo.pixel_info.padding().shift();
 }
 } // namespace Vmm
 
