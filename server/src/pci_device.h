@@ -513,7 +513,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
    * \post This may advance the bar offset in case of an 64 bit mmio bar. 64
    *       bit addresses take up two bars.
    */
-  unsigned read_bar(unsigned bar_offs,
+  unsigned read_bar(unsigned bar_offs, unsigned max_bar_offs,
                     l4_uint64_t *addr, l4_uint64_t *size,
                     Pci_cfg_bar::Type *type)
   {
@@ -557,6 +557,10 @@ struct Pci_device : public virtual Vdev::Dev_ref
         size64 = bar_size;
 
         // Process the second 32bit
+        if (bar_offs >= max_bar_offs)
+          L4Re::throw_error(-L4_ERANGE,
+                            "PCI device implements 64-bit MMIO in last BAR.");
+
         cfg_read_raw(bar_offs, &bar, Vmm::Mem_access::Wd32);
         addr64 |= (l4_uint64_t)bar << 32; // shift to upper part
         bar_offs = read_bar_size(bar_offs, bar, &bar_size);
@@ -761,7 +765,8 @@ struct Pci_device : public virtual Vdev::Dev_ref
         Pci_cfg_bar &bar = bars[i];
 
         // Read one bar configuration
-        bar_offs = read_bar(bar_offs, &bar.io_addr, &bar.size, &bar.type);
+        bar_offs = read_bar(bar_offs, max_bar_offset, &bar.io_addr, &bar.size,
+                            &bar.type);
 
         if (bar.type == Pci_cfg_bar::MMIO64)
           bars[i + 1].type = Pci_cfg_bar::Reserved_mmio64_upper;
