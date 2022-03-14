@@ -389,7 +389,7 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_li
     }
   else
     {
-      char const *h = static_cast<char const *>(image->get_header());
+      auto *h = static_cast<unsigned char const *>(image->get_header());
 #ifdef SUPPORT_GZIP_IMAGES
       if (h[0] == 0x1f && h[1] == 0x8b && h[2] == 0x08)
         {
@@ -449,10 +449,10 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_li
 #endif // SUPPORT_GZIP_IMAGES
 
       // Reload the header in case the image changed
-      h = static_cast<char const *>(image->get_header());
+      h = static_cast<unsigned char const *>(image->get_header());
       if (Guest_64bit_supported
-          && h[0x38] == 'A' && h[0x39] == 'R'
-          && h[0x3A] == 'M' && h[0x3B] == '\x64') // Linux header ARM\x64
+          && h[0x38] == 0x41 && h[0x39] == 0x52
+          && h[0x3A] == 0x4d && h[0x3B] == 0x64) // Linux header ARM\x64
         {
           l4_uint64_t l = *reinterpret_cast<l4_uint64_t const *>(&h[8]);
           // Bytes 0xc-0xf have the size
