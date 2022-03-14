@@ -44,17 +44,17 @@ public:
 
   void setup_device_tree(Vdev::Device_tree) {}
 
-  l4_addr_t load_linux_kernel(Vm_ram *ram, char const *kernel,
-                              Ram_free_list *free_list);
+  l4_addr_t load_binary(Vm_ram *ram, char const *binary,
+                        Ram_free_list *free_list);
 
   void prepare_platform(Vdev::Device_lookup *devs)
   { _cpus = devs->cpus(); }
 
   void prepare_vcpu_startup(Vcpu_ptr vcpu, l4_addr_t entry) const;
 
-  void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
-                         Vm_ram *ram, char const *kernel,
-                         char const *cmd_line, l4_addr_t dt);
+  void prepare_binary_run(Vcpu_ptr vcpu, l4_addr_t entry,
+                          Vm_ram *ram, char const *binary,
+                          char const *cmd_line, l4_addr_t dt);
   void run(cxx::Ref_ptr<Cpu_dev_array> cpus);
 
   void L4_NORETURN halt_vm()
@@ -182,7 +182,7 @@ private:
   cxx::Ref_ptr<Gic::Dist_if> _gic;
   cxx::Ref_ptr<Vdev::Core_timer> _timer;
   cxx::Ref_ptr<Cpu_dev_array> _cpus;
-  bool guest_64bit = false;
+  bool _guest_64bit = false;
 
   std::vector<cxx::Ref_ptr<Vmm::Smccc_device>> _smccc_handlers[Num_smcc_methods];
   std::unordered_map<Sys_reg::Key, cxx::Ref_ptr<Sys_reg>> _sys_regs;

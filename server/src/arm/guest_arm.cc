@@ -10,13 +10,6 @@
 #include <l4/re/error_helper>
 #include <l4/vbus/vbus>
 
-#ifdef SUPPORT_GZIP_IMAGES
-#include <l4/sys/factory>
-#include <zlib.h>
-#endif
-
-#include <memory>
-
 #include "binary_loader.h"
 #include "device_factory.h"
 #include "guest.h"
@@ -338,7 +331,7 @@ Guest::check_guest_constraints(l4_addr_t base) const
 {
   Dbg warn(Dbg::Mmio, Dbg::Warn, "ram");
 
-  if (guest_64bit)
+  if (_guest_64bit)
     {
       if (base & ((1UL << 21) - 1))
         warn.printf(
@@ -372,123 +365,15 @@ Guest::check_guest_constraints(l4_addr_t base) const
 }
 
 l4_addr_t
-Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_list)
+Guest::load_binary(Vm_ram *ram, char const *binary, Ram_free_list *free_list)
 {
-  Guest_addr ram_base = free_list->first_free_address();
+  l4_addr_t entry;
+  Vmm::Guest_addr ram_base = free_list->first_free_address();
 
-  l4_addr_t entry = ~0ul;
-  std::unique_ptr<Boot::Binary_ds> image(new Boot::Binary_ds(kernel));
+  Boot::Binary_loader_factory bf;
+  bf.load(binary, ram, free_list, &entry);
 
-  if (image->is_elf_binary())
-    {
-      entry = image->load_as_elf(ram, free_list);
-      guest_64bit = image->is_elf64();
-      if (!Guest_64bit_supported && guest_64bit)
-        L4Re::chksys(-L4_EINVAL, "Running a 64bit guest on a 32bit host is "
-                                 "not possible.");
-    }
-  else
-    {
-      auto *h = static_cast<unsigned char const *>(image->get_header());
-#ifdef SUPPORT_GZIP_IMAGES
-      if (h[0] == 0x1f && h[1] == 0x8b && h[2] == 0x08)
-        {
-          const L4Re::Env *e = L4Re::Env::env();
-          L4Re::Rm::Unique_region<Bytef *> imager_src;
-          L4Re::Rm::Unique_region<Byte *> imager_dst;
-          size_t compr_sz = image->size();
-
-          L4Re::chksys(e->rm()->attach(&imager_src, compr_sz,
-                                       L4Re::Rm::F::Search_addr | L4Re::Rm::F::R,
-                                       L4::Ipc::make_cap_rw(image->ds())),
-                       "Attach compressed file.");
-
-          uint32_t uncompr_sz = *(uint32_t *)&imager_src.get()[compr_sz - 4];
-
-          info().printf("Detected gzip compressed image: uncompressing (%zd -> %u)\n",
-                        compr_sz, uncompr_sz);
-
-          L4::Cap<L4Re::Dataspace> f =
-            L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>(),
-                         "Allocate DS cap for uncompressed memory.");
-
-          L4Re::chksys(e->mem_alloc()->alloc(uncompr_sz, f),
-                       "Allocate memory in dataspace.");
-
-          L4Re::chksys(e->rm()->attach(&imager_dst, uncompr_sz,
-                                       L4Re::Rm::F::Search_addr | L4Re::Rm::F::RW,
-                                       L4::Ipc::make_cap_rw(f)),
-                       "Attach DS for uncompressed data.");
-
-            z_stream strm = {};
-            strm.next_in  = imager_src.get();
-            strm.avail_in = compr_sz;
-
-            int err = inflateInit2(&strm, 47);
-            if (err == Z_OK)
-              {
-                strm.next_out = imager_dst.get();
-                strm.avail_out = uncompr_sz;
-                err = inflate(&strm, Z_NO_FLUSH);
-
-                // Should finish in one round
-                if (err != Z_STREAM_END)
-                  {
-                    Err().printf("zlib decompression error: %s\n", strm.msg);
-                    L4Re::throw_error(-L4_EINVAL);
-                  }
-                else
-                  image.reset(new Boot::Binary_ds(f));
-              }
-            else
-              {
-                Err().printf("zlib init error: %d\n", err);
-                L4Re::throw_error(-L4_EINVAL);
-              }
-        }
-#endif // SUPPORT_GZIP_IMAGES
-
-      // Reload the header in case the image changed
-      h = static_cast<unsigned char const *>(image->get_header());
-      if (Guest_64bit_supported
-          && h[0x38] == 0x41 && h[0x39] == 0x52
-          && h[0x3A] == 0x4d && h[0x3B] == 0x64) // Linux header ARM\x64
-        {
-          l4_uint64_t l = *reinterpret_cast<l4_uint64_t const *>(&h[8]);
-          // Bytes 0xc-0xf have the size
-          entry = image->load_as_raw(ram, ram_base + l, free_list);
-          this->guest_64bit = true;
-        }
-      else if (   h[0x24] == 0x18 && h[0x25] == 0x28
-               && h[0x26] == 0x6f && h[0x27] == 0x01) // Linux magic
-        {
-          l4_uint32_t l = *reinterpret_cast<l4_uint32_t const *>(&h[0x28]);
-          // Bytes 0x2c-0x2f have the zImage size
-          entry = image->load_as_raw(ram, ram_base + l, free_list);
-        }
-      else if (h[0] == 0x1f && h[1] == 0x8b && h[2] == 0x08)
-        // Gzip compressed kernel images are not self-decompressing on ARM
-        L4Re::throw_error(-L4_EINVAL,
-           "Cannot boot compressed images! Unzip first or enable uvmm gzip support.");
-      else if (h[0] == 0x4d && h[1] == 0x5a /* "MZ */)
-        {
-          l4_uint32_t o = *reinterpret_cast<l4_int32_t const *>(&h[0x3c]);
-          if (o <= L4_PAGESIZE - 4
-              && h[o+0] == 0x50 && h[o+1] == 0x45
-              && h[o+2] == 0x00 && h[o+3] == 0x00 /* "PE\0\0" */)
-            L4Re::throw_error(-L4_EINVAL,
-               "Cannot boot EFI images! Was the ARM header stripped?");
-          else
-            L4Re::throw_error(-L4_EINVAL,
-               "Cannot boot images with 'MZ' header.");
-        }
-
-      if (entry == ~0ul)
-        {
-          enum { Default_entry =  0x208000 };
-          entry = image->load_as_raw(ram, ram_base + Default_entry, free_list);
-        }
-    }
+  _guest_64bit = bf.is_64bit();
 
   check_guest_constraints(ram_base.get());
 
@@ -508,7 +393,7 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_li
 void
 Guest::prepare_vcpu_startup(Vcpu_ptr vcpu, l4_addr_t entry) const
 {
-  if (Guest_64bit_supported && guest_64bit)
+  if (Guest_64bit_supported && _guest_64bit)
     vcpu->r.flags = Cpu_dev::Flags_default_64;
   else
     {
@@ -526,14 +411,14 @@ Guest::prepare_vcpu_startup(Vcpu_ptr vcpu, l4_addr_t entry) const
 }
 
 void
-Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
+Guest::prepare_binary_run(Vcpu_ptr vcpu, l4_addr_t entry,
                          Vm_ram * /* ram */, char const * /* kernel */,
                          char const * /* cmd_line */, l4_addr_t dt_boot_addr)
 {
   prepare_vcpu_startup(vcpu, entry);
 
   // Set up the VCPU state as expected by Linux entry
-  if (Guest_64bit_supported && guest_64bit)
+  if (Guest_64bit_supported && _guest_64bit)
     {
       vcpu->r.r[0]  = dt_boot_addr;
       vcpu->r.r[1]  = 0;

@@ -31,26 +31,20 @@ Guest::setup_device_tree(Vdev::Device_tree dt)
 }
 
 l4_addr_t
-Guest::load_linux_kernel(Vm_ram *ram, char const *kernel,
-                         Ram_free_list *free_list)
+Guest::load_binary(Vm_ram *ram, char const *binary, Ram_free_list *free_list)
 {
   l4_addr_t entry;
-  Boot::Binary_ds image(kernel);
-  if (image.is_elf_binary())
-    entry = image.load_as_elf(ram, free_list);
-  else
-    {
-      image.load_as_raw(ram, Guest_addr(0x100000), free_list);
-      entry = ram->guest_phys2boot(Guest_addr(0x100400));
-    }
+
+  Boot::Binary_loader_factory bf;
+  bf.load(binary, ram, free_list, &entry);
 
   return entry;
 }
 
 void
-Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
-                         Vm_ram *ram, char const *kernel,
-                         char const *cmd_line, l4_addr_t dt_boot_addr)
+Guest::prepare_binary_run(Vcpu_ptr vcpu, l4_addr_t entry,
+                          Vm_ram *ram, char const *binary,
+                          char const *cmd_line, l4_addr_t dt_boot_addr)
 {
   /*
    * Setup arguments for Mips boot protocol
@@ -60,8 +54,8 @@ Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry,
   size_t size = 2 * sizeof(l4_addr_t);
   auto prom_buf = prom_tab + size;
 
-  size += strlen(kernel) + 1;
-  strcpy(ram->guest2host<char *>(prom_buf), kernel);
+  size += strlen(binary) + 1;
+  strcpy(ram->guest2host<char *>(prom_buf), binary);
   ram->guest2host<l4_addr_t *>(prom_tab)[0] = ram->guest_phys2boot(prom_buf);
 
   if (cmd_line)

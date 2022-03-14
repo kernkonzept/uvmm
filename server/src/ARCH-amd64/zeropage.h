@@ -14,14 +14,9 @@
 
 #include "debug.h"
 #include "vm_ram.h"
+#include "binary_loader.h"
 
 namespace Vmm {
-
-enum class Binary_type
-{
-  Elf,
-  Linux
-};
 
 enum Boot_param
 {
@@ -133,7 +128,7 @@ public:
   void add_dtb(l4_addr_t dt_addr, l4_size_t size);
 
   static void set_screen_callback(std::function<void (void *)> cb);
-  void write(Vm_ram *ram, Binary_type const gt);
+  void write(Vm_ram *ram, Boot::Binary_type const gt);
 
   Vmm::Guest_addr addr() const { return _gp_addr; }
 

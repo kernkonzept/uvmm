@@ -11,12 +11,4 @@ namespace Vmm {
 
 enum { Guest_64bit_supported = false };
 
-void
-Guest::add_sys_reg_aarch64(unsigned, unsigned,
-                           unsigned, unsigned,
-                           unsigned,
-                           cxx::Ref_ptr<Sys_reg> const &)
-{
-}
-
 }

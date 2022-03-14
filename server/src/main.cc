@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
     = ram->setup_from_device_tree(dt, vmm->memmap(), Vmm::Guest_addr(rambase));
 
   info.printf("Loading kernel...\n");
-  l4_addr_t entry = vmm->load_linux_kernel(ram, kernel_image, &ram_free_list);
+  l4_addr_t entry = vmm->load_binary(ram, kernel_image, &ram_free_list);
 
   dt.set_command_line(cmd_line);
 
@@ -289,8 +289,8 @@ int main(int argc, char *argv[])
 
   vmm->prepare_generic_platform(&vm_instance);
   vmm->prepare_platform(&vm_instance);
-  vmm->prepare_linux_run(vm_instance.cpus()->vcpu(0), entry, ram, kernel_image,
-                         cmd_line, dt_boot_addr);
+  vmm->prepare_binary_run(vm_instance.cpus()->vcpu(0), entry, ram, kernel_image,
+                          cmd_line, dt_boot_addr);
 
   info.printf("Populating RAM of virtual machine\n");
   vmm->map_eager();

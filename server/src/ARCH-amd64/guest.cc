@@ -10,7 +10,6 @@
 #include <l4/sys/kdebug.h>
 #include <l4/sys/debugger.h>
 
-#include "binary_loader.h"
 #include "guest.h"
 #include "debug.h"
 #include "vm_state_vmx.h"
@@ -134,45 +133,17 @@ Guest::register_cpuid_device(cxx::Ref_ptr<Cpuid_device> const &dev)
 }
 
 l4_addr_t
-Guest::load_linux_kernel(Vm_ram *ram, char const *kernel,
-                         Ram_free_list *free_list)
+Guest::load_binary(Vm_ram *ram, char const *binary, Ram_free_list *free_list)
 {
   l4_addr_t entry;
-  Boot::Binary_ds image(kernel);
 
-  if (image.is_elf_binary())
-    {
-      entry = image.load_as_elf(ram, free_list);
-      _guest_t = Binary_type::Elf;
-    }
-  else
-    {
-      l4_uint8_t num_setup_sects =
-        *((char *)image.get_header() + Bp_setup_sects);
-      trace().printf("number of setup sections found: 0x%x\n", num_setup_sects);
+  Boot::Binary_loader_factory bf;
+  bf.load(binary, ram, free_list, &entry);
 
-      // 512 is the size of a segment
-      l4_addr_t setup_sects_size = (num_setup_sects + 1) * 512;
-
-      if (Linux_kernel_start_addr < setup_sects_size)
-        L4Re::chksys(-L4_EINVAL,
-                     "Supplied kernel image contains an invalid number "
-                     " of setup sections (zeropage).");
-
-      entry = Linux_kernel_start_addr - setup_sects_size;
-      trace().printf("size of setup sections: 0x%lx\n", setup_sects_size);
-      trace().printf("loading binary at: 0x%lx\n", entry);
-
-      // load the binary starting after the boot_params
-      auto z = image.load_as_raw(ram, ram->boot2guest_phys(entry), free_list);
-      trace().printf("Loaded kernel image as raw to 0x%lx\n", z);
-      trace().printf("load kernel as raw entry to 0x%lx\n",
-                     ram->guest_phys2boot(Vmm::Guest_addr(Linux_kernel_start_addr)));
-      _guest_t = Binary_type::Linux;
-    }
+  _guest_t = bf.type();
 
   // Reserve Zero-page and cmdline space: One page and 4k for the cmdline.
-  // XXX It shall move to prepare_linux_run, when the parameter set of that
+  // XXX It shall move to prepare_binary_run, when the parameter set of that
   // function is changed.
   free_list->reserve_fixed(Vmm::Guest_addr(L4_PAGESIZE), L4_PAGESIZE + 0x1000);
 
@@ -212,9 +183,9 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
   acpi_tables.write_to_guest(_cpus->max_cpuid() + 1);
 }
 
-void Guest::prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
-                              char const * /* kernel */, char const *cmd_line,
-                              l4_addr_t dt_boot_addr)
+void Guest::prepare_binary_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
+                               char const * /* binary */, char const *cmd_line,
+                               l4_addr_t dt_boot_addr)
 {
   // use second memory page as zeropage location
   Zeropage zpage(Vmm::Guest_addr(L4_PAGESIZE), entry);

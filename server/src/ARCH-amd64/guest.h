@@ -26,6 +26,7 @@
 #include "zeropage.h"
 #include "pt_walker.h"
 #include "vm_ram.h"
+#include "binary_loader.h"
 
 namespace Vmm {
 
@@ -106,14 +107,14 @@ public:
     _clocks[vcpu_no].add_timer(dev);
   }
 
-  l4_addr_t load_linux_kernel(Vm_ram *ram, char const *kernel,
-                              Ram_free_list *free_list);
+  l4_addr_t load_binary(Vm_ram *ram, char const *binary,
+                        Ram_free_list *free_list);
 
   void prepare_platform(Vdev::Device_lookup *devs);
 
-  void prepare_linux_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
-                         char const *kernel, char const *cmd_line,
-                         l4_addr_t dt_boot_addr);
+  void prepare_binary_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
+                          char const *binary, char const *cmd_line,
+                          l4_addr_t dt_boot_addr);
 
   void run(cxx::Ref_ptr<Cpu_dev_array> const &cpus);
 
@@ -154,10 +155,8 @@ public:
   void run_vmx(Vcpu_ptr vcpu) L4_NORETURN;
 
 private:
-  // guest physical address
   enum : unsigned
   {
-    Linux_kernel_start_addr = 0x100000,
     Max_phys_addr_bits_mask = 0xff,
   };
 
@@ -205,7 +204,7 @@ private:
   cxx::Ref_ptr<Gic::Lapic_array> _apics;
   cxx::Ref_ptr<Gic::Icr_handler> _icr_handler;
   cxx::Ref_ptr<Gic::Lapic_access_handler> _lapic_access_handler;
-  Binary_type _guest_t;
+  Boot::Binary_type _guest_t;
   cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
 };
 

@@ -63,7 +63,7 @@ void Zeropage::set_screen_callback(std::function<void (void *)> cb)
   _screen_cb = cb;
 }
 
-void Zeropage::write(Vm_ram *ram, Binary_type const gt)
+void Zeropage::write(Vm_ram *ram, Boot::Binary_type const gt)
 {
   memset(ram->guest2host<void *>(_gp_addr), 0, L4_PAGESIZE);
 
@@ -72,7 +72,7 @@ void Zeropage::write(Vm_ram *ram, Binary_type const gt)
 
   switch (gt)
     {
-    case Binary_type::Elf:
+    case Boot::Binary_type::Elf:
       // Note: The _kbinary variable contains the ELF binary entry
       write_dtb(ram);
       set_header<l4_addr_t>(ram, Bp_code32_start, _kbinary.get());
@@ -85,7 +85,7 @@ void Zeropage::write(Vm_ram *ram, Binary_type const gt)
                     get_header<l4_addr_t>(ram, Bp_code32_start));
       break;
 
-    case Binary_type::Linux:
+    case Boot::Binary_type::Linux:
       {
         // Note: The _kbinary variable contains start of the kernel binary
 
@@ -100,6 +100,9 @@ void Zeropage::write(Vm_ram *ram, Binary_type const gt)
                boot_hdr_size);
         break;
       }
+    default:
+      L4Re::throw_error(-L4_EINVAL, "Unsupported binary type.");
+      break;
     }
 
   write_cmdline(ram);

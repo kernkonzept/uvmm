@@ -37,7 +37,7 @@ CXXFLAGS-amd64-l4f-$(CONFIG_UVMM_MONITOR) += -DGUEST_DEBUGGER_SUPPORT
 endif
 SRC_CC_arm-common = arm/gic.cc arm/gic-v2.cc arm/gic-v3.cc \
                     arm/guest_arm.cc arm/cpu_dev_arm.cc \
-                    io_port_handler_noop.cc
+                    io_port_handler_noop.cc ARCH-$(ARCH)/guest_subarch.cc
 
 SRC_CC_arm-l4f   = $(SRC_CC_arm-common)
 SRC_CC_arm64-l4f = $(SRC_CC_arm-common)
@@ -84,10 +84,13 @@ else
 SRC_CC_arm-common += arm/guest_arm_noexc.cc
 endif
 
-DEFINES_arm-l4f-$(CONFIG_UVMM_GZIP_IMAGES) += -DSUPPORT_GZIP_IMAGES
-REQUIRES_LIBS_arm-l4f-$(CONFIG_UVMM_GZIP_IMAGES) += zlib
-DEFINES_arm64-l4f-$(CONFIG_UVMM_GZIP_IMAGES) += -DSUPPORT_GZIP_IMAGES
-REQUIRES_LIBS_arm64-l4f-$(CONFIG_UVMM_GZIP_IMAGES) += zlib
+SRC_CC += binary_loader.cc binary_loader_raw.cc binary_loader_elf.cc binary_loader_pe.cc
+SRC_CC_amd64-l4f += ARCH-amd64/binary_loader_linux.cc
+SRC_CC_arm-common += arm/binary_loader_linux.cc
+SRC_CC_arm-l4f-$(CONFIG_UVMM_LOADER_GZIP) += arm/binary_loader_linux_compressed.cc
+SRC_CC_arm64-l4f-$(CONFIG_UVMM_LOADER_GZIP) += arm/binary_loader_linux_compressed.cc
+REQUIRES_LIBS_arm-l4f-$(CONFIG_UVMM_LOADER_GZIP) += zlib
+REQUIRES_LIBS_arm64-l4f-$(CONFIG_UVMM_LOADER_GZIP) += zlib
 
 include $(wildcard $(PKGDIR)/server/src/Makefile.devs.*)
 
