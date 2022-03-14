@@ -49,7 +49,10 @@ public:
   ~Fdt()
   {
     if (_owned && _dtmem)
-      free(_dtmem);
+      {
+        free(_dtmem);
+        _dtmem = nullptr;
+      }
   }
 
   size_t size() const
