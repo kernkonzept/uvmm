@@ -42,6 +42,7 @@ class Kvm_clock : public Vdev::Timer, public Device
 public:
   Kvm_clock(Vcpu_time_info *vti, bool enable)
   {
+    l4_calibrate_tsc(l4re_kip());
     configure(vti, enable);
   }
 
@@ -218,7 +219,7 @@ private:
       {
         auto clock_dev = Vdev::make_device<Kvm_clock>(vti, enable);
         _clocks[core_no] = clock_dev;
-        _vmm->register_timer_device(clock_dev, core_no);
+        clock_dev->tick();
       }
   }
 
