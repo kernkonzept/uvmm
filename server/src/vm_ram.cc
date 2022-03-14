@@ -141,7 +141,7 @@ Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, Vmm::Guest_addr base
 {
   cxx::Ref_ptr<Ram_ds> r = cxx::make_ref_obj<Ram_ds>(ds, size, ds_offset);
 
-  if (r->setup(baseaddr, as_mgr()) < 0)
+  if (!r || r->setup(baseaddr, as_mgr()) < 0)
     return -1;
 
   auto dsdev = Vdev::make_device<Ds_handler>(r);
