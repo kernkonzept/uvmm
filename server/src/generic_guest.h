@@ -203,6 +203,8 @@ public:
     std::lock_guard<std::mutex> g(_memmap_lock);
     Vm_mem::const_iterator f = _memmap.find(region);
     assert(f != _memmap.end());
+    if (f == _memmap.end())
+      return;
     f->second->unmap_guest_range(_task.get(), region.start,
                                  region.end.get() - region.start.get() + 1U);
     _memmap.erase(f);
