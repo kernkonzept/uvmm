@@ -506,7 +506,7 @@ public:
         // the ICR should be written.
         if (mmio)
           _icr[vcpu_no] =
-            (_icr[vcpu_no] & 0xffffffff00000000UL) | (value & 0xffffffffU);
+            (_icr[vcpu_no] & 0xffffffff00000000ULL) | (value & 0xffffffffULL);
         else
           _icr[vcpu_no] = value;
         // Vol. 3A 10.6.1: "The act of writing to the low doubleword of the ICR
@@ -514,7 +514,7 @@ public:
         send_ipi(_icr[vcpu_no], vcpu_no, !mmio);
         return true;
       case Icr_mmio_ext:
-        _icr[vcpu_no] = (_icr[vcpu_no] & 0xffffffffU) | (value << 32);
+        _icr[vcpu_no] = (_icr[vcpu_no] & 0xffffffffULL) | (value << 32);
         return true;
       default:
         return false;
@@ -599,6 +599,7 @@ private:
       case Destination_shorthand::Self:
         addr.dest_id() = vcpu_no & 0xffU;
         addr.dest_id_upper() = x2apic ? vcpu_no >> 8 : 0U;
+        addr.dest_mode() = 0; // physical addressing
         _msix_ctrl->send(addr.raw, data.raw);
         break;
       case Destination_shorthand::All_including_self:
@@ -606,6 +607,7 @@ private:
           {
             addr.dest_id() = i & 0xffU;
             addr.dest_id_upper() = x2apic ? i >> 8 : 0U;
+            addr.dest_mode() = 0; // physical addressing
             _msix_ctrl->send(addr.raw, data.raw);
           }
         break;
@@ -616,6 +618,7 @@ private:
               continue;
             addr.dest_id() = i & 0xffU;
             addr.dest_id_upper() = x2apic ? i >> 8 : 0U;
+            addr.dest_mode() = 0; // physical addressing
             _msix_ctrl->send(addr.raw, data.raw);
           }
       }
