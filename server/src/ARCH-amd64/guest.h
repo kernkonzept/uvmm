@@ -112,7 +112,7 @@ public:
 
   void prepare_platform(Vdev::Device_lookup *devs);
 
-  void prepare_binary_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
+  void prepare_binary_run(Vdev::Device_lookup *devs, l4_addr_t entry,
                           char const *binary, char const *cmd_line,
                           l4_addr_t dt_boot_addr);
 

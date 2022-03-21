@@ -411,10 +411,11 @@ Guest::prepare_vcpu_startup(Vcpu_ptr vcpu, l4_addr_t entry) const
 }
 
 void
-Guest::prepare_binary_run(Vcpu_ptr vcpu, l4_addr_t entry,
-                         Vm_ram * /* ram */, char const * /* kernel */,
-                         char const * /* cmd_line */, l4_addr_t dt_boot_addr)
+Guest::prepare_binary_run(Vdev::Device_lookup *devs, l4_addr_t entry,
+                          char const * /*kernel*/, char const * /*cmd_line*/,
+                          l4_addr_t dt_boot_addr)
 {
+  Vcpu_ptr vcpu = devs->cpus()->vcpu(0);
   prepare_vcpu_startup(vcpu, entry);
 
   // Set up the VCPU state as expected by Linux entry

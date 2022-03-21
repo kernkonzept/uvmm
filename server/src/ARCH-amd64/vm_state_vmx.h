@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include <l4/re/error_helper>
 #include <l4/sys/vm>
 
 #include <l4/cxx/bitfield>
@@ -13,6 +14,7 @@
 #include "vmcs.h"
 #include "vm_state.h"
 #include "debug.h"
+#include <cstdio>
 
 #include <cassert>
 
@@ -292,31 +294,43 @@ public:
   /**
    * Setup Application Processors in Real Mode.
    *
-   * The entry page is set up using the Code Segment because Linux uses an
-   * entry page address larger than 16 bits, hence the 20 bit Segment Base is
-   * set up according to Vol. 3B, 20.1.1 Figure 20-1 and the instruction
-   * pointer is set to zero.
+   * Processor setup according to manual Volume 3B 9.1.1. The other case
+   * handled is when a startup-IPI (SIPI, Volume 3B 8.4.3) is received. Any
+   * other start address is architecturally undefined.
    */
   void setup_real_mode(l4_addr_t entry) override
   {
-    // 9.9.2 Switching Back to Real-Address Mode
-    vmx_write(VMCS_GUEST_CS_SELECTOR, (entry >> 4));
-    // 3.4.5 Segment Descriptors
+    if (entry == 0xfffffff0U)
+      {
+        // Bootstrap Processor (BSP) boot
+        vmx_write(VMCS_GUEST_CS_SELECTOR, 0xf000U);
+        vmx_write(VMCS_GUEST_CS_BASE, 0xffff0000U);
+        vmx_write(VMCS_GUEST_RIP, 0xfff0U);
+      }
+    else if ((entry & ~(l4_addr_t)0x00ff000U) == 0)
+      {
+        // Application Processor (AP) boot via Startup IPI (SIPI)
+        vmx_write(VMCS_GUEST_CS_SELECTOR, (entry >> 4));
+        vmx_write(VMCS_GUEST_CS_BASE, entry);
+        vmx_write(VMCS_GUEST_RIP, 0);
+      }
+    else
+      L4Re::throw_error(-L4_EINVAL, "Invalid CPU startup address");
+
     vmx_write(VMCS_GUEST_CS_ACCESS_RIGHTS, 0x9b);
     vmx_write(VMCS_GUEST_CS_LIMIT, 0xffff);
-    vmx_write(VMCS_GUEST_CS_BASE, entry);
 
-    vmx_write(VMCS_GUEST_SS_SELECTOR, 0x18);
+    vmx_write(VMCS_GUEST_SS_SELECTOR, 0);
     vmx_write(VMCS_GUEST_SS_ACCESS_RIGHTS, 0x93);
     vmx_write(VMCS_GUEST_SS_LIMIT, 0xffff);
     vmx_write(VMCS_GUEST_SS_BASE, 0);
 
-    vmx_write(VMCS_GUEST_DS_SELECTOR, 0x18);
+    vmx_write(VMCS_GUEST_DS_SELECTOR, 0);
     vmx_write(VMCS_GUEST_DS_ACCESS_RIGHTS, 0x93);
     vmx_write(VMCS_GUEST_DS_LIMIT, 0xffff);
     vmx_write(VMCS_GUEST_DS_BASE, 0);
 
-    vmx_write(VMCS_GUEST_ES_SELECTOR, 0x18);
+    vmx_write(VMCS_GUEST_ES_SELECTOR, 0);
     vmx_write(VMCS_GUEST_ES_ACCESS_RIGHTS, 0x93);
     vmx_write(VMCS_GUEST_ES_LIMIT, 0xffff);
     vmx_write(VMCS_GUEST_ES_BASE, 0);
@@ -336,7 +350,6 @@ public:
     vmx_write(VMCS_GUEST_TR_LIMIT, 0xffff);
     vmx_write(VMCS_GUEST_TR_BASE, 0);
 
-    vmx_write(VMCS_GUEST_RIP, 0);
     vmx_write(VMCS_GUEST_RSP, 0);
     vmx_write(VMCS_GUEST_CR0, 0x10030);
     vmx_write(VMCS_CR0_READ_SHADOW, 0x10030);

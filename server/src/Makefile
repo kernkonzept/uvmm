@@ -91,6 +91,7 @@ SRC_CC_arm-common += arm/guest_arm_noexc.cc
 endif
 
 SRC_CC += binary_loader.cc binary_loader_raw.cc binary_loader_elf.cc binary_loader_pe.cc
+SRC_CC-$(CONFIG_UVMM_LOADER_ROM) += binary_loader_rom.cc
 SRC_CC_amd64-l4f += ARCH-amd64/binary_loader_linux.cc
 SRC_CC_arm-common += arm/binary_loader_linux.cc
 SRC_CC_arm-l4f-$(CONFIG_UVMM_LOADER_GZIP) += arm/binary_loader_linux_compressed.cc

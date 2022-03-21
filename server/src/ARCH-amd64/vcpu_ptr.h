@@ -57,7 +57,7 @@ public:
     *decode_reg_ptr(_s->user_data[Reg_mmio_read]) = m.value;
   }
 
-  void reset();
+  void reset(bool protected_mode);
 
   l4_umword_t ucode_revision() const
   { return _s->user_data[Reg_ucode_rev]; }

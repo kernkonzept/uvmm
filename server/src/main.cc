@@ -292,8 +292,8 @@ int main(int argc, char *argv[])
 
   vmm->prepare_generic_platform(&vm_instance);
   vmm->prepare_platform(&vm_instance);
-  vmm->prepare_binary_run(vm_instance.cpus()->vcpu(0), entry, ram, kernel_image,
-                          cmd_line, dt_boot_addr);
+  vmm->prepare_binary_run(&vm_instance, entry, kernel_image, cmd_line,
+                          dt_boot_addr);
 
   info.printf("Populating RAM of virtual machine\n");
   vmm->map_eager();

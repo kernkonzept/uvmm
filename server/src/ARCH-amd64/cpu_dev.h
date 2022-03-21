@@ -39,7 +39,7 @@ public:
     _vcpu->state = L4_VCPU_F_FPU_ENABLED;
     _vcpu->saved_state = L4_VCPU_F_FPU_ENABLED | L4_VCPU_F_USER_MODE;
 
-    _vcpu.reset();
+    _vcpu.reset(_protected_mode);
   }
 
   /**
@@ -63,8 +63,12 @@ public:
   void set_cpu_state(Cpu_state state)
   { _cpu_state = state; }
 
+  void set_protected_mode()
+  { _protected_mode = true; }
+
 private:
   Cpu_state _cpu_state;
+  bool _protected_mode = false;
 
 }; // class Cpu_dev
 

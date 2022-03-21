@@ -42,10 +42,13 @@ Guest::load_binary(Vm_ram *ram, char const *binary, Ram_free_list *free_list)
 }
 
 void
-Guest::prepare_binary_run(Vcpu_ptr vcpu, l4_addr_t entry,
-                          Vm_ram *ram, char const *binary,
-                          char const *cmd_line, l4_addr_t dt_boot_addr)
+Guest::prepare_binary_run(Vdev::Device_lookup *devs, l4_addr_t entry,
+                          char const *binary, char const *cmd_line,
+                          l4_addr_t dt_boot_addr)
 {
+  Vcpu_ptr vcpu = devs->cpus()->vcpu(0);
+  Vm_ram *ram = devs->ram().get();
+
   /*
    * Setup arguments for Mips boot protocol
    */

@@ -178,53 +178,65 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
   register_msr_device(Vdev::make_device<Vcpu_msr_handler>(_cpus.get()));
   register_msr_device(
     Vdev::make_device<Vdev::Microcode_revision>(_cpus->vcpu(0)));
-
-  Acpi::Bios_tables acpi_tables(devs->ram());
-  acpi_tables.write_to_guest(_cpus->max_cpuid() + 1);
 }
 
-void Guest::prepare_binary_run(Vcpu_ptr vcpu, l4_addr_t entry, Vm_ram *ram,
-                               char const * /* binary */, char const *cmd_line,
-                               l4_addr_t dt_boot_addr)
+void
+Guest::prepare_binary_run(Vdev::Device_lookup *devs, l4_addr_t entry,
+                          char const * /*binary*/, char const *cmd_line,
+                          l4_addr_t dt_boot_addr)
 {
-  // use second memory page as zeropage location
-  Zeropage zpage(Vmm::Guest_addr(L4_PAGESIZE), entry);
+  auto cpus = devs->cpus();
+  Vcpu_ptr vcpu = cpus->vcpu(0);
 
-  if (dt_boot_addr)
+  if (_guest_t == Boot::Rom)
+    vcpu->r.ip = entry;
+  else
     {
-      // read initrd addr and size from device tree
-      Vmm::Guest_addr dt_addr = ram->boot2guest_phys(dt_boot_addr);
-      Dtb::Fdt fdt(ram->guest2host<void *>(dt_addr));
-      auto dt = Vdev::Device_tree(&fdt);
-      int prop_sz1, prop_sz2;
-      auto node = dt.path_offset("/chosen");
-      auto prop_start = node.get_prop<fdt32_t>("linux,initrd-start", &prop_sz1);
-      auto prop_end = node.get_prop<fdt32_t>("linux,initrd-end", &prop_sz2);
+      Vm_ram *ram = devs->ram().get();
 
-      if (prop_start && prop_end)
+      Acpi::Bios_tables acpi_tables(devs->ram());
+      acpi_tables.write_to_guest(_cpus->max_cpuid() + 1);
+
+      // use second memory page as zeropage location
+      Zeropage zpage(Vmm::Guest_addr(L4_PAGESIZE), entry);
+
+      if (dt_boot_addr)
         {
-          auto rd_start = node.get_prop_val(prop_start, prop_sz1, 0);
-          auto rd_end = node.get_prop_val(prop_end, prop_sz2, 0);
-          zpage.add_ramdisk(rd_start, rd_end - rd_start);
+          // read initrd addr and size from device tree
+          Vmm::Guest_addr dt_addr = ram->boot2guest_phys(dt_boot_addr);
+          Dtb::Fdt fdt(ram->guest2host<void *>(dt_addr));
+          auto dt = Vdev::Device_tree(&fdt);
+          int prop_sz1, prop_sz2;
+          auto node = dt.path_offset("/chosen");
+          auto prop_start = node.get_prop<fdt32_t>("linux,initrd-start", &prop_sz1);
+          auto prop_end = node.get_prop<fdt32_t>("linux,initrd-end", &prop_sz2);
+
+          if (prop_start && prop_end)
+            {
+              auto rd_start = node.get_prop_val(prop_start, prop_sz1, 0);
+              auto rd_end = node.get_prop_val(prop_end, prop_sz2, 0);
+              zpage.add_ramdisk(rd_start, rd_end - rd_start);
+            }
+          else
+            warn().printf("No ramdisk found in device tree.\n");
+
+          zpage.add_dtb(dt_boot_addr, dt.size());
         }
-      else
-        warn().printf("No ramdisk found in device tree.\n");
 
-      zpage.add_dtb(dt_boot_addr, dt.size());
+      if (cmd_line)
+        zpage.add_cmdline(cmd_line);
+
+      zpage.cfg_e820(ram);
+      // write zeropage to VM ram
+      zpage.write(ram, _guest_t);
+
+      vcpu->r.ip = zpage.entry(ram);
+      vcpu->r.si = zpage.addr().get();
+      cpus->cpu(0)->set_protected_mode();
+
+      trace().printf("Zeropage setup: vCPU ip: 0x%lx, si: 0x%lx\n", vcpu->r.ip,
+                     vcpu->r.si);
     }
-
-  if (cmd_line)
-    zpage.add_cmdline(cmd_line);
-
-  zpage.cfg_e820(ram);
-  // write zeropage to VM ram
-  zpage.write(ram, _guest_t);
-
-  vcpu->r.ip = zpage.entry(ram);
-  vcpu->r.si = zpage.addr().get();
-
-  trace().printf("Zeropage setup: vCPU ip: 0x%lx, si: 0x%lx\n", vcpu->r.ip,
-                 vcpu->r.si);
 }
 
 int
@@ -748,6 +760,10 @@ Guest::run_vmx(Vcpu_ptr vcpu)
           if (ret < 0)
             {
               trace().printf("Failure in VMM %i\n", ret);
+              trace().printf("regs: AX 0x%lx, BX 0x%lx, CX 0x%lx, DX 0x%lx, SI 0x%lx, "
+                             "DI 0x%lx, IP 0x%lx\n",
+                             vcpu->r.ax, vcpu->r.bx, vcpu->r.cx, vcpu->r.dx,
+                             vcpu->r.si, vcpu->r.di, vm->ip());
               halt_vm();
             }
           else if (ret == Jump_instr)

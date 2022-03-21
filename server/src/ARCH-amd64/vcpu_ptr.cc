@@ -140,14 +140,14 @@ Vcpu_ptr::decode_reg_ptr(int value) const
 }
 
 void
-Vcpu_ptr::reset()
+Vcpu_ptr::reset(bool protected_mode)
 {
   vm_state()->init_state();
 
-  // The guests's loader starts Linux in Protected Mode.
-  // However, following a Startup IPI, Application Processors are expected to
-  // come up in Real Mode.
-  if (get_vcpu_id() == 0)
+  // If Uvmm is to boot a Linux kernel directly, it will do so in protected
+  // mode as is required in Linux' boot protocol. Otherwise the Boot and
+  // Application Processors are expected to come up in Real Mode.
+  if (protected_mode)
     vm_state()->setup_protected_mode(_s->r.ip);
   else
     vm_state()->setup_real_mode(_s->r.ip);

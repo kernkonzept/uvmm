@@ -52,9 +52,9 @@ public:
 
   void prepare_vcpu_startup(Vcpu_ptr vcpu, l4_addr_t entry) const;
 
-  void prepare_binary_run(Vcpu_ptr vcpu, l4_addr_t entry,
-                          Vm_ram *ram, char const *binary,
-                          char const *cmd_line, l4_addr_t dt);
+  void prepare_binary_run(Vdev::Device_lookup *devs, l4_addr_t entry,
+                          char const *binary, char const *cmd_line,
+                          l4_addr_t dt_boot_addr);
   void run(cxx::Ref_ptr<Cpu_dev_array> cpus);
 
   void L4_NORETURN halt_vm()
