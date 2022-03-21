@@ -38,7 +38,7 @@ Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
   int res = node.get_reg_val(index, &base, &size, &flags);
   if (res < 0)
     {
-      Err().printf("Failed to read 'reg' with index %lu from node %s: %s\n",
+      Err().printf("Failed to read 'reg' with index %zu from node %s: %s\n",
                    index, node.get_name(), node.strerror(res));
       L4Re::throw_error(
         -L4_EINVAL,
@@ -48,7 +48,7 @@ Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
   if (!flags.is_mmio())
     {
       Err()
-        .printf("Invalid 'reg' property at index %lu of node %s: not an mmio region\n",
+        .printf("Invalid 'reg' property at index %zu of node %s: not an mmio region\n",
                 index, node.get_name());
       L4Re::throw_error(-L4_EINVAL, "Reg property contains an MMIO region.");
     }
