@@ -362,8 +362,12 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
         _timer.disarm();
       break;
     case 0x83e: _timer_div = value; break;
-    case 0x83f:
-      Dbg().printf("TODO: self IPI\n");
+    case 0x83f: // IA32_X2APIC_SELF_IPI
+      if (_x2apic_enabled)
+        irq_trigger(value & 0xff);
+      else
+        // if X2APIC is not enabled, writing IA32_SELF_IPI incurs a #GP
+        return false;
       break;
 
     default: return false;
