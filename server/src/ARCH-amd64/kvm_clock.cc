@@ -19,6 +19,7 @@ struct F : Vdev::Factory
                                                        devs->vmm());
 
     devs->vmm()->register_msr_device(dev);
+    devs->vmm()->register_cpuid_device(dev);
 
     return dev;
   }

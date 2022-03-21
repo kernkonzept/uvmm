@@ -125,6 +125,13 @@ void Guest::register_msr_device(cxx::Ref_ptr<Msr_device> const &dev)
   trace().printf("New MSR device %p\n", dev.get());
 }
 
+void
+Guest::register_cpuid_device(cxx::Ref_ptr<Cpuid_device> const &dev)
+{
+  _cpuid_devices.push_back(dev);
+  trace().printf("New CPUID device %p\n", dev.get());
+}
+
 l4_addr_t
 Guest::load_linux_kernel(Vm_ram *ram, char const *kernel,
                          Ram_free_list *free_list)
@@ -291,31 +298,10 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
   auto rax = regs->ax;
   auto rcx = regs->cx;
 
-  if (rax >= 0x40000000 && rax < 0x40010000)
+  if (rax >= 0x40000000 && rax <= 0x4fffffff)
     {
-      switch (rax)
-        {
-        case 0x40000000:
-          a = 0x40000001;   // max CPUID leaf in the 0x4000'0000 range.
-          b = 0x4b4d564b;   // "KVMK"
-          c = 0x564b4d56;   // "VMKV"
-          d = 0x4d;         // "M\0\0\0"
-          break;
-
-        case 0x40000001:
-          enum Cpuid_kvm_constants
-          {
-            Kvm_feature_clocksource = 1UL, // clock at msr 0x11 & 0x12
-            Kvm_feature_clocksource2 = 1UL << 3, // clock at msrs 0x4b564d00 & 01;
-          };
-          a = Kvm_feature_clocksource2;
-          d = 0;
-          b = c = 0;
-          break;
-
-        default:
-          a = b = c = d = 0;
-        }
+      if (!handle_cpuid_devices(regs, &a, &b, &c, &d))
+        a = b = c = d = 0;
     }
   else
     asm("cpuid"
@@ -515,6 +501,18 @@ Guest::msr_devices_rwmsr(l4_vcpu_regs_t *regs, bool write, unsigned vcpu_no)
         }
     }
 
+  return false;
+}
+
+bool
+Guest::handle_cpuid_devices(l4_vcpu_regs_t const *regs, unsigned *a,
+                            unsigned *b, unsigned *c, unsigned *d)
+{
+  for (auto &dev : _cpuid_devices)
+    {
+      if (dev->handle_cpuid(regs, a, b, c, d))
+        return true;
+    }
   return false;
 }
 

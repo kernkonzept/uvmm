@@ -14,6 +14,7 @@
 #include "debug.h"
 #include "mem_types.h"
 #include "msr_device.h"
+#include "cpuid_device.h"
 #include "vm_ram.h"
 #include "ds_mmio_mapper.h"
 #include "cpu_dev.h"
@@ -76,7 +77,9 @@ private:
   std::mutex _mutex;
 };
 
-class Kvm_clock_ctrl : public Vmm::Msr_device, public Device
+class Kvm_clock_ctrl : public Vmm::Msr_device,
+                       public Vmm::Cpuid_device,
+                       public Device
 {
   struct Wall_clock
   {
@@ -155,6 +158,33 @@ public:
       }
 
     return true;
+  }
+
+  bool handle_cpuid(l4_vcpu_regs_t const *regs, unsigned *a, unsigned *b,
+                    unsigned *c, unsigned *d) const override
+  {
+    enum Cpuid_kvm_constants
+    {
+      Kvm_feature_clocksource = 1UL,       // clock at msr 0x11 & 0x12
+      Kvm_feature_clocksource2 = 1UL << 3, // clock at msrs 0x4b564d00 & 01;
+    };
+
+    switch (regs->ax)
+      {
+        case 0x40000000:
+          *a = 0x40000001; // max CPUID leaf in the 0x4000'0000 range.
+          *b = 0x4b4d564b; // "KVMK"
+          *c = 0x564b4d56; // "VMKV"
+          *d = 0x4d;       // "M\0\0\0"
+          return true;
+        case 0x40000001:
+          *a = Kvm_feature_clocksource2;
+          *d = 0;
+          *b = *c = 0;
+          return true;
+        default:
+          return false;
+      }
   }
 
 private:

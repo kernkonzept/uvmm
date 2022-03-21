@@ -17,6 +17,7 @@
 #include "cpu_dev_array.h"
 #include "generic_guest.h"
 #include "msr_device.h"
+#include "cpuid_device.h"
 #include "mem_access.h"
 #include "timer.h"
 #include "vcpu_ptr.h"
@@ -73,6 +74,13 @@ public:
   { return &_iomap; }
 
   void register_msr_device(cxx::Ref_ptr<Msr_device> const &dev);
+
+  /**
+   * Register a CPUID-handling device in a list.
+   *
+   * \param dev   CPUID-handling device to register.
+   */
+  void register_cpuid_device(cxx::Ref_ptr<Cpuid_device> const &dev);
 
   /**
    * Register a device for a timer.
@@ -152,11 +160,19 @@ private:
   }
 
   bool msr_devices_rwmsr(l4_vcpu_regs_t *regs, bool write, unsigned vcpu_no);
+  /**
+   * Attempt to handle the CPUID instruction by consecutively trying handlers
+   * of the CPUID-handling devices registered in the _cpuid_devices list. The
+   * list is traversed from the front to the back.
+   */
+  bool handle_cpuid_devices(l4_vcpu_regs_t const *regs, unsigned *a,
+                            unsigned *b, unsigned *c, unsigned *d);
 
   std::mutex _iomap_lock;
   Io_mem _iomap;
 
   std::vector<cxx::Ref_ptr<Msr_device>> _msr_devices;
+  std::vector<cxx::Ref_ptr<Cpuid_device>> _cpuid_devices;
 
   // devices
   Vdev::Clock_source _clocks[Max_cpus];
