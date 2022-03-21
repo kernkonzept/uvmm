@@ -285,7 +285,10 @@ int main(int argc, char *argv[])
   // finally copy in the device tree
   l4_addr_t dt_boot_addr = 0;
   if (dt.valid())
-    dt_boot_addr = ram->move_in_device_tree(&ram_free_list, cxx::move(dt));
+    {
+      dt_boot_addr = ram->move_in_device_tree(&ram_free_list, cxx::move(dt));
+      vmm->set_dt_addr(dt_boot_addr);
+    }
 
   vmm->prepare_generic_platform(&vm_instance);
   vmm->prepare_platform(&vm_instance);

@@ -63,6 +63,9 @@ public:
 
   void set_fault_mode(Fault_mode mode) { _fault_mode = mode; }
 
+  void set_dt_addr(l4_addr_t dt_addr) { _dt_addr = dt_addr; }
+  l4_addr_t dt_addr() const { return _dt_addr; }
+
   void prepare_generic_platform(Vdev::Device_lookup *devs)
   { _pm = devs->pm(); }
 
@@ -263,6 +266,7 @@ protected:
   L4Re::Util::Unique_cap<L4::Vm> _task;
   cxx::Ref_ptr<Pm> _pm;
   Fault_mode _fault_mode = Fault_mode::Ignore;
+  l4_addr_t _dt_addr = 0;
 };
 
 } // namespace

@@ -141,6 +141,9 @@
 
             qemu_fw_if {
                 compatible = "l4vmm,qemu-fw-cfg";
+                l4vmm,kernel = "";
+                l4vmm,ramdisk = "";
+                l4vmm,cmdline = "";
                 reg = <0x1 0x510 0x0c>;
             };
         };
