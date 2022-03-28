@@ -19,7 +19,7 @@ Pit_timer::Pit_timer(cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
   _read_high(false), _wait_for_high_byte(false),
   _port61(make_device<Port61>())
 {
-  l4_tsc_init(L4_TSC_INIT_AUTO, l4re_kip());
+  l4_calibrate_tsc(l4re_kip());
 }
 
 void Pit_timer::set_high_byte(l4_uint16_t &reg, l4_uint8_t value)
