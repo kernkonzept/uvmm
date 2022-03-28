@@ -46,6 +46,7 @@ public:
   Acpi_timer()
   : Acpi_device()
   {
+    l4_calibrate_tsc(l4re_kip());
     _timebase = l4_rdtsc();
   }
 
@@ -70,12 +71,10 @@ private:
     l4_cpu_time_t now = l4_rdtsc();
     l4_cpu_time_t diff_ns = l4_tsc_to_ns(now - _timebase);
     l4_cpu_time_t period = 1000UL * 1000 * 1000 / Frequency_hz;
-    _ticks = diff_ns / period;
-    *value = _ticks;
+    *value = diff_ns / period;
   }
 
   l4_cpu_time_t _timebase = 0;
-  l4_uint32_t _ticks = 0;
 };
 
 } // namespace Vdev
