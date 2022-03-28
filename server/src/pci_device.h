@@ -859,9 +859,10 @@ public:
     // First reg entry shall be the config space. Note that we ignore the
     // assigned bus/device/function numbers. This might change in the future!
     if (node.get_reg_size_flags(0, nullptr, &flags) < 0)
-      L4Re::throw_error(-L4_EINVAL, "invalid PCI dev reg property");
+      L4Re::throw_error(-L4_EINVAL, "extract PCI dev reg[0] property");
     if (!flags.is_cfgspace())
-      L4Re::throw_error(-L4_EINVAL, "invalid PCI dev reg property");
+      L4Re::throw_error(-L4_EINVAL,
+                        "PCI dev reg[0] property shall be the config space");
 
     for (int i = 1; node.get_reg_size_flags(i, &size, &flags) >= 0; i++)
       {
@@ -880,7 +881,8 @@ public:
         else if (flags.is_ioport())
           set_io_space<Pci_header::Type0>(bar, 0, size);
         else
-          L4Re::throw_error(-L4_EINVAL, "invalid PCI dev reg property");
+          L4Re::throw_error(-L4_EINVAL,
+                            "PCI dev reg property has invalid type");
       }
   }
 
