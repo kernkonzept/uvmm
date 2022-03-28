@@ -339,6 +339,8 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     // 0x7 EBX
     Tsc_adjust = (1UL << 1),
     Invpcid_bit = (1UL << 10),
+    // 0x7 ECX
+    Rdpid_bit = (1UL << 22),
     // 0x7 EDX
     Ibrs_ibpb_bit = (1UL << 26),
     Stibp_bit = (1UL << 27),
@@ -391,6 +393,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
       if (!rcx)
         {
           b &= ~(Invpcid_bit | Tsc_adjust);
+          c &= ~(Rdpid_bit);
           d &= ~(Ibrs_ibpb_bit | Stibp_bit | Ssbd_bit
                  | Arch_capabilities_supported_bit);
         }
