@@ -335,6 +335,8 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     Hwp_feature_mask = (0x1f << 7),
     // 0x6 ECX
     Performance_energy_bias_preference = (1UL << 3),
+    // presence of MSRs IA32_MPERF and IA32_APERF
+    Hardware_coordination_feedback_capability = 1UL,
 
     // 0x7 EBX
     Tsc_adjust = (1UL << 1),
@@ -387,6 +389,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
       a &= ~(Power_limit_notification | Hwp_feature_mask);
       // filter IA32_ENERGEY_PERF_BIAS
       c &= ~(Performance_energy_bias_preference);
+      c &= ~(Hardware_coordination_feedback_capability);
       break;
 
     case 0x7:
