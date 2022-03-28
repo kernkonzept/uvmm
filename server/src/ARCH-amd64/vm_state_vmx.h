@@ -134,6 +134,7 @@ public:
 
   enum Vmx_vm_entry_ctls : unsigned long
   {
+    Vm_entry_load_ia32_pat = (1UL << 14),
     Vm_entry_load_ia32_efer = (1UL << 15),
     Ia32e_mode_guest = (1UL << 9),
   };
@@ -161,9 +162,13 @@ public:
     // reflect all guest exceptions back to the guest.
     vmx_write(VMCS_EXCEPTION_BITMAP, 0xffff0000);
 
+    // PAT reset value
+    vmx_write(VMCS_GUEST_IA32_PAT, 0x0007040600070406ULL);
+
     vmx_write(VMCS_VM_ENTRY_CTLS,
               (vmx_read(VMCS_VM_ENTRY_CTLS)
-                | Vm_entry_load_ia32_efer)
+               | Vm_entry_load_ia32_pat
+               | Vm_entry_load_ia32_efer)
                 & ~Ia32e_mode_guest); // disable long mode
 
     vmx_write(VMCS_VM_EXIT_CTLS,

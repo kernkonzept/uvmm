@@ -380,7 +380,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
             );
       c |= Ecx_hypervisor_bit;
 
-      d &= ~(Edx_mtrr_bit | Edx_mca | Edx_pat | Edx_acpi_bit);
+      d &= ~(Edx_mca | Edx_acpi_bit);
       break;
 
     case 0x6:

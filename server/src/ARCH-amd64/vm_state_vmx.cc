@@ -82,6 +82,13 @@ Vmx_state::read_msr(unsigned msr, l4_uint64_t *value) const
           // Lock register so the guest does not try to enable anything.
           *value = 1U;
           break;
+        case 0xfe: // IA32_MTRRCAP
+        case 0x2ff: // IA32_MTRR_DEF_TYPE
+          *value = 0U;
+          break;
+        case 0x277: // IA32_PAT
+          *value = vmx_read(VMCS_GUEST_IA32_PAT);
+          break;
         case 0xc0000080: // efer
           *value = vmx_read(VMCS_GUEST_IA32_EFER);
           break;
@@ -121,6 +128,19 @@ Vmx_state::write_msr(unsigned msr, l4_uint64_t value)
 
   switch (msr)
     {
+    case 0x277: // IA32_PAT
+      // sanitization of 7 PAT values
+      // 0xF8 are reserved bits
+      // 0x2 and 0x3 are reserved encodings
+      // usage of reserved bits and encodings results in a #GP
+      if (value & 0xF8F8F8F8F8F8F8F8ULL)
+        return false;
+      for (unsigned i = 0; i < 7; ++i)
+        if (((value & (0x7ULL << i*8)) >> i*8 == 0x2ULL)
+            || ((value & (0x7ULL << i*8)) >> i*8 == 0x3ULL))
+          return false;
+      vmx_write(VMCS_GUEST_IA32_PAT, value);
+      break;
     case 0xc0000080: // efer
       {
         l4_uint64_t efer = value & 0xD01;
