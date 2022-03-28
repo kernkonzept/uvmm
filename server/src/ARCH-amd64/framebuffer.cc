@@ -79,6 +79,10 @@ struct screen_info {
 } __attribute__((packed));
 
 enum {
+  Video_type_vlfb = 0x23
+};
+
+enum {
   Video_capability_skip_quirks = (1 << 0),
   /* Frame buffer base is 64-bit */
   Video_capability_64bit_base = (1 << 1)
@@ -89,13 +93,14 @@ static void configure_framebuffer(void *zeropage)
   auto *si = reinterpret_cast<struct screen_info *>(zeropage);
 
   // define framebuffer type
-  si->orig_video_isVGA = 0x23;
+  si->orig_video_isVGA = Video_type_vlfb;
   si->capabilities = Video_capability_skip_quirks | Video_capability_64bit_base;
 
   // setup address and size of buffer
   si->lfb_base = fb_addr & 0xffffffff;
   si->ext_lfb_base = fb_addr >> 32;
-  si->lfb_size = fb_size;
+  // framebuffer size is in 64 KiB chunks for VLFB per historical convention
+  si->lfb_size = fb_size >> 16;
 
   // define dimensions
   si->lfb_width  = fb_viewinfo.width;
