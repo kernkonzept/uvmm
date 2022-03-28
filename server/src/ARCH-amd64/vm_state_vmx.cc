@@ -14,6 +14,8 @@ Vm_state::~Vm_state() = default;
 
 enum : unsigned long
   {
+    Misc_enable_fast_string = 1UL,
+
     Cr0_pe_bit = 1UL,
     Cr0_pg_bit = 1UL << 31,
 
@@ -71,8 +73,10 @@ Vmx_state::read_msr(unsigned msr, l4_uint64_t *value) const
       switch (msr)
         {
         case 0x17: // IA32_PLATFORM_ID
-        case 0x1a0: // IA32_MISC_ENABLE
           *value = 0U;
+          break;
+        case 0x1a0: // IA32_MISC_ENABLE
+          *value = Misc_enable_fast_string;
           break;
         case 0x3a: // IA32_FEATURE_CONTROL
           // Lock register so the guest does not try to enable anything.
