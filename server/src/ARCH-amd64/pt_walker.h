@@ -140,7 +140,7 @@ private:
   };
 
 
-  static Dbg trace() { return Dbg(Dbg::Core, Dbg::Trace); }
+  static Dbg trace() { return Dbg(Dbg::Core, Dbg::Extensive); }
 
   enum
   {
