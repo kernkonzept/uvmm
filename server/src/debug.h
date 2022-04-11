@@ -26,6 +26,7 @@ public:
     Warn = 1,
     Info = 2,
     Trace = 4,
+    Extensive = 8,
   };
 
   /**
@@ -46,7 +47,7 @@ public:
 #ifndef NDEBUG
   enum
   {
-    Verbosity_shift = 3, /// Bits per component for verbosity
+    Verbosity_shift = 4, /// Bits per component for verbosity
     Verbosity_mask = (1UL << Verbosity_shift) - 1
   };
 
