@@ -201,6 +201,17 @@
                 l4vmm,virtiocap = "net";
                 l4vmm,vdev = "proxy";
             };
+
+            virtio_disk@2 {
+                compatible = "virtio,pci";
+                // The reg property requirements are described in virtio_uart.
+                reg = <0x00001000 0x0 0x0 0x0 0x0000
+                       0x02001010 0x0 0x0 0x0 0x2000
+                       0x01001014 0x0 0x0 0x0 0x80>;
+                msi-parent = <&msi_ctrl>;
+                l4vmm,virtiocap = "qdrv";
+                l4vmm,vdev = "proxy";
+            };
         };
 
 };
