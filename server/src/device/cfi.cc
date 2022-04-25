@@ -260,7 +260,8 @@ private:
         else
           {
             auto addr = reinterpret_cast<l4_addr_t>(local_addr() + reg);
-            Vmm::Mem_access::write_width(addr, value, size);
+            auto before = Vmm::Mem_access::read_width(addr, size);
+            Vmm::Mem_access::write_width(addr, before & value, size);
           }
         _status |= Status_ready;
         set_mode(vm_task, Cmd_read_status);
