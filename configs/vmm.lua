@@ -36,7 +36,7 @@ local function set_sched(opts, prio, cpus)
   end
 end
 
-function start_virtio_switch(ports, prio, cpus)
+function start_virtio_switch(ports, prio, cpus, switch_type)
   local caps = {};
   local switch = l:new_channel();
 
@@ -46,10 +46,22 @@ function start_virtio_switch(ports, prio, cpus)
   };
 
   set_sched(opts, prio, cpus);
-  svr = l:start(opts, "rom/l4vio_net_p2p");
+  if switch_type == "switch" then
+    local port_count = 0;
+    for k, v in pairs(ports) do
+      port_count = port_count + 1;
+    end
+    svr = l:start(opts, "rom/l4vio_switch -v -m -p " .. port_count );
 
-  for k, v in pairs(ports) do
-    ports[k] = L4.cast(L4.Proto.Factory, switch):create(0, "ds-max=4");
+    for k, v in pairs(ports) do
+       ports[k] = L4.cast(L4.Proto.Factory, switch):create(0, 4, k)
+    end
+  else
+    svr = l:start(opts, "rom/l4vio_net_p2p");
+
+    for k, v in pairs(ports) do
+      ports[k] = L4.cast(L4.Proto.Factory, switch):create(0, "ds-max=4");
+    end
   end
 
   return svr;
