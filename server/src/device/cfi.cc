@@ -76,7 +76,7 @@ class Cfi_flash
     Status_erase_error = 1 << 5,
     Status_program_error = 1 << 4,
 
-    Cfi_table_size = 0x38,
+    Cfi_table_size = 0x40,
   };
 
 public:
@@ -96,6 +96,7 @@ public:
     _cfi_table[0x11] = 'R';
     _cfi_table[0x12] = 'Y';
     _cfi_table[0x13] = 0x01; // Intel command set
+    _cfi_table[0x15] = 0x31; // Address of "PRI" below
     _cfi_table[0x27] = 8 * sizeof(unsigned long) - __builtin_clzl(_size - 1U);
     _cfi_table[0x2c] = 1; // one erase block region
 
@@ -105,6 +106,13 @@ public:
     _cfi_table[0x2e] = (num_blocks - 1U) >> 8;
     _cfi_table[0x2f] = Erase_block_size >> 8;
     _cfi_table[0x30] = Erase_block_size >> 16;
+
+    // Intel Primary Algorithm Extended Query Table
+    _cfi_table[0x31] = 'P';
+    _cfi_table[0x32] = 'R';
+    _cfi_table[0x33] = 'I';
+    _cfi_table[0x34] = '1';
+    _cfi_table[0x35] = '0';
 
     info().printf("CFI flash (size %zu, %s)\n", _size,
                   _ro ? "ro" : "rw");
