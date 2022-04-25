@@ -23,14 +23,22 @@ namespace {
 /**
  * Simple CFI compliant flash with Intel command set.
  *
- * This supports only a bytewide virtual device (x8). Example device tree:
+ * Example device tree:
  *
  * flash@ffc00000 {
  *     compatible = "cfi-flash";
  *     reg = <0x0 0xffc00000 0x0 0x84000>;
  *     l4vmm,dscap = "capname";
  *     erase-size = <0x10000>; // must be power of two
+ *     bank-width = <4>;
+ *     device-width = <2>; // optional, equal to bank-width by default
  * };
+ *
+ * 'bank-width' configures the total bus width of the flash (in bytes).
+ * It is typically equal to the 'device-width', unless multiple flash chips
+ * share the bus. In this case 'device-width' refers to the width of a single
+ * chip. The example above configures a 32-bit wide flash that consists of
+ * two 16-bit chips.
  *
  * The optional "read-only" property will make the device read-only. If the
  * dataspace 'capname' is read-only but the 'read-only' property is not set,
@@ -56,6 +64,8 @@ namespace {
  * (*) Full emulation of read-mode would not be very performant and
  *     require a full instruction decoder, which --for x86-- we do not have
  *     and do not want.
+ * - multiple chips emulated on the same bus (bank-width != device-width)
+ *   are not independent: they must always receive the same commands
  */
 class Cfi_flash
 : public Vmm::Mmio_device,
@@ -82,9 +92,13 @@ class Cfi_flash
   };
 
 public:
-  Cfi_flash(L4::Cap<L4Re::Dataspace> ds, size_t size, size_t erase_size, bool ro)
-  : _size(size), _erase_size(erase_size), _ro(ro)
+  Cfi_flash(L4::Cap<L4Re::Dataspace> ds, size_t size, size_t erase_size, bool ro,
+            unsigned int bank_width, unsigned int device_width)
+  : _size(size), _erase_size(erase_size), _ro(ro),
+    _bank_width(bank_width), _device_width(device_width)
   {
+    unsigned int chip_shift = 8 * sizeof(unsigned int)
+                              - __builtin_clz(bank_width / device_width) - 1;
     _mgr = cxx::make_unique<Vmm::Ds_manager>(ds, 0, _size,
                                              ro ? L4Re::Rm::F::R : L4Re::Rm::F::RW);
 
@@ -94,13 +108,16 @@ public:
     _cfi_table[0x12] = 'Y';
     _cfi_table[0x13] = 0x01; // Intel command set
     _cfi_table[0x15] = 0x31; // Address of "PRI" below
-    _cfi_table[0x27] = 8 * sizeof(unsigned long) - __builtin_clzl(_size - 1U);
+    _cfi_table[0x27] = 8 * sizeof(unsigned long) - __builtin_clzl(_size - 1U)
+                       - chip_shift;
     _cfi_table[0x2c] = 1; // one erase block region
 
     // Erase block region 1 (our only one)
     size_t num_blocks = (_size + erase_size - 1U) / erase_size;
     _cfi_table[0x2d] = num_blocks - 1U;
     _cfi_table[0x2e] = (num_blocks - 1U) >> 8;
+    // Divide erase size by number of chips
+    erase_size >>= chip_shift;
     _cfi_table[0x2f] = erase_size >> 8;
     _cfi_table[0x30] = erase_size >> 16;
 
@@ -111,8 +128,8 @@ public:
     _cfi_table[0x34] = '1';
     _cfi_table[0x35] = '0';
 
-    info().printf("CFI flash (size %zu, %s, erase size = %zu)\n",
-                  _size, _ro ? "ro" : "rw", _erase_size);
+    info().printf("CFI flash (size %zu, %s, bank width: %u, device width: %u, erase size = %zu)\n",
+                  _size, _ro ? "ro" : "rw", _bank_width, _device_width, _erase_size);
   }
 
   ~Cfi_flash()
@@ -212,6 +229,33 @@ private:
   l4_size_t mapped_size() const
   { return _mgr->size(); }
 
+  l4_umword_t device_mask() const
+  { return ~0UL >> ((sizeof(l4_umword_t) - _device_width) * 8); }
+
+  l4_umword_t chip_shift(l4_umword_t device_val, char size)
+  {
+    // Duplicate the device value shifted for the other chips on the same bus
+    l4_umword_t val = 0;
+    for (auto shift = 0U; shift < _bank_width; shift += _device_width)
+      val |= device_val << (shift * 8);
+    // Clear bits not visible for the access width
+    return Vmm::Mem_access::read(val, 0, size);
+  }
+
+  bool check_chip_shift(l4_umword_t val)
+  {
+    auto device_val = val & device_mask();
+    for (auto shift = _device_width; shift < _bank_width; shift += _device_width)
+      {
+        if (device_val != ((val >> (shift * 8)) & device_mask()))
+          {
+            Err().printf("Invalid command: 0x%lx, must be the same for all chips\n", val);
+            return false;
+          }
+      }
+    return true;
+  }
+
   l4_umword_t read(unsigned reg, char size)
   {
     if (reg + (1U << size) > _size)
@@ -228,16 +272,32 @@ private:
         // Currently not implemented. Add once needed.
         return 0;
       case Cmd_cfi_query:
-        if (reg < sizeof(_cfi_table))
-          {
-            auto addr = reinterpret_cast<l4_addr_t>(&_cfi_table[reg]);
-            return Vmm::Mem_access::read_width(addr, size);
-          }
-        else
-          return 0;
+        {
+          if (reg % _bank_width)
+            {
+              warn().printf("Unaligned read of CFI query: 0x%x\n", reg);
+              return 0;
+            }
+          reg /= _bank_width;
+
+          // Calculate number of elements to be read from the CFI query.
+          // Multiple elements are read when the access width is larger than
+          // the bank width. Rounding up is necessary in case a smaller access
+          // width is used (e.g. 8-bit reads on a 32-bit flash).
+          auto nregs = ((1U << size) + _bank_width - 1) / _bank_width;
+          if (reg + nregs > sizeof(_cfi_table))
+            return 0;
+
+          // Fill the value using the _cfi_table...
+          l4_umword_t val = 0;
+          for (auto i = 0U; i < nregs; i++)
+            val |= _cfi_table[reg + i] << (i * _bank_width * 8);
+          // ... and duplicate it for all chips
+          return chip_shift(val, size);
+        }
       default:
         // read status
-        return _status;
+        return chip_shift(_status, size);
       }
   }
 
@@ -263,6 +323,11 @@ private:
         set_mode(vm_task, Cmd_read_status);
         break;
       case Cmd_block_erase:
+        if (!check_chip_shift(value))
+          {
+            _status |= Status_program_error | Status_erase_error;
+            return;
+          }
         switch (cmd)
           {
             case Cmd_block_erase_confirm:
@@ -290,6 +355,8 @@ private:
       case Cmd_read_array:
       case Cmd_program_erase_suspend:
         trace().printf("Command 0x%02x @ %u\n", cmd, reg);
+        if (!check_chip_shift(value))
+          return;
         switch (cmd)
           {
           case Cmd_clear_status:
@@ -322,6 +389,7 @@ private:
   cxx::unique_ptr<Vmm::Ds_manager> _mgr;
   size_t _size, _erase_size;
   bool _ro;
+  unsigned int _bank_width, _device_width;
 
   l4_uint8_t _cmd = Cmd_read_array;
   l4_uint8_t _status = 0;
@@ -355,7 +423,7 @@ struct F : Vdev::Factory
     auto erase_size = fdt32_to_cpu(*node.check_prop<fdt32_t>("erase-size", 1));
     if (erase_size & (erase_size - 1))
       {
-        Err().printf("erase-size must be a power of two: %zu\n", erase_size);
+        Err().printf("erase-size must be a power of two: %u\n", erase_size);
         return nullptr;
       }
 
@@ -381,7 +449,33 @@ struct F : Vdev::Factory
         return nullptr;
       }
 
-    auto c = Vdev::make_device<Cfi_flash>(dscap, size, erase_size, ro);
+    auto bank_width = fdt32_to_cpu(*node.check_prop<fdt32_t>("bank-width", 1));
+    if (bank_width & (bank_width - 1) || bank_width > sizeof(l4_umword_t))
+      {
+        Err().printf("Invalid bank-width value: %u\n", bank_width);
+        return nullptr;
+      }
+
+    int prop_size;
+    auto prop = node.get_prop<fdt32_t>("device-width", &prop_size);
+    auto device_width = bank_width;
+    if (prop)
+      {
+        if (prop_size != 1)
+          {
+            Err().printf("Invalid device-width property size: %d\n", prop_size);
+            return nullptr;
+          }
+        device_width = fdt32_to_cpu(*prop);
+      }
+    if (device_width & (device_width - 1) || device_width > bank_width)
+      {
+        Err().printf("Invalid device-width value: %u\n", device_width);
+        return nullptr;
+      }
+
+    auto c = Vdev::make_device<Cfi_flash>(dscap, size, erase_size, ro,
+                                          bank_width, device_width);
     devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
 
     return c;
