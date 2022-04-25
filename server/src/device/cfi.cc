@@ -81,7 +81,8 @@ class Cfi_flash
     Cmd_read_device_id = 0x90,
     Cmd_cfi_query = 0x98,
     Cmd_program_erase_suspend = 0xb0,
-    Cmd_block_erase_confirm = 0xd0,
+    Cmd_block_confirm = 0xd0,
+    Cmd_write_block = 0xe8,
     Cmd_read_array = 0xff,
 
     Status_ready = 1 << 7,
@@ -89,6 +90,8 @@ class Cfi_flash
     Status_program_error = 1 << 4,
 
     Cfi_table_size = 0x40,
+    Block_buffer_shift = 10, // 1 KiB
+    Block_buffer_size = 1 << Block_buffer_shift,
   };
 
 public:
@@ -108,8 +111,15 @@ public:
     _cfi_table[0x12] = 'Y';
     _cfi_table[0x13] = 0x01; // Intel command set
     _cfi_table[0x15] = 0x31; // Address of "PRI" below
+    // Typical/maximum timeout for buffer write in 2^n
+    // This must be set because all zero means "not supported"
+    _cfi_table[0x20] = 1; // 2us
+    _cfi_table[0x24] = 1; // 4us (2^1 multiplied by typical time above)
     _cfi_table[0x27] = 8 * sizeof(unsigned long) - __builtin_clzl(_size - 1U)
                        - chip_shift;
+    // Block buffer size in 2^n (divided by number of chips)
+    auto block_buf_shift = Block_buffer_shift - chip_shift;
+    _cfi_table[0x2a] = cxx::min(block_buf_shift, device_width * 8);
     _cfi_table[0x2c] = 1; // one erase block region
 
     // Erase block region 1 (our only one)
@@ -330,7 +340,7 @@ private:
           }
         switch (cmd)
           {
-            case Cmd_block_erase_confirm:
+            case Cmd_block_confirm:
               _status |= Status_ready;
               if (_ro)
                 _status |= Status_erase_error;
@@ -347,6 +357,14 @@ private:
               return;
           }
         set_mode(vm_task, Cmd_read_status);
+        break;
+
+      case Cmd_write_block:
+        if (!write_block(vm_task, reg, size, value))
+          {
+            _status |= Status_program_error;
+            set_mode(vm_task, Cmd_read_status);
+          }
         break;
 
       case Cmd_read_status:
@@ -374,12 +392,87 @@ private:
           case Cmd_read_array:
             set_mode(vm_task, cmd);
             break;
+          case Cmd_write_block:
+            if (_ro)
+              {
+                _status |= Status_program_error;
+                break;
+              }
+            _buf_len = 0;
+            _status |= Status_ready;
+            set_mode(vm_task, cmd);
+            break;
           default:
             warn().printf("Unsupported command: %02x\n", cmd);
             break;
           }
         break;
       }
+  }
+
+  bool write_block(L4::Cap<L4::Vm> vm_task, unsigned reg, char size, l4_umword_t value)
+  {
+    if (!_buf_len)
+      { // start of block write
+        if (!check_chip_shift(value))
+          return false;
+
+        auto count = (value & device_mask()) + 1; // value = words - 1
+        count *= _bank_width; // convert to bytes
+        if (count > Block_buffer_size)
+          {
+            Err().printf("Invalid block write size: %lu val 0x%lx\n", count, value);
+            return false;
+          }
+
+        _buf_len = count;
+        _buf_written = 0;
+        return true;
+      }
+
+    if (!_buf_written)
+      { // set start address on the first write
+        trace().printf("Start block write at 0x%x with %u bytes\n", reg, _buf_len);
+        if (reg + _buf_len > _size)
+          {
+            Err().printf("Block write out of bounds: 0x%x + %u\n", reg, _buf_len);
+            return false;
+          }
+        // fill temporary buffer with original values
+        // this is necessary because writes can only clear bits (bitwise AND)
+        _buf_start = reg;
+        memcpy(&_buffer, local_addr() + reg, _buf_len);
+      }
+
+    if (_buf_written >= _buf_len)
+      { // all words written, write confirmed?
+        if (!check_chip_shift(value))
+          return false;
+
+        trace().printf("Confirm buffer write with 0x%lx\n", value);
+
+        if ((value & device_mask()) != Cmd_block_confirm)
+          return false;
+
+        // write back buffer
+        memcpy(local_addr() + _buf_start, _buffer, _buf_len);
+        set_mode(vm_task, Cmd_read_status);
+        return true;
+      }
+
+    if (_buf_start <= reg && (reg + (1 << size)) <= (_buf_start + _buf_len))
+      { // write into buffer
+        auto addr = reinterpret_cast<l4_addr_t>(&_buffer[reg - _buf_start]);
+        auto before = Vmm::Mem_access::read_width(addr, size);
+        Vmm::Mem_access::write_width(addr, before & value, size);
+        _buf_written += 1 << size;
+        return true;
+      }
+
+    // write out of bounds
+    trace().printf("Out of bounds write to buffer; abort: 0x%x = 0x%lx\n",
+                   reg, value);
+    return false;
   }
 
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "CFI"); }
@@ -398,6 +491,9 @@ private:
   l4_addr_t _guest_mapped_max = 0;
 
   l4_uint8_t _cfi_table[Cfi_table_size] = { 0 };
+
+  l4_uint8_t _buffer[Block_buffer_size];
+  unsigned int _buf_start, _buf_len, _buf_written;
 };
 
 struct F : Vdev::Factory
