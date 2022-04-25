@@ -32,8 +32,7 @@
 #include "guest.h"
 #include "mmio_device.h"
 
-#include "../rtc.h"
-Vdev::L4rtc_hub *Vdev::L4rtc_hub::_l4rtc;
+#include "../rtc-hub.h"
 
 static Dbg warn(Dbg::Dev, Dbg::Warn, "pl031");
 static Dbg info(Dbg::Dev, Dbg::Info, "pl031");

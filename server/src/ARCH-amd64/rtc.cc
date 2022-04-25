@@ -33,8 +33,7 @@
 #include "device.h"
 #include "io_device.h"
 
-#include "../device/rtc.h"
-Vdev::L4rtc_hub *Vdev::L4rtc_hub::_l4rtc;
+#include "../device/rtc-hub.h"
 
 namespace Vdev {
 

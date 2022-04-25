@@ -18,7 +18,7 @@
  *
  * A capability with the name "rtc" needs to point to the rtc server.
  */
-#include "rtc.h"
+#include "rtc-hub.h"
 #include "device_factory.h"
 #include "device.h"
 
