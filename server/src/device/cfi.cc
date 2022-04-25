@@ -11,8 +11,10 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <l4/util/util.h>
 #include <l4/sys/cxx/ipc_epiface>
 #include <l4/re/error_helper>
+#include <l4/l4virtio/client/virtio-block>
 
 #include "debug.h"
 #include "device_factory.h"
@@ -20,6 +22,131 @@
 #include "mmio_device.h"
 
 namespace {
+
+class Cfi_backend
+{
+public:
+  virtual ~Cfi_backend() = default;
+
+  virtual char const *dev_name() = 0;
+  virtual char *local_addr() const = 0;
+  virtual l4_size_t mapped_size() const = 0;
+  virtual void taint(l4_addr_t off, l4_size_t len = 1) = 0;
+  virtual void write_back() = 0;
+};
+
+class Cfi_backend_dataspace : public Cfi_backend
+{
+public:
+  Cfi_backend_dataspace(L4::Cap<L4Re::Dataspace> ds, l4_uint64_t size, bool ro)
+  {
+    auto flags = ro ? L4Re::Rm::F::R : L4Re::Rm::F::RW;
+    _mgr = cxx::make_unique<Vmm::Ds_manager>(dev_name(), ds, 0, size, flags);
+  }
+
+  char const *dev_name() override
+  { return "Cfi_flash-ds"; }
+
+  char *local_addr() const override
+  { return _mgr->local_addr<char *>(); }
+
+  l4_size_t mapped_size() const override
+  { return _mgr->size(); }
+
+  void taint(l4_addr_t, l4_size_t) override
+  { /* nothing to do */ }
+
+  void write_back() override
+  { /* nothing to do */ }
+
+private:
+  cxx::unique_ptr<Vmm::Ds_manager> _mgr;
+};
+
+class Cfi_backend_virtio_block final : public Cfi_backend
+{
+  enum { Sector_size = 512 };
+
+public:
+  Cfi_backend_virtio_block(L4::Cap<L4virtio::Device> cap, l4_uint64_t size)
+  : _size(l4_round_page(size))
+  {
+    _dev.setup_device(cap, _size, &_localaddr, _devaddr);
+
+    l4_uint64_t sectors = _dev.device_config().capacity;
+    if (_size > sectors * Sector_size)
+      L4Re::throw_error(-L4_EINVAL,
+                        "Block device size too small for CFI registers.");
+
+    if (_dev.feature_negotiated(5 /* VIRTIO_BLK_F_RO */))
+      L4Re::throw_error(-L4_EINVAL,
+                        "CFI: virtio device read only. Not supported.");
+
+    // read device up-front
+    auto h = _dev.start_request(0, L4VIRTIO_BLOCK_T_IN, 0);
+    L4Re::chksys(_dev.add_block(h, _devaddr, _size),
+                 "CFI: Error during virtio setup: add block failed.");
+    L4Re::chksys(_dev.process_request(h),
+                 "CFI: Error during virtio setup: process request failed.");
+
+    // bring in pages
+    l4_touch_ro(_localaddr, _size);
+  }
+
+  char const *dev_name() override
+  { return "Cfi_flash-virtio-blk"; }
+
+  char *local_addr() const override
+  { return reinterpret_cast<char *>(_localaddr); }
+
+  l4_size_t mapped_size() const override
+  { return _size; }
+
+  void taint(l4_addr_t off, l4_size_t len) override
+  {
+    l4_addr_t start = off / Sector_size;
+    l4_addr_t end = (off + len - 1U) / Sector_size;
+
+    if (end + 1U < _dirty_start || _dirty_end + 1U < start)
+      write_back();
+
+    if (start < _dirty_start)
+      _dirty_start = start;
+    if (end > _dirty_end)
+      _dirty_end = end;
+  }
+
+  void write_back() override
+  {
+    if (_dirty_start <= _dirty_end)
+      {
+        l4_size_t blocks = _dirty_end - _dirty_start + 1U;
+        auto da = L4virtio::Ptr<void>(_devaddr.get() + _dirty_start * Sector_size);
+        auto h = _dev.start_request(_dirty_start, L4VIRTIO_BLOCK_T_OUT, 0);
+
+        // There is no way to recover from errors here.
+        // At least tell the user something went wrong.
+        if(_dev.add_block(h, da, blocks * Sector_size) < 0)
+          warn().printf("write_back: add block failed\n");
+        else if (_dev.process_request(h) < 0)
+          warn().printf("write_back: process request failed\n");
+
+        _dirty_start = ~0UL;
+        _dirty_end = 0;
+      }
+  }
+
+private:
+  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "CFI(vio)"); }
+
+  l4_size_t _size;
+  void *_localaddr = nullptr;
+  L4virtio::Ptr<void> _devaddr;
+  L4virtio::Driver::Block_device _dev;
+
+  l4_addr_t _dirty_start = ~0UL;
+  l4_addr_t _dirty_end = 0;
+};
 
 /**
  * Simple CFI compliant flash with Intel command set.
@@ -56,6 +183,10 @@ namespace {
  *      capname = L4.Env.rwfs:query("OVMF_VARS.fd", 7),
  *    }
  *    L4.Env.loader:startv(caps=uvmm_caps, "rom/uvmm")
+ *
+ * Optionally, this CFI emulation also supports virtio-block as backend.
+ * By replacing 'l4vmm,dscap = "capname"' with 'l4vmm,virtiocap = "capname"'
+ * you may set 'capname' as a cap pointing to a virtio-block server.
  *
  * Notes about the CFI emulation.
  * - CFI operates in either read or write-mode
@@ -98,16 +229,14 @@ class Cfi_flash
   };
 
 public:
-  Cfi_flash(L4::Cap<L4Re::Dataspace> ds, l4_addr_t base, size_t size,
+  Cfi_flash(cxx::unique_ptr<Cfi_backend> be, l4_addr_t base, size_t size,
             size_t erase_size, bool ro, unsigned int bank_width,
             unsigned int device_width)
-  : _base(base), _size(size), _erase_size(erase_size), _ro(ro),
-    _bank_width(bank_width), _device_width(device_width)
+  : _be(cxx::move(be)), _base(base), _size(size), _erase_size(erase_size),
+    _ro(ro), _bank_width(bank_width), _device_width(device_width)
   {
     unsigned int chip_shift = 8 * sizeof(unsigned int)
                               - __builtin_clz(bank_width / device_width) - 1;
-    _mgr = cxx::make_unique<Vmm::Ds_manager>("Cfi_flash", ds, 0, _size,
-                                             ro ? L4Re::Rm::F::R : L4Re::Rm::F::RW);
 
     // Fill CFI table. See JESD6801...
     _cfi_table[0x10] = 'Q';
@@ -181,7 +310,7 @@ public:
   void map_eager(L4::Cap<L4::Vm>, Vmm::Guest_addr, Vmm::Guest_addr) override
   {}
 
-  char const *dev_name() const override { return _mgr->dev_name(); }
+  char const *dev_name() const override { return _be->dev_name(); }
 
 private:
   void set_mode(L4::Cap<L4::Vm> vm_task, uint8_t cmd)
@@ -193,7 +322,10 @@ private:
 
     // Proactively map the flash memory, to avoid instruction decoding on reads.
     if (cmd == Cmd_read_array)
-      map_mem_ro(vm_task);
+      {
+        _be->write_back();
+        map_mem_ro(vm_task);
+      }
   }
 
   void map_mem_ro(L4::Cap<L4::Vm> vm_task)
@@ -208,10 +340,10 @@ private:
   }
 
   char *local_addr() const
-  { return _mgr->local_addr<char *>(); }
+  { return _be->local_addr(); }
 
   l4_size_t mapped_size() const
-  { return _mgr->size(); }
+  { return _be->mapped_size(); }
 
   l4_umword_t device_mask() const
   { return ~0UL >> ((sizeof(l4_umword_t) - _device_width) * 8); }
@@ -233,7 +365,8 @@ private:
       {
         if (device_val != ((val >> (shift * 8)) & device_mask()))
           {
-            Err().printf("Invalid command: 0x%lx, must be the same for all chips\n", val);
+            warn().printf("Invalid command: 0x%lx, must be the same for all "
+                          "chips\n", val);
             return false;
           }
       }
@@ -302,6 +435,7 @@ private:
             auto addr = reinterpret_cast<l4_addr_t>(local_addr() + reg);
             auto before = Vmm::Mem_access::read_width(addr, size);
             Vmm::Mem_access::write_width(addr, before & value, size);
+            _be->taint(reg, 1U << size);
           }
         _status |= Status_ready;
         set_mode(vm_task, Cmd_read_status);
@@ -322,6 +456,8 @@ private:
                 {
                   reg &= ~(_erase_size - 1U);
                   memset(local_addr() + reg, 0xff, _erase_size);
+                  _be->taint(reg, _erase_size);
+                  _be->write_back();
                 }
               break;
             default:
@@ -395,7 +531,8 @@ private:
         count *= _bank_width; // convert to bytes
         if (count > Block_buffer_size)
           {
-            Err().printf("Invalid block write size: %lu val 0x%lx\n", count, value);
+            warn().printf("Invalid block write size: %lu val 0x%lx\n",
+                          count, value);
             return false;
           }
 
@@ -406,10 +543,12 @@ private:
 
     if (!_buf_written)
       { // set start address on the first write
-        trace().printf("Start block write at 0x%x with %u bytes\n", reg, _buf_len);
+        trace().printf("Start block write at 0x%x with %u bytes\n",
+                       reg, _buf_len);
         if (reg + _buf_len > _size)
           {
-            Err().printf("Block write out of bounds: 0x%x + %u\n", reg, _buf_len);
+            warn().printf("Block write out of bounds: 0x%x + %u\n",
+                          reg, _buf_len);
             return false;
           }
         // fill temporary buffer with original values
@@ -430,6 +569,8 @@ private:
 
         // write back buffer
         memcpy(local_addr() + _buf_start, _buffer, _buf_len);
+        _be->taint(_buf_start, _buf_len);
+        _be->write_back();
         set_mode(vm_task, Cmd_read_status);
         return true;
       }
@@ -453,7 +594,7 @@ private:
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "CFI"); }
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "CFI"); }
 
-  cxx::unique_ptr<Vmm::Ds_manager> _mgr;
+  cxx::unique_ptr<Cfi_backend> _be;
   l4_addr_t _base;
   size_t _size, _erase_size;
   bool _ro;
@@ -476,13 +617,6 @@ struct F : Vdev::Factory
                                     Vdev::Dt_node const &node) override
   {
     auto warn = Dbg(Dbg::Dev, Dbg::Warn, "CFI");
-    auto dscap = Vdev::get_cap<L4Re::Dataspace>(node, "l4vmm,dscap");
-    if (!dscap)
-      {
-        warn.printf("Missing 'l4vmm,dscap' property!\n");
-        return nullptr;
-      }
-
     l4_uint64_t base, size;
     int res = node.get_reg_val(0, &base, &size);
     if (res < 0)
@@ -506,17 +640,50 @@ struct F : Vdev::Factory
 
     bool ro = node.has_prop("read-only");
 
-    if (!ro && !dscap->flags().w())
+    cxx::unique_ptr<Cfi_backend> be;
+
+    auto dscap = Vdev::get_cap<L4Re::Dataspace>(node, "l4vmm,dscap");
+    auto viocap = Vdev::get_cap<L4virtio::Device>(node, "l4vmm,virtiocap");
+
+    if (dscap && viocap)
+      warn.printf("Both dscap and virtiocap defined. Choosing virtiocap.\n");
+
+    if (viocap)
       {
-        warn.printf(
-          "DT configures flash to be writable, but dataspace is read-only. "
-          "Defaulting to read-only operation.\n");
-        ro = true;
+        try
+          {
+            be.reset(new Cfi_backend_virtio_block(viocap, size));
+          }
+        catch (L4::Runtime_error const &e)
+          {
+            warn.printf("Error in CFI virtio backend constructor %s: '%s'. "
+                        "Disabling device.\n", e.str(), e.extra_str());
+          }
+      }
+    else if (dscap)
+      {
+        if (!ro && !dscap->flags().w())
+          {
+            warn.printf(
+              "DT configures flash to be writable, but dataspace is read-only. "
+              "Defaulting to read-only operation.\n");
+            ro = true;
+          }
+
+        if (size > dscap->size())
+          {
+            warn.printf(
+              "Dataspace is too small for the CFI registers. "
+              "This is not supported.\n");
+          }
+        else
+          be.reset(new Cfi_backend_dataspace(dscap, size, ro));
       }
 
-    if (size > dscap->size())
+    if (!be)
       {
-        warn.printf("Dataspace smaller than reg window. Unsupported.\n");
+        warn.printf("Neither working 'l4vmm,dscap' nor 'l4vmm,virtiocap' "
+                    "property!\n");
         return nullptr;
       }
 
@@ -545,8 +712,8 @@ struct F : Vdev::Factory
         return nullptr;
       }
 
-    auto c = Vdev::make_device<Cfi_flash>(dscap, base, size, erase_size, ro,
-                                          bank_width, device_width);
+    auto c = Vdev::make_device<Cfi_flash>(cxx::move(be), base, size, erase_size,
+                                          ro, bank_width, device_width);
     devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
 
     return c;
