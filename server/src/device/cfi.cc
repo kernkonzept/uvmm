@@ -29,6 +29,7 @@ namespace {
  *     compatible = "cfi-flash";
  *     reg = <0x0 0xffc00000 0x0 0x84000>;
  *     l4vmm,dscap = "capname";
+ *     erase-size = <0x10000>; // must be power of two
  * };
  *
  * The optional "read-only" property will make the device read-only. If the
@@ -81,13 +82,8 @@ class Cfi_flash
   };
 
 public:
-  enum
-  {
-    Erase_block_size = 0x1000, // Must be a power of 2
-  };
-
-  Cfi_flash(L4::Cap<L4Re::Dataspace> ds, size_t size, bool ro)
-  : _size(size), _ro(ro)
+  Cfi_flash(L4::Cap<L4Re::Dataspace> ds, size_t size, size_t erase_size, bool ro)
+  : _size(size), _erase_size(erase_size), _ro(ro)
   {
     _mgr = cxx::make_unique<Vmm::Ds_manager>(ds, 0, _size,
                                              ro ? L4Re::Rm::F::R : L4Re::Rm::F::RW);
@@ -102,11 +98,11 @@ public:
     _cfi_table[0x2c] = 1; // one erase block region
 
     // Erase block region 1 (our only one)
-    size_t num_blocks = (_size + Erase_block_size - 1U) / Erase_block_size;
+    size_t num_blocks = (_size + erase_size - 1U) / erase_size;
     _cfi_table[0x2d] = num_blocks - 1U;
     _cfi_table[0x2e] = (num_blocks - 1U) >> 8;
-    _cfi_table[0x2f] = Erase_block_size >> 8;
-    _cfi_table[0x30] = Erase_block_size >> 16;
+    _cfi_table[0x2f] = erase_size >> 8;
+    _cfi_table[0x30] = erase_size >> 16;
 
     // Intel Primary Algorithm Extended Query Table
     _cfi_table[0x31] = 'P';
@@ -115,8 +111,8 @@ public:
     _cfi_table[0x34] = '1';
     _cfi_table[0x35] = '0';
 
-    info().printf("CFI flash (size %zu, %s)\n", _size,
-                  _ro ? "ro" : "rw");
+    info().printf("CFI flash (size %zu, %s, erase size = %zu)\n",
+                  _size, _ro ? "ro" : "rw", _erase_size);
   }
 
   ~Cfi_flash()
@@ -275,8 +271,8 @@ private:
                 _status |= Status_erase_error;
               else
                 {
-                  reg &= ~(Erase_block_size - 1U);
-                  memset(local_addr() + reg, 0xff, Erase_block_size);
+                  reg &= ~(_erase_size - 1U);
+                  memset(local_addr() + reg, 0xff, _erase_size);
                 }
               break;
             default:
@@ -324,7 +320,7 @@ private:
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "CFI"); }
 
   cxx::unique_ptr<Vmm::Ds_manager> _mgr;
-  size_t _size;
+  size_t _size, _erase_size;
   bool _ro;
 
   l4_uint8_t _cmd = Cmd_read_array;
@@ -356,8 +352,14 @@ struct F : Vdev::Factory
         return nullptr;
       }
 
-    if (size < Cfi_flash::Erase_block_size ||
-        size % Cfi_flash::Erase_block_size)
+    auto erase_size = fdt32_to_cpu(*node.check_prop<fdt32_t>("erase-size", 1));
+    if (erase_size & (erase_size - 1))
+      {
+        Err().printf("erase-size must be a power of two: %zu\n", erase_size);
+        return nullptr;
+      }
+
+    if (size < erase_size || size % erase_size)
       {
         Err().printf("Wrong device size! Must be a multiple of erase block size.\n");
         return nullptr;
@@ -379,7 +381,7 @@ struct F : Vdev::Factory
         return nullptr;
       }
 
-    auto c = Vdev::make_device<Cfi_flash>(dscap, size, ro);
+    auto c = Vdev::make_device<Cfi_flash>(dscap, size, erase_size, ro);
     devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
 
     return c;
