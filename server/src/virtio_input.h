@@ -97,6 +97,7 @@ public:
     for (auto &q : _vqs)
       {
         q.disable();
+        q.config.ready = 0;
         q.config.num_max = Input_queue_length;
       }
   }
