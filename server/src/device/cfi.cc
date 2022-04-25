@@ -64,6 +64,7 @@ class Cfi_flash
   {
     Cmd_write_byte = 0x10,
     Cmd_block_erase = 0x20,
+    Cmd_write_byte2 = 0x40,
     Cmd_clear_status = 0x50,
     Cmd_read_status = 0x70,
     Cmd_read_device_id = 0x90,
@@ -253,6 +254,7 @@ private:
     switch (_cmd)
       {
       case Cmd_write_byte:
+      case Cmd_write_byte2:
         if (_ro)
           _status |= Status_program_error;
         else
@@ -300,6 +302,7 @@ private:
             _status |= Status_ready;
             // FALLTHROUGH
           case Cmd_write_byte:
+          case Cmd_write_byte2:
           case Cmd_block_erase:
           case Cmd_read_status:
           case Cmd_read_device_id:
