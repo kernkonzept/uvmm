@@ -265,7 +265,7 @@ private:
               else
                 {
                   reg &= ~(Erase_block_size - 1U);
-                  memset(local_addr() + reg, 0, Erase_block_size);
+                  memset(local_addr() + reg, 0xff, Erase_block_size);
                 }
               break;
             default:
