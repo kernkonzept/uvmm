@@ -54,8 +54,18 @@ Cpu_dev::reset()
   hcr |= 3UL << 13; // Trap WFI and WFE
   l4_vcpu_e_write(*_vcpu, L4_VCPU_E_HCR, hcr);
 
-  // set C, I, CP15BEN
-  l4_vcpu_e_write_32(*_vcpu, L4_VCPU_E_SCTLR, (1UL << 5) | (1UL << 2) | (1UL << 12));
+  // enable data and instruction cache (set C, I)
+  l4_umword_t sctlr = (1UL << 2) | (1UL << 12);
+  if (_vcpu->r.flags & Flags_mode_32)
+    // In AArch32 state the reset value is defined in the specification.
+    // Set SBOP bits and bits that should reset to 1 according to the ARMv7
+    // manual. Note that e.g. bit 11 is not set here because it is RES1 only
+    // in the ARMv8 manual. On ARMv7 bit 11 might be writable and resets to 0.
+    sctlr |= (1UL << 23) | (1UL << 22) | (1UL << 18) | (1UL << 16)
+          |  (1UL << 6)  | (1UL << 5)  | (1UL << 4)  | (1UL << 3);
+  // In AArch64 state the reset value is "architecturally UNKNOWN"
+  // and should be initialized properly by the guest.
+  l4_vcpu_e_write_32(*_vcpu, L4_VCPU_E_SCTLR, sctlr);
 
   // The type of vmpidr differs between ARM32 and ARM64, so we use 64
   // bit here as a superset.
