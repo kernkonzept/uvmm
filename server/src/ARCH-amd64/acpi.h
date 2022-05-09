@@ -95,6 +95,7 @@ public:
   }
 
   virtual void amend_fadt(ACPI_TABLE_FADT *) const {};
+  virtual l4_size_t amend_mcfg(ACPI_MCFG_ALLOCATION *, l4_size_t) const { return 0; };
   virtual l4_size_t amend_dsdt(void *, l4_size_t) const { return 0; };
 };
 
@@ -161,6 +162,7 @@ protected:
     Rsdt,
     Fadt,
     Madt,
+    Mcfg,
     Facs,
     Dsdt,
     Num_values,
@@ -432,6 +434,7 @@ protected:
     write_rsdt(wr);
     write_fadt(wr);
     write_madt(wr, devs->cpus()->max_cpuid() + 1);
+    write_mcfg(wr);
     write_facs(wr);
     write_dsdt(wr);
   }
@@ -465,9 +468,10 @@ private:
   static void write_rsdt(Writer &wr)
   {
     // Tables that RSDT refers to.
-    static constexpr std::array<Table, 2> ref_tables = {
+    static constexpr std::array<Table, 3> ref_tables = {
       Table::Madt,
       Table::Fadt,
+      Table::Mcfg,
     };
 
     // RSDT table header plus a 32-bit word per table pointer.
@@ -558,6 +562,24 @@ private:
 
     // Finally fill the table header.
     wr.end_table(&t->Header, ACPI_SIG_MADT);
+  }
+
+  /**
+   * Write PCI Express memory mapped configuration space base address
+   * Description Table (MCFG).
+   */
+  static void write_mcfg(Writer &wr)
+  {
+    auto *t = wr.start_table<ACPI_TABLE_MCFG>(Table::Mcfg);
+
+    for (auto const &d : Acpi_device_hub::get()->devices())
+      {
+        auto *ptr = wr.as_ptr<ACPI_MCFG_ALLOCATION>(wr.pos());
+        auto amend_size = d->amend_mcfg(ptr, wr.remaining_size());
+        wr.reserve(amend_size);
+      }
+
+    wr.end_table(&t->Header, ACPI_SIG_MCFG);
   }
 
   /**
