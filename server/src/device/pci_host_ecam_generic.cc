@@ -61,6 +61,7 @@
 #include "irq.h"
 #include "irq_dt.h"
 #include "mem_types.h"
+#include "pci_bus_cfg_ecam.h"
 #include "pci_device.h"
 #include "pci_host_bridge.h"
 
@@ -100,27 +101,9 @@ struct Interrupt_map
 
 class Pci_host_ecam_generic
 : public Pci_host_bridge,
-  public Device,
-  public Vmm::Mmio_device_t<Pci_host_ecam_generic>
+  public Device
 {
 public:
-  /**
-   * ECAM configuration space offset.
-   *
-   * This allows decoding of raw configuration space offsets into bus/device id's,
-   * function number and register offsets.
-   */
-  struct Cfg_addr
-  {
-    l4_uint32_t raw = 0;
-    CXX_BITFIELD_MEMBER(20, 31, bus, raw);  /// Bus id
-    CXX_BITFIELD_MEMBER(15, 19, dev, raw);  /// Device id
-    CXX_BITFIELD_MEMBER(12, 14, func, raw); /// Function number
-    CXX_BITFIELD_MEMBER( 0, 11, reg, raw);  /// Register offset
-
-    explicit Cfg_addr(l4_uint32_t r) : raw(r) {}
-  };
-
   explicit Pci_host_ecam_generic(Interrupt_map const &irq_map,
                                  Device_lookup *devs,
                                  cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
@@ -135,34 +118,6 @@ public:
     header()->classcode[2] = Pci_class_code_bridge_device;
 
     setup_devices();
-  }
-
-  /**
-   * Read PCI configuration space.
-   *
-   * Device 0 is always the virtual host controller. Access to other regions is
-   * forwarded to the corresponding device.
-   */
-  l4_uint32_t read(unsigned reg, char width, unsigned)
-  {
-    Cfg_addr cfg(reg);
-    if (cfg.bus().get() > 0 || cfg.func().get() > 0)
-      return -1U;
-    return cfg_space_read(cfg.dev().get(), cfg.reg().get(), (Vmm::Mem_access::Width)width);
-  }
-
-  /**
-   * Write PCI configuration space.
-   *
-   * Device 0 is always the virtual host controller. Access to other regions is
-   * forwarded to the corresponding device.
-   */
-  void write(unsigned reg, char width, l4_uint32_t val, unsigned)
-  {
-    Cfg_addr cfg(reg);
-    if (cfg.bus().get() > 0 || cfg.func().get() > 0)
-      return;
-    cfg_space_write(cfg.dev().get(), cfg.reg().get(), (Vmm::Mem_access::Width)width, val);
   }
 
 protected:
@@ -402,7 +357,10 @@ struct F : Factory
         node.get_name(), Device_lookup::mc_err_str(res));
 
     auto dev = make_device<Pci_host_ecam_generic>(irq_map, devs, msix_ctrl);
-    devs->vmm()->register_mmio_device(dev, Vmm::Region_type::Virtual, node);
+
+    auto ecam_cfg_connector = make_device<Pci_bus_cfg_ecam>(dev);
+    devs->vmm()->register_mmio_device(ecam_cfg_connector,
+                                      Vmm::Region_type::Virtual, node);
 
     info().printf("Created & registered the PCIe host bridge\n");
     return dev;
