@@ -29,6 +29,7 @@ Virt_lapic::Virt_lapic(unsigned id, cxx::Ref_ptr<Vmm::Cpu_dev> cpu)
   _lapic_version(Lapic_version),
   _last_ticks_tsc(0),
   _x2apic_enabled(false),
+  _nmi_pending(false),
   _cpu(cpu)
 {
   trace().printf("Virt_lapic ctor; ID 0x%x\n", id);
@@ -134,6 +135,13 @@ Virt_lapic::tick()
     }
 }
 
+void
+Virt_lapic::nmi()
+{
+  _nmi_pending.store(true, std::memory_order_release);
+  _lapic_irq->trigger();
+}
+
 /**
  * Enqueue an interrupt and trigger an IPC in the vCPU.
  *
@@ -152,6 +160,15 @@ Virt_lapic::irq_trigger(l4_uint32_t irq, bool irr)
   }
 
   _lapic_irq->trigger();
+}
+
+bool
+Virt_lapic::next_pending_nmi()
+{
+  bool expected = true;
+  return _nmi_pending.compare_exchange_strong(expected, false,
+                                              std::memory_order_acquire,
+                                              std::memory_order_relaxed);
 }
 
 int
@@ -184,7 +201,8 @@ bool
 Virt_lapic::is_irq_pending()
 {
   std::lock_guard<std::mutex> lock(_int_mutex);
-  return !_non_irr_irqs.empty() || _regs.irr.has_irq();
+  return !_non_irr_irqs.empty() || _regs.irr.has_irq()
+         || _nmi_pending.load(std::memory_order_relaxed);
 }
 
 bool

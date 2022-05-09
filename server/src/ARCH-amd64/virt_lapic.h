@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include <atomic>
 #include <mutex>
 #include <tuple>
 #include <queue>
@@ -269,10 +270,12 @@ public:
 
   // APIC soft Irq to force VCPU to handle IRQs
   void irq_trigger(l4_uint32_t irq, bool irr = true);
+  void nmi();
 
   // vCPU expected interface
   int next_pending_irq();
   bool is_irq_pending();
+  bool next_pending_nmi();
 
   // X2APIC MSR interface
   bool read_msr(unsigned msr, l4_uint64_t *value) const;
@@ -355,6 +358,7 @@ private:
   l4_uint64_t _tsc_deadline;
   l4_kernel_clock_t _last_ticks_tsc;
   bool _x2apic_enabled;
+  std::atomic<bool> _nmi_pending;
   Eoi_handler *_sources[256];
   std::queue<unsigned> _non_irr_irqs;
   cxx::Ref_ptr<Vmm::Cpu_dev> _cpu;
@@ -768,6 +772,13 @@ public:
             return;
           }
         break;
+      case Vdev::Msix::Delivery_mode::Dm_nmi:
+        if (auto lapic = _apics->get(id))
+          lapic->nmi();
+        return;
+      case Vdev::Msix::Delivery_mode::Dm_smi:
+        info().printf("Dropped SMI request\n");
+        return;
       default:
         break;
       }

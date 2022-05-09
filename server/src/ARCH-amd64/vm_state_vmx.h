@@ -103,11 +103,21 @@ public:
     Wait_sipi = 3
   };
 
+  enum Vmx_pin_based_vm_execution_controls : unsigned
+  {
+    Ext_int_exiting_bit = (1U << 0),
+    Nmi_exiting_bit = (1U << 3),
+    Virtual_nmis_bit = (1U << 5),
+    Activate_vmx_preemption_timer_bit = (1U << 6),
+    Process_posted_ints = (1U << 7),
+  };
+
   enum Vmx_primary_vm_execution_controls : unsigned long
   {
     Int_window_exit_bit = (1UL << 2),
     Hlt_exit_bit = (1UL << 7),
     Tpr_shadow_bit = (1UL << 21),
+    Nmi_window_exit_bit = (1UL << 22),
     Enable_secondary_ctls_bit = (1UL << 31),
   };
 
@@ -164,6 +174,10 @@ public:
 
     // PAT reset value
     vmx_write(VMCS_GUEST_IA32_PAT, 0x0007040600070406ULL);
+
+    vmx_write(VMCS_PIN_BASED_VM_EXEC_CTLS,
+              vmx_read(VMCS_PIN_BASED_VM_EXEC_CTLS)
+              | Virtual_nmis_bit);
 
     vmx_write(VMCS_VM_ENTRY_CTLS,
               (vmx_read(VMCS_VM_ENTRY_CTLS)
@@ -400,6 +414,28 @@ public:
                 | Int_window_exit_bit);
   }
 
+  bool can_inject_nmi() const
+  {
+    return vmx_read(VMCS_GUEST_INTERRUPTIBILITY_STATE) == 0
+           && !event_injected()
+           && activity_state() < Activity_state::Shutdown;
+  }
+
+  void disable_nmi_window()
+  {
+    vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
+              vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
+                & ~Nmi_window_exit_bit);
+  }
+
+  void enable_nmi_window()
+  {
+    vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
+              vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
+                | Nmi_window_exit_bit);
+  }
+
+
   /**
    * The interrupt information for VM entry and exit have the same layout. Some
    * fields are used only for event injection on entry and some are only used
@@ -501,6 +537,12 @@ public:
   {
     using Int_type = Vmx_int_info_field::Int_type;
     inject_event(irq, Int_type::External_interrupt);
+  }
+
+  void inject_nmi()
+  {
+    using Int_type = Vmx_int_info_field::Int_type;
+    inject_event(2, Int_type::NMI);
   }
 
   /**

@@ -619,6 +619,7 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
       return vms->handle_exception_nmi_ext_int();
 
     case Exit::Interrupt_window:
+    case Exit::Nmi_window:
       return L4_EOK;
 
     case Exit::Exec_halt:
@@ -813,6 +814,15 @@ Guest::run_vmx(Vcpu_ptr vcpu)
             }
           while (1);
         }
+
+      if (vm->can_inject_nmi())
+        {
+          vm->disable_nmi_window();
+          if (lapic(vcpu)->next_pending_nmi())
+            vm->inject_nmi();
+        }
+      else
+        vm->enable_nmi_window();
 
       if (vm->can_inject_interrupt())
         {
