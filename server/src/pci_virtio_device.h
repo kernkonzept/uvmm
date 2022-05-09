@@ -108,6 +108,7 @@ public:
         hdr->classcode[2] = 0x02;
         break;
       case L4VIRTIO_ID_BLOCK:
+      case L4VIRTIO_ID_SCSI:
         hdr->classcode[2] = 0x01;
         break;
       case L4VIRTIO_ID_CONSOLE:
@@ -115,7 +116,12 @@ public:
         hdr->classcode[2] = 0x07;
         hdr->classcode[1] = 0x80;
         break;
+      case L4VIRTIO_ID_INPUT:
+        hdr->classcode[2] = 0x09; // Input devices
+        hdr->classcode[1] = 0x80; // Other input controller
+        break;
       default:
+        hdr->classcode[2] = 0xff;
         break;
       }
   }
