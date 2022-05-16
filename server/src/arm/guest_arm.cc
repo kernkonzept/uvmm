@@ -470,6 +470,18 @@ Guest::load_linux_kernel(Vm_ram *ram, char const *kernel, Ram_free_list *free_li
         // Gzip compressed kernel images are not self-decompressing on ARM
         L4Re::throw_error(-L4_EINVAL,
            "Cannot boot compressed images! Unzip first or enable uvmm gzip support.");
+      else if (h[0] == 0x4d && h[1] == 0x5a /* "MZ */)
+        {
+          l4_uint32_t o = *reinterpret_cast<l4_int32_t const *>(&h[0x3c]);
+          if (o <= L4_PAGESIZE - 4
+              && h[o+0] == 0x50 && h[o+1] == 0x45
+              && h[o+2] == 0x00 && h[o+3] == 0x00 /* "PE\0\0" */)
+            L4Re::throw_error(-L4_EINVAL,
+               "Cannot boot EFI images! Was the ARM header stripped?");
+          else
+            L4Re::throw_error(-L4_EINVAL,
+               "Cannot boot images with 'MZ' header.");
+        }
 
       if (entry == ~0ul)
         {
