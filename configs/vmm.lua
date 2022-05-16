@@ -123,7 +123,7 @@ function start_vm(options)
     vbus = vbus;
     ram  = L4.Env.user_factory:create(L4.Proto.Dataspace,
                                       size_mb * 1024 * 1024,
-                                      mem_flags, align):m("rws");
+                                      mem_flags, align):m("rw");
   };
 
   if options.jdb then
