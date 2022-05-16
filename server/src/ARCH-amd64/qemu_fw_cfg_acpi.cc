@@ -30,7 +30,6 @@ class Acpi_tables : public Tables
 {
   enum
   {
-    Dsdt_max_size = 4096,
     Tables_reservation = 8192,
     Loader_commands_reservation = 512,
   };
@@ -85,21 +84,23 @@ public:
   static char const constexpr *Tables_file_name = "etc/acpi/tables";
   static char const constexpr *Loader_commands_file_name = "etc/table-loader";
 
-  Acpi_tables(unsigned cpus)
+  Acpi_tables(Vdev::Device_lookup *devs)
   {
     info.printf("Initialize Qemu IF ACPI tables.\n");
-    _tables.reserve(Tables_reservation);
+    _tables.resize(Tables_reservation);
     _loader_cmds.reserve(Loader_commands_reservation);
 
     cmd_add_alloc(Tables_file_name, 64 /* FACS requirement */, false);
-    l4_size_t dsdt = write_dsdt();
-    l4_size_t facs = write_facs();
-    l4_size_t fadt = write_fadt(dsdt, facs);
-    l4_size_t madt = write_madt(cpus);
-    l4_size_t rsdt = write_rsdt(madt, fadt);
+    Writer table_wr(reinterpret_cast<l4_addr_t>(_tables.data()), _tables.size());
+    write_all_tables(table_wr, devs);
+    _tables.resize(table_wr.pos());
+    resolve_table_refs_and_checksums(Tables_file_name, table_wr, table_wr);
 
     cmd_add_alloc(Rsdp_file_name, 16, true /* EBDA area */);
-    write_rsdp(rsdt);
+    _rsdp.resize(Rsdp_size);
+    Writer rdsp_wr(reinterpret_cast<l4_addr_t>(_rsdp.data()), _rsdp.size());
+    write_rsdp(rdsp_wr);
+    resolve_table_refs_and_checksums(Rsdp_file_name, rdsp_wr, table_wr);
   }
 
   std::vector<char> const &rsdp() const
@@ -110,103 +111,20 @@ public:
   { return _loader_cmds; }
 
 private:
-  l4_size_t write_dsdt()
+  void resolve_table_refs_and_checksums(char const *fn, Writer &wr,
+                                        Writer &table_wr)
   {
-    align(8);
-    l4_size_t start = _tables.size();
-    _tables.resize(start + Dsdt_max_size);
-    l4_size_t len =
-      Tables::write_dsdt(reinterpret_cast<ACPI_TABLE_HEADER *>(&_tables[start]),
-                         Dsdt_max_size);
-    l4_size_t end = start + len;
-    _tables.resize(end);
+    for (Writer::Table_ref const &ref : wr.table_refs())
+      {
+        if (ref.size == 4)
+          *wr.as_ptr<l4_uint32_t>(ref.offset) = table_wr.table_offset(ref.table);
+        else
+          L4Re::throw_error(-L4_EINVAL, "Unsupported table offset size.");
+        cmd_add_pointer(fn, ref.offset, ref.size, Tables_file_name);
+      }
 
-    cmd_add_header_checksum(start);
-    return start;
-  }
-
-  l4_size_t write_facs()
-  {
-    align(8);
-    l4_size_t start = _tables.size();
-    _tables.resize(start + Facs_size);
-    Tables::write_facs(reinterpret_cast<ACPI_TABLE_FACS *>(&_tables[start]));
-
-    return start;
-  }
-
-  l4_size_t write_fadt(l4_size_t dsdt, l4_size_t facs)
-  {
-    align(8);
-    l4_size_t start = _tables.size();
-    _tables.resize(start + Fadt_size);
-    auto fadt = reinterpret_cast<ACPI_TABLE_FADT *>(&_tables[start]);
-    Tables::write_fadt(fadt, dsdt, facs);
-
-    cmd_add_pointer(Tables_file_name, start + offsetof(ACPI_TABLE_FADT, Dsdt),
-                    sizeof(fadt->Dsdt), Tables_file_name);
-    cmd_add_header_checksum(start);
-
-    return start;
-  }
-
-  l4_size_t write_madt(unsigned cpus)
-  {
-    align(8);
-    l4_size_t start = _tables.size();
-    _tables.resize(start + madt_size(cpus));
-    Tables::write_madt(reinterpret_cast<ACPI_TABLE_MADT *>(&_tables[start]),
-                       cpus);
-    cmd_add_header_checksum(start);
-    return start;
-  }
-
-  l4_size_t write_rsdt(l4_size_t madt, l4_size_t fadt)
-  {
-    align(8);
-    l4_size_t start = _tables.size();
-    _tables.resize(start + Rsdt_size);
-    auto rsdt = reinterpret_cast<ACPI_TABLE_RSDT *>(&_tables[start]);
-    Tables::write_rsdt(rsdt, madt, fadt);
-
-    cmd_add_pointer(Tables_file_name,
-                    start + offsetof(ACPI_TABLE_RSDT, TableOffsetEntry[0]),
-                    sizeof(rsdt->TableOffsetEntry[0]), Tables_file_name);
-    cmd_add_pointer(Tables_file_name,
-                    start + offsetof(ACPI_TABLE_RSDT, TableOffsetEntry[1]),
-                    sizeof(rsdt->TableOffsetEntry[1]), Tables_file_name);
-    cmd_add_header_checksum(start);
-
-    return start;
-  }
-
-  void write_rsdp(l4_size_t rsdt)
-  {
-    align(8);
-    _rsdp.resize(Rsdp_size);
-    auto rsdp = reinterpret_cast<ACPI_TABLE_RSDP *>(&_rsdp[0]);
-    Tables::write_rsdp(rsdp, rsdt);
-
-    cmd_add_pointer(Rsdp_file_name,
-                    offsetof(ACPI_TABLE_RSDP, RsdtPhysicalAddress),
-                    sizeof(rsdp->RsdtPhysicalAddress), Tables_file_name);
-    cmd_add_checksum(Rsdp_file_name, 0, Rsdp_v1_size,
-                     offsetof(ACPI_TABLE_RSDP, Checksum));
-    cmd_add_checksum(Rsdp_file_name, 0, Rsdp_size,
-                     offsetof(ACPI_TABLE_RSDP, ExtendedChecksum));
-  }
-
-  void align(l4_size_t alignment)
-  {
-    while (_tables.size() & (alignment - 1U))
-      _tables.push_back(0);
-  }
-
-  void cmd_add_header_checksum(l4_size_t start)
-  {
-    auto h = reinterpret_cast<ACPI_TABLE_HEADER *>(&_tables[start]);
-    cmd_add_checksum(Tables_file_name, start, h->Length,
-                     start + offsetof(ACPI_TABLE_HEADER, Checksum));
+    for (Writer::Checksum const &checksum : wr.checksums())
+      cmd_add_checksum(fn, checksum.offset, checksum.len, checksum.field_off);
   }
 
   void cmd_add_checksum(char const *fn, l4_size_t start, l4_size_t size,
@@ -270,8 +188,7 @@ struct Qemu_fw_cfg_tables : public Qemu_fw_cfg::Provider
 {
   void init_late(Vdev::Device_lookup *devs) override
   {
-    Acpi_tables tables(devs->cpus()->max_cpuid() + 1);
-
+    Acpi_tables tables(devs);
     Qemu_fw_cfg::put_file(Acpi_tables::Rsdp_file_name, tables.rsdp());
     Qemu_fw_cfg::put_file(Acpi_tables::Tables_file_name, tables.tables());
     Qemu_fw_cfg::put_file(Acpi_tables::Loader_commands_file_name, tables.loader_cmds());

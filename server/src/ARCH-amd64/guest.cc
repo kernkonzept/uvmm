@@ -194,8 +194,8 @@ Guest::prepare_binary_run(Vdev::Device_lookup *devs, l4_addr_t entry,
     {
       Vm_ram *ram = devs->ram().get();
 
-      Acpi::Bios_tables acpi_tables(devs->ram());
-      acpi_tables.write_to_guest(_cpus->max_cpuid() + 1);
+      Acpi::Bios_tables acpi_tables(devs);
+      acpi_tables.write_to_guest();
 
       // use second memory page as zeropage location
       Zeropage zpage(Vmm::Guest_addr(L4_PAGESIZE), entry);

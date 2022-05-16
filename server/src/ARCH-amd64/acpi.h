@@ -18,6 +18,7 @@
 
 #include <l4/cxx/utils>
 #include <consts.h>
+#include <array>
 #include <vector>
 
 #include "debug.h"
@@ -151,142 +152,335 @@ protected:
   {
     Header_size = sizeof(ACPI_TABLE_HEADER),
     Rsdp_size = sizeof(ACPI_TABLE_RSDP),
-    Rsdp_v1_size = 20,
-    Rsdt_size = Header_size + 2 * sizeof(l4_uint32_t),
-    Fadt_size = sizeof(ACPI_TABLE_FADT),
-    Ioapic_size = sizeof(ACPI_MADT_IO_APIC),
-    Lapic_size = sizeof(ACPI_MADT_LOCAL_APIC),
-    Madt_basic_size = sizeof(ACPI_TABLE_MADT),
+    Rsdp_v1_size = sizeof(ACPI_RSDP_COMMON),
     Facs_size = sizeof(ACPI_TABLE_FACS)
   };
 
-  /**
-   * Compute table checksums.
-   *
-   * \param dest  Table address.
-   * \param len   Length of the table.
-   *
-   * \return  Value so that the sum of all table values modulo 256 is zero.
-   */
-  static l4_uint8_t compute_checksum(void *dest, unsigned len)
+  enum class Table : unsigned
   {
-    auto table = reinterpret_cast<l4_uint8_t *>(dest);
-    l4_uint8_t sum = 0;
-    for (unsigned i = 0; i < len; i++)
-      sum += table[i];
-
-    return -sum;
-  }
-
-  l4_size_t madt_size(unsigned cpus)
-  {
-    return Madt_basic_size + Ioapic_size + cpus * Lapic_size;
-  }
+    Rsdt,
+    Fadt,
+    Madt,
+    Facs,
+    Dsdt,
+    Num_values,
+  };
 
   /**
-   * Compute a table's checksum field.
+   * Helps with generating ACPI structures by providing abstractions for common
+   * operations, table references and checksums.
    *
-   * \param h  Pointer to the table.
+   * Table reference fields and checksum fields are not filled in immediately,
+   * but instead a list of fixups is kept for them. Firstly, this simplifies the
+   * creation of ACPI structures, since the size and layout of the tables no
+   * longer have to be calculated in advance, which is particularly tricky for
+   * dynamically-sized tables. Secondly, this allows a more flexible use of the
+   * generated ACPI structures, since they can now be relocated to arbitrary
+   * memory addresses thanks to the fixups.
    */
-  void compute_checksum(ACPI_TABLE_HEADER *h)
+  class Writer
   {
-    // In case the checksum is re-computated, the checksum field has to be
-    // zeroed before computation.
-    cxx::write_now<l4_uint8_t>(&(h->Checksum), 0U);
-    h->Checksum = compute_checksum(h, h->Length);
-  }
+  public:
+    Writer(l4_addr_t buf_addr, unsigned buf_size)
+    : _buf_addr(buf_addr), _buf_size(buf_size), _pos(0)
+    {}
 
-  /**
-   * Write an identifier with correct padding.
-   *
-   * \param dest   Pointer to the memory destination.
-   * \param value  String to write.
-   * \param len    Length of the identifier field.
-   */
-  void write_identifier(char *dest, char const *value, l4_size_t len)
-  {
-    auto value_length = strlen(value);
+    /**
+     * Return current write position.
+     */
+    unsigned pos() const
+    { return _pos; }
 
-    assert(value_length <= len && "Supplied identifier fits into field.");
+    /**
+     * Return number of unused bytes remaining in the write buffer.
+     */
+    unsigned remaining_size() const
+    { return _buf_size - _pos; }
 
-    memcpy(dest, value, value_length);
-    memset(dest + value_length, ' ', len - value_length);
-  }
+    /**
+     * Register the given ACPI table to start at the current write position, if
+     * necessary adjusted to the tables alignment requirements. Then reserve
+     * memory for the ACPI table.
+     *
+     * \tparam T      Type of the table.
+     * \param  table  Table
+     * \param  len    Length of memory to reserve for the table.
+     * \param  align  Alignment required by the table.
+     */
+    template<typename T>
+    T *start_table(Table table, unsigned len = sizeof(T), unsigned align = 8)
+    {
+      if (_pos % align != 0)
+        reserve<void>(align - (_pos % align));
 
-  /**
-   * Write a common header for ACPI tables as defined in section 5.2.6 of the
-   * ACPI Specification.
-   *
-   * \param h    Destination pointer.
-   * \param sig  Signature as described in Table 5-29.
-   * \param len  Total length of the table.
-   */
-  void write_header(ACPI_TABLE_HEADER *h, char const *sig, l4_uint32_t len)
-  {
-    memcpy(h->Signature, sig, ACPI_NAMESEG_SIZE);
-    h->Length = len;
-    h->Revision = 0;
-    write_identifier(h->OemId, "L4RE", ACPI_OEM_ID_SIZE);
-    write_identifier(h->OemTableId, "UVMM", ACPI_OEM_TABLE_ID_SIZE);
-    h->OemRevision = 1;
-    memcpy(h->AslCompilerId, "UVMM", ACPI_NAMESEG_SIZE);
-    h->AslCompilerRevision = 1;
-  }
+      _tables[static_cast<unsigned>(table)] = _pos;
+      return reserve<T>(len);
+    }
+
+    /**
+     * Reserve memory.
+     *
+     * \tparam T    Type to reserve memory for.
+     * \param  len  Length of the memory to reserve, defaults to size of T.
+     */
+    template<typename T = void>
+    T *reserve(unsigned len = sizeof(T))
+    {
+      if (_pos + len > _buf_size)
+        {
+          Err().printf("ACPI table memory allocation exhausted. "
+                       "Please configure less ACPI devices "
+                       "or raise the ACPI table size limit.\n");
+          L4Re::throw_error(-L4_ENOMEM, "ACPI table memory allocation exhausted.");
+        }
+
+      T *base = as_ptr<T>(_pos);
+      _pos += len;
+      return base;
+    }
+
+    /**
+     * Write an identifier with correct padding.
+     *
+     * \param dest   Pointer to the memory destination.
+     * \param value  String to write.
+     * \param len    Length of the identifier field.
+     */
+    static void write_identifier(char *dest, char const *value, l4_size_t len)
+    {
+      auto value_length = strlen(value);
+
+      assert(value_length <= len && "Supplied identifier fits into field.");
+
+      memcpy(dest, value, value_length);
+      memset(dest + value_length, ' ', len - value_length);
+    }
+
+    /**
+     * Write a common header for ACPI tables as defined in section 5.2.6 of the
+     * ACPI Specification.
+     *
+     * \param h    Table header.
+     * \param sig  Signature as described in Table 5-29.
+     * \param len  Total length of the table.
+     */
+    void write_header(ACPI_TABLE_HEADER *h, char const *sig, l4_uint32_t len)
+    {
+      memcpy(h->Signature, sig, ACPI_NAMESEG_SIZE);
+      h->Length = len;
+      h->Revision = 0;
+      add_checksum(&h->Checksum, h, len);
+      write_identifier(h->OemId, "L4RE", ACPI_OEM_ID_SIZE);
+      write_identifier(h->OemTableId, "UVMM", ACPI_OEM_TABLE_ID_SIZE);
+      h->OemRevision = 1;
+      memcpy(h->AslCompilerId, "UVMM", ACPI_NAMESEG_SIZE);
+      h->AslCompilerRevision = 1;
+    }
+
+    /**
+     * Write header for a table and automatically determine size as delta
+     * between start position of the table and the current position of the
+     * writer.
+     *
+     * Useful for tables with dynamic size.
+     *
+     * \param h    Table header, must be at the very beginning of the table.
+     * \param sig  Signature as described in Table 5-29.
+     */
+    void end_table(ACPI_TABLE_HEADER *h, char const *sig)
+    {
+      write_header(h, sig, _pos - as_offset(h));
+    }
+
+    /**
+     * Reserve an MADT subtable and write its header.
+     *
+     * \tparam T     Type of the MADT subtable.
+     * \param  type  MADT subtable type.
+     */
+    template<typename T>
+    T *reserve_madt_subtable(enum AcpiMadtType type)
+    {
+      T *subtable = reserve<T>();
+      subtable->Header.Type = type;
+      subtable->Header.Length = sizeof(T);
+      return subtable;
+    }
+
+    /**
+     * Add fixup for table reference field.
+     *
+     * \tparam T     Type of the table reference field.
+     * \param  ref   Table reference field.
+     * \param  table Table that is referenced.
+     */
+    template<typename T>
+    void add_table_ref(T const *ref, Table table)
+    {
+      _table_refs.emplace_back(Table_ref{as_offset(ref), sizeof(T), table});
+    }
+
+    /**
+     * Add fixup for checksum field.
+     *
+     * \param  checksum  Checksum field.
+     * \param  base      Pointer to start of memory area to checksum.
+     * \param  len       Length of the memory area to checksum.
+     */
+    void add_checksum(l4_uint8_t *checksum, void *base, unsigned len)
+    {
+      // Although we do not calculate the checksum here, ensure that the the
+      // checksum field is zeroed, which is required for checksum computation.
+      *checksum = 0U;
+      _checksums.emplace_back(Checksum{as_offset(checksum),
+                                       as_offset(base), len});
+    }
+
+    /**
+     * Table reference placeholder.
+     */
+    struct Table_ref
+    {
+      /// Offset of table reference field in write buffer.
+      unsigned offset;
+      /// Size of table reference field.
+      unsigned size;
+      /// Table that is referenced.
+      Table table;
+    };
+
+    /**
+     * Checksum placeholder.
+     */
+    struct Checksum
+    {
+      /// Offset of checksum field in write buffer.
+      unsigned field_off;
+      /// Offset of the memory area to checksum in write buffer.
+      unsigned offset;
+      /// Length of the memory area to checksum.
+      unsigned len;
+    };
+
+    /// Return table reference placeholders.
+    std::vector<Table_ref> const &table_refs() const { return _table_refs; }
+    /// Return checksum placeholders.
+    std::vector<Checksum> const &checksums() const { return _checksums; }
+
+    /**
+     * Return start offset of the given table.
+     */
+    unsigned table_offset(Table table) const
+    { return _tables[static_cast<unsigned>(table)]; }
+
+    /**
+     * Convert offset into virtual address.
+     */
+    l4_addr_t as_addr(unsigned offset) const
+    {
+      assert(offset < _buf_size);
+      return _buf_addr + offset;
+    }
+
+    /**
+     * Convert offset into pointer.
+     */
+    template<typename T = void>
+    T *as_ptr(unsigned offset) const
+    { return reinterpret_cast<T *>(as_addr(offset)); }
+
+  private:
+    unsigned as_offset(void const *ptr) const
+    {
+      l4_addr_t addr = reinterpret_cast<l4_addr_t>(ptr);
+      assert(addr >= _buf_addr);
+      return addr - _buf_addr;
+    }
+
+    l4_addr_t _buf_addr;
+    unsigned _buf_size;
+    unsigned _pos;
+    std::array<unsigned, static_cast<unsigned>(Table::Num_values)> _tables;
+    std::vector<Table_ref> _table_refs;
+    std::vector<Checksum> _checksums;
+  }; // class Writer
 
   /**
    * Write a Root System Description Pointer (RSDP).
    *
    * Base ACPI structure as defined in section 5.2.5 of the ACPI Specification.
    * This class includes the ACPI 2.0+ extensions.
-   *
-   * \param t     Pointer to the destination.
-   * \param rsdt  Address of the RSDT.
    */
-  void write_rsdp(ACPI_TABLE_RSDP *t, l4_uint32_t rsdt_addr)
+  static void write_rsdp(Writer &wr)
   {
+    auto *t = wr.reserve<ACPI_TABLE_RSDP>(Rsdp_size);
     memcpy(t->Signature, ACPI_SIG_RSDP, sizeof(t->Signature));
-    cxx::write_now<l4_uint8_t>(&(t->Checksum), 0U);
-    write_identifier(t->OemId, "L4RE", ACPI_OEM_ID_SIZE);
+    wr.add_checksum(&t->Checksum, t, Rsdp_v1_size);
+    wr.write_identifier(t->OemId, "L4RE", ACPI_OEM_ID_SIZE);
     t->Revision = 2; // ACPI 2.0+
-    t->RsdtPhysicalAddress = rsdt_addr;
+    wr.add_table_ref(&t->RsdtPhysicalAddress, Table::Rsdt);
     t->Length = Rsdp_size;
     t->XsdtPhysicalAddress = 0; // For now we don't implement the XSDT.
-    cxx::write_now<l4_uint8_t>(&(t->ExtendedChecksum), 0U);
+    wr.add_checksum(&t->ExtendedChecksum, t, Rsdp_size);
   }
 
+  /**
+   * Writes all implemented ACPI tables.
+   */
+  static void write_all_tables(Writer &wr, Vdev::Device_lookup *devs)
+  {
+    write_rsdt(wr);
+    write_fadt(wr);
+    write_madt(wr, devs->cpus()->max_cpuid() + 1);
+    write_facs(wr);
+    write_dsdt(wr);
+  }
+
+  /**
+   * Compute ACPI checksum for memory area.
+   *
+   * \param dest  Base address of the memory area.
+   * \param len   Length of the memory area.
+   *
+   * \return Value so that the sum of all bytes in the memory area modulo 256
+   *         is zero.
+   */
+  static l4_uint8_t compute_checksum(void *dest, unsigned len)
+  {
+    l4_uint8_t *bytes = reinterpret_cast<l4_uint8_t *>(dest);
+    l4_uint8_t sum = 0;
+    for (unsigned i = 0; i < len; i++)
+      sum += bytes[i];
+
+    return -sum;
+  }
+
+private:
   /**
    * Write a Root System Description Table (RSDT).
    *
    * Table holding pointers to other system description tables as defined in
    * section 5.2.7 of the ACPI Specification.
-   *
-   * \param t     Pointer to the destination.
-   * \param madt  Address of the MADT.
-   * \param fadt  Address of the FADT.
    */
-  void write_rsdt(ACPI_TABLE_RSDT *t,
-                  l4_uint32_t madt_addr, l4_uint32_t fadt_addr)
+  static void write_rsdt(Writer &wr)
   {
-    auto header = &(t->Header);
-    write_header(header, ACPI_SIG_RSDT, Rsdt_size);
+    // Tables that RSDT refers to.
+    static constexpr std::array<Table, 2> ref_tables = {
+      Table::Madt,
+      Table::Fadt,
+    };
+
+    // RSDT table header plus a 32-bit word per table pointer.
+    auto rsdt_size = Header_size + ref_tables.size() * sizeof(l4_uint32_t);
+    auto *t = wr.start_table<ACPI_TABLE_RSDT>(Table::Rsdt, rsdt_size);
 
     // The acpi_table_rsdt struct defines only one entry, but we simply use the
-    // extra space allocated in the header.
-    t->TableOffsetEntry[0] = madt_addr;
-    t->TableOffsetEntry[1] = fadt_addr;
-  }
+    // extra space allocated in the header. Do not forget to update
+    // Num_table_refs when adding or removing a table reference here.
+    for (l4_size_t i = 0; i < ref_tables.size(); i++)
+      wr.add_table_ref(&t->TableOffsetEntry[i], ref_tables[i]);
 
-  /**
-   * Write a Firmware ACPI Control Structure (FACS).
-   */
-  void write_facs(ACPI_TABLE_FACS *t)
-  {
-    memcpy(t->Signature, ACPI_SIG_FACS, ACPI_NAMESEG_SIZE);
-    t->Length = Facs_size;
-    t->Version = 2;
-    // other fields written by OSPM or should be zero.
-
-    Facs_storage::get()->set_addr(t);
+    wr.end_table(&t->Header, ACPI_SIG_RSDT);
   }
 
   /**
@@ -294,16 +488,10 @@ protected:
    *
    * Table providing fixed hardware information as defined in section 5.2.8 of
    * the ACPI Specification.
-   *
-   * \param t     Pointer to the destination.
-   * \param dsdt_addr  Address of the DSDT.
-   * \param facs_addr  Address of the FACS.
    */
-  void write_fadt(ACPI_TABLE_FADT *t,
-                  l4_uint32_t dsdt_addr, l4_uint32_t facs_addr)
+  static void write_fadt(Writer &wr)
   {
-    auto header = &(t->Header);
-    write_header(header, ACPI_SIG_FADT, Fadt_size);
+    auto *t = wr.start_table<ACPI_TABLE_FADT>(Table::Fadt);
 
     // Emulate ACPI 6.3.
     t->Header.Revision = 6;
@@ -315,18 +503,18 @@ protected:
     // up for finding PCI devices.
     // t->Flags = (1 << 20); // HW_REDUCED_ACPI
 
-    t->Dsdt = dsdt_addr;
+    wr.add_table_ref(&t->Dsdt, Table::Dsdt);
     t->XDsdt = 0; // For now we don't implement the extended DSDT.
-    t->Facs = facs_addr;
+    wr.add_table_ref(&t->Facs, Table::Facs);
     t->XFacs = 0;
-    Facs_storage::get()->set_gaddr(t->Facs);
 
     // How to pick the ID?
     t->HypervisorId = 0;
 
-    std::vector<Acpi_device const*> const &devs = Acpi_device_hub::get()->devices();
-    for (auto const &d: devs)
+    for (auto const &d : Acpi_device_hub::get()->devices())
       d->amend_fadt(t);
+
+    wr.end_table(&t->Header, ACPI_SIG_FADT);
   }
 
   /**
@@ -335,73 +523,70 @@ protected:
    * The MADT lists Advanced Programmable Interrupt Controllers in the system
    * as defined in section 5.2.12 of the ACPI Specification.
    *
-   * \param t     Pointer to the destination.
    * \param cpus  The number of enabled CPUs.
    */
-  void write_madt(ACPI_TABLE_MADT *t, unsigned cpus)
+  static void write_madt(Writer &wr, unsigned cpus)
   {
-    auto header = &(t->Header);
-
-    write_header(header, ACPI_SIG_MADT, madt_size(cpus));
+    auto *t = wr.start_table<ACPI_TABLE_MADT>(Table::Madt);
 
     t->Address = Gic::Lapic_access_handler::Mmio_addr;
     // ACPI 6.3 Specification, Table 5-44:
     // not a PC-AT-compatible dual-8259 setup
     t->Flags = 0;
+
     // I/O APIC Structure.
     // Provide information about the system's I/O APICs as defined in section
     // 5.2.12.3 of the ACPI Specification.
-    auto ioapic = reinterpret_cast<ACPI_MADT_IO_APIC *>(
-      reinterpret_cast<l4_addr_t>(t) + Madt_basic_size);
-    ioapic->Header.Type = ACPI_MADT_TYPE_IO_APIC;
-    ioapic->Header.Length = Ioapic_size;
-    ioapic->Id = 0;
+    auto *ioapic = wr.reserve_madt_subtable<ACPI_MADT_IO_APIC>(
+      ACPI_MADT_TYPE_IO_APIC);
     ioapic->Reserved = 0;
+    ioapic->Id = 0;
     ioapic->Address = Gic::Io_apic::Mmio_addr;
     ioapic->GlobalIrqBase = 0;
 
     // Processor Local APIC Structure.
     // Structure to be appended to the MADT base table for each local APIC.
     // Defined in section 5.2.12.2 of the ACPI Specification.
-    auto lapics = reinterpret_cast<ACPI_MADT_LOCAL_APIC *>(
-      reinterpret_cast<l4_addr_t>(t) + Madt_basic_size + Ioapic_size);
-
     for (unsigned i = 0; i < cpus; ++i)
       {
-        lapics[i].Header.Type = ACPI_MADT_TYPE_LOCAL_APIC;
-        lapics[i].Header.Length = Lapic_size;
-        lapics[i].ProcessorId = i;
-        lapics[i].Id = i;
-        lapics[i].LapicFlags = 1; // Enable CPU.
+        auto *lapic = wr.reserve_madt_subtable<ACPI_MADT_LOCAL_APIC>(
+          ACPI_MADT_TYPE_LOCAL_APIC);
+        lapic->ProcessorId = i;
+        lapic->Id = i;
+        lapic->LapicFlags = 1; // Enable CPU.
       }
+
+    // Finally fill the table header.
+    wr.end_table(&t->Header, ACPI_SIG_MADT);
+  }
+
+  /**
+   * Write a Firmware ACPI Control Structure (FACS).
+   */
+  static void write_facs(Writer &wr)
+  {
+    auto *t = wr.start_table<ACPI_TABLE_FACS>(Table::Facs, Facs_size, 64);
+    memcpy(t->Signature, ACPI_SIG_FACS, ACPI_NAMESEG_SIZE);
+    t->Length = Facs_size;
+    t->Version = 2;
+    // other fields written by OSPM or should be zero.
   }
 
   /**
    * Write Differentiated System Description Table (DSDT).
-   *
-   * \param t         Pointer to the destination.
-   * \param max_size  Maximum size this table can use.
-   *
-   * \returns Amount of bytes written.
-   *
-   * XXX stub implementation, add actual device info.
-   * Defined in section 5.2.11.1 of the ACPI Specification.
    */
-  l4_size_t write_dsdt(ACPI_TABLE_HEADER *t, l4_size_t max_size)
+  static void write_dsdt(Writer &wr)
   {
-    l4_size_t dsdt_size = Header_size;
-    void *ptr = reinterpret_cast<void*>(reinterpret_cast<l4_addr_t>(t)
-                                        + Header_size);
-    std::vector<Acpi_device const*> const &devs = Acpi_device_hub::get()->devices();
-    for (auto const &d: devs)
-      {
-        l4_size_t s = d->amend_dsdt(ptr, max_size - dsdt_size);
-        dsdt_size += s;
-        ptr = reinterpret_cast<void *>(reinterpret_cast<l4_addr_t>(ptr) + s);
-      }
-    write_header(t, ACPI_SIG_DSDT, dsdt_size);
+    auto *t = wr.start_table<ACPI_TABLE_HEADER>(Table::Dsdt);
 
-    return dsdt_size;
+    for (auto const &d : Acpi_device_hub::get()->devices())
+      {
+        void *ptr = wr.as_ptr(wr.pos());
+        auto amend_size = d->amend_dsdt(ptr, wr.remaining_size());
+        wr.reserve(amend_size);
+      }
+
+    wr.end_table(t, ACPI_SIG_DSDT);
   }
 };
 
@@ -422,89 +607,60 @@ public:
    *
    * \param ram  Guest RAM.
    */
-  Bios_tables(cxx::Ref_ptr<Vmm::Vm_ram> ram)
+  Bios_tables(Vdev::Device_lookup *devs)
+  : _devs(devs)
   {
     info.printf("Initialize legacy BIOS ACPI tables.\n");
-    _dest_addr = ram->guest2host<l4_addr_t>(Vmm::Guest_addr(Phys_start_addr));
-    _ram = ram;
+    _dest_addr = _devs->ram()->guest2host<l4_addr_t>(Vmm::Guest_addr(Phys_start_addr));
   }
 
   /**
    * Calculate positions for each table and write them in place.
    */
-  void write_to_guest(unsigned cpus)
+  void write_to_guest()
   {
-    auto madt_size = Madt_basic_size + Ioapic_size + cpus * Lapic_size;
+    // we allow the rsdp and all tables to take up one page
+    l4_size_t max_size = L4_PAGESIZE;
 
-    l4_addr_t const rsdp = _dest_addr;
-    l4_addr_t const rsdt = l4_round_size(rsdp + Rsdp_size, 4);
-    l4_addr_t const fadt = l4_round_size(rsdt + Rsdt_size, 4);
-    l4_addr_t const madt = l4_round_size(fadt + Fadt_size, 4);
-    l4_addr_t const facs = l4_round_size(madt + madt_size, 4);
-    l4_addr_t const dsdt = l4_round_size(facs + Facs_size, 4);
-    // we allow the dsdt to take up the rest of the page
-    l4_size_t dsdt_max = L4_PAGESIZE - (dsdt - rsdp);
-
-    auto acpi_mem =
-      Vmm::Region::ss(Vmm::Guest_addr(Phys_start_addr),
-                      dsdt - _dest_addr + Header_size, Vmm::Region_type::Ram);
+    auto acpi_mem = Vmm::Region::ss(Vmm::Guest_addr(Phys_start_addr), max_size,
+                                    Vmm::Region_type::Ram);
     // Throws an exception if the ACPI memory region isn't within guest RAM.
-    _ram->guest2host<l4_addr_t>(acpi_mem);
+    _devs->ram()->guest2host<l4_addr_t>(acpi_mem);
 
     // Clear memory because we do not rely on the DS provider to do this for
     // us, and we must not have spurious values in Acpi tables.
-    memset(reinterpret_cast<void *>(rsdp), 0, dsdt_max);
+    memset(reinterpret_cast<void *>(_dest_addr), 0, max_size);
 
-    write_rsdp(reinterpret_cast<ACPI_TABLE_RSDP *>(rsdp), acpi_phys_addr(rsdt));
-    write_rsdt(reinterpret_cast<ACPI_TABLE_RSDT *>(rsdt),
-               acpi_phys_addr(madt), acpi_phys_addr(fadt));
-    write_fadt(reinterpret_cast<ACPI_TABLE_FADT *>(fadt),
-               acpi_phys_addr(dsdt), acpi_phys_addr(facs));
-    write_madt(reinterpret_cast<ACPI_TABLE_MADT *>(madt), cpus);
-    write_facs(reinterpret_cast<ACPI_TABLE_FACS *>(facs));
-    write_dsdt(reinterpret_cast<ACPI_TABLE_HEADER *>(dsdt), dsdt_max);
-  }
+    Writer wr(_dest_addr, max_size);
+    write_rsdp(wr);
+    write_all_tables(wr, _devs);
+    resolve_table_refs_and_checksums(wr);
 
-protected:
-  void write_rsdp(ACPI_TABLE_RSDP *t, l4_uint32_t rsdt_addr)
-  {
-    Tables::write_rsdp(t, rsdt_addr);
-    t->Checksum = compute_checksum(t, Rsdp_v1_size);
-    t->ExtendedChecksum = compute_checksum(t, Rsdp_size);
-  }
-
-  void write_rsdt(ACPI_TABLE_RSDT *t,
-                  l4_uint32_t madt_addr, l4_uint32_t fadt_addr)
-  {
-    Tables::write_rsdt(t, madt_addr, fadt_addr);
-    compute_checksum(&(t->Header));
-  }
-
-  void write_facs(ACPI_TABLE_FACS *t)
-  {
-    Tables::write_facs(t);
-  }
-
-  void write_fadt(ACPI_TABLE_FADT *t,
-                  l4_uint32_t dsdt_addr, l4_uint32_t facs_addr)
-  {
-    Tables::write_fadt(t, dsdt_addr, facs_addr);
-    compute_checksum(&(t->Header));
-  }
-
-  void write_madt(ACPI_TABLE_MADT *t, unsigned cpus)
-  {
-    Tables::write_madt(t, cpus);
-    compute_checksum(&(t->Header));
-  }
-
-  void write_dsdt(ACPI_TABLE_HEADER *t, l4_size_t max_size)
-  {
-    Tables::write_dsdt(t, max_size);
-    compute_checksum(t);
+    l4_addr_t facs_off = wr.table_offset(Tables::Table::Facs);
+    Facs_storage::get()->set_addr(wr.as_ptr<ACPI_TABLE_FACS>(facs_off));
+    Facs_storage::get()->set_gaddr(acpi_phys_addr(wr.as_addr(facs_off)));
   }
 
 private:
+  void resolve_table_refs_and_checksums(Writer &wr)
+  {
+    for (Writer::Table_ref const &ref : wr.table_refs())
+      {
+        l4_addr_t table_addr = wr.as_addr(wr.table_offset(ref.table));
+        if (ref.size == sizeof(l4_uint32_t))
+          *wr.as_ptr<l4_uint32_t>(ref.offset) = acpi_phys_addr(table_addr);
+        else
+          L4Re::throw_error(-L4_EINVAL, "Unsupported table offset size.");
+      }
+
+    for (Writer::Checksum const &checksum : wr.checksums())
+      {
+        l4_uint8_t *field = wr.as_ptr<l4_uint8_t>(checksum.field_off);
+        // Calculate and write checksum.
+        *field = compute_checksum(wr.as_ptr(checksum.offset), checksum.len);
+      }
+  }
+
   /**
    * Compute guest-physical address of target table.
    *
@@ -517,8 +673,8 @@ private:
     return Phys_start_addr + static_cast<l4_uint32_t>(virt_target_addr - _dest_addr);
   }
 
+  Vdev::Device_lookup *_devs;
   l4_addr_t _dest_addr;
-  cxx::Ref_ptr<Vmm::Vm_ram> _ram;
 };
 
 
