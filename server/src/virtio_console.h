@@ -257,7 +257,7 @@ public:
 
   void attach_con_irq()
   {
-    L4Re::chksys(_con->bind(0, _con_irq));
+    L4Re::chksys(_con->bind(0, _con_irq), "Bind notification IRQ to Vcon.");
   }
 
   void register_obj(L4::Registry_iface *registry)
