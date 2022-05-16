@@ -180,6 +180,9 @@
             ranges = <0x01000000 0x0 0x00006000 0x0 0x00006000 0x0    0xa000
                       0x02000000 0x0 0xaa000000 0x0 0xaa000000 0x0 0x1000000>;
 
+            // ECAM MCFG window
+            reg = <0x00 0xb0000000 0x00 0x10000000>;
+
             // Every virtual device needs a cfgspace address as first reg
             // entry. Currently uvmm will ignore the bus/device/function
             // address, though.

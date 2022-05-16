@@ -11,6 +11,7 @@
 #include "acpi.h"
 #include "debug.h"
 #include "device.h"
+#include "pci_bus_cfg_ecam.h"
 #include "pci_host_bridge.h"
 #include "device_factory.h"
 #include "guest.h"
@@ -64,6 +65,30 @@ public:
 
   void init_dev_resources(Hw_pci_device *) override;
 
+  bool has_ecam() const
+  { return _ecam_mcfg_size != 0; }
+
+  /**
+   * Add a MCFG allocation for the ECAM MCFG window of the PCI host bridge.
+   */
+  l4_size_t amend_mcfg(ACPI_MCFG_ALLOCATION *alloc, l4_size_t max_size) const override
+  {
+    if (!has_ecam())
+      return 0;
+
+    if (max_size < sizeof(ACPI_MCFG_ALLOCATION))
+      L4Re::throw_error(-L4_ENOMEM,
+        "Not enough space in ACPI MCFG table for PCI host bridge.");
+
+    alloc->Address = _ecam_mcfg_base;
+    alloc->PciSegment = 0;
+    alloc->StartBusNumber = header()->secondary_bus_num;
+    alloc->EndBusNumber = header()->subordinate_bus_num;
+    alloc->Reserved = 0;
+
+    return sizeof(ACPI_MCFG_ALLOCATION);
+  };
+
   /**
    * Add a minimal DSDT system bus so that the PCI bridge is discoverable via
    * ACPI. Generated from the following ASL:
@@ -77,7 +102,8 @@ public:
    *     // PCI Root Bridge
    *     //
    *     Device (PCI0) {
-   *       Name (_HID, EISAID ("PNP0A03"))
+   *       Name (_HID, EISAID ("PNP0A08")) // PCI Express Root Bridge
+   *       Name (_CID, EISAID ("PNP0A03")) // Compatible PCI Root Bridge
    *       Name (_ADR, 0x00000000)
    *       Name (_BBN, 0x00)
    *       Name (_UID, 0x00)
@@ -135,69 +161,151 @@ public:
    *   $ iasl Dsdt.asl
    *   $ xxd -i -s 0x24 -c 8 Dsdt.aml
    */
-
   l4_size_t amend_dsdt(void *buf, l4_size_t max_size) const override
   {
     unsigned char dsdt_pci[] = {
-      /* 0x00 */ 0x10, 0x48, 0x07, 0x5f, 0x53, 0x42, 0x5f, 0x5b,
-      /* 0x08 */ 0x82, 0x40, 0x07, 0x50, 0x43, 0x49, 0x30, 0x08,
+      /* 0x00 */ 0x10, 0x42, 0x08, 0x5f, 0x53, 0x42, 0x5f, 0x5b,
+      /* 0x08 */ 0x82, 0x4a, 0x07, 0x50, 0x43, 0x49, 0x30, 0x08,
       /* 0x10 */ 0x5f, 0x48, 0x49, 0x44, 0x0c, 0x41, 0xd0, 0x0a,
-      /* 0x18 */ 0x03, 0x08, 0x5f, 0x41, 0x44, 0x52, 0x00, 0x08,
-      /* 0x20 */ 0x5f, 0x42, 0x42, 0x4e, 0x00, 0x08, 0x5f, 0x55,
-      /* 0x28 */ 0x49, 0x44, 0x00, 0x08, 0x5f, 0x43, 0x52, 0x53,
-      /* 0x30 */ 0x11, 0x48, 0x04, 0x0a, 0x44, 0x88, 0x0d, 0x00,
-      /* 0x38 */ 0x02, 0x0c, 0x00, 0x00, 0x00,
+      /* 0x18 */ 0x08, 0x08, 0x5f, 0x43, 0x49, 0x44, 0x0c, 0x41,
+      /* 0x20 */ 0xd0, 0x0a, 0x03, 0x08, 0x5f, 0x41, 0x44, 0x52,
+      /* 0x28 */ 0x00, 0x08, 0x5f, 0x42, 0x42, 0x4e, 0x00, 0x08,
+      /* 0x30 */ 0x5f, 0x55, 0x49, 0x44, 0x00, 0x08, 0x5f, 0x43,
+      /* 0x38 */ 0x52, 0x53, 0x11, 0x48, 0x04, 0x0a, 0x44, 0x88,
+      /* 0x40 */ 0x0d, 0x00, 0x02, 0x0c, 0x00, 0x00, 0x00,
 
       // bus range
-      /* 0x3d */ 0xaa, 0xaa, // Min
-      /* 0x3f */ 0xbb, 0xbb, // Max
-      /* 0x41 */ 0x00, 0x00, // Translation
-      /* 0x43 */ 0x12, 0x11, // Range Length
+      /* 0x47 */0xaa, 0xaa, // Min
+      /* 0x49 */0xbb, 0xbb, // Max
+      /* 0x4b */0x00, 0x00, // Translation
+      /* 0x4d */0x12, 0x11, // Range Length
 
-      /* 0x45 */ 0x47, 0x01, 0xf8,
-      /* 0x48 */ 0x0c, 0xf8, 0x0c, 0x01, 0x08, 0x88, 0x0d, 0x00,
-      /* 0x50 */ 0x01, 0x0c, 0x03, 0x00, 0x00,
+      /* 0x4f */ 0x47,
+      /* 0x50 */ 0x01, 0xf8, 0x0c, 0xf8, 0x0c, 0x01, 0x08, 0x88,
+      /* 0x58 */ 0x0d, 0x00, 0x01, 0x0c, 0x03, 0x00, 0x00,
 
       // I/O window
-      /* 0x55 */ 0x00, 0x80,
-      /* 0x57 */ 0xff, 0xff,
-      /* 0x59 */ 0x00, 0x00,
-      /* 0x5b */ 0x00, 0x80,
+      /* 0x5f */ 0x00, 0x80, // Min
+      /* 0x61 */ 0xff, 0xff, // Max
+      /* 0x63 */ 0x00, 0x00, // Translation
+      /* 0x65 */ 0x00, 0x80, // Range Length
 
-      /* 0x5d */ 0x87, 0x17, 0x00,
-      /* 0x60 */ 0x00, 0x0c, 0x01, 0x00, 0x00, 0x00, 0x00,
+      /* 0x67 */ 0x87,
+      /* 0x68 */ 0x17, 0x00, 0x00, 0x0c, 0x01, 0x00, 0x00, 0x00,
+      /* 0x70 */ 0x00,
 
       // MMIO window
-      /* 0x67 */ 0xaa, 0xaa, 0xaa, 0xaa, // Min
-      /* 0x6b */ 0xbb, 0xbb, 0xbb, 0xbb, // Max
-      /* 0x6f */ 0x00, 0x00, 0x00, 0x00, // Translation
-      /* 0x73 */ 0x12, 0x11, 0x11, 0x11, // Range Length
+      /* 0x71 */ 0xaa, 0xaa, 0xaa, 0xaa, // Min
+      /* 0x75 */ 0xbb, 0xbb, 0xbb, 0xbb, // Max
+      /* 0x79 */ 0x00, 0x00, 0x00, 0x00, // Translation
+      /* 0x7d */ 0x12, 0x11, 0x11, 0x11, // Range Length
 
-      /* 0x77 */ 0x79, 0x00
+      /* 0x81 */ 0x79, 0x00
     };
 
     // Update "bus range" with actual values from device tree
     auto const *hdr = header();
-    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x3d]) = hdr->secondary_bus_num;
-    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x3f]) = hdr->subordinate_bus_num;
-    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x43]) =
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x47]) = hdr->secondary_bus_num;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x49]) = hdr->subordinate_bus_num;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x4d]) =
       hdr->subordinate_bus_num - hdr->secondary_bus_num + 1U;
 
     // Update "I/O window" with actual values from device tree
-    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x55]) = _io_base;
-    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x57]) = _io_base + _io_size - 1U;
-    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x5b]) = _io_size;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x5f]) = _io_base;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x61]) = _io_base + _io_size - 1U;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x65]) = _io_size;
 
     // Update "MMIO window" with actual values from device tree
-    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x67]) = _mmio_base;
-    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x6b]) = _mmio_base + _mmio_size - 1U;
-    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x73]) = _mmio_size;
+    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x71]) = _mmio_base;
+    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x75]) = _mmio_base + _mmio_size - 1U;
+    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x7d]) = _mmio_size;
 
     l4_size_t size = sizeof(dsdt_pci);
     if (max_size < size)
       L4Re::throw_error(-L4_ENOMEM,
-                        "Not enough space in DSDT for PCI");
+        "Not enough space in DSDT ACPI table for PCI host bridge.");
     std::memcpy(buf, &dsdt_pci, size);
+
+    if (has_ecam())
+      size += amend_dsdt_with_mcfg(static_cast<l4_uint8_t *>(buf) + size,
+                                   max_size - size);
+    return size;
+  }
+
+  /**
+   * Reserve ECAM MCFG window. Generated from the following ASL:
+   *
+   * DefinitionBlock ("Dsdt.aml", "DSDT", 1, "UVMM  ", "KERNKONZ", 4) {
+   *   //
+   *   //  System Bus
+   *   //
+   *   Scope (\_SB) {
+   *     //
+   *     // Reserved resources
+   *     //
+   *     Device (RES0) {
+   *       Name (_HID, EISAID ("PNP0C02")) // ID used for reserving resources
+   *       Name (_UID, 0x00)
+   *
+   *       //
+   *       // Reserved MMIO resources
+   *       //
+   *       Name (_CRS, ResourceTemplate () {
+   *         QWordMemory (            // Descriptor for ECAM MCFG
+   *            ResourceConsumer,     // The value of this should not matter for the reservation,
+   *                                  // but conceptully the PCI root bridge consumes memory access
+   *                                  // converting them into a PCI configuration space access.
+   *            PosDecode,
+   *            MinFixed,             // Range is fixed
+   *            MaxFixed,             // Range is fixed
+   *            NonCacheable,
+   *            ReadWrite,
+   *            0x0000000000000000,   // Granularity
+   *            0xAAAAAAAAAAAAAAAA,   // Min
+   *            0xBBBBBBBBBBBBBBBB,   // Max
+   *            0x0000000000000000,   // Translation
+   *            0x1111111111111112,   // Range Length
+   *            )
+   *        })
+   *      }
+   *   }
+   * }
+   *
+   * Conversion (save above as Dsdt.asl):
+   *   $ iasl Dsdt.asl
+   *   $ xxd -i -s 0x24 -c 8 Dsdt.aml
+   */
+  l4_size_t amend_dsdt_with_mcfg(void *buf, l4_size_t max_size) const
+  {
+    unsigned char dsdt_pci_mcfg[] = {
+      /* 0x00 */ 0x10, 0x47, 0x05, 0x5f, 0x53, 0x42, 0x5f, 0x5b,
+      /* 0x08 */ 0x82, 0x4f, 0x04, 0x52, 0x45, 0x53, 0x30, 0x08,
+      /* 0x10 */ 0x5f, 0x48, 0x49, 0x44, 0x0c, 0x41, 0xd0, 0x0c,
+      /* 0x18 */ 0x02, 0x08, 0x5f, 0x55, 0x49, 0x44, 0x00, 0x08,
+      /* 0x20 */ 0x5f, 0x43, 0x52, 0x53, 0x11, 0x33, 0x0a, 0x30,
+      /* 0x28 */ 0x8a, 0x2b, 0x00, 0x00, 0x0d, 0x01, 0x00, 0x00,
+      /* 0x30 */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+      // ECAM MCFG window
+      /* 0x36 */ 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, // Min
+      /* 0x3e */ 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, // Max
+      /* 0x46 */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Translation
+      /* 0x4e */ 0x12, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, // Range Length
+
+      /* 0x56 */ 0x79, 0x00
+    };
+
+    // Update "ECAM MCFG window" with actual values from device tree
+    *reinterpret_cast<l4_uint64_t*>(&dsdt_pci_mcfg[0x36]) = _ecam_mcfg_base;
+    auto ecam_mcfg_max = _ecam_mcfg_base + _ecam_mcfg_size - 1U;
+    *reinterpret_cast<l4_uint64_t*>(&dsdt_pci_mcfg[0x3e]) = ecam_mcfg_max;
+    *reinterpret_cast<l4_uint64_t*>(&dsdt_pci_mcfg[0x4e]) = _ecam_mcfg_size;
+
+    l4_size_t size = sizeof(dsdt_pci_mcfg);
+    if (max_size < size)
+      L4Re::throw_error(-L4_ENOMEM,
+        "Not enough space in DSDT ACPI for PCI host bridge MCFG reservation.");
+    std::memcpy(buf, &dsdt_pci_mcfg, size);
     return size;
   }
 
@@ -223,6 +331,8 @@ private:
   l4_uint64_t _mmio_size = 0;
   l4_uint16_t _io_base = 0xffff;
   l4_uint16_t _io_size = 0;
+  l4_uint64_t _ecam_mcfg_base = 0;
+  l4_uint64_t _ecam_mcfg_size = 0;
 }; // class Pci_host_generic
 
 /**
@@ -405,7 +515,8 @@ Pci_host_generic::init_bus_range(Dt_node const &node)
 }
 
 /**
- * Retrieve bridge MMIO and I/O windows from ranges property.
+ * Retrieve bridge MMIO and I/O windows from ranges property, and the ECAM MCFG
+ * window from the reg property.
  *
  * The actual values are irrelevant for uvmm. They are only gathered to be
  * forwarded to the guest via ACPI. See amend_dsdt() above.
@@ -446,10 +557,28 @@ Pci_host_generic::init_bridge_window(Dt_node const &node)
         }
     }
 
+  int res = node.get_reg_val(0, &_ecam_mcfg_base, &_ecam_mcfg_size);
+  if (res < 0)
+    {
+      _ecam_mcfg_size = 0;
+      info().printf("No ECAM MCFG window provided via reg property, "
+                    "thus ECAM is not going to be available to the guest.\n");
+    }
+
   trace().printf("MMIO window at [0x%llx, 0x%llx]\n", _mmio_base,
                  _mmio_base + _mmio_size - 1U);
   trace().printf("I/O window at [0x%x, 0x%x]\n", _io_base,
                  _io_base + _io_size - 1U);
+  if (has_ecam())
+    {
+      trace().printf("ECAM MCFG window at [0x%llx, 0x%llx]\n", _ecam_mcfg_base,
+                     _ecam_mcfg_base + _ecam_mcfg_size - 1U);
+      if (_ecam_mcfg_base >= 0x100000000ULL)
+        // Linux does not accept MCFG addresses above 4GB unless a
+        // BIOS year >= 2010 is provided via DMI (see acpi_mcfg_check_entry()).
+        warn().printf(
+          "Linux will ignore ECAM MCFG window because it is above 4GB.\n");
+    }
 }
 
 void
@@ -484,6 +613,13 @@ struct F : Factory
     auto io_cfg_connector = make_device<Pci_bus_cfg_io>(dev);
     auto region = Vmm::Io_region(0xcf8, 0xcff, Vmm::Region_type::Virtual);
     devs->vmm()->add_io_device(region, io_cfg_connector);
+
+    if (dev->has_ecam())
+      {
+        auto ecam_cfg_connector = make_device<Pci_bus_cfg_ecam>(dev);
+        devs->vmm()->register_mmio_device(ecam_cfg_connector,
+                                          Vmm::Region_type::Virtual, node);
+      }
 
     info().printf("Created & Registered the PCI host bridge\n");
     return dev;
