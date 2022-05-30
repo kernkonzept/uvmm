@@ -104,8 +104,11 @@ PRIVATE_INCDIR += $(SRC_DIR)/../../tools/uvmm_cli
 
 include $(L4DIR)/mk/prog.mk
 
+# Force armv7+ve on pre-armv8 build trees.
 ifeq ($(ARCH),arm)
+ifeq ($(CONFIG_CPU_ARMV8PLUS_AARCH32),)
 CARCHFLAGS := $(filter-out -march%,$(CARCHFLAGS)) $(GCCARMV7VEFPOPT_arm)
+endif
 endif
 
 # We do not want to have -fno-strict-aliasing
