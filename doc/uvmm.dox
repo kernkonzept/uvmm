@@ -6,6 +6,9 @@
  *
  * \page l4re_servers_uvmm Uvmm, the virtual machine monitor
  *
+ * Uvmm provides a virtual machine for running an unmodified guest in
+ * non-privileged mode.
+ *
  * Command Line Options
  * --------------------
  *
