@@ -530,8 +530,8 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
   auto *regs = &vcpu->r;
 
   if (reason != Vmx_state::Exit::Exec_vmcall)
-    trace().printf("Exit at guest IP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
-                   vms->ip(),
+    trace().printf("Exit at guest IP 0x%lx SP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
+                   vms->ip(), vms->sp(),
                    vms->vmx_read(VMCS_EXIT_REASON),
                    vms->vmx_read(VMCS_EXIT_QUALIFICATION));
 
@@ -689,8 +689,8 @@ Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
 
     default:
       {
-        Dbg().printf("Exit at guest IP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
-                     vms->ip(), vms->vmx_read(VMCS_EXIT_REASON),
+        Dbg().printf("Exit at guest IP 0x%lx SP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
+                     vms->ip(), vms->sp(), vms->vmx_read(VMCS_EXIT_REASON),
                      vms->vmx_read(VMCS_EXIT_QUALIFICATION));
 
         unsigned reason_u = static_cast<unsigned>(reason);
@@ -833,9 +833,9 @@ Guest::run_vmx(Vcpu_ptr vcpu)
               if (0)
                 trace().printf(
                   "regs: AX 0x%lx, BX 0x%lx, CX 0x%lx, DX 0x%lx, SI 0x%lx, "
-                  "DI 0x%lx, IP 0x%lx\n",
+                  "DI 0x%lx, IP 0x%lx, SP 0x%lx\n",
                   vcpu->r.ax, vcpu->r.bx, vcpu->r.cx, vcpu->r.dx,
-                  vcpu->r.si, vcpu->r.di, vm->ip());
+                  vcpu->r.si, vcpu->r.di, vm->ip(), vm->sp());
 
               vm->inject_interrupt(irq);
             }

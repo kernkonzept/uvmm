@@ -228,6 +228,9 @@ public:
   l4_umword_t ip() const override
   { return l4_vm_vmx_read_nat(_vmcs, VMCS_GUEST_RIP); }
 
+  l4_umword_t sp() const override
+  { return l4_vm_vmx_read_nat(_vmcs, VMCS_GUEST_RSP); }
+
   l4_umword_t cr3() const override
   { return l4_vm_vmx_read_nat(_vmcs, VMCS_GUEST_CR3); }
 
