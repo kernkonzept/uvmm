@@ -15,7 +15,7 @@ asm
  "vcpu_entry:                     \n"
  "  mov    r4, r0                 \n"  // r4: save r0
  "  mrc    p15, 0, r5, c13, c0, 2 \n"  // r5: save TPIDRURW
- "  ldr    r2, [r0, #0x240]       \n"  // l4_vcpu_e_info_user()[0]
+ "  ldr    r2, [r0, #0x140]       \n"  // l4_vcpu_e_info_user()[0]
  "  ldr    r3, [r0, #0x24]        \n"  // vcpu->r.err
  "  mcr    p15, 0, r2, c13, c0, 2 \n"
  "  lsr    r3, r3, #24            \n"
