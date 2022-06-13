@@ -385,7 +385,7 @@ public:
   using Const_irq = typename Irq_array::Const_irq;
 
   enum { Num_local = 32 };
-  enum { Num_lrs = 4 };
+  enum { Num_lrs = 4, Lr_mask = (1UL << Num_lrs) - 1U };
 
   static_assert(Num_lrs <= 32, "Can only handle up to 32 list registers.");
 
@@ -435,11 +435,11 @@ public:
    *         + 1) otherwise
    */
   unsigned get_empty_lr() const
-  { return __builtin_ffs(l4_vcpu_e_read_32(*_vcpu, L4_VCPU_E_GIC_ELSR)); }
+  { return __builtin_ffs(_elsr()); }
 
   /// return if there are pending IRQs in the LRs
   bool pending_irqs() const
-  { return l4_vcpu_e_read_32(*_vcpu, L4_VCPU_E_GIC_ELSR) != (1ULL << Num_lrs) - 1; }
+  { return _elsr() != Lr_mask; }
 
   /// Get in Irq for the given `intid`, works for SGIs, PPIs, and SPIs
   Irq irq_from_intid(unsigned intid)
@@ -572,6 +572,9 @@ private:
 
   /// The x-CPU notification IRQ
   L4Re::Util::Unique_cap<L4::Irq> _cpu_irq;
+
+  l4_uint32_t _elsr() const
+  { return l4_vcpu_e_read_32(*_vcpu, L4_VCPU_E_GIC_ELSR) & Lr_mask; }
 
   void _set_elsr(l4_uint32_t bits) const
   {
