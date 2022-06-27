@@ -30,12 +30,11 @@ private:
   l4_vcpu_regs_t *_regs;
 };
 
+template <>
 int
-Guest::handle_exit_svm(Vmm::Vcpu_ptr vcpu)
+Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
 {
   l4_vcpu_regs_t *regs = &vcpu->r;
-  Svm_state *vms = dynamic_cast<Svm_state *>(vcpu.vm_state());
-  assert(vms);
 
   // Synchronize VMCB.StateSaveArea.RAX with Vcpu_regs.RAX. This is necessary
   // because the code shared between VMX and SVM uses the RAX in Vcpu_regs,

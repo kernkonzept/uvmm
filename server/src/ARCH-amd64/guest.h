@@ -160,8 +160,11 @@ private:
     Max_phys_addr_bits_mask = 0xff,
   };
 
-  int handle_exit_vmx(Vcpu_ptr vcpu);
-  int handle_exit_svm(Vcpu_ptr vcpu);
+  template<typename VMS>
+  void run_vm_t(Vcpu_ptr vcpu, VMS *vm) L4_NORETURN;
+
+  template<typename VMS>
+  int handle_exit(Vcpu_ptr vcpu, VMS *vm);
 
   unsigned get_max_physical_address_bit() const
   {

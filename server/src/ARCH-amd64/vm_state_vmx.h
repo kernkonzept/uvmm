@@ -239,7 +239,7 @@ public:
   l4_umword_t cr3() const override
   { return l4_vm_vmx_read_nat(_vmcs, VMCS_GUEST_CR3); }
 
-  void jump_instruction() override
+  void jump_instruction()
   {
     vmx_write(VMCS_GUEST_RIP,
               vmx_read(VMCS_GUEST_RIP)
@@ -363,7 +363,7 @@ public:
     vmx_write(VMCS_CR4_GUEST_HOST_MASK, ~0ULL);
   }
 
-  void reinject_event_after_vmexit() override
+  void reinject_event_after_vmexit()
   {
     Vmx_state::Idt_vectoring_info vinfo = idt_vectoring_info();
     if (vinfo.valid())
@@ -395,22 +395,22 @@ public:
     }
   }
 
-  bool is_halted() const override
+  bool is_halted() const
   {
     return activity_state() == Activity_state::Halt;
   }
 
-  void halt() override
+  void halt()
   {
     set_activity_state(Vmx_state::Activity_state::Halt);
   }
 
-  void resume() override
+  void resume()
   {
     set_activity_state(Vmx_state::Activity_state::Active);
   }
 
-  bool interrupts_enabled() const override
+  bool interrupts_enabled() const
   {
     return (vmx_read(VMCS_GUEST_RFLAGS) & Interrupt_enabled_bit)
            && (vmx_read(VMCS_GUEST_INTERRUPTIBILITY_STATE) == 0);
@@ -435,41 +435,41 @@ public:
    *
    * \return true  iff we can inject in an interrupt into the guest
    */
-  bool can_inject_interrupt() const override
+  bool can_inject_interrupt() const
   {
     return interrupts_enabled() && !event_injected()
            && activity_state() < Activity_state::Shutdown;
   }
 
-  void disable_interrupt_window() override
+  void disable_interrupt_window()
   {
     vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
                 & ~Int_window_exit_bit);
   }
 
-  void enable_interrupt_window() override
+  void enable_interrupt_window()
   {
     vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
                 | Int_window_exit_bit);
   }
 
-  bool can_inject_nmi() const override
+  bool can_inject_nmi() const
   {
     return vmx_read(VMCS_GUEST_INTERRUPTIBILITY_STATE) == 0
            && !event_injected()
            && activity_state() < Activity_state::Shutdown;
   }
 
-  void disable_nmi_window() override
+  void disable_nmi_window()
   {
     vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
                 & ~Nmi_window_exit_bit);
   }
 
-  void enable_nmi_window() override
+  void enable_nmi_window()
   {
     vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
@@ -574,13 +574,13 @@ public:
     vmx_write(VMCS_VM_ENTRY_INTERRUPT_INFO, info.field);
   }
 
-  void inject_interrupt(unsigned irq) override
+  void inject_interrupt(unsigned irq)
   {
     using Int_type = Vmx_int_info_field::Int_type;
     inject_event(irq, Int_type::External_interrupt);
   }
 
-  void inject_nmi() override
+  void inject_nmi()
   {
     using Int_type = Vmx_int_info_field::Int_type;
     inject_event(2, Int_type::NMI);

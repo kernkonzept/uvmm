@@ -13,12 +13,10 @@
 
 namespace Vmm {
 
+template <>
 int
-Guest::handle_exit_vmx(Vmm::Vcpu_ptr vcpu)
+Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
 {
-  Vmx_state *vms = dynamic_cast<Vmx_state *>(vcpu.vm_state());
-  assert(vms);
-
   using Exit = Vmx_state::Exit;
   auto reason = vms->exit_reason();
   auto *regs = &vcpu->r;

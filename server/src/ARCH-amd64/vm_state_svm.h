@@ -204,7 +204,7 @@ public:
   void setup_linux_protected_mode(l4_addr_t entry) override;
   void setup_real_mode(l4_addr_t entry) override;
 
-  void reinject_event_after_vmexit() override
+  void reinject_event_after_vmexit()
   { /* Nothing to do on SVM */ }
 
   bool pf_write() const override
@@ -222,7 +222,7 @@ public:
   bool determine_next_ip_from_ip(l4_vcpu_regs_t *regs, unsigned char *inst_buf,
                                  unsigned inst_buf_len);
 
-  void jump_instruction() override
+  void jump_instruction()
   {
     if (_vmcb->control_area.n_rip == 0)
       warn().printf("Next instruction pointer is zero: rip=0x%llx -> nrip=0x%llx\n",
@@ -243,16 +243,16 @@ public:
   l4_vm_svm_vmcb_t *vmcb() const
   { return _vmcb; }
 
-  bool is_halted() const override
+  bool is_halted() const
   { return halted; }
 
-  void halt() override
+  void halt()
   { halted = true; }
 
-  void resume() override
+  void resume()
   { halted = false; }
 
-  bool interrupts_enabled() const override
+  bool interrupts_enabled() const
   {
     // TODO: Instead we could use interrupt_shadow bit 1 here = GUEST_INTERRUPT_MASK
     return (_vmcb->state_save_area.rflags & Interrupt_enabled)
@@ -273,10 +273,10 @@ public:
    *
    * \return true  iff we can inject in an interrupt into the guest
    */
-  bool can_inject_interrupt() const override
+  bool can_inject_interrupt() const
   { return interrupts_enabled() && !event_injected(); }
 
-  void disable_interrupt_window() override
+  void disable_interrupt_window()
   {
     // Disable dummy virtual interrupt
     Interrupt_ctl int_ctl(_vmcb->control_area.interrupt_ctl);
@@ -286,7 +286,7 @@ public:
     mark_dirty(Vmcb_tpr);
   }
 
-  void enable_interrupt_window() override
+  void enable_interrupt_window()
   {
     // Add dummy virtual interrupt, so that we get notified via the VINTR
     // intercept, once the guest is ready to receive interrupts.
@@ -307,13 +307,13 @@ public:
    *
    * Starting with Zen4, AMD SVM supports VNMI for efficient injection of NMIs.
    */
-  bool can_inject_nmi() const override
+  bool can_inject_nmi() const
   { /* TODO */ return false; }
 
-  void disable_nmi_window() override
+  void disable_nmi_window()
   { /* TODO */ }
 
-  void enable_nmi_window() override
+  void enable_nmi_window()
   { /* TODO */ }
 
   struct Svm_event_info
@@ -367,7 +367,7 @@ public:
     _vmcb->control_area.eventinj = info.field;
   }
 
-  void inject_interrupt(unsigned irq) override
+  void inject_interrupt(unsigned irq)
   {
     inject_event(irq, Svm_event_info::Int_type::External_interrupt);
   }
@@ -386,7 +386,7 @@ public:
                  deliver_err, err_code);
   }
 
-  void inject_nmi() override
+  void inject_nmi()
   { /* TODO */ }
 
   int handle_cr0_write(l4_vcpu_regs_t *regs);

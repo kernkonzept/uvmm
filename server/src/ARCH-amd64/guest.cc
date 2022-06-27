@@ -533,13 +533,28 @@ Guest::run_vm(Vcpu_ptr vcpu)
   Vm_state *vm = vcpu.vm_state();
   assert(vm);
 
+  if (vm->type() == Vm_state::Type::Vmx)
+    {
+      Vmx_state *vms = dynamic_cast<Vmx_state *>(vm);
+      assert(vms);
+      run_vm_t(vcpu, vms);
+    }
+  else /* if (vm->type() == Vm_state::Type::Svm) */
+    {
+      Svm_state *vms = dynamic_cast<Svm_state *>(vm);
+      assert(vms);
+      run_vm_t(vcpu, vms);
+    }
+}
+
+template<typename VMS>
+void L4_NORETURN
+Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
+{
   auto cpu = _cpus->cpu(vcpu.get_vcpu_id());
 
   L4::Cap<L4::Thread> myself;
   trace().printf("Starting vCPU 0x%lx\n", vcpu->r.ip);
-
-  auto handle_exit = vm->type() == Vm_state::Type::Vmx ?
-                     &Guest::handle_exit_vmx : &Guest::handle_exit_svm;
 
   // Architecturally defined as 512 byte buffer but processor does not write
   // bytes 464:511.
@@ -572,7 +587,7 @@ Guest::run_vm(Vcpu_ptr vcpu)
         }
       else
         {
-          int ret = (this->*handle_exit)(vcpu);
+          int ret = handle_exit(vcpu, vm);
           if (ret < 0)
             {
               trace().printf("Failure in VMM %i\n", ret);
@@ -663,7 +678,6 @@ Guest::run_vm(Vcpu_ptr vcpu)
       else if(lapic(vcpu)->is_irq_pending())
         vm->enable_interrupt_window();
     }
-
 }
 
 } // namespace
