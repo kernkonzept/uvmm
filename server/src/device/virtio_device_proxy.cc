@@ -179,7 +179,9 @@ public:
         return -L4_ERANGE;
       }
 
-    auto ds = L4Re::chkcap(L4::Epiface::server_iface()->rcv_cap<L4Re::Dataspace>(0));
+    auto ds =
+      L4Re::chkcap(L4::Epiface::server_iface()->rcv_cap<L4Re::Dataspace>(0),
+                   "Received dataspace capability valid.");
     L4Re::chksys(L4::Epiface::server_iface()->realloc_rcv_cap(0));
 
     _vmm->add_mmio_device(Vmm::Region::ss(Vmm::Guest_addr(_drvmem_base + ds_base), sz, Vmm::Region_type::Virtual),
@@ -197,8 +199,10 @@ public:
       return -L4_EINVAL;
 
     _kick_guest_irq = L4Re::Util::Unique_cap<L4::Irq>(
-        L4Re::chkcap(server_iface()->rcv_cap<L4::Irq>(0)));
-    L4Re::chksys(server_iface()->realloc_rcv_cap(0));
+      L4Re::chkcap(server_iface()->rcv_cap<L4::Irq>(0),
+                   "Recived capability for registered interface is valid."));
+    L4Re::chksys(server_iface()->realloc_rcv_cap(0),
+                 "Save IRQ capability of registered interface.");
 
     trace.printf("register client: host IRQ: %lx config DS: %lx\n",
                  _host_irq.obj_cap().cap(), mmio_ds().cap());
@@ -249,8 +253,10 @@ public:
       return -L4_EINVAL;
 
     _kick_guest_irq = L4Re::Util::Unique_cap<L4::Irq>(
-        L4Re::chkcap(server_iface()->rcv_cap<L4::Irq>(0)));
-    L4Re::chksys(server_iface()->realloc_rcv_cap(0));
+      L4Re::chkcap(server_iface()->rcv_cap<L4::Irq>(0),
+                   "Received capability for bind valid."));
+    L4Re::chksys(server_iface()->realloc_rcv_cap(0),
+                 "Save bound IRQ capability.");
 
     return L4_EOK;
   }

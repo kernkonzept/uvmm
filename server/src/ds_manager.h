@@ -59,7 +59,8 @@ private:
                             | L4Re::Rm::F::Search_addr
                             | L4Re::Rm::F::Eager_map,
                             L4::Ipc::make_cap_rw(_ds.get()),
-                            _offset, _align));
+                            _offset, _align),
+                 "Attach dataspace to local address space.");
     return _local.get();
   }
 

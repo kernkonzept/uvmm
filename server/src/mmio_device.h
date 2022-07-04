@@ -422,9 +422,11 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
     auto *e = L4Re::Env::env();
 
     L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap ds
-      = L4Re::chkcap(L4Re::Util::make_ref_cap<L4Re::Dataspace>());
+      = L4Re::chkcap(L4Re::Util::make_ref_cap<L4Re::Dataspace>(),
+                     "Allocate dataspace capability for read-mapped MMIO dev.");
 
-    L4Re::chksys(e->mem_alloc()->alloc(size, ds.get()));
+    L4Re::chksys(e->mem_alloc()->alloc(size, ds.get()),
+                 "Allocate memory for read-mapped MMIO device.");
     _mgr = cxx::make_unique<Ds_manager>(ds, 0, size, rm_flags.region_flags()
                                                      | L4Re::Rm::F::RW);
     _mgr->local_addr<void *>();

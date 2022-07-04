@@ -37,7 +37,7 @@ public:
       {
         Err().printf("FATAL: Could not create vCPU. "
                      "Running virtualization-enabled kernel?\n");
-        L4Re::chksys(-L4_ENODEV);
+        L4Re::throw_error(-L4_ENODEV, "Enable extended vCPU mode.");
       }
 
     if (!l4_vcpu_check_version(_s))
@@ -45,7 +45,7 @@ public:
         Err().printf("FATAL: Could not create vCPU. "
                      "vCPU interface mismatch - Kernel %lx != User %x.\n",
                      _s->version, L4_VCPU_STATE_VERSION);
-        L4Re::chksys(-L4_ENODEV);
+        L4Re::throw_error(-L4_ENODEV, "Matching vCPU interface versions.");
       }
 
     trace().printf("VCPU mapped @ %p and enabled\n", _s);

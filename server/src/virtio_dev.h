@@ -110,16 +110,19 @@ public:
   : _ram(ram)
   {
     auto *e = L4Re::Env::env();
-    auto ds = L4Re::chkcap(L4Re::Util::make_unique_del_cap<L4Re::Dataspace>());
+    auto ds = L4Re::chkcap(L4Re::Util::make_unique_del_cap<L4Re::Dataspace>(),
+                           "Alocate Virtio::Dev dataspace capability.");
 
-    L4Re::chksys(e->mem_alloc()->alloc(Config_ds_size, ds.get()));
+    L4Re::chksys(e->mem_alloc()->alloc(Config_ds_size, ds.get()),
+                 "Allocate Virtio::Dev configuration memory.");
 
     L4Re::Rm::Unique_region<l4virtio_config_hdr_t *> cfg;
     L4Re::chksys(e->rm()->attach(&cfg, Config_ds_size,
                                  L4Re::Rm::F::Search_addr | L4Re::Rm::F::Eager_map
                                  | L4Re::Rm::F::RW
                                  , //| L4Re::Rm::Cache_uncached,
-                                 L4::Ipc::make_cap_rw(ds.get())));
+                                 L4::Ipc::make_cap_rw(ds.get())),
+                 "Attach Virtio::Dev configuration memory in address space.");
 
     _cfg_ds = cxx::move(ds);
     _cfg_header = cxx::move(cfg);

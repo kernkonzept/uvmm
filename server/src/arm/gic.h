@@ -397,7 +397,8 @@ public:
                             "allocate vcpu notification interrupt");
     L4Re::chksys(L4Re::Env::env()->factory()->create(_cpu_irq.get()),
                  "create vcpu notification interrupt");
-    L4Re::chksys(_cpu_irq->bind_thread(thread, 0));
+    L4Re::chksys(_cpu_irq->bind_thread(thread, 0),
+                 "Bind vCPU notification interrupt.");
 
     _vcpu = vcpu;
     _spis = spis;

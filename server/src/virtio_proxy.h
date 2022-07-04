@@ -61,7 +61,7 @@ public:
                    "ICU protocol not supported by virtio device. Legacy interface?");
 
     l4_icu_info_t icu_info;
-    L4Re::chksys(vicu->info(&icu_info));
+    L4Re::chksys(vicu->info(&icu_info), "Get info about ICU.");
 
     _config_cap = L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dataspace>(),
                                "Allocating cap for config dataspace");

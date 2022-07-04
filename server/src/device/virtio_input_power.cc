@@ -52,7 +52,8 @@ public:
 
   void register_obj(L4::Registry_iface *registry)
   {
-    _con->bind(0, L4Re::chkcap(registry->register_irq_obj(this)));
+    _con->bind(0, L4Re::chkcap(registry->register_irq_obj(this),
+                               "Register IRQ of Virtio-input-power device."));
   }
 
   void handle_irq();

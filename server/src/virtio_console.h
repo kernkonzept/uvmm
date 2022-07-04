@@ -262,7 +262,8 @@ public:
 
   void register_obj(L4::Registry_iface *registry)
   {
-    _con_irq = L4Re::chkcap(registry->register_irq_obj(this));
+    _con_irq = L4Re::chkcap(registry->register_irq_obj(this),
+                            "Register Vcon notification IRQ.");
   }
 
   void handle_irq()

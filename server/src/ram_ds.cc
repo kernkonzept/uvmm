@@ -91,7 +91,7 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
 
   info.printf("load: @ 0x%lx\n", addr.get());
   if (!file)
-    L4Re::chksys(-L4_EINVAL);
+    L4Re::throw_error(-L4_EINVAL, "File dataspace valid.");
 
   l4_addr_t offset = addr - _vm_start;
 
@@ -101,14 +101,14 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
                    "(Loading [0x%lx - 0x%lx] into area [0x%lx - 0x%llx])\n",
                    addr.get(), addr.get() + sz - 1,
                    _vm_start.get(), _vm_start.get() + size() - 1);
-      L4Re::chksys(-L4_EINVAL);
+      L4Re::throw_error(-L4_EINVAL, "File fits into guest RAM.");
     }
 
   info.printf("copy in: to offset 0x%lx-0x%lx\n", offset, offset + sz - 1);
 
   int r = dataspace()->copy_in(offset + this->offset(), file, 0, sz);
   if (r != -L4_EINVAL)
-    L4Re::chksys(r, "copy in");
+    L4Re::chksys(r, "Copy file into guest RAM.");
   else
     {
       // Failure was due to different dataspace sources. Therefor the dataspace
@@ -117,9 +117,11 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
       char *src = 0;
       L4Re::chksys(e->rm()->attach(&src, sz,
                                    L4Re::Rm::F::Search_addr
-                                   | L4Re::Rm::F::R, file));
+                                   | L4Re::Rm::F::R, file),
+                   "Attach file dataspace for reading.");
       memcpy((char *)local_start() + offset + this->offset(), src, sz);
-      L4Re::chksys(e->rm()->detach(src, 0));
+      L4Re::chksys(e->rm()->detach(src, 0),
+                   "Detach file dataspace.");
     }
 }
 

@@ -35,7 +35,8 @@ class Binary_ds
     auto *e = L4Re::Env::env();
     L4Re::chksys(e->rm()->attach(&_header, L4_PAGESIZE,
                                  L4Re::Rm::F::Search_addr | L4Re::Rm::F::RWX,
-                                 L4::Ipc::make_cap_rw(_ds.get())));
+                                 L4::Ipc::make_cap_rw(_ds.get())),
+                 "Attach memory containing the binary's headers.");
   }
 
 public:

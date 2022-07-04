@@ -78,7 +78,8 @@ Generic_cpu_dev::reschedule()
   sp.affinity = l4_sched_cpu_set(_phys_cpu_id, 0);
 
   auto sched = L4Re::Env::env()->scheduler();
-  L4Re::chksys(sched->run_thread(Pthread::L4::cap(_thread), sp));
+  L4Re::chksys(sched->run_thread(Pthread::L4::cap(_thread), sp),
+               "Schedule vCPU on new core.");
 }
 
 }

@@ -262,7 +262,8 @@ public:
   void bind(L4::Registry_iface *registry)
   {
     if (enabled())
-      _con->bind(0, L4Re::chkcap(registry->register_irq_obj(this)));
+      _con->bind(0, L4Re::chkcap(registry->register_irq_obj(this),
+                                 "Register monitor console IRQ."));
   }
 
   void add_cmd_handler(Monitor::Cmd *cmd, char const *name)
@@ -334,7 +335,7 @@ private:
     if (!_f)
       {
         Err().printf("Could not open command control '%s'\n", capname);
-        L4Re::chksys(-L4_ENOENT);
+        L4Re::throw_error(-L4_ENOENT, "Open channel to command control.");
       }
 
     l4_vcon_attr_t attr;

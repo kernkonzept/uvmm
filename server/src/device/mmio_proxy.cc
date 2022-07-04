@@ -162,7 +162,8 @@ private:
             Err().printf("%s: reg%zd: %llx smaller than base of %llx\n"
                          "Smallest address must come first in 'reg' list.\n",
                          node.get_name(), index, base, regbase);
-            L4Re::chksys(-L4_ERANGE);
+            L4Re::throw_error(-L4_ERANGE,
+                              "Register list sorted in ascending order.");
           }
 
         l4_uint64_t sz = size;
@@ -227,7 +228,8 @@ private:
             Err().printf("%s: reg%zd: %llx smaller than base of %llx\n"
                          "Smallest address must come first in 'reg' list.\n",
                          node.get_name(), index, base, regbase);
-            L4Re::chksys(-L4_ERANGE);
+            L4Re::throw_error(-L4_ERANGE,
+                              "Register list sorted in ascending order.");
           }
 
         l4_uint64_t offs = offset + (base - regbase);

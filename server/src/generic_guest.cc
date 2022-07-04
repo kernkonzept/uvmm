@@ -14,7 +14,8 @@ namespace Vmm {
 
 Generic_guest::Generic_guest()
 : _registry(&_bm),
-  _task(L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4::Vm>()))
+  _task(L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4::Vm>(),
+                     "Allocate guest task capability"))
 {
   // create the VM task
   auto *e = L4Re::Env::env();

@@ -51,7 +51,8 @@ public:
     l4_sched_param_t sp = l4_sched_param(2);
     sp.affinity = l4_sched_cpu_set(phys_cpu_id, 0);
     auto sched = L4Re::Env::env()->scheduler();
-    L4Re::chksys(sched->run_thread(Pthread::L4::cap(pthread_self()), sp));
+    L4Re::chksys(sched->run_thread(Pthread::L4::cap(pthread_self()), sp),
+                 "Run timer thread.");
 
     Dbg().printf("Hello Timer on CPU %u\n", vcpu_no);
     char buf[18];

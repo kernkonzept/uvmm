@@ -100,21 +100,22 @@ Vmm::Ram_free_list::load_file_to_back(Vm_ram *ram, char const *name,
   if (fd.get() < 0)
     {
       Err().printf("could not open file: %s\n", name);
-      L4Re::chksys(-L4_EINVAL);
+      L4Re::throw_error(-L4_EINVAL, "Open file to load into guest RAM.");
     }
 
   cxx::Ref_ptr<L4Re::Vfs::File> file = L4Re::Vfs::vfs_ops->get_file(fd.get());
   if (!file)
     {
       Err().printf("bad file descriptor: %s\n", name);
-      L4Re::chksys(-L4_EINVAL);
+      L4Re::throw_error(-L4_EINVAL,
+                        "Get VFS file descriptor to load into guest RAM.");
     }
 
   L4::Cap<L4Re::Dataspace> f = file->data_space();
   if (!f)
     {
       Err().printf("could not get data space for %s\n", name);
-      L4Re::chksys(-L4_EINVAL);
+      L4Re::throw_error(-L4_EINVAL, "Get dataspace to load into guest RAM.");
     }
 
   Vmm::Guest_addr addr;
@@ -256,7 +257,7 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
     return -L4_EINVAL;
 
   L4Re::Dataspace::Stats ds_stats;
-  L4Re::chksys(ds->info(&ds_stats));
+  L4Re::chksys(ds->info(&ds_stats), "Get Dataspace statistics.");
 
   l4_addr_t offset = 0;
   l4_uint64_t remain = ds_stats.size;

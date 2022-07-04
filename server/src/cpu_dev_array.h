@@ -42,7 +42,8 @@ class Cpu_dev_array
     {
       auto scheduler = L4Re::Env::env()->scheduler();
       _cs = l4_sched_cpu_set(_offset, 0);
-      L4Re::chksys(scheduler->info(&_max_cpus, &_cs));
+      L4Re::chksys(scheduler->info(&_max_cpus, &_cs),
+                   "Get scheduler info for vCPU placement.");
     }
 
     unsigned next_free()
@@ -61,7 +62,8 @@ class Cpu_dev_array
             {
               _offset = new_offset;
               _cs = l4_sched_cpu_set(_offset, 0);
-              L4Re::chksys(scheduler->info(&_max_cpus, &_cs));
+              L4Re::chksys(scheduler->info(&_max_cpus, &_cs),
+                           "Get scheduler info for next batch of cores.");
             }
         }
 

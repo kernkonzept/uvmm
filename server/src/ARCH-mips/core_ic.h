@@ -49,7 +49,10 @@ public:
   }
 
   void attach_cpu_thread(L4::Cap<L4::Thread> thread)
-  { L4Re::chksys(_cpu_irq->bind_thread(thread, 0)); }
+  {
+    L4Re::chksys(_cpu_irq->bind_thread(thread, 0),
+                 "Bind vCPU IRQ-notification IRQ.");
+  }
 
   void set(unsigned irq) override
   {

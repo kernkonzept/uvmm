@@ -24,7 +24,8 @@ using L4Re::chkcap;
 using L4Re::chksys;
 
 Virt_lapic::Virt_lapic(unsigned id, cxx::Ref_ptr<Vmm::Cpu_dev> cpu)
-: _lapic_irq(chkcap(L4Re::Util::make_unique_cap<L4::Irq>())),
+: _lapic_irq(chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
+                    "Allocate local APIC notification IRQ.")),
   _lapic_x2_id(id),
   _lapic_version(Lapic_version),
   _last_ticks_tsc(0),
