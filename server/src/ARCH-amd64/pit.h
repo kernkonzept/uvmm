@@ -19,7 +19,7 @@
 namespace Vdev {
 
 /**
- * Limited implementation of x86 PIT.
+ * Limited implementation of 8254 PROGRAMMABLE INTERVAL TIMER.
  *
  * Supports only channel 0 and 2.
  */
@@ -71,8 +71,17 @@ class Pit_timer
   class Channel
   {
    public:
+     enum Mode : l4_uint8_t
+     {
+       Mode_terminal_count = 0x0,
+       Mode_retriggerable_one_shot = 0x1,
+       Mode_rate_generator = 0x2,
+       Mode_disabled = 0xff,
+     };
+
      Channel()
-     : _start(0), _now(0), _reload(0), _wraps(0), _ticks(0), _op_mode(0xff)
+     : _start(0), _now(0), _reload(0), _wraps(0), _ticks(0),
+       _op_mode(Mode_disabled), _irq_on(false)
      {}
 
      /**
@@ -88,13 +97,12 @@ class Pit_timer
        unsigned wraps = update(now);
        bool trigger = false;
 
-       if (one_shot_mode() && wraps > 0)
+       if (wraps > 0 || current() == 0)
          trigger = true;
-       else
-         {
-           if (current() == 0 || wraps > 0)
-             trigger = true;
-         }
+
+       // only rate generator mode is periodic
+       if (trigger && _op_mode != Mode_rate_generator)
+         disable_irq();
 
        return trigger;
      }
@@ -127,7 +135,10 @@ class Pit_timer
        // ns / Hz
        _ticks = diff_ns / Pit_period_len;
        unsigned old_wraps = _wraps;
-       _wraps = _ticks / _reload;
+
+       // avoid division by zero
+       auto reload = _reload ? _reload : 1;
+       _wraps = _ticks / reload;
 
        return _wraps - old_wraps;
      }
@@ -142,16 +153,22 @@ class Pit_timer
      l4_uint16_t current() const
      { return _reload - (l4_uint16_t)(_ticks % _reload); }
 
-     bool off() const { return _reload == 0; }
+     bool off() const
+     { return !_irq_on; }
 
-     void op_mode(l4_uint8_t m)
+     void op_mode(Mode m)
      {
        assert(m < 8);
        _op_mode = m;
      }
 
-     void reset_op_mode() { _op_mode = 0xff; }
-     bool one_shot_mode() const { return _op_mode <= 1; }
+     void reset_op_mode() { _op_mode = Mode_disabled; disable_irq(); }
+
+     void disable_irq()
+     { _irq_on = false; }
+
+     void enable_irq()
+     { _irq_on = true; }
 
    private:
      l4_cpu_time_t _start;
@@ -159,10 +176,11 @@ class Pit_timer
      l4_uint16_t _reload;
      unsigned _wraps;
      l4_uint32_t _ticks;
-     l4_uint8_t _op_mode;
+     Mode _op_mode;
+     bool _irq_on;
   };
 
-  struct Mode
+  struct Control_reg
   {
     l4_uint8_t raw;
     CXX_BITFIELD_MEMBER(6, 7, channel, raw);
@@ -171,12 +189,12 @@ class Pit_timer
     CXX_BITFIELD_MEMBER(0, 0, bcd, raw);
   };
 
-  bool is_latch_count_value_cmd(Mode m) const
+  bool is_latch_count_value_cmd(Control_reg m) const
   {
     return !(m.raw & Latch_cmd_null_mask);
   }
 
-  bool is_current_channel(Mode m, int port) const
+  bool is_current_channel(Control_reg m, int port) const
   {
     return m.channel() == port;
   }
@@ -205,7 +223,7 @@ private:
   Channel _channel[Channels];
   bool _read_high;
   bool _wait_for_high_byte;
-  Mode _mode;
+  Control_reg _control_reg;
   std::mutex _mutex;
   cxx::Ref_ptr<Port61> const _port61;
 

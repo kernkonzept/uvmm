@@ -44,17 +44,17 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
   {
     case Mode_command : // PIC_MODE
     {
-      _mode.raw = value;
-      if (_mode.channel() == 1)
+      _control_reg.raw = value;
+      if (_control_reg.channel() == 1)
         {
           warn().printf("set mode for channel 1 unsupported\n");
           return;
         }
-      int ch = _mode.channel() >> 1;
+      int ch = _control_reg.channel() >> 1;
 
-      if (   is_latch_count_value_cmd(_mode)
-          || (   _mode.channel() == Read_back_cmd
-              && _mode.access() == Read_back_latch_cnt))
+      if (   is_latch_count_value_cmd(_control_reg)
+          || (   _control_reg.channel() == Read_back_cmd
+              && _control_reg.access() == Read_back_latch_cnt))
         {
           // We don't emulate the latch register
           break;
@@ -62,43 +62,50 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
       else
         _channel[ch].reset_op_mode();
 
-      trace().printf("New timer mode: 0x%x\n", value);
+      _channel[ch].op_mode(static_cast<Channel::Mode>(_control_reg.opmode().get()));
+      trace().printf("New timer mode on channel %d: 0x%x\n",
+                     ch, _control_reg.opmode().get());
       break;
     }
     case Channel_0_data:
     case Channel_2_data:
       trace().printf("Writing 0x%x for channel %d\n", value,
-                   port);
-      if (!is_latch_count_value_cmd(_mode) && is_current_channel(_mode, port))
+                     port);
+      if (!is_latch_count_value_cmd(_control_reg)
+          && is_current_channel(_control_reg, port))
         {
           unsigned ch = port2idx(port);
           unsigned v = value & 0xFF;
 
-          if (_mode.access() == Access_lohi)
+          if (_control_reg.access() == Access_lohi)
             {
               if (_wait_for_high_byte)
                 {
                   set_high_byte(_reload, v);
                   _wait_for_high_byte = false;
+                  _channel[ch].reset(l4_rdtsc(), _reload);
+                  _channel[ch].enable_irq();
                 }
               else
                 {
                   // lobyte first
                   set_low_byte(_reload, v);
+                  _channel[ch].disable_irq();
                   // wait for sequential write to high byte
                   _wait_for_high_byte = true;
                   return;
                 }
             }
-          else if (_mode.access() == Access_lobyte)
+          else if (_control_reg.access() == Access_lobyte)
             set_low_byte(_reload, v);
-          else if (_mode.access() == Access_hibyte)
-            set_high_byte(_reload, v);
+          else if (_control_reg.access() == Access_hibyte)
+            {
+              set_high_byte(_reload, v);
+              _channel[ch].reset(l4_rdtsc(), _reload);
+              _channel[ch].enable_irq();
+            }
 
-          trace().printf("set counter for %d to %d\n", port, _reload);
-          _channel[ch].reset(l4_rdtsc(), _reload);
-          if (_reload != 0)
-            _channel[ch].op_mode(_mode.opmode());
+          trace().printf("set counter for %d to %d\n", ch, _reload);
         }
       else
         warn().printf("PIT access to bad channel\n");
@@ -114,7 +121,7 @@ void Pit_timer::io_in(unsigned port, Vmm::Mem_access::Width width,
 
   switch (port)
     {
-    case Mode_command: *value = _mode.raw; break;
+    case Mode_command: *value = _control_reg.raw; break;
 
     case Channel_0_data:
     case Channel_2_data:
@@ -128,7 +135,7 @@ void Pit_timer::io_in(unsigned port, Vmm::Mem_access::Width width,
 
             unsigned wraps = _channel[ch].update(l4_rdtsc());
 
-            if (_channel[ch].one_shot_mode() && wraps > 0)
+            if (wraps > 0)
               reg = 0;
             else
               reg = _channel[ch].current();
@@ -139,7 +146,7 @@ void Pit_timer::io_in(unsigned port, Vmm::Mem_access::Width width,
             reg = _channel[ch].current();
           }
 
-        switch (_mode.access())
+        switch (_control_reg.access())
           {
           case Access_lobyte: *value = reg & 0xff; break;
 
@@ -152,7 +159,7 @@ void Pit_timer::io_in(unsigned port, Vmm::Mem_access::Width width,
 
           default:
             warn().printf("Invalid access mode during read: Mode: 0x%x\n",
-                          _mode.raw);
+                          _control_reg.raw);
           }
       }
     }
