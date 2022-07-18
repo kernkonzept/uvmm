@@ -36,6 +36,17 @@ Cpu_dev::Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *node)
       prop = node->get_prop<fdt32_t>("l4vmm,vpidr", &prop_size);
       if (prop && prop_size > 0)
         _dt_vpidr = node->get_prop_val(prop, prop_size, true);
+
+      char const *msa = node->get_prop<char>("l4vmm,msa", nullptr);
+      if (!msa)
+        msa = node->parent_node().get_prop<char>("l4vmm,msa", nullptr);
+
+      if (!msa || strcmp("vmsa", msa) == 0)
+        _pmsa = false;
+      else if (strcmp("pmsa", msa) == 0)
+        _pmsa = true;
+      else
+        L4Re::throw_error(-L4_EINVAL, "invalid l4vmm,msa property");
     }
 }
 
@@ -89,7 +100,7 @@ Cpu_dev::reset()
       l4_vcpu_e_write_32(*_vcpu, L4_VCPU_E_VPIDR,  _dt_vpidr);
     }
 
-  arm_subarch_setup(*_vcpu, !(_vcpu->r.flags & Flags_mode_32));
+  arm_subarch_setup(*_vcpu, !(_vcpu->r.flags & Flags_mode_32), _pmsa);
 
   //
   // Initialize vcpu state

@@ -207,6 +207,7 @@ private:
   l4_umword_t _dt_affinity;
   l4_umword_t _dt_vpidr = 0;
   std::atomic<Cpu_state> _online{Cpu_state::Off};
+  bool _pmsa = false;
 };
 
 }
