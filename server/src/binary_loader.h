@@ -34,7 +34,7 @@ class Binary_ds
     // to interpret the binary.
     auto *e = L4Re::Env::env();
     L4Re::chksys(e->rm()->attach(&_header, L4_PAGESIZE,
-                                 L4Re::Rm::F::Search_addr | L4Re::Rm::F::RWX,
+                                 L4Re::Rm::F::Search_addr | L4Re::Rm::F::R,
                                  L4::Ipc::make_cap_rw(_ds.get())));
   }
 
