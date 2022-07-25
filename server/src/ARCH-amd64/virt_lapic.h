@@ -177,7 +177,7 @@ class Virt_lapic : public Vdev::Timer, public Ic
     Apic_base_x2_enabled = 1UL << 10,
     Apic_base_enabled = 1U << 11,
 
-    Lapic_version = 0x60010, /// 10 = integrated APIC, 6 = max LVT entries - 1
+    Lapic_version = 0x60014, /// 14 = xAPIC, 6 = max LVT entries - 1
 
     X2apic_ldr_logical_apic_id_mask = 0xffff,
     X2apic_ldr_logical_cluster_id_size = 0xffff,
