@@ -5,7 +5,6 @@
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
-
 #include <l4/re/error_helper>
 #include <l4/re/env.h> // l4re_kip
 
@@ -19,7 +18,8 @@ Pit_timer::Pit_timer(cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
   _read_high(false), _wait_for_high_byte(false),
   _port61(make_device<Port61>())
 {
-  l4_calibrate_tsc(l4re_kip());
+  _channel[0] = cxx::make_unique_ptr<Channel>(new Channel(this));
+  _channel[1] = cxx::make_unique_ptr<Channel>(new Channel(this, true));
 }
 
 void Pit_timer::set_high_byte(l4_uint16_t &reg, l4_uint8_t value)
@@ -57,12 +57,13 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
               && _control_reg.access() == Read_back_latch_cnt))
         {
           // We don't emulate the latch register
+          warn().printf("UNIMPLEMENTED: latch register programmed.\n");
           break;
         }
       else
-        _channel[ch].reset_op_mode();
+        _channel[ch]->reset_op_mode();
 
-      _channel[ch].op_mode(static_cast<Channel::Mode>(_control_reg.opmode().get()));
+      _channel[ch]->op_mode(static_cast<Channel::Mode>(_control_reg.opmode().get()));
       trace().printf("New timer mode on channel %d: 0x%x\n",
                      ch, _control_reg.opmode().get());
       break;
@@ -83,14 +84,14 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
                 {
                   set_high_byte(_reload, v);
                   _wait_for_high_byte = false;
-                  _channel[ch].reset(l4_rdtsc(), _reload);
-                  _channel[ch].enable_irq();
+                  _channel[ch]->reset(_reload);
+                  _channel[ch]->enable_irq();
                 }
               else
                 {
                   // lobyte first
                   set_low_byte(_reload, v);
-                  _channel[ch].disable_irq();
+                  _channel[ch]->disable_irq();
                   // wait for sequential write to high byte
                   _wait_for_high_byte = true;
                   return;
@@ -101,8 +102,8 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
           else if (_control_reg.access() == Access_hibyte)
             {
               set_high_byte(_reload, v);
-              _channel[ch].reset(l4_rdtsc(), _reload);
-              _channel[ch].enable_irq();
+              _channel[ch]->reset(_reload);
+              _channel[ch]->enable_irq();
             }
 
           trace().printf("set counter for %d to %d\n", ch, _reload);
@@ -116,6 +117,10 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
 void Pit_timer::io_in(unsigned port, Vmm::Mem_access::Width width,
                       l4_uint32_t *value)
 {
+  // *value contains the value returned to the guest. It defaults to -1 from
+  // Guest::handle_io_access(). Therefore we do not set it here in case of an
+  // unhandled path.
+
   if (width != Vmm::Mem_access::Width::Wd8)
     return;
 
@@ -129,37 +134,21 @@ void Pit_timer::io_in(unsigned port, Vmm::Mem_access::Width width,
         l4_uint16_t reg;
         int ch = port2idx(port);
 
-        if (!_read_high)
-          {
-            std::lock_guard<std::mutex> lock(_mutex);
-
-            unsigned wraps = _channel[ch].update(l4_rdtsc());
-
-            if (wraps > 0)
-              reg = 0;
-            else
-              reg = _channel[ch].current();
-          }
-        else
-          {
-            std::lock_guard<std::mutex> lock(_mutex);
-            reg = _channel[ch].current();
-          }
+        std::lock_guard<std::mutex> lock(_mutex);
+        reg = _channel[ch]->current();
 
         switch (_control_reg.access())
           {
           case Access_lobyte: *value = reg & 0xff; break;
-
           case Access_hibyte: *value = (reg >> 8) & 0xff; break;
-
           case Access_lohi:
             *value = _read_high ? (reg >> 8) : (reg & 0xFF);
             _read_high = !_read_high;
             break;
-
           default:
             warn().printf("Invalid access mode during read: Mode: 0x%x\n",
                           _control_reg.raw);
+            break;
           }
       }
     }
@@ -167,19 +156,7 @@ void Pit_timer::io_in(unsigned port, Vmm::Mem_access::Width width,
 
 void Pit_timer::tick()
 {
-  std::lock_guard<std::mutex> lock(_mutex);
-
-  auto now = l4_rdtsc();
-  bool trigger = _channel[0].tick(now);
-
-  if (_port61->channel_2_on() && _channel[1].tick(now))
-    {
-      trigger = true;
-      _port61->set_output();
-    }
-
-  if (trigger)
-    _irq.inject();
+  return;
 }
 
 } // namespace Vdev

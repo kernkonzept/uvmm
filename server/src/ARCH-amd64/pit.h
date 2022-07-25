@@ -9,7 +9,7 @@
 
 #include <mutex>
 #include <l4/cxx/bitfield>
-#include <l4/util/rdtsc.h>
+#include <l4/cxx/unique_ptr>
 
 #include "device.h"
 #include "io_device.h"
@@ -22,6 +22,10 @@ namespace Vdev {
  * Limited implementation of 8254 PROGRAMMABLE INTERVAL TIMER.
  *
  * Supports only channel 0 and 2.
+ *
+ * \note This timer model uses the KIP clock as time base. You need to
+ *       configure the Microkernel with CONFIG_SYNC_TSC in order to achieve
+ *       sufficient granularity.
  */
 class Pit_timer
 : public Vmm::Io_device,
@@ -47,8 +51,8 @@ class Pit_timer
   enum
   {
     Channels = 2,
-    Pit_tick_rate = 1193182,
-    Pit_period_len = 1000UL * 1000 * 1000 / Pit_tick_rate,
+    Pit_tick_rate = 1193182, // given in Herz
+    Microseconds_per_second = 1000000ULL,
     Channel_0_data = 0,
     Channel_2_data = 2,
     Mode_command = 3,
@@ -68,116 +72,115 @@ class Pit_timer
     Access_lohi = 3,
   };
 
-  class Channel
+  class Channel: public L4::Ipc_svr::Timeout_queue::Timeout
   {
-   public:
-     enum Mode : l4_uint8_t
-     {
-       Mode_terminal_count = 0x0,
-       Mode_retriggerable_one_shot = 0x1,
-       Mode_rate_generator = 0x2,
-       Mode_disabled = 0xff,
-     };
+  public:
+    enum Mode : l4_uint8_t
+    {
+      Mode_terminal_count = 0x0,
+      Mode_retriggerable_one_shot = 0x1,
+      Mode_rate_generator = 0x2,
+      Mode_disabled = 0xff,
+    };
 
-     Channel()
-     : _start(0), _now(0), _reload(0), _wraps(0), _ticks(0),
-       _op_mode(Mode_disabled), _irq_on(false)
-     {}
+    Channel(Pit_timer *pit, bool is_channel2 = false)
+    : _reload(0), _op_mode(Mode_disabled), _irq_on(false), _pit(pit),
+      _is_channel2(is_channel2), _reload_kip_clock(0)
+    {}
 
-     /**
-      * Return if the channel's counter reached an interrupt event.
-      *
-      * \param now  TSC value to use a current timestamp.
-      */
-     bool tick(l4_cpu_time_t now)
-     {
-       if (off())
-         return false;
+    /**
+     * Next absolute timeout in microseconds.
+     */
+    inline l4_cpu_time_t next_timeout_us() const
+    {
+      assert(_reload != 0);
 
-       unsigned wraps = update(now);
-       bool trigger = false;
+      l4_kernel_clock_t kip = l4_kip_clock(l4re_kip());
+      l4_cpu_time_t timeout_us =
+        _reload * Microseconds_per_second / Pit_tick_rate;
+      return kip + timeout_us;
+    }
 
-       if (wraps > 0 || current() == 0)
-         trigger = true;
+    // called in the context of the timer thread, be careful with locking!
+    void expired()
+    {
+      if (_is_channel2 && _pit->_port61->channel_2_on())
+        _pit->_port61->set_output();
 
-       // only rate generator mode is periodic
-       if (trigger && _op_mode != Mode_rate_generator)
-         disable_irq();
+      _pit->_irq.inject();
 
-       return trigger;
-     }
+      // only rate generator mode is periodic
+      if (_op_mode == Mode_rate_generator)
+        _pit->requeue_timeout(this, next_timeout_us());
+    }
 
-     /**
-      * Load the counter with new values and reset wrap and tick counter.
-      *
-      * \param new_start   TSC timestamp at the start of the countdown.
-      * \param new_reload  Value to count down from.
-      */
-     void reset(l4_cpu_time_t new_start, l4_uint16_t new_reload)
-     {
-       _start = _now = new_start;
-       _reload = new_reload;
-       _wraps = 0;
-       _ticks = 0;
-     }
+    /**
+     * Load the counter with new value
+     *
+     * \param new_reload  Value to count down from.
+     */
+    void reset(l4_uint16_t new_reload)
+    {
+      _reload = new_reload;
+      _reload_kip_clock = l4_kip_clock(l4re_kip());
+      disable_irq();
+    }
 
-     /**
-      * Compute ticks and wrap arounds since last reset.
-      *
-      * \param now  TSC value to use a current timestamp.
-      *
-      * \return Counter wrap arounds since last update call.
-      */
-     unsigned update(l4_cpu_time_t now)
-     {
-       _now = now;
-       auto diff_ns = l4_tsc_to_ns(_now - _start);
-       // ns / Hz
-       _ticks = diff_ns / Pit_period_len;
-       unsigned old_wraps = _wraps;
+    void op_mode(Mode m)
+    {
+      assert(m < 8);
+      _op_mode = m;
+      disable_irq();
+    }
 
-       // avoid division by zero
-       auto reload = _reload ? _reload : 1;
-       _wraps = _ticks / reload;
+    void reset_op_mode()
+    {
+      disable_irq();
+      _op_mode = Mode_disabled;
+    }
 
-       return _wraps - old_wraps;
-     }
+    void disable_irq()
+    {
+      _pit->dequeue_timeout(this);
+    }
 
-     /**
-      * Return the counter value of the last call to update().
-      *
-      * \pre update() was called.
-      *
-      * The counter assumes the value of reload for wrap arounds.
-      */
-     l4_uint16_t current() const
-     { return _reload - (l4_uint16_t)(_ticks % _reload); }
+    void enable_irq()
+    {
+      if (_reload)
+        _pit->enqueue_timeout(this, next_timeout_us());
+    }
 
-     bool off() const
-     { return !_irq_on; }
+    /**
+     * Calculate the current value of the counter.
+     *
+     * The counters count down from _reload with the fixed Pit_tick_rate.
+     *
+     * Our Pit model does not update the tick value by itself. Instead it only
+     * calculates the tick count when the guest reads the counter register. We
+     * use the TSC as time basis.
+     *
+     * returns the current counter value of this channel
+     */
+    l4_uint32_t current()
+    {
+      // current time in microseconds
+      l4_kernel_clock_t kip_us = l4_kip_clock(l4re_kip());
+      // time that has gone by since _reload was set
+      l4_cpu_time_t diff_us = _reload_kip_clock - kip_us;
+      // return current counter value
+      l4_uint32_t ticks = diff_us * Pit_tick_rate / Microseconds_per_second;
+      if (ticks >= _reload)
+        return 0;
+      return _reload - ticks;
+    }
 
-     void op_mode(Mode m)
-     {
-       assert(m < 8);
-       _op_mode = m;
-     }
-
-     void reset_op_mode() { _op_mode = Mode_disabled; disable_irq(); }
-
-     void disable_irq()
-     { _irq_on = false; }
-
-     void enable_irq()
-     { _irq_on = true; }
-
-   private:
-     l4_cpu_time_t _start;
-     l4_cpu_time_t _now;
-     l4_uint16_t _reload;
-     unsigned _wraps;
-     l4_uint32_t _ticks;
-     Mode _op_mode;
-     bool _irq_on;
+  private:
+    l4_uint16_t _reload;
+    Mode _op_mode;
+    bool _irq_on;
+    Pit_timer *_pit;
+    bool _is_channel2;
+    l4_cpu_time_t _reload_kip_clock;
   };
 
   struct Control_reg
@@ -220,7 +223,7 @@ public:
 private:
   Vmm::Irq_edge_sink _irq;
   l4_uint16_t _reload;
-  Channel _channel[Channels];
+  cxx::unique_ptr<Channel> _channel[Channels];
   bool _read_high;
   bool _wait_for_high_byte;
   Control_reg _control_reg;
