@@ -64,6 +64,9 @@ public:
                      cxx::Ref_ptr<Io_device> const &dev);
   void del_io_device(Io_region const &region);
 
+  bool register_framebuffer(l4_uint64_t addr, l4_uint64_t size,
+                            const L4Re::Video::View::Info &info);
+
   /**
    * Return IO port map.
    *

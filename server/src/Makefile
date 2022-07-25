@@ -76,6 +76,7 @@ SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_
                                                                      device/pci_host_ecam_generic.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_CFI_FLASH) +=  device/cfi.cc
 SRC_CC-$(CONFIG_UVMM_EXTERNAL_RTC) += device/l4rtc.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_FRAMEBUFFER) += device/framebuffer.cc
 
 ifeq ($(CONFIG_UVMM_FAULT_INJECT),y)
 SRC_CC_arm-common += ARCH-$(ARCH)/guest_arm_exc.cc

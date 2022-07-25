@@ -13,6 +13,7 @@
 #include <l4/re/util/br_manager>
 #include <l4/re/util/object_registry>
 #include <l4/re/util/unique_cap>
+#include <l4/re/video/goos>
 #include <mutex>
 
 #include "debug.h"
@@ -75,6 +76,10 @@ public:
                           Region_type, Vdev::Dt_node const &, size_t = 0) {}
   void add_io_device(Io_region const &, cxx::Ref_ptr<Io_device> const &) {}
   void del_io_device(Io_region const &) {}
+
+  bool register_framebuffer(l4_uint64_t /*addr*/, l4_uint64_t /*size*/,
+                            const L4Re::Video::View::Info &)
+  { return true; }
 
   /**
    * Return MMIO map.
