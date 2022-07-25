@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
- * Copyright (C) 2021 Kernkonzept GmbH.
+ * Copyright (C) 2021-2022 Kernkonzept GmbH.
  * Author(s): Jean Wolter <jean.wolter@kernkonzept.com>
+ *            Stephan Gerhold <stephan.gerhold@kernkonzept.com>
  */
 
 #include <l4/re/util/video/goos_fb>
@@ -14,6 +15,8 @@
 #include "ds_mmio_mapper.h"
 #include "ds_manager.h"
 #include "guest.h"
+
+static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "framebuffer"); }
 
 namespace Vdev {
 class Framebuffer : public Vmm::Ds_manager
@@ -36,6 +39,29 @@ public:
 
 // Factory section
 namespace {
+struct {
+  const char *name;
+  L4Re::Video::Pixel_info pixel_info;
+} simplefb_formats[] = {
+  { "r5g6b5", {2, 5, 11, 6, 5, 5, 0} },
+  { "r5g5b5a1", {2, 5, 11, 5, 6, 5, 1, 1, 0} },
+  { "x1r5g5b5", {2, 5, 10, 5, 5, 5, 0} },
+  { "a1r5g5b5", {2, 5, 10, 5, 5, 5, 0, 1, 15} },
+  { "r8g8b8", {3, 8, 16, 8, 8, 8, 0} },
+  { "x8r8g8b8", {4, 8, 16, 8, 8, 8, 0} },
+  { "a8r8g8b8", {4, 8, 16, 8, 8, 8, 0, 8, 24} },
+  { "a8b8g8r8", {4, 8, 0, 8, 8, 8, 16, 8, 24} },
+  { "x2r10g10b10", {4, 10, 20, 10, 10, 10, 0} },
+  { "a2r10g10b10", {4, 10, 20, 10, 10, 10, 0, 2, 30} },
+};
+
+const char *find_simplefb_format(const L4Re::Video::Pixel_info &pixel_info)
+{
+  for (auto &f : simplefb_formats)
+    if (f.pixel_info == pixel_info)
+      return f.name;
+  return nullptr;
+}
 
 struct F : Vdev::Factory
 {
@@ -107,6 +133,17 @@ struct F : Vdev::Factory
     l4_uint64_t fb_size = gfb->buffer()->size();
     if (!devs->vmm()->register_framebuffer(fb_addr, fb_size, fb_viewinfo))
       return 0;
+
+    node.set_reg_val(fb_addr, fb_size);
+    node.setprop_u32("width", fb_viewinfo.width);
+    node.setprop_u32("height", fb_viewinfo.height);
+    node.setprop_u32("stride", fb_viewinfo.bytes_per_line);
+
+    auto format = find_simplefb_format(fb_viewinfo.pixel_info);
+    if (format)
+      node.setprop_string("format", format);
+    else
+      warn().printf("Framebuffer format is unsupported by simple-framebuffer\n");
 
     auto handler = Vdev::make_device<Ds_handler>(
                      cxx::make_ref_obj<Vdev::Framebuffer>(cxx::move(gfb)));
