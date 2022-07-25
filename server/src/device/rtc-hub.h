@@ -7,6 +7,7 @@
  * Central hub that allows to connect external wallclock time source.
  */
 #include <l4/sys/types.h>
+#include <time.h>
 
 namespace Vdev {
 
@@ -40,7 +41,7 @@ public:
   {
     if (_adapter)
       return _adapter->ns_since_epoch();
-    return 0;
+    return time(NULL) * 1000000000;
   }
 
   void register_adapter(L4rtc_adapter *adapter)
