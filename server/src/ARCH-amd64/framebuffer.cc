@@ -145,7 +145,7 @@ struct F : Vdev::Factory
         return 0;
       }
 
-    int res = node.get_reg_val(0, &fb_addr, &fb_size);
+    int res = node.get_reg_val(0, &fb_addr, nullptr);
     if (res)
       {
         Err().printf("Invalid reg entry '%s'.reg[0]: %s\n",
@@ -196,14 +196,7 @@ struct F : Vdev::Factory
         return 0;
       }
 
-    size_t size = gfb->buffer()->size();
-    if (fb_size < size)
-      {
-        Err().printf("Invalid reg entry '%s'.reg[%d]: Too small, need 0x%zx bytes\n",
-                     node.get_name(), 0, size);
-        return 0;
-
-      }
+    fb_size = gfb->buffer()->size();
     auto handler = Vdev::make_device<Ds_handler>(
                      cxx::make_ref_obj<Vdev::Framebuffer>(cxx::move(gfb)));
     devs->vmm()->add_mmio_device(
