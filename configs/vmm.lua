@@ -70,6 +70,7 @@ function start_io(busses, cmdline, opts)
     sigma0 = L4.cast(L4.Proto.Factory, L4.Env.sigma0):create(L4.Proto.Sigma0);
     icu    = L4.Env.icu;
     iommu  = L4.Env.iommu;
+    dma_mgr = L4.Env.dma_mgr;
   };
 
   local files = "";
