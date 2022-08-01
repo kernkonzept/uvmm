@@ -73,10 +73,7 @@ void Address_space_manager::detect_sys_info(Virt_bus *vbus,
     }
 
   if (!vbus->available())
-    {
-      _info.dump();
-      return;
-    }
+    return;
 
   _info.vbus_present() = 1;
 
@@ -146,8 +143,6 @@ void Address_space_manager::detect_sys_info(Virt_bus *vbus,
                       "devices configured.\n", err);
         }
     }
-
-  _info.dump();
 }
 
 void Address_space_manager::mode_selection()
@@ -155,6 +150,7 @@ void Address_space_manager::mode_selection()
   if (_mode_selected)
     return;
 
+  _info.dump();
   _mode_selected = true;
 
   if (_info.force_identity() || _info.dma_phys_addr())
