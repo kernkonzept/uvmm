@@ -12,10 +12,10 @@
 
 namespace Vmm {
 
-int Address_space_manager::get_phys_mapping(L4::Cap<L4Re::Dataspace> ds,
-                                            l4_addr_t offset,
-                                            L4Re::Dma_space::Dma_addr *dma_start,
-                                            l4_size_t *size)
+int Address_space_manager::get_dma_mapping(L4::Cap<L4Re::Dataspace> ds,
+                                           l4_addr_t offset,
+                                           L4Re::Dma_space::Dma_addr *dma_start,
+                                           l4_size_t *size)
 {
   assert(_dma_space);
 
@@ -93,11 +93,6 @@ void Address_space_manager::detect_sys_info(Virt_bus *vbus,
       L4Re::chksys(L4Re::Env::env()->user_factory()->create(dma_space.get()),
                    "Create DMA space.");
 
-      if (dma_space->associate(L4::Ipc::Cap<L4::Task>(),
-                               L4Re::Dma_space::Phys_space)
-          >= 0)
-        _info.dma_phys_addr() = 1;
-
       _dma_space = std::move(dma_space);
     }
 
@@ -134,43 +129,29 @@ void Address_space_manager::detect_sys_info(Virt_bus *vbus,
   else
     {
       // if we already have a _dma_space due to the force flag, use it.
-      if (!_info.force_identity())
+      if (!_dma_space)
         {
           auto dma_space =
             L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dma_space>(),
                          "Allocate DMA space capability");
-          err =
-            l4_error(L4Re::Env::env()->user_factory()->create(dma_space.get()));
-
-          if (err >= L4_EOK)
-            {
-              if (dma_space->associate(L4::Ipc::Cap<L4::Task>(),
-                                       L4Re::Dma_space::Phys_space)
-                  >= 0)
-                _info.dma_phys_addr() = 1;
-
-              _dma_space = std::move(dma_space);
-            }
-          else
-            info().printf("DMA space creation failed (%i).\n", err);
+          L4Re::chksys(L4Re::Env::env()->user_factory()->create(dma_space.get()),
+                       "Create DMA space.");
+          _dma_space = std::move(dma_space);
         }
 
-      if (_dma_space)
-        {
-          // If we cannot assign DMA Domain ~0U, the vBus has no DMA capable
-          // devices.
-          err = vbus->bus()->assign_dma_domain(~0U,
-                                               L4VBUS_DMAD_BIND
-                                                 | L4VBUS_DMAD_L4RE_DMA_SPACE,
-                                               _dma_space.get());
+      // If we cannot assign DMA Domain ~0U, the vBus has no DMA capable
+      // devices.
+      err = vbus->bus()->assign_dma_domain(~0U,
+                                           L4VBUS_DMAD_BIND
+                                             | L4VBUS_DMAD_L4RE_DMA_SPACE,
+                                           _dma_space.get());
 
-          if (err >= L4_EOK)
-            _info.vbus_has_dma_devs() = 1;
-          else
-            info()
-              .printf("Can not assign KDMA space to vBus (%i). No DMA capable "
-                      "devices configured.\n", err);
-        }
+      if (err >= L4_EOK)
+        _info.vbus_has_dma_devs() = 1;
+      else
+        info().printf("Can not assign DMA space to vBus (%i). No DMA capable "
+                      "devices configured.\n",
+                      err);
     }
 }
 
@@ -181,16 +162,6 @@ void Address_space_manager::mode_selection()
 
   _info.dump();
   _mode_selected = true;
-
-  if (_info.force_identity() || _info.dma_phys_addr())
-    {
-      // The _dma_space is either Phys_space associated or Io associated it.
-      // We need the Phys_space association.
-      assert(_dma_space);
-      L4Re::chksys(_dma_space->associate(L4::Ipc::Cap<L4::Task>(),
-                                        L4Re::Dma_space::Phys_space),
-                   "Access physical address space mappings.");
-    }
 
   if (_info.force_identity())
     {

@@ -29,8 +29,8 @@ Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr)
     {
       l4_size_t phys_size = size();
       L4Re::Dma_space::Dma_addr phys_ram = 0;
-      int err = as_mgr->get_phys_mapping(dataspace().get(), ds_offset(),
-                                         &phys_ram, &phys_size);
+      int err = as_mgr->get_dma_mapping(dataspace().get(), ds_offset(),
+                                        &phys_ram, &phys_size);
 
       if (err < 0 || phys_size < size())
         {
@@ -57,8 +57,8 @@ Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr)
        */
       l4_size_t dma_size = size();
       L4Re::Dma_space::Dma_addr dma_addr = 0;
-      int err = as_mgr->get_phys_mapping(dataspace().get(), ds_offset(),
-                                         &dma_addr, &dma_size);
+      int err = as_mgr->get_dma_mapping(dataspace().get(), ds_offset(),
+                                        &dma_addr, &dma_size);
 
       if (err < 0 || dma_size < size())
         warn.printf("DMA offset mode requested, but dataspace not contiguous. "

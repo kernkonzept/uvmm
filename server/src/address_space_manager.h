@@ -70,21 +70,21 @@ public:
   void del_ram_iommu(Guest_addr dest, l4_size_t size);
 
   /**
-   * Register a piece of RAM for identity mapping and get the host physical
+   * Register a piece of RAM for DMA-mapping and get the DMA-capable
    * address and size.
    *
-   * \param start       Start of the local mapping of the RAM region.
-   * \param ds          Dataspace of the backing memory.
-   * \param offset      Offset of the start address within the dataspace.
-   * \param[out] start  corresponding host-physical address
-   * \param[out] size   size of the corrsponding host-physical region.
+   * \param start           Start of the local mapping of the RAM region.
+   * \param ds              Dataspace of the backing memory.
+   * \param offset          Offset of the start address within the dataspace.
+   * \param[out] dma_start  corresponding DMA-capabile address
+   * \param[out] size       size of the corrsponding DMA-capable region.
    *
    * \return Error value of `dma_map()` operation.
    *
    * If identity mode was forced and an IO-MMU was detected, the KDMA space for
    * the IO-MMU is set up as well.
    */
-  int get_phys_mapping(L4::Cap<L4Re::Dataspace> ds, l4_addr_t offset,
+  int get_dma_mapping(L4::Cap<L4Re::Dataspace> ds, l4_addr_t offset,
                        L4Re::Dma_space::Dma_addr *dma_start,
                        l4_size_t *size);
 

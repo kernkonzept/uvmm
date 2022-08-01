@@ -90,9 +90,9 @@ public:
             L4Re::chksys(L4Re::Env::env()->user_factory()->create(dma.get()),
                          "Create DMA space for MMIO proxy region");
 
-            L4Re::chksys(dma->associate(L4::Ipc::Cap<L4::Task>(),
-                                        L4Re::Dma_space::Phys_space),
-                         "Associate with physical address space");
+            L4Re::throw_error(-L4_EINVAL,
+                              "Mmio_proxy with dma-ranges or physmap property"
+                              "not support at the moment.");
           }
 
         auto mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Mmio_proxy", dscap, 0,
