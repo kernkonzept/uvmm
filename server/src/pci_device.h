@@ -557,7 +557,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
         size64 = bar_size;
 
         // Process the second 32bit
-        if (bar_offs >= max_bar_offs)
+        if (bar_offs > max_bar_offs) // max_bar_offset is an inclusive end.
           L4Re::throw_error(-L4_ERANGE,
                             "PCI device implements 64-bit MMIO in last BAR.");
 
