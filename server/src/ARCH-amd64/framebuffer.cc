@@ -100,7 +100,7 @@ static void configure_framebuffer(void *zeropage)
   si->lfb_base = fb_addr & 0xffffffff;
   si->ext_lfb_base = fb_addr >> 32;
   // framebuffer size is in 64 KiB chunks for VLFB per historical convention
-  si->lfb_size = fb_size >> 16;
+  si->lfb_size = l4_round_size(fb_size, 16) >> 16;
 
   // define dimensions
   si->lfb_width  = fb_viewinfo.width;
