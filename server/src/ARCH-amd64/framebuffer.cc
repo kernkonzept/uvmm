@@ -160,17 +160,16 @@ struct F : Vdev::Factory
       }
     catch (L4::Runtime_error const &e)
       {
-        Err().printf("fbdrv setup failed: %s", e.str());
-
         char const *msg = e.extra_str();
         if (msg)
-          Err().printf(": %s", msg);
-        Err().printf("\n");
+          Err().printf("fbdrv setup failed: %s: %s\n", e.str(), msg);
+        else
+          Err().printf("fbdrv setup failed: %s\n", e.str());
         return 0;
       }
     catch (...)
       {
-        Err().printf("fbdrv setup failed with unknown exception");
+        Err().printf("fbdrv setup failed with unknown exception\n");
         return 0;
       }
 
