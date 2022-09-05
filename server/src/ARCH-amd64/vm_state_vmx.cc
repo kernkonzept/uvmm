@@ -151,6 +151,10 @@ Vmx_state::write_msr(unsigned msr, l4_uint64_t value)
           return false;
       vmx_write(VMCS_GUEST_IA32_PAT, value);
       break;
+    case 0x2ff: // IA32_MTRR_DEF_TYPE
+      // We report no MTRRs in the IA32_MTRRCAP MSR. Thus we ignore writes here.
+      // MTRRs might also be disabled temporarily by the guest.
+      break;
     case 0xc0000080: // efer
       {
         l4_uint64_t old_efer = vmx_read(VMCS_GUEST_IA32_EFER);
