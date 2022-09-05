@@ -166,28 +166,6 @@ public:
     return 0;
   }
 
-  long op_register_iface(L4virtio::Device::Rights,
-                         L4::Ipc::Snd_fpage irq_cap_fp,
-                         L4::Ipc::Cap<L4::Triggerable> &host_irq,
-                         L4::Ipc::Cap<L4Re::Dataspace> &config_ds)
-  {
-    if (!irq_cap_fp.cap_received())
-      return -L4_EINVAL;
-
-    _kick_guest_irq = L4Re::Util::Unique_cap<L4::Irq>(
-      L4Re::chkcap(server_iface()->rcv_cap<L4::Irq>(0),
-                   "Recived capability for registered interface is valid."));
-    L4Re::chksys(server_iface()->realloc_rcv_cap(0),
-                 "Save IRQ capability of registered interface.");
-
-    trace.printf("register client: host IRQ: %lx config DS: %lx\n",
-                 _host_irq.obj_cap().cap(), mmio_ds().cap());
-
-    host_irq = L4::Ipc::make_cap(_host_irq.obj_cap(), L4_CAP_FPAGE_RO);
-    config_ds = L4::Ipc::make_cap(mmio_ds(), L4_CAP_FPAGE_RW);
-    return 0;
-  }
-
   long op_set_status(L4virtio::Device::Rights, unsigned)
   {
     warn.printf("Client uses IPC notification protocol. Not supported.\n");
