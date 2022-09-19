@@ -2,6 +2,7 @@
  * Copyright (C) 2017 Kernkonzept GmbH.
  * Author(s): Adam Lackorzynski <adam@l4re.org>
  *            Philipp Eppelt <philipp.eppelt@kernkonzept.com>
+ *            Georg Kotheimer <georg.kotheimer@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
@@ -13,12 +14,16 @@
 #include <assert.h>
 
 #include "debug.h"
+#include "mem_access.h"
 
 namespace L4mad
 {
 
 enum Desc_type { Desc_mem, Desc_imm, Desc_reg, Desc_regbitmap };
 enum Access_type { Write, Read };
+
+/// Width in bytes.
+using Width = Vmm::Mem_access::Width;
 
 struct Desc
 {
@@ -42,10 +47,10 @@ struct Desc
 struct Op
 {
   Access_type atype;
-  unsigned char access_width;
+  Width access_width;
   unsigned char insn_len;
 
-  void set(Access_type t, unsigned char aw, unsigned char il)
+  void set(Access_type t, Width aw, unsigned char il)
   {
     atype        = t;
     access_width = aw;
@@ -59,44 +64,94 @@ enum { Num_registers = 16, };
 enum { Num_registers = 8, };
 #endif
 
+struct Modrm;
+struct Instruction;
+
 class Decoder
 {
 public:
-  l4_addr_t l4mad_print_insn_info(l4_exc_regs_t *u, l4_addr_t pc);
+  /**
+   * Create decoder for the given execution state.
+   *
+   * \param regs          General-purpose registers
+   * \param ip            Instruction pointer as guest virtual address (required
+   *                      for RIP-relative addressing)
+   * \param inst_buf      Buffer containing instruction bytes
+   * \param inst_buf_len  Length of instruction byte buffer
+   */
+  Decoder(l4_exc_regs_t const *regs, l4_addr_t ip,
+          unsigned char const *inst_buf, unsigned inst_buf_len);
 
-  bool decode(l4_exc_regs_t *u, l4_addr_t pc, Op *op, Desc *tgt, Desc *src);
+  enum { Max_instruction_len = 15 };
+
+  enum class Result
+  {
+    Success,
+    Unsupported,
+    Invalid,
+  };
+
+  /**
+   * Decode instruction as a read or write operation.
+   *
+   * \param[out] op   Operation
+   * \param[out] tgt  Target operand description
+   * \param[out] src  Source operation description
+   *
+   * \retval Result::Success     Instruction was decoded successfully.
+   * \retval Result::Unsupported Instruction decoding failed, because an
+   *                             unsupported instruction was encountered.
+   * \retval Result::Invalid     Instruction decoding failed, because an invalid
+   *                             or incomplete instruction was encountered, for
+   *                             example if the the instruction spans more bytes
+   *                             than available in the decoders instruction
+   *                             buffer.
+   *
+   * \note The decoder assumes that the CPU is executing in long 64-bit mode or
+   *       long compatibility / protected mode in a 32-bit code segment (i.e.
+   *       CS.d==1). Otherwise incorrect operand and address widths are
+   *       calculated.
+   */
+  Result decode(Op *op, Desc *tgt, Desc *src);
+
+  /**
+   * Print textual representation of a successfully decoded instruction.
+   */
+  void print_insn_info(Op const &op, Desc const &tgt, Desc const &src) const;
 
 private:
-  static Dbg trace() { return Dbg(Dbg::Core, Dbg::Trace); }
+  static Dbg trace() { return Dbg(Dbg::Core, Dbg::Trace, "Mad"); }
+  static Dbg warn() { return Dbg(Dbg::Core, Dbg::Warn, "Mad"); }
 
-  char *desc_s(l4_exc_regs_t *u, char *buf, unsigned buflen, Desc *d,
-               unsigned aw);
-  void regname_bm_snprintf(l4_exc_regs_t *u, char *buf, unsigned buflen,
-                           unsigned reglist);
-  const char *regname(unsigned regnr, unsigned shift, unsigned aw);
-  inline l4_umword_t regval_arch(l4_exc_regs_t *u, unsigned regnr);
-  l4_umword_t regval(l4_exc_regs_t *u, unsigned regnr, unsigned shift,
-                     unsigned aw);
+  Result decode_unsafe(Op *op, Desc *tgt, Desc *src);
+  void decode_legacy_prefixes(Instruction &inst);
+  void decode_rex_prefix(Instruction &inst);
+  bool decode_modrm(Instruction &inst, unsigned char *opcode_ext = nullptr);
+  l4_umword_t decode_sib(Instruction &inst, Modrm const &modrm);
+  void decode_imm(Instruction &inst);
+  void decode_imm_moffs(Instruction &inst);
 
-  unsigned char getbyte(l4_umword_t a)
-  {
-    return *(unsigned char *)a; // check for validity
-  }
+  char *desc_s(char *buf, unsigned buflen, Desc const &d, Width aw) const;
+  void regname_bm_snprintf(char *buf, unsigned buflen, unsigned reglist) const;
+  char const *regname(unsigned regnr, unsigned shift, Width aw) const;
+  l4_umword_t regval_arch(unsigned regnr) const;
+  l4_umword_t regval(unsigned regnr, unsigned shift, Width aw) const;
 
-  l4_umword_t readval(l4_addr_t a, char sz)
-  {
-    switch (sz)
-      {
-      case 1: return *(unsigned char *)a;
-      case 2: return *(unsigned short *)a;
-      case 4: return *(unsigned int *)a;
-      case 8: return *(unsigned long long *)a;
-      }
-    // actually unreachable, so compile time assertion
-    assert(0);
-    return ~0UL;
-  }
+  Width addr_width(Instruction const &inst) const;
 
+  l4_umword_t peek_inst_bytes(Instruction const &inst, Width sz) const;
+  l4_umword_t read_inst_bytes(Instruction &inst, Width sz) const;
+
+  void reg_from_op_reg(Desc *desc, Instruction const &inst) const;
+  void imm_from_op_imm(Desc *desc, Instruction const &inst) const;
+  void mem_from_op_imm(Desc *desc, Instruction const &inst) const;
+  void mem_from_op_addr(Desc *desc, Instruction const &inst) const;
+
+  l4_exc_regs_t const *const _regs;
+  l4_addr_t const _ip;
+  unsigned char const *const _inst_buf;
+  unsigned const _inst_buf_len;
+  bool const _long_mode_64;
 }; // class Decoder
 
 } // namespace L4mad

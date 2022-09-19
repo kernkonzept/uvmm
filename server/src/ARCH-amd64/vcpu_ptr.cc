@@ -66,12 +66,28 @@ Vcpu_ptr::decode_mmio() const
   // amd64: vcpu regs == exc_regs
   l4_exc_regs_t *reg = reinterpret_cast<l4_exc_regs_t *>(&_s->r);
   using namespace L4mad;
+  unsigned char *inst_buf = reinterpret_cast<unsigned char *>(opcode);
+  // TODO: Limit inst_buf_len to size until the next non-contiguous page
+  //       boundary if it is < Decoder::Max_instruction_len.
+  unsigned inst_buf_len = Decoder::Max_instruction_len;
+  Decoder decoder(reg, vms->ip(), inst_buf, inst_buf_len);
+
+  bool decoded = false;
   Op op;
   Desc tgt, src;
-  if (0)
-    Decoder().l4mad_print_insn_info(reg, opcode);
+  switch (decoder.decode(&op, &tgt, &src))
+    {
+    case Decoder::Result::Success: decoded = true; break;
+    case Decoder::Result::Unsupported: break;
+    case Decoder::Result::Invalid:
+      // TODO: If size of instruction buffer is < Decoder::Max_instruction_len,
+      //       because instruction lies on a non-contiguous page boundary,
+      //       use a temporary buffer to hold instruction bytes from both pages
+      //       and retry decoding from that.
+      break;
+    }
 
-  if (!Decoder().decode(reg, opcode, &op, &tgt, &src))
+  if (!decoded)
     {
       unsigned char const *text = reinterpret_cast<unsigned char *>(opcode);
       Dbg().printf("Decoding failed at 0x%lx: %02x %02x %02x %02x %02x %02x %02x <%02x> %02x %02x %02x %02x %02x %02x %02x %02x\n",
@@ -82,14 +98,10 @@ Vcpu_ptr::decode_mmio() const
       return m;
     }
 
-  switch(op.access_width)
-    {
-    case 1: m.width = Mem_access::Wd8; break;
-    case 2: m.width = Mem_access::Wd16; break;
-    case 4: m.width = Mem_access::Wd32; break;
-    case 8: m.width = Mem_access::Wd64; break;
-    default: return m;
-    }
+  if (0)
+    decoder.print_insn_info(op, tgt, src);
+
+  m.width = op.access_width;
 
   if (tgt.dtype != L4mad::Desc_reg && tgt.dtype != L4mad::Desc_mem)
     {
