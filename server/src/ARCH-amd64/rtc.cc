@@ -44,7 +44,7 @@ class Rtc : public Vmm::Io_device, public Vdev::Device
   unsigned _reg_b = Mode_24h;
   unsigned _reg_c = 0;
 
-  enum Register: unsigned
+  enum Register : unsigned
   {
     Seconds = 0,
     Seconds_alarm,

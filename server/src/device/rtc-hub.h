@@ -8,7 +8,7 @@
  */
 #include <l4/sys/types.h>
 
-namespace Vdev{
+namespace Vdev {
 
 class L4rtc_adapter
 {
