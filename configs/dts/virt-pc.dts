@@ -117,7 +117,7 @@
         uart8250 {
           compatible = "ns8250", "uart,8250";
           reg = <0x0 0x0 0x0 0x0>;
-          interrupt-parent = <&PIC>;
+          interrupt-parent = <&IOAPIC>;
           interrupts = <4>;
           l4vmm,vcon_cap = "uart";
         };
