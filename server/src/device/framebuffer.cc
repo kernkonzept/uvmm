@@ -69,7 +69,7 @@ struct F : Vdev::Factory
                                     Vdev::Dt_node const &node) override
   {
     int psize;
-    char const *prop = "l4vmm,cap";
+    char const *prop = "l4vmm,fbcap";
     char const *cap_name = node.get_prop<char>(prop, &psize);
     if (!cap_name)
       {

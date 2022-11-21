@@ -270,7 +270,7 @@
  *      simplefb {
  *            compatible = "simple-framebuffer";
  *            reg = <0x0 0xf0000000 0x0 0x1000000>;
- *            l4vmm,cap = "fb";
+ *            l4vmm,fbcap = "fb";
  *      };
  *
  * 3. Start a framebuffer instance and connect it to uvmm e.g.
