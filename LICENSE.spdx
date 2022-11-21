@@ -60,3 +60,5 @@ If you require a different licensing scheme please contact us at
 info@kernkonzept.com.
 </text>
 LicenseName: Kernkonzept Custom License
+LicenseComment: <text>If this file is part of a delivery, the license may be
+concretised in a superordinate LICENSE.spdx file.</text>
