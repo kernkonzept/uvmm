@@ -228,4 +228,11 @@
             l4vmm,dscap = "bios_code";
         };
 
+        nvm@ffc00000 {
+            compatible = "cfi-flash";
+            reg = <0x0 0xffc00000 0x0 0x84000>;
+            l4vmm,dscap = "bios_vars";
+            erase-size = <4>;
+            bank-width = <4>;
+        };
 };
