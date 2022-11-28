@@ -13,6 +13,14 @@
 
 /include/ "skeleton64.dtsi"
 
+#define CPU(x) cpu##x: cpu@x {                \
+                 device_type = "cpu";         \
+                 compatible = "virt-intel";   \
+                 reg = <x>;                   \
+                 #address-cells = <2>;        \
+                 #size-cells = <2>;           \
+               }
+
 / {
         model = "L4 VM";
         compatible = "l4,virt", "linux,dummy-virt";
@@ -41,23 +49,38 @@
           #address-cells = <1>;
           #size-cells = <0>;
 
-            cpu0: cpu@0 {
-                device_type = "cpu";
-                compatible = "virt-intel";
-                reg = <0>;
-
-                #address-cells = <2>;
-                #size-cells = <2>;
-            };
-
-            cpu1: cpu@1 {
-                device_type = "cpu";
-                compatible = "virt-intel";
-                reg = <1>;
-
-                #address-cells = <2>;
-                #size-cells = <2>;
-            };
+          CPU(0);
+          CPU(1);
+          CPU(2);
+          CPU(3);
+          CPU(4);
+          CPU(5);
+          CPU(6);
+          CPU(7);
+          CPU(8);
+          CPU(9);
+          CPU(10);
+          CPU(11);
+          CPU(12);
+          CPU(13);
+          CPU(14);
+          CPU(15);
+          CPU(16);
+          CPU(17);
+          CPU(18);
+          CPU(19);
+          CPU(20);
+          CPU(21);
+          CPU(22);
+          CPU(23);
+          CPU(24);
+          CPU(25);
+          CPU(26);
+          CPU(27);
+          CPU(28);
+          CPU(29);
+          CPU(30);
+          CPU(31);
         };
 
         PIC: pic {
