@@ -122,7 +122,7 @@ struct F : Vdev::Factory
         return 0;
       }
 
-    L4Re::Video::View::Info fb_viewinfo;
+    L4Re::Video::View::Info fb_viewinfo = {};
     if (auto err = gfb->view_info(&fb_viewinfo))
       {
         Err().printf("Failed to get view information: %s\n",
