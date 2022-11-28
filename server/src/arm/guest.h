@@ -111,12 +111,14 @@ public:
 
     if (!res)
       {
+        // Strip register values if the guest is executed in 32-bit mode.
+        l4_umword_t mask = (vcpu->r.flags & 0x10) ? ~0U : ~0UL;
         warn().printf("No handler for %s call: imm=%x a0=%lx a1=%lx ip=%lx "
                       "lr=%lx\n",
                       (METHOD == Smc) ? "SMC" : "HVC",
                       static_cast<unsigned>(vcpu.hsr().svc_imm()),
-                      vcpu->r.r[0], vcpu->r.r[1],
-                      vcpu->r.ip, vcpu.get_lr());
+                      vcpu->r.r[0] & mask, vcpu->r.r[1] & mask,
+                      vcpu->r.ip & mask, vcpu.get_lr() & mask);
         vcpu->r.r[0] = Smccc_device::Not_supported;
       }
 

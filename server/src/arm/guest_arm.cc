@@ -608,8 +608,11 @@ static void dispatch_smc(Vcpu_ptr vcpu)
 static void
 guest_unknown_fault(Vcpu_ptr vcpu)
 {
+  // Strip register values if the guest is executed in 32-bit mode.
+  l4_umword_t mask = (vcpu->r.flags & 0x10) ? ~0U : ~0UL;
   Err().printf("unknown trap: err=%lx ec=0x%x ip=%lx lr=%lx\n",
-               vcpu->r.err, (int)vcpu.hsr().ec(), vcpu->r.ip, vcpu.get_lr());
+               vcpu->r.err, (int)vcpu.hsr().ec(), vcpu->r.ip & mask,
+               vcpu.get_lr() & mask);
   if (!guest->inject_undef(vcpu))
     guest->halt_vm();
 }
@@ -622,10 +625,14 @@ guest_memory_fault(Vcpu_ptr vcpu)
     case Retry: break;
     case Jump_instr: vcpu.jump_instruction(); break;
     default:
-      Err().printf("cannot handle VM memory access @ %lx ip=%lx lr=%lx\n",
-                   vcpu->r.pfa, vcpu->r.ip, vcpu.get_lr());
-      guest->halt_vm();
-      break;
+      {
+        // Strip register values if the guest is executed in 32-bit mode.
+        l4_umword_t mask = (vcpu->r.flags & 0x10) ? ~0U : ~0UL;
+        Err().printf("cannot handle VM memory access @ %lx ip=%lx lr=%lx\n",
+                     vcpu->r.pfa & mask, vcpu->r.ip & mask, vcpu.get_lr() & mask);
+        guest->halt_vm();
+        break;
+      }
     }
 }
 
