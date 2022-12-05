@@ -153,6 +153,12 @@ public:
       case Msr_kvm_eoi_en:
         warn().printf("KVM EIO not implemented.\n");
         break;
+        // If the guest Linux is compiled with CONFIG_KVM and no-kvmclock is
+        // set on the command line, Linux will try to write to these MSRs on
+        // shutdown. We ignore that.
+      case 0x11:
+      case 0x12:
+        return true;
       default:
         return false;
       }
