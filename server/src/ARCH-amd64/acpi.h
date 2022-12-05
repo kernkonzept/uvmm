@@ -264,13 +264,15 @@ protected:
      *
      * \param h    Table header.
      * \param sig  Signature as described in Table 5-29.
+     * \param rev  Revision of the table.
      * \param len  Total length of the table.
      */
-    void write_header(ACPI_TABLE_HEADER *h, char const *sig, l4_uint32_t len)
+    void write_header(ACPI_TABLE_HEADER *h, char const *sig, l4_uint8_t rev,
+                      l4_uint32_t len)
     {
       memcpy(h->Signature, sig, ACPI_NAMESEG_SIZE);
       h->Length = len;
-      h->Revision = 0;
+      h->Revision = rev;
       add_checksum(&h->Checksum, h, len);
       write_identifier(h->OemId, "L4RE", ACPI_OEM_ID_SIZE);
       write_identifier(h->OemTableId, "UVMM", ACPI_OEM_TABLE_ID_SIZE);
@@ -288,10 +290,11 @@ protected:
      *
      * \param h    Table header, must be at the very beginning of the table.
      * \param sig  Signature as described in Table 5-29.
+     * \param rev  Revision of the table.
      */
-    void end_table(ACPI_TABLE_HEADER *h, char const *sig)
+    void end_table(ACPI_TABLE_HEADER *h, char const *sig, l4_uint8_t rev)
     {
-      write_header(h, sig, _pos - as_offset(h));
+      write_header(h, sig, rev, _pos - as_offset(h));
     }
 
     /**
@@ -484,7 +487,7 @@ private:
     for (l4_size_t i = 0; i < ref_tables.size(); i++)
       wr.add_table_ref(&t->TableOffsetEntry[i], ref_tables[i]);
 
-    wr.end_table(&t->Header, ACPI_SIG_RSDT);
+    wr.end_table(&t->Header, ACPI_SIG_RSDT, 1);
   }
 
   /**
@@ -514,10 +517,8 @@ private:
     for (auto const &d : Acpi_device_hub::get()->devices())
       d->amend_fadt(t);
 
-    wr.end_table(&t->Header, ACPI_SIG_FADT);
-
     // Emulate ACPI 6.3.
-    t->Header.Revision = 6;
+    wr.end_table(&t->Header, ACPI_SIG_FADT, 6);
     t->MinorRevision = 3;
   }
 
@@ -561,7 +562,7 @@ private:
       }
 
     // Finally fill the table header.
-    wr.end_table(&t->Header, ACPI_SIG_MADT);
+    wr.end_table(&t->Header, ACPI_SIG_MADT, 5);
   }
 
   /**
@@ -579,7 +580,7 @@ private:
         wr.reserve(amend_size);
       }
 
-    wr.end_table(&t->Header, ACPI_SIG_MCFG);
+    wr.end_table(&t->Header, ACPI_SIG_MCFG, 1);
   }
 
   /**
@@ -608,7 +609,10 @@ private:
         wr.reserve(amend_size);
       }
 
-    wr.end_table(t, ACPI_SIG_DSDT);
+    // The revision of DSDT controls the integer width of AML code/interpreter.
+    // Values less than two imply 32-bit integers and math, otherwise 64-bit
+    // (see also ComplianceRevision in AML DefinitionBlock)
+    wr.end_table(t, ACPI_SIG_DSDT, 1);
   }
 };
 
