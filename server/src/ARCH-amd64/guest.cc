@@ -189,54 +189,55 @@ Guest::prepare_binary_run(Vdev::Device_lookup *devs, l4_addr_t entry,
   Vcpu_ptr vcpu = cpus->vcpu(0);
 
   if (_guest_t == Boot::Rom)
-    vcpu->r.ip = entry;
-  else
     {
-      Vm_ram *ram = devs->ram().get();
-
-      Acpi::Bios_tables acpi_tables(devs);
-      acpi_tables.write_to_guest();
-
-      // use second memory page as zeropage location
-      Zeropage zpage(Vmm::Guest_addr(L4_PAGESIZE), entry);
-
-      if (dt_boot_addr)
-        {
-          // read initrd addr and size from device tree
-          Vmm::Guest_addr dt_addr = ram->boot2guest_phys(dt_boot_addr);
-          Dtb::Fdt fdt(ram->guest2host<void *>(dt_addr));
-          auto dt = Vdev::Device_tree(&fdt);
-          int prop_sz1, prop_sz2;
-          auto node = dt.path_offset("/chosen");
-          auto prop_start = node.get_prop<fdt32_t>("linux,initrd-start", &prop_sz1);
-          auto prop_end = node.get_prop<fdt32_t>("linux,initrd-end", &prop_sz2);
-
-          if (prop_start && prop_end)
-            {
-              auto rd_start = node.get_prop_val(prop_start, prop_sz1, 0);
-              auto rd_end = node.get_prop_val(prop_end, prop_sz2, 0);
-              zpage.add_ramdisk(rd_start, rd_end - rd_start);
-            }
-          else
-            warn().printf("No ramdisk found in device tree.\n");
-
-          zpage.add_dtb(dt_boot_addr, dt.size());
-        }
-
-      if (cmd_line)
-        zpage.add_cmdline(cmd_line);
-
-      zpage.cfg_e820(ram);
-      // write zeropage to VM ram
-      zpage.write(ram, _guest_t);
-
-      vcpu->r.ip = zpage.entry(ram);
-      vcpu->r.si = zpage.addr().get();
-      cpus->cpu(0)->set_protected_mode();
-
-      trace().printf("Zeropage setup: vCPU ip: 0x%lx, si: 0x%lx\n", vcpu->r.ip,
-                     vcpu->r.si);
+      vcpu->r.ip = entry;
+      return;
     }
+
+  Vm_ram *ram = devs->ram().get();
+
+  Acpi::Bios_tables acpi_tables(devs);
+  acpi_tables.write_to_guest();
+
+  // use second memory page as zeropage location
+  Zeropage zpage(Vmm::Guest_addr(L4_PAGESIZE), entry);
+
+  if (dt_boot_addr)
+    {
+      // read initrd addr and size from device tree
+      Vmm::Guest_addr dt_addr = ram->boot2guest_phys(dt_boot_addr);
+      Dtb::Fdt fdt(ram->guest2host<void *>(dt_addr));
+      auto dt = Vdev::Device_tree(&fdt);
+      int prop_sz1, prop_sz2;
+      auto node = dt.path_offset("/chosen");
+      auto prop_start = node.get_prop<fdt32_t>("linux,initrd-start", &prop_sz1);
+      auto prop_end = node.get_prop<fdt32_t>("linux,initrd-end", &prop_sz2);
+
+      if (prop_start && prop_end)
+        {
+          auto rd_start = node.get_prop_val(prop_start, prop_sz1, 0);
+          auto rd_end = node.get_prop_val(prop_end, prop_sz2, 0);
+          zpage.add_ramdisk(rd_start, rd_end - rd_start);
+        }
+      else
+        warn().printf("No ramdisk found in device tree.\n");
+
+      zpage.add_dtb(dt_boot_addr, dt.size());
+    }
+
+  if (cmd_line)
+    zpage.add_cmdline(cmd_line);
+
+  zpage.cfg_e820(ram);
+  // write zeropage to VM ram
+  zpage.write(ram, _guest_t);
+
+  vcpu->r.ip = zpage.entry(ram);
+  vcpu->r.si = zpage.addr().get();
+  cpus->cpu(0)->set_protected_mode();
+
+  trace().printf("Zeropage setup: vCPU ip: 0x%lx, si: 0x%lx\n", vcpu->r.ip,
+                 vcpu->r.si);
 }
 
 int
