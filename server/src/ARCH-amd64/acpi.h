@@ -497,10 +497,6 @@ private:
   {
     auto *t = wr.start_table<ACPI_TABLE_FADT>(Table::Fadt);
 
-    // Emulate ACPI 6.3.
-    t->Header.Revision = 6;
-    t->MinorRevision = 3;
-
     // Switching on Hardware-Reduced ACPI has the positive effect of
     // eliminating a lot of legacy features we do not implement.
     // However, with that flag on Linux requires the DSDT to be properly set
@@ -519,6 +515,10 @@ private:
       d->amend_fadt(t);
 
     wr.end_table(&t->Header, ACPI_SIG_FADT);
+
+    // Emulate ACPI 6.3.
+    t->Header.Revision = 6;
+    t->MinorRevision = 3;
   }
 
   /**
