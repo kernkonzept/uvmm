@@ -322,7 +322,7 @@ public:
     long dev_id = _dev_id_alloc.scan_zero();
     if (dev_id < 0)
       L4Re::throw_error(-L4_ENOMEM,
-                        "PCI bus can accomodate no more than 32 devices. "
+                        "PCI bus can accommodate no more than 32 devices. "
                         "Consider putting the device on another PCI bus.");
     _dev_id_alloc.set_bit(dev_id);
     return dev_id;
