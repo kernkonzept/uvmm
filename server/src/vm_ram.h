@@ -200,6 +200,7 @@ public:
    * \param ds_offset Offset into the dataspace where to start mapping.
    * \param size      Size of the area to map.
    * \param memap     Guest memory map where to register the new region.
+   * \param flags     Access rights for the memory region.
    *
    * \return Index into _regions of the newly added region.
    */

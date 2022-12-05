@@ -144,8 +144,8 @@ private:
   }
 
   /**
-   * Add the pointer value to \a src_fn in the file \a dst_fn at offset
-   * dst_off. The patched pointer size is dst_size.
+   * Add the pointer value to `src_fn` in the file `dst_fn` at offset
+   * `dst_off`. The patched pointer size is `dst_size`.
    */
   void cmd_add_pointer(char const *dst_fn, l4_size_t dst_off, l4_size_t dst_size,
                        char const *src_fn)
