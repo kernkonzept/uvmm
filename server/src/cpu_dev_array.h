@@ -40,10 +40,7 @@ class Cpu_dev_array
 
     Vcpu_placement() : _next_id(0), _offset(0)
     {
-      auto scheduler = L4Re::Env::env()->scheduler();
-      _cs = l4_sched_cpu_set(_offset, 0);
-      L4Re::chksys(scheduler->info(&_max_cpus, &_cs),
-                   "Get scheduler info for vCPU placement.");
+      update_cpu_set(0);
     }
 
     unsigned next_free()
@@ -51,30 +48,37 @@ class Cpu_dev_array
       if (_next_id >= _max_cpus)
         return Invalid_id;
 
-      auto scheduler = L4Re::Env::env()->scheduler();
-      while (!(_cs.map & (1UL << _next_id)))
+      while (true)
         {
+          unsigned next_id_offset = _next_id % _bits_in_cpu_map;
+          if ((_next_id - _offset) >= _bits_in_cpu_map)
+            update_cpu_set(_next_id - next_id_offset);
+
+          if (_cs.map & (1UL << next_id_offset))
+            return _next_id++;
+
           ++_next_id;
+
           if (_next_id >= _max_cpus)
             return Invalid_id;
-          l4_umword_t new_offset = _next_id / (sizeof(l4_umword_t) * 8);
-          if (new_offset != _offset)
-            {
-              _offset = new_offset;
-              _cs = l4_sched_cpu_set(_offset, 0);
-              L4Re::chksys(scheduler->info(&_max_cpus, &_cs),
-                           "Get scheduler info for next batch of cores.");
-            }
         }
 
-      unsigned ret = _next_id++;
-
-      return ret;
     }
 
   private:
+    void update_cpu_set(l4_umword_t new_offset)
+    {
+      _offset = new_offset;
+      _cs = l4_sched_cpu_set(_offset, 0);
+
+      auto scheduler = L4Re::Env::env()->scheduler();
+      L4Re::chksys(scheduler->info(&_max_cpus, &_cs),
+                   "Get scheduler info for next batch of cores.");
+    }
+
     l4_sched_cpu_set_t _cs;
     unsigned _next_id;
+    unsigned const _bits_in_cpu_map = sizeof(_cs.map) * 8;
     l4_umword_t _offset;
     l4_umword_t _max_cpus;
   };
