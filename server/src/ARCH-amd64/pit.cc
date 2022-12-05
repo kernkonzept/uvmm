@@ -154,11 +154,6 @@ void Pit_timer::io_in(unsigned port, Vmm::Mem_access::Width width,
     }
 }
 
-void Pit_timer::tick()
-{
-  return;
-}
-
 } // namespace Vdev
 
 #include "device_factory.h"

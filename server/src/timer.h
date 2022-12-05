@@ -89,7 +89,6 @@ class Timer : public virtual Vdev::Dev_ref
 {
 public:
   virtual ~Timer() = 0;
-  virtual void tick() = 0;
   void set_clock_source(Clock_source_adapter *source)
   { _clock_source = source; }
 
@@ -132,8 +131,7 @@ inline Timer::~Timer() = default;
 
 class Clock_source
 : public L4::Epiface_t<Clock_source, Clock_source_if>,
-  public Clock_source_adapter,
-  public L4::Ipc_svr::Timeout_queue::Timeout
+  public Clock_source_adapter
 {
 public:
   // Clock_source_if
@@ -153,22 +151,9 @@ public:
     return 0;
   }
 
-  /**
-   * Legacy interface:
-   * periodically call tick() on all registered timers.
-   */
-  void expired()
-  {
-    for (auto t : _consumers)
-      t->tick();
-
-    // periodic invokation
-    _server->add_timeout(this, timeout() + 27000);
-  }
-
   // Register a Timer at this Clock source
   void add_timer(cxx::Ref_ptr<Timer> timer)
-  { _consumers.push_back(timer); }
+  { timer->set_clock_source(this); }
 
   /**
    * Migrate a vCPU's timer thread to its physical core and run the timer loop.
@@ -199,8 +184,6 @@ public:
     snprintf(buf, sizeof(buf), "clock timer %1u", vcpu_no);
     l4_debugger_set_object_name(Pthread::L4::cap(pthread_self()).cap(), buf);
 
-    // periodic timer (implements behaviour of the previous timer thread)
-    _server->add_timeout(this, l4_kip_clock(l4re_kip()) + 27000);
     _server->loop();
   }
 
@@ -213,9 +196,6 @@ public:
   void start_timer_thread(unsigned vcpu_no, unsigned phys_cpu_id)
   {
     _thread = std::thread(&Clock_source::run_timer, this, vcpu_no, phys_cpu_id);
-
-    for (auto timer : _consumers)
-      timer->set_clock_source(this);
   }
 
   // Clock_source_adapter
@@ -244,7 +224,6 @@ private:
 
   std::thread _thread;
   L4::Cap<Clock_source_if> _clock_if;
-  std::vector<cxx::Ref_ptr<Timer>> _consumers;
   L4Re::Util::Registry_server<Loop_hooks> *_server;
 };
 

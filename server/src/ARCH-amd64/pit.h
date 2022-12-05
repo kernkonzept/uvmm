@@ -218,8 +218,6 @@ public:
   void io_in(unsigned port, Vmm::Mem_access::Width width,
              l4_uint32_t *value) override;
 
-  void tick() override;
-
 private:
   Vmm::Irq_edge_sink _irq;
   l4_uint16_t _reload;

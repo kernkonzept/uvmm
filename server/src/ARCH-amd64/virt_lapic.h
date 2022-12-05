@@ -1127,10 +1127,6 @@ public:
       requeue_timeout(this, next_timeout_us(init));
   }
 
-  // Timer interface
-  void tick()
-  {};
-
   l4_uint64_t read_tsc_deadline_msr()
   {
     std::lock_guard<std::mutex> lock(_tmr_mutex);

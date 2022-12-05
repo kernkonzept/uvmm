@@ -56,20 +56,14 @@ public:
     _vcpu_time = vti;
   }
 
-  void tick() override
+  void tick()
   {
-    if (_vcpu_time_enable)
-      {
-        std::lock_guard<std::mutex> lock(_mutex);
+    auto now = l4_rdtsc();
 
-        // Read the TSC after locking to make the time more accurate.
-        auto now = l4_rdtsc();
-
-        cxx::write_now(&(_vcpu_time->version), _vcpu_time->version + 1);
-        _vcpu_time->tsc_timestamp = now;
-        _vcpu_time->system_time = l4_tsc_to_ns(now);
-        cxx::write_now(&(_vcpu_time->version), _vcpu_time->version + 1);
-      }
+    cxx::write_now(&(_vcpu_time->version), _vcpu_time->version + 1);
+    _vcpu_time->tsc_timestamp = now;
+    _vcpu_time->system_time = l4_tsc_to_ns(now);
+    cxx::write_now(&(_vcpu_time->version), _vcpu_time->version + 1);
   }
 
 private:
