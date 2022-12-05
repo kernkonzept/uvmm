@@ -17,7 +17,7 @@ class Cpu_dev
   public Monitor::Cpu_dev_cmd_handler<Monitor::Enabled, Cpu_dev>
 {
 public:
-  enum { Max_cpus = 8 };
+  enum { Max_cpus = 128 };
 
   enum Cpu_state
   {
