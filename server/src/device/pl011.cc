@@ -378,5 +378,5 @@ struct F : Vdev::Factory
 }
 
 static F f;
-static Vdev::Device_type t1 = { "arm,pl011", nullptr, &f };
-static Vdev::Device_type t2 = { "arm,sbsa-uart", nullptr, &f };
+static Vdev::Device_type t1 = { "arm,pl011", "console", &f };
+static Vdev::Device_type t2 = { "arm,sbsa-uart", "console", &f };
