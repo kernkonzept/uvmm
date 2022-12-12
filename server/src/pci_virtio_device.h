@@ -54,30 +54,33 @@ public:
                     Pci_bridge_windows *wnds)
   : Virt_pci_device(node, wnds)
   {
-    // BAR[0] is the MSI-X table 32-bit BAR
-    check_msix_bar_constraints();
-    create_msix_cap(num_msix_entries, 0);
+    // There is a 32-bit BAR configured that fits the MSI-X table.
+    unsigned msix_bar = msix_bar_idx();
+    check_msix_bar_constraints(msix_bar);
+    create_msix_cap(num_msix_entries, msix_bar);
 
-    // BAR[1] is the Virtio config space in I/O space
-    check_config_space_constraints();
-    Virtio_pci_cap *cap = create_vio_pci_cap_common_entry(nullptr, 1);
-    cap = create_vio_pci_cap_notify_entry(cap, 1);
-    cap = create_vio_pci_cap_isr_entry(cap, 1);
-    cap = create_vio_pci_cap_pci_entry(cap, 1);
+    // There is an IO BAR configured which fits the VirtIO config.
+    unsigned virtio_bar = virtio_bar_idx(Pci_cfg_bar::IO);
+
+    check_config_space_constraints(virtio_bar);
+    Virtio_pci_cap *cap = create_vio_pci_cap_common_entry(nullptr, virtio_bar);
+    cap = create_vio_pci_cap_notify_entry(cap, virtio_bar);
+    cap = create_vio_pci_cap_isr_entry(cap, virtio_bar);
+    cap = create_vio_pci_cap_pci_entry(cap, virtio_bar);
 
     // Check actual I/O BAR usage vs configured I/O BAR size
     l4_uint32_t bar_length = cap->offset + cap->length;
-    if (bar_length > bars[1].size)
+    if (bar_length > bars[virtio_bar].size)
       {
         Err().printf("Actual size greater configured size due to alignment: "
                      "0x%x > 0x%llx\n",
-                     bar_length, bars[1].size);
+                     bar_length, bars[virtio_bar].size);
         L4Re::chksys(-L4_EINVAL, "Configure greater I/O bar size.");
       }
 
     // Must be the last cap created!
-    cap = create_vio_pci_cap_device_entry(cap, 1);
-    _device_config_len = cap ? (bars[1].size - cap->offset) : 0;
+    cap = create_vio_pci_cap_device_entry(cap, virtio_bar);
+    _device_config_len = cap ? (bars[virtio_bar].size - cap->offset) : 0;
 
     trace().printf("Virtio_device_pci: device configured\n");
   }
@@ -144,11 +147,11 @@ protected:
 
 private:
   Virtio_pci_cap *
-  create_vio_pci_cap_common_entry(Virtio_pci_cap *prev, unsigned io_bar)
+  create_vio_pci_cap_common_entry(Virtio_pci_cap *prev, unsigned bar_idx)
   {
     auto *entry   = create_pci_cap<Virtio_pci_common_cap>();
-    entry->bar    = io_bar;
-    // Start the IObar with the PCI common config
+    entry->bar    = bar_idx;
+    // Start the BAR with the PCI common config
     entry->offset = prev ? prev->offset + prev->length : 0;
     entry->length = sizeof(Virtio_pci_common_cfg);
 
@@ -156,10 +159,10 @@ private:
   }
 
   Virtio_pci_cap *
-  create_vio_pci_cap_notify_entry(Virtio_pci_cap *prev, unsigned io_bar)
+  create_vio_pci_cap_notify_entry(Virtio_pci_cap *prev, unsigned bar_idx)
   {
     auto *entry   = create_pci_cap<Virtio_pci_notify_cap>();
-    entry->bar    = io_bar;
+    entry->bar    = bar_idx;
     // offset must be 2 byte aligned
     entry->offset = prev ? l4_round_size(prev->offset + prev->length, 1) : 0;
     entry->length = 2; // smallest possible length
@@ -170,10 +173,10 @@ private:
   }
 
   Virtio_pci_cap *create_vio_pci_cap_isr_entry(Virtio_pci_cap *prev,
-                                               unsigned io_bar)
+                                               unsigned bar_idx)
   {
     auto *entry   = create_pci_cap<Virtio_pci_isr_cap>();
-    entry->bar    = io_bar;
+    entry->bar    = bar_idx;
     entry->offset = prev ? prev->offset + prev->length : 0;
     entry->length = 2;
 
@@ -182,28 +185,28 @@ private:
 
   /// The device cap uses the rest of the IO bar. Must be the last cap created.
   Virtio_pci_cap *create_vio_pci_cap_device_entry(Virtio_pci_cap *prev,
-                                                  unsigned io_bar)
+                                                  unsigned bar_idx)
   {
     // 4 byte align offset to find device specific config
     unsigned entry_start =
       prev ? l4_round_size(prev->offset + prev->length, 2) : 0;
 
-    if (entry_start >= bars[io_bar].size)
+    if (entry_start >= bars[bar_idx].size)
       return nullptr;
 
     auto *entry   = create_pci_cap<Virtio_pci_device_cap>();
-    entry->bar    = io_bar;
+    entry->bar    = bar_idx;
     entry->offset = entry_start;
-    entry->length = bars[io_bar].size - entry_start;
+    entry->length = bars[bar_idx].size - entry_start;
 
     return entry;
   }
 
   Virtio_pci_cap *create_vio_pci_cap_pci_entry(Virtio_pci_cap *prev,
-                                               unsigned io_bar)
+                                               unsigned bar_idx)
   {
     auto *entry   = create_pci_cap<Virtio_pci_cfg_cap>();
-    entry->bar    = io_bar;
+    entry->bar    = bar_idx;
     entry->offset = prev ? prev->offset + prev->length : 0;
     entry->length = sizeof(Virtio_pci_cfg_cap);
 
@@ -218,6 +221,9 @@ private:
    *
    * \param max_msix_entries  Maximum number of MSI-X entries of this device.
    * \param BAR index         BAR index[0,5] of the MSI-X memory BAR.
+   *
+   * \pre The BAR starts with the MSI-X table at offset 0 and PBA right behind
+   *      it.
    */
   void create_msix_cap(unsigned max_msix_entries, unsigned bar_index)
   {
@@ -238,31 +244,60 @@ private:
   }
 
   inline void
-  check_msix_bar_constraints()
+  check_msix_bar_constraints(unsigned msix_idx)
   {
-    if (bars[0].type != Pci_cfg_bar::MMIO32)
-      L4Re::throw_error(-L4_EINVAL, "BAR[0] is a MMIO(32) entry.");
+    if (msix_idx == -1U)
+      L4Re::throw_error(-L4_EINVAL,
+                        "Configure the device with an MMIO BAR for the MSI-X table.");
 
-    if (bars[0].size < Msix_mem_need)
+    if (bars[msix_idx].size < Msix_mem_need)
       {
-        Err().printf("At least 0x%x Bytes of MSI-X memory are configured.\n",
-                     Msix_mem_need);
+        Err().printf("At least 0x%x Bytes of MSI-X memory are configured in BAR %u.\n",
+                     Msix_mem_need, msix_idx);
         L4Re::throw_error(-L4_EINVAL, "More MSI-X memory necessary.");
       }
   }
 
   inline void
-  check_config_space_constraints()
+  check_config_space_constraints(unsigned io_bar_idx)
   {
-    if (bars[1].type != Pci_cfg_bar::IO)
-      L4Re::chksys(-L4_EINVAL, "BAR[1] is an IO entry.");
+    if (io_bar_idx == -1U)
+      L4Re::throw_error(-L4_EINVAL,
+                        "Configure the device with an IO BAR for the VirtIO interface.");
 
-    if (bars[1].size < Num_pci_connector_ports)
+    if ( bars[io_bar_idx].size < Num_pci_connector_ports)
       {
-        Err().printf("Configured IO ports are a power of 2 >= 0x%x.\n",
-                     Num_pci_connector_ports);
+        Err().printf("Configured IO ports in BAR %u are a power of 2 >= 0x%x.\n",
+                     io_bar_idx, Num_pci_connector_ports);
         L4Re::chksys(-L4_EINVAL, "More IO ports necessary.");
       }
+  }
+
+  /**
+   * Per convention we return the first MMIO32 BAR fitting an MSI-X table.
+   */
+  unsigned msix_bar_idx() const
+  {
+    for (unsigned i = 0; i < Bar_num_max_type0; ++i)
+      if (bars[i].type == Pci_cfg_bar::MMIO32 && bars[i].size >= Msix_mem_need)
+        return i;
+
+    return -1;
+  }
+
+  /**
+   * Per convention we return the first BAR that fits `type`. Currently, only
+   * type IO is supported.
+   */
+  unsigned virtio_bar_idx(Pci_cfg_bar::Type type) const
+  {
+    assert(type == Pci_cfg_bar::IO);
+
+    for (unsigned i = 0; i < Bar_num_max_type0; ++i)
+      if (bars[i].type == type )
+        return i;
+
+    return -1;
   }
 
   DEV *dev() { return static_cast<DEV *>(this); }
