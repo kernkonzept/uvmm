@@ -59,11 +59,20 @@ public:
     check_msix_bar_constraints(msix_bar);
     create_msix_cap(num_msix_entries, msix_bar);
 
-    // There is an IO BAR configured which fits the VirtIO config.
+    bool mmio_bar = false;
+    // There is either an IO BAR or a second MMIO32 BAR configured.
     unsigned virtio_bar = virtio_bar_idx(Pci_cfg_bar::IO);
+    if (virtio_bar == -1U)
+      {
+        virtio_bar = virtio_bar_idx(Pci_cfg_bar::MMIO32);
+        if (virtio_bar != -1U)
+          mmio_bar = true;
+      }
 
-    check_config_space_constraints(virtio_bar);
-    Virtio_pci_cap *cap = create_vio_pci_cap_common_entry(nullptr, virtio_bar);
+    check_config_space_constraints(virtio_bar, mmio_bar);
+    // first VirtIO capability defines the start within the BAR
+    Virtio_pci_cap *cap =
+      create_vio_pci_cap_common_entry(nullptr, virtio_bar);
     cap = create_vio_pci_cap_notify_entry(cap, virtio_bar);
     cap = create_vio_pci_cap_isr_entry(cap, virtio_bar);
     cap = create_vio_pci_cap_pci_entry(cap, virtio_bar);
@@ -80,7 +89,7 @@ public:
 
     // Must be the last cap created!
     cap = create_vio_pci_cap_device_entry(cap, virtio_bar);
-    _device_config_len = cap ? (bars[virtio_bar].size - cap->offset) : 0;
+    _device_config_len = cap ? cap->length : 0;
 
     trace().printf("Virtio_device_pci: device configured\n");
   }
@@ -183,7 +192,7 @@ private:
     return entry;
   }
 
-  /// The device cap uses the rest of the IO bar. Must be the last cap created.
+  /// The device cap uses the rest of the BAR. Must be the last cap created.
   Virtio_pci_cap *create_vio_pci_cap_device_entry(Virtio_pci_cap *prev,
                                                   unsigned bar_idx)
   {
@@ -198,6 +207,12 @@ private:
     entry->bar    = bar_idx;
     entry->offset = entry_start;
     entry->length = bars[bar_idx].size - entry_start;
+
+    // limit the size of this entry to something sensible. IO BARs are not that
+    // large, but MMIO BARs tend to be 4K, which is way too much for the VirtIO
+    // device config.
+    if (entry->length > 0x200)
+      entry->length = 0x200;
 
     return entry;
   }
@@ -259,17 +274,31 @@ private:
   }
 
   inline void
-  check_config_space_constraints(unsigned io_bar_idx)
+  check_config_space_constraints(unsigned bar_idx, bool mmio_bar)
   {
-    if (io_bar_idx == -1U)
-      L4Re::throw_error(-L4_EINVAL,
-                        "Configure the device with an IO BAR for the VirtIO interface.");
+    if (bar_idx == -1U)
+      L4Re::throw_error(
+        -L4_EINVAL,
+        "Configure the device with an IO or MMIO32 BAR for the VirtIO device interface.");
 
-    if ( bars[io_bar_idx].size < Num_pci_connector_ports)
+    if (mmio_bar)
       {
-        Err().printf("Configured IO ports in BAR %u are a power of 2 >= 0x%x.\n",
-                     io_bar_idx, Num_pci_connector_ports);
-        L4Re::chksys(-L4_EINVAL, "More IO ports necessary.");
+        if (bars[bar_idx].size < L4_PAGESIZE)
+          {
+            Err().printf("Configure at least a size of 4KB for the MMIO32 BAR %u.\n",
+                         bar_idx);
+            L4Re::throw_error(-L4_EINVAL,
+                              "VirtIO device config space must have a size of 4KB or more.");
+          }
+      }
+    else
+      {
+        if (bars[bar_idx].size < Num_pci_connector_ports)
+          {
+            Err().printf("Configured IO ports in BAR %u are a power of 2 >= 0x%x.\n",
+                         bar_idx, Num_pci_connector_ports);
+            L4Re::throw_error(-L4_EINVAL, "More IO ports necessary.");
+          }
       }
   }
 
@@ -286,16 +315,21 @@ private:
   }
 
   /**
-   * Per convention we return the first BAR that fits `type`. Currently, only
-   * type IO is supported.
+   * Per convention we return the first BAR that fits `type`. The first MMIO32
+   * BAR is skipped, as it is solely used for the MSI-X table.
    */
   unsigned virtio_bar_idx(Pci_cfg_bar::Type type) const
   {
-    assert(type == Pci_cfg_bar::IO);
-
+    // The first MMIO32 BAR is for the MSI-X table, thus skip it.
+    bool skip_next_mmio32 = type == Pci_cfg_bar::MMIO32;
     for (unsigned i = 0; i < Bar_num_max_type0; ++i)
-      if (bars[i].type == type )
-        return i;
+      if (bars[i].type == type)
+        {
+          if (skip_next_mmio32)
+            skip_next_mmio32 = false;
+          else
+            return i;
+        }
 
     return -1;
   }
