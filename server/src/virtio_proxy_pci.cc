@@ -37,9 +37,12 @@ public:
   void virtio_pci_device_config_written() {}
 
 protected:
-  cxx::Ref_ptr<Vmm::Mmio_device> get_mmio_bar_handler(unsigned) override
+  cxx::Ref_ptr<Vmm::Mmio_device> get_mmio_bar_handler(unsigned idx) override
   {
-    return event_connector()->make_mmio_device();
+    if (idx == 0)
+      return event_connector()->make_mmio_device();
+
+    return cxx::Ref_ptr<Vmm::Mmio_device>(this);
   }
 
   cxx::Ref_ptr<Vmm::Io_device> get_io_bar_handler(unsigned) override

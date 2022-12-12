@@ -9,6 +9,7 @@
 
 #include "pci_virtio_device.h"
 #include "mem_access.h"
+#include "mmio_device.h"
 #include "io_device.h"
 #include "virtio_dev.h"
 #include "virtio_qword.h"
@@ -22,7 +23,7 @@ namespace Virtio {
  * \tparam DEV  The derived class.
  */
 template<typename DEV>
-class Pci_connector : public Vmm::Io_device
+class Pci_layout
 {
   void init_queue_sizes()
   {
@@ -36,10 +37,7 @@ class Pci_connector : public Vmm::Io_device
   }
 
 public:
-  char const *dev_name() const override
-  { return "Virtio PCI Device"; }
-
-  void io_in(unsigned port, Vmm::Mem_access::Width wd, l4_uint32_t *value) override
+  void in(unsigned port, Vmm::Mem_access::Width wd, l4_uint32_t *value)
   {
     auto vcfg = dev()->virtio_cfg();
     l4_uint32_t result = 0;
@@ -183,7 +181,7 @@ public:
     trace().printf("In port(width) %i(%i) : 0x%x\n", port, wd, *value);
   }
 
-  void io_out(unsigned port, Vmm::Mem_access::Width wd, l4_uint32_t value) override
+  void out(unsigned port, Vmm::Mem_access::Width wd, l4_uint32_t value)
   {
     auto vcfg = dev()->virtio_cfg();
 
@@ -384,6 +382,75 @@ private:
 
   unsigned _msi_table_idx_config = ::Vdev::Virtio_msix_no_vector;
   l4_uint16_t _virtqueue_msix_index[sizeof(Virtio::Event_set) * 8];
-}; // Pci_connector
+}; // Pci_layout
 
+template <typename DEV>
+class Pci_connector
+: public Pci_layout<DEV>,
+  public virtual Vmm::Mmio_device,
+  public virtual Vmm::Io_device
+{
+public:
+  Pci_connector() {}
+
+  char const *dev_name() const override
+  { return "Virtio PCI Device"; }
+
+  int access(l4_addr_t pfa, l4_addr_t offset, Vmm::Vcpu_ptr vcpu,
+             L4::Cap<L4::Vm>, l4_addr_t, l4_addr_t) override
+  {
+    auto insn = vcpu.decode_mmio();
+
+    if (insn.access == Vmm::Mem_access::Other)
+      {
+        Dbg(Dbg::Mmio, Dbg::Warn, "mmio")
+          .printf("MMIO access @ 0x%lx: unknown instruction. Ignored.\n",
+                  pfa);
+        return -L4_ENXIO;
+      }
+
+    Dbg(Dbg::Mmio, Dbg::Trace, "mmio")
+      .printf("MMIO access @ 0x%lx (0x%lx) %s, width: %u\n",
+              pfa, offset,
+              insn.access == Vmm::Mem_access::Load ? "LOAD" : "STORE",
+              (unsigned) insn.width);
+
+    if (insn.access == Vmm::Mem_access::Store)
+      write(offset, insn.width, insn.value, vcpu.get_vcpu_id());
+    else
+      {
+        insn.value = read(offset, insn.width, vcpu.get_vcpu_id());
+        vcpu.writeback_mmio(insn);
+      }
+
+    return Vmm::Jump_instr;
+  }
+
+  void map_eager(L4::Cap<L4::Vm>, Vmm::Guest_addr, Vmm::Guest_addr) override
+  {} // nothing to map
+
+  // MMIO interface
+  l4_umword_t read(unsigned reg, char wd, unsigned /*cpu_id*/)
+  {
+    l4_uint32_t ret;
+    Pci_layout<DEV>::in(reg, (Vmm::Mem_access::Width)wd, &ret);
+    return ret;
+  }
+
+  void write(unsigned reg, char wd, l4_umword_t value, unsigned /*cpu_id*/)
+  {
+    Pci_layout<DEV>::out(reg, (Vmm::Mem_access::Width)wd, value);
+  }
+
+  // IO interface
+  void io_in(unsigned port, Vmm::Mem_access::Width wd, l4_uint32_t *value) override
+  {
+    Pci_layout<DEV>::in(port, wd, value);
+  }
+
+  void io_out(unsigned port, Vmm::Mem_access::Width wd, l4_uint32_t value) override
+  {
+    Pci_layout<DEV>::out(port, wd, value);
+  }
+}; // Pci_connector_io
 } // namespace Virtio
