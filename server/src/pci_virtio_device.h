@@ -37,14 +37,15 @@ class Virtio_device_pci
 
 public:
   /**
-   * Create virtual PCI device and configure capabilites.
+   * Create virtual PCI device and configure capabilities.
    *
-   * The device is constructed in two steps. This constructer initializes the
+   * The device is constructed in two steps. This constructor initializes the
    * generic PCI device parts of the virtio related stuff. Once the concrete
    * device (that has been derived from this class) has finished its setup, it
    * must call init_virtio_pci_device() to complete the PCI transport related
    * initialization.
    *
+   * \param node              Device Tree node of this device.
    * \param num_msix_entries  Maximum number of MSI-X entries to handle.
    */
   Virtio_device_pci(Vdev::Dt_node const &node, unsigned num_msix_entries)
