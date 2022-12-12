@@ -175,7 +175,7 @@ public:
         dbg().printf("unknown port number accessed: %i\n", port);
       }
 
-    *value &= result & ((1ULL << ((1U << wd) * 8)) - 1);
+    *value = Vmm::Mem_access::read(result, 0, wd);
 
     trace().printf("In port(width) %i(%i) : 0x%x\n", port, wd, *value);
   }
