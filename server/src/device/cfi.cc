@@ -501,10 +501,11 @@ struct F : Vdev::Factory
   cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
+    auto warn = Dbg(Dbg::Dev, Dbg::Warn, "CFI");
     auto dscap = Vdev::get_cap<L4Re::Dataspace>(node, "l4vmm,dscap");
     if (!dscap)
       {
-        Err().printf("Missing 'l4vmm,dscap' property!\n");
+        warn.printf("Missing 'l4vmm,dscap' property!\n");
         return nullptr;
       }
 
@@ -512,20 +513,20 @@ struct F : Vdev::Factory
     int res = node.get_reg_val(0, &base, &size);
     if (res < 0)
       {
-        Err().printf("Missing 'reg' property for node %s\n", node.get_name());
+        warn.printf("Missing 'reg' property for node %s\n", node.get_name());
         return nullptr;
       }
 
     auto erase_size = fdt32_to_cpu(*node.check_prop<fdt32_t>("erase-size", 1));
     if (erase_size & (erase_size - 1))
       {
-        Err().printf("erase-size must be a power of two: %u\n", erase_size);
+        warn.printf("erase-size must be a power of two: %u\n", erase_size);
         return nullptr;
       }
 
     if (size < erase_size || size % erase_size)
       {
-        Err().printf("Wrong device size! Must be a multiple of erase block size.\n");
+        warn.printf("Wrong device size! Must be a multiple of erase block size.\n");
         return nullptr;
       }
 
@@ -533,22 +534,22 @@ struct F : Vdev::Factory
 
     if (!ro && !dscap->flags().w())
       {
-        Dbg(Dbg::Dev, Dbg::Warn, "CFI")
-          .printf("DT configures flash to be writable, but dataspace is read-only. "
-                  "Defaulting to read-only operation.\n");
+        warn.printf(
+          "DT configures flash to be writable, but dataspace is read-only. "
+          "Defaulting to read-only operation.\n");
         ro = true;
       }
 
     if (size > dscap->size())
       {
-        Err().printf("Dataspace smaller than reg window. Unsupported.\n");
+        warn.printf("Dataspace smaller than reg window. Unsupported.\n");
         return nullptr;
       }
 
     auto bank_width = fdt32_to_cpu(*node.check_prop<fdt32_t>("bank-width", 1));
     if (bank_width & (bank_width - 1) || bank_width > sizeof(l4_umword_t))
       {
-        Err().printf("Invalid bank-width value: %u\n", bank_width);
+        warn.printf("Invalid bank-width value: %u\n", bank_width);
         return nullptr;
       }
 
@@ -559,14 +560,14 @@ struct F : Vdev::Factory
       {
         if (prop_size != 1)
           {
-            Err().printf("Invalid device-width property size: %d\n", prop_size);
+            warn.printf("Invalid device-width property size: %d\n", prop_size);
             return nullptr;
           }
         device_width = fdt32_to_cpu(*prop);
       }
     if (device_width & (device_width - 1) || device_width > bank_width)
       {
-        Err().printf("Invalid device-width value: %u\n", device_width);
+        warn.printf("Invalid device-width value: %u\n", device_width);
         return nullptr;
       }
 

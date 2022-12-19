@@ -32,10 +32,11 @@ struct F : Vdev::Factory
   cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
+    auto warn = Dbg(Dbg::Dev, Dbg::Warn, "ROM");
     auto dscap = Vdev::get_cap<L4Re::Dataspace>(node, "l4vmm,dscap");
     if (!dscap)
       {
-        Err().printf("Missing 'l4vmm,dscap' property!\n");
+        warn.printf("Missing 'l4vmm,dscap' property!\n");
         return nullptr;
       }
 
@@ -43,13 +44,13 @@ struct F : Vdev::Factory
     int res = node.get_reg_val(0, &base, &size);
     if (res < 0)
       {
-        Err().printf("Missing 'reg' property for node %s\n", node.get_name());
+        warn.printf("Missing 'reg' property for node %s\n", node.get_name());
         return nullptr;
       }
 
     if (size > dscap->size())
       {
-        Err().printf("Dataspace smaller than reg window. Unsupported.\n");
+        warn.printf("Dataspace smaller than reg window. Unsupported.\n");
         return nullptr;
       }
 

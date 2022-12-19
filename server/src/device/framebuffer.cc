@@ -16,8 +16,6 @@
 #include "ds_manager.h"
 #include "guest.h"
 
-static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "framebuffer"); }
-
 namespace Vdev {
 class Framebuffer : public Vmm::Ds_manager
 {
@@ -71,10 +69,11 @@ struct F : Vdev::Factory
     int psize;
     char const *prop = "l4vmm,fbcap";
     char const *cap_name = node.get_prop<char>(prop, &psize);
+    auto warn = Dbg(Dbg::Dev, Dbg::Warn, "FB");
     if (!cap_name)
       {
-        Err().printf("%s: Failed to get property '%s': %s\n", node.get_name(),
-                     prop, fdt_strerror(psize));
+        warn.printf("%s: Failed to get property '%s': %s\n", node.get_name(),
+                    prop, fdt_strerror(psize));
         return 0;
       }
 
@@ -82,8 +81,8 @@ struct F : Vdev::Factory
     int res = node.get_reg_val(0, &fb_addr, nullptr);
     if (res)
       {
-        Err().printf("Invalid reg entry '%s'.reg[0]: %s\n",
-                     node.get_name(), fdt_strerror(res));
+        warn.printf("Invalid reg entry '%s'.reg[0]: %s\n",
+                    node.get_name(), fdt_strerror(res));
         return 0;
       }
 
@@ -96,37 +95,37 @@ struct F : Vdev::Factory
       {
         char const *msg = e.extra_str();
         if (msg)
-          Err().printf("fbdrv setup failed: %s: %s\n", e.str(), msg);
+          warn.printf("fbdrv setup failed: %s: %s\n", e.str(), msg);
         else
-          Err().printf("fbdrv setup failed: %s\n", e.str());
+          warn.printf("fbdrv setup failed: %s\n", e.str());
         return 0;
       }
     catch (...)
       {
-        Err().printf("fbdrv setup failed with unknown exception\n");
+        warn.printf("fbdrv setup failed with unknown exception\n");
         return 0;
       }
 
     L4Re::Video::Goos::Info info;
     if (auto err = gfb->goos()->info(&info))
       {
-        Err().printf("Failed to get framebuffer information: %s\n",
-                     l4sys_errtostr(err));
+        warn.printf("Failed to get framebuffer information: %s\n",
+                    l4sys_errtostr(err));
         return 0;
       }
 
     if (!info.auto_refresh())
       {
-        Err().printf("fbdrv currently does not support framebuffers without "
-                     "the auto-refresh feature\n");
+        warn.printf("fbdrv currently does not support framebuffers without "
+                    "the auto-refresh feature\n");
         return 0;
       }
 
     L4Re::Video::View::Info fb_viewinfo = {};
     if (auto err = gfb->view_info(&fb_viewinfo))
       {
-        Err().printf("Failed to get view information: %s\n",
-                     l4sys_errtostr(err));
+        warn.printf("Failed to get view information: %s\n",
+                    l4sys_errtostr(err));
         return 0;
       }
 
@@ -143,7 +142,7 @@ struct F : Vdev::Factory
     if (format)
       node.setprop_string("format", format);
     else
-      warn().printf("Framebuffer format is unsupported by simple-framebuffer\n");
+      warn.printf("Framebuffer format is unsupported by simple-framebuffer\n");
 
     auto handler = Vdev::make_device<Ds_handler>(
                      cxx::make_ref_obj<Vdev::Framebuffer>(cxx::move(gfb)));
