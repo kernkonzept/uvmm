@@ -17,8 +17,6 @@
                  device_type = "cpu";         \
                  compatible = "virt-intel";   \
                  reg = <x>;                   \
-                 #address-cells = <2>;        \
-                 #size-cells = <2>;           \
                }
 
 / {
