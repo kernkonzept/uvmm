@@ -248,7 +248,7 @@ struct Binary_loader_factory
     // Reverse search for the last ':'
     char const *file = bin;
     if (char const *t = strrchr(file, ':'))
-      file = t++;
+      file = t + 1;
 
     std::shared_ptr<Boot::Binary_ds> image = std::make_shared<Boot::Binary_ds>(file);
     int res = -L4_EINVAL;
