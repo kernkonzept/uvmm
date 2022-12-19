@@ -502,7 +502,7 @@ Pci_host_generic::init_bus_range(Dt_node const &node)
   auto bus_range = node.get_prop<fdt32_t>("bus-range", &sz);
   if (sz != 2)
     {
-      Err().printf("Bus range property of Pci_host_bridge has invalid size\n");
+      warn().printf("Bus range property of Pci_host_bridge has invalid size\n");
       return;
     }
 
@@ -594,21 +594,26 @@ using namespace Vdev::Pci;
 
 struct F : Factory
 {
-  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI bus"); }
-
   cxx::Ref_ptr<Device> create(Device_lookup *devs, Dt_node const &node) override
   {
-    info().printf("Creating host bridge\n");
+    auto warn = Dbg(Dbg::Dev, Dbg::Warn, "PCI bus");
+    auto info = Dbg(Dbg::Dev, Dbg::Info, "PCI bus");
+    info.printf("Creating host bridge\n");
 
     if (!node.has_prop("bus-range"))
       {
-        info().printf(
+        info.printf(
           "Bus range not specified in device tree. Device not created.\n");
         return nullptr;
       }
 
     auto dev = make_device<Pci_host_generic>(devs, node,
                                              devs->get_or_create_mc_dev(node));
+    if (!dev)
+      {
+        warn.printf("Failed to create PCI host bridge.");
+        return nullptr;
+      }
 
     auto io_cfg_connector = make_device<Pci_bus_cfg_io>(dev);
     auto region = Vmm::Io_region(0xcf8, 0xcff, Vmm::Region_type::Virtual);
@@ -621,7 +626,7 @@ struct F : Factory
                                           Vmm::Region_type::Virtual, node);
       }
 
-    info().printf("Created & Registered the PCI host bridge\n");
+    info.printf("Created & Registered the PCI host bridge\n");
     return dev;
   }
 }; // struct F
