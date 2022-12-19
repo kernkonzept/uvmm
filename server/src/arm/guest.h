@@ -8,7 +8,7 @@
 #pragma once
 
 #include <vector>
-#include <unordered_map>
+#include <map>
 
 #include <l4/cxx/ref_ptr>
 #include <l4/sys/vm>
@@ -191,7 +191,7 @@ private:
   bool _guest_64bit = false;
 
   std::vector<cxx::Ref_ptr<Vmm::Smccc_device>> _smccc_handlers[Num_smcc_methods];
-  std::unordered_map<Sys_reg::Key, cxx::Ref_ptr<Sys_reg>> _sys_regs;
+  std::map<Sys_reg::Key, cxx::Ref_ptr<Sys_reg>> _sys_regs;
 };
 
 } // namespace

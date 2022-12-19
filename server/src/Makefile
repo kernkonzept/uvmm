@@ -5,6 +5,7 @@ include $(L4DIR)/mk/Makeconf
 
 SYSTEMS         = arm-l4f mips-l4f arm64-l4f amd64-l4f
 TARGET          = uvmm
+VARIANTS        = nofpu
 
 REQUIRES_LIBS   = libstdc++ libio-vbus libfdt libpthread
 REQUIRES_LIBS_amd64-l4f = acpica

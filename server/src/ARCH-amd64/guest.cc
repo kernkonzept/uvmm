@@ -30,25 +30,6 @@ Acpi::Facs_storage *Acpi::Facs_storage::_facs_storage;
 
 namespace {
 
-static inline void
-fxrstor64(char *addr)
-{
-  __asm__ __volatile__("fxrstor64 %0"
-                       :
-                       : "m" (*addr)
-                       : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5",
-                         "xmm6", "xmm7", "xmm8", "xmm9", "xmm10", "xmm11",
-                         "xmm12", "xmm13", "xmm14", "xmm15", "mm0", "mm1",
-                         "mm2", "mm3", "mm4", "mm5", "mm6", "mm7");
-}
-
-static inline void
-fxsave64(char *addr)
-{
-  __asm__ __volatile__("fxsave64 %0"
-                       : "=m" (*addr));
-}
-
 static inline void cpuid(l4_uint32_t leaf, l4_uint32_t sub,
                          l4_uint32_t *eax, l4_uint32_t *ebx, l4_uint32_t *ecx,
                          l4_uint32_t *edx)
@@ -675,18 +656,9 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
   L4::Cap<L4::Thread> myself;
   trace().printf("Starting vCPU[%3u] 0x%lx\n", vcpu_id, vcpu->r.ip);
 
-  // Architecturally defined as 512 byte buffer but processor does not write
-  // bytes 464:511.
-  char fpu_state[464] __attribute__((aligned(16)));
-  fxsave64(fpu_state);
-
   while (1)
     {
-      // We do not save/restore the AVX state in the assumption that gcc does
-      // not generate such code (yet).
-      fxrstor64(fpu_state);
       l4_msgtag_t tag = myself->vcpu_resume_commit(myself->vcpu_resume_start());
-      fxsave64(fpu_state);
       auto e = l4_error(tag);
 
       if (e == 1)

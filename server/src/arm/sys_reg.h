@@ -90,9 +90,9 @@ public:
 
 namespace std {
   template<>
-  struct hash<Vmm::Arm::Sys_reg::Key> : hash<unsigned>
+  struct less<Vmm::Arm::Sys_reg::Key>
   {
-    size_t operator () (Vmm::Arm::Sys_reg::Key k) const
-    { return hash<unsigned>()(k.k); }
+    bool operator () (const Vmm::Arm::Sys_reg::Key &k1, const Vmm::Arm::Sys_reg::Key &k2) const
+    { return k1.k < k2.k; }
   };
 }
