@@ -462,7 +462,15 @@ Guest::handle_vm_call(l4_vcpu_regs_t *regs)
 
   // NOTE: If the hypervisor bit is enabled in CPUID.01 there can be other VMCALL
   // numbers defined for KVM, e.g. 0x9 for PTP_KVM.
-  Err().printf("Unknown VMCALL 0x%lx\n", regs->ax);
+
+  // Handle KVM queries gracefully
+  if (regs->ax == 9) // KVM_HC_CLOCK_PAIRING
+    {
+      regs->ax = -1000; // KVM_ENOSYS
+      return Jump_instr;
+    }
+
+  Err().printf("Unknown VMCALL 0x%lx at 0x%lx\n", regs->ax, regs->ip);
   return -L4_ENOSYS;
 }
 
