@@ -161,7 +161,7 @@ namespace Vdev {
     l4_uint16_t queue_select;
     l4_uint16_t queue_size;
     l4_uint16_t queue_msix_vector;
-    l4_uint16_t quene_enable;
+    l4_uint16_t queue_enable;
     l4_uint16_t queue_notify_off;
     l4_uint64_t queue_desc;
     l4_uint64_t queue_avail;
