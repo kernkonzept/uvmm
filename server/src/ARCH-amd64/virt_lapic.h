@@ -904,8 +904,8 @@ public:
     Mmio_addr = 0xfec00000,
   };
 
-  Io_apic(cxx::Ref_ptr<Lapic_array> apics)
-  : _apics(apics), _id(Io_apic_id << Io_apic_id_offset), _ioregsel(0), _iowin(0)
+  Io_apic(cxx::Ref_ptr<Gic::Msix_controller> distr)
+  : _distr(distr), _id(Io_apic_id << Io_apic_id_offset), _ioregsel(0), _iowin(0)
   {}
 
   // Mmio device interface
@@ -997,28 +997,49 @@ public:
   // IC interface
   void set(unsigned irq) override
   {
-    Redir_tbl_entry e = redirect(irq);
+    Redir_tbl_entry entry = redirect(irq);
+    if (entry.masked())
+      return;
 
-    if (!e.masked())
-      get_apic(e)->set(e.vector());
+    Vdev::Msix::Data_register_format data(entry.vector());
+    data.trigger_mode() = entry.trigger_mode();
+    data.trigger_level() = !entry.pin_polarity(); // it's actually inverted.
+    data.delivery_mode() = entry.delivery_mode();
+
+    Vdev::Msix::Interrupt_request_compat addr(0ULL);
+    addr.dest_id() = entry.dest_id();
+    addr.dest_mode() = entry.dest_mode();
+    addr.fixed() = Vdev::Msix::Address_interrupt_prefix;
+
+    _distr->send(addr.raw, data.raw);
   }
 
-  void clear(unsigned irq) override
-  {
-    Redir_tbl_entry e = redirect(irq);
-    get_apic(e)->clear(e.vector());
-  }
+  void clear(unsigned) override {}
 
+  // XXX unclear if this function is used. Required by Gic::Ic.
+  // Dummy implementation.
   void bind_eoi_handler(unsigned irq, Eoi_handler *handler) override
   {
-    Redir_tbl_entry e = redirect(irq);
-    get_apic(e)->bind_eoi_handler(e.vector(), handler);
+    if (irq >= Io_apic_num_pins)
+      {
+        warn().printf("Try to bind out-of-range IRQ %u. Ignoring. \n", irq);
+        return;
+      }
+    if (handler && _sources[irq])
+      throw L4::Runtime_error(-L4_EEXIST);
+    _sources[irq] = handler;
   }
 
+  // XXX unclear if this function is used. Required by Gic::Ic.
+  // Dummy implementation.
   Eoi_handler *get_eoi_handler(unsigned irq) const override
   {
-    Redir_tbl_entry e = redirect(irq);
-    return get_apic(e)->get_eoi_handler(e.vector());
+    if (irq >= Io_apic_num_pins)
+      {
+        warn().printf("Try to get out-of-range IRQ %u. Ignoring. \n", irq);
+        return nullptr;
+      }
+    return _sources[irq];
   }
 
   int dt_get_interrupt(fdt32_t const *prop, int propsz,
@@ -1039,23 +1060,10 @@ public:
                            Vmm::Region_type::Virtual);
   }
 
-
 private:
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "IOAPIC"); }
   static Dbg info() { return Dbg(Dbg::Irq, Dbg::Info, "IOAPIC"); }
   static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "IOAPIC"); }
-
-  /**
-   * Get destination APIC for given IRQ
-   * Defaults to APIC 0.
-   */
-  cxx::Ref_ptr<Virt_lapic> get_apic(Redir_tbl_entry e) const
-  {
-    if (auto lapic = _apics->get(e.dest_id() - 1))
-      return lapic;
-    else
-      return _apics->get(0);
-  }
 
   /// Return the redirection table entry for given `irq`.
   Redir_tbl_entry redirect(unsigned irq) const
@@ -1064,11 +1072,12 @@ private:
     return _redirect_tbl[irq];
   }
 
-  cxx::Ref_ptr<Lapic_array> _apics;
+  cxx::Ref_ptr<Gic::Msix_controller> _distr;
   std::atomic<l4_uint32_t> _id;
   std::atomic<l4_uint32_t> _ioregsel;
   std::atomic<l4_uint32_t> _iowin;
   std::atomic<Redir_tbl_entry> _redirect_tbl[Io_apic_num_pins];
+  Gic::Eoi_handler *_sources[Io_apic_num_pins] = {nullptr, };
 }; // class Io_apic
 
 } // namespace Gic

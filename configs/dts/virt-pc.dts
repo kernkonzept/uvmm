@@ -35,6 +35,7 @@
         IOAPIC: ioapic {
             compatible = "intel,ioapic";
             interrupt-controller;
+            msi-parent = <&msi_ctrl>;
             #address-cells = <0>;
             #interrupt-cells = <1>;
         };

@@ -390,10 +390,10 @@ namespace {
   struct G : Vdev::Factory
   {
     cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
-                                      Vdev::Dt_node const &) override
+                                      Vdev::Dt_node const &node) override
     {
-      auto apics = devs->vmm()->apic_array();
-      auto io_apic = Vdev::make_device<Gic::Io_apic>(apics);
+      auto msi_distr = devs->get_or_create_mc_dev(node);
+      auto io_apic = Vdev::make_device<Gic::Io_apic>(msi_distr);
       devs->vmm()->add_mmio_device(io_apic->mmio_region(), io_apic);
       return io_apic;
     }
