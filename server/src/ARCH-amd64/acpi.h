@@ -43,11 +43,11 @@ static Dbg trace(Dbg::Dev, Dbg::Trace, "ACPI");
 class Tables;
 class Acpi_device;
 /**
- * Registry of devices that need to insert information into Acpi tables.
+ * Registry of devices that need to insert information into ACPI tables.
  *
  * Upon Uvmm startup devices will be created from the device tree. These can
  * register themselves here. The Acpi::Tables class will then call the
- * Acpi_device functions of these devices to fill the Acpi tables. It will
+ * Acpi_device functions of these devices to fill the ACPI tables. It will
  * also delete the Acpi_device_hub after use.
  */
 class Acpi_device_hub
@@ -84,7 +84,7 @@ private:
 };
 
 /**
- * Devices that must register with Acpi shall implement this interface.
+ * Devices that must register with ACPI shall implement this interface.
  */
 class Acpi_device
 {
@@ -334,7 +334,7 @@ protected:
      */
     void add_checksum(l4_uint8_t *checksum, void *base, unsigned len)
     {
-      // Although we do not calculate the checksum here, ensure that the the
+      // Although we do not calculate the checksum here, ensure that the
       // checksum field is zeroed, which is required for checksum computation.
       *checksum = 0U;
       _checksums.emplace_back(Checksum{as_offset(checksum),
@@ -654,7 +654,7 @@ public:
     _devs->ram()->guest2host<l4_addr_t>(acpi_mem);
 
     // Clear memory because we do not rely on the DS provider to do this for
-    // us, and we must not have spurious values in Acpi tables.
+    // us, and we must not have spurious values in ACPI tables.
     memset(reinterpret_cast<void *>(_dest_addr), 0, max_size);
 
     Writer wr(_dest_addr, max_size);
