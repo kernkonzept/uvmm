@@ -28,7 +28,7 @@ public:
   char const *help() const override
   { return "CPU state"; }
 
-  void usage(FILE *f) const
+  void usage(FILE *f) const override
   {
     fprintf(f, "%s\n"
                "* 'cpu <i> regs': dump CPU registers\n",

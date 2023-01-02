@@ -43,7 +43,7 @@ public:
   char const *help() const override
   { return "Local APIC registers"; }
 
-  void usage(FILE *f) const
+  void usage(FILE *f) const override
   {
     fprintf(f, "%s\n"
                "* 'lapic <i>': dump local APIC registers for a specific cpu\n",

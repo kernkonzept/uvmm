@@ -32,7 +32,7 @@ public:
   char const *help() const override
   { return "RAM dataspaces"; }
 
-  void usage(FILE *f) const
+  void usage(FILE *f) const override
   {
     fprintf(f, "%s\n"
                "* 'ram ds': list RAM dataspaces\n"

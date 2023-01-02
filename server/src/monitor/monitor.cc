@@ -56,7 +56,7 @@ public:
     char const *help() const override
     { return "Print help"; }
 
-    void usage(FILE *f) const
+    void usage(FILE *f) const override
     {
       fprintf(f, "%s\n"
                  "* 'help': list descriptions of all available commands\n"
@@ -103,7 +103,7 @@ public:
     char const *help() const override
     { return "Display/Adjust verbosity"; }
 
-    void usage(FILE *f) const
+    void usage(FILE *f) const override
     {
       fprintf(f, "%s\n"
                  "* 'verbose show <component>': display level for some component\n"

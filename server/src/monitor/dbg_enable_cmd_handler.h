@@ -39,7 +39,7 @@ public:
   char const *help() const override
   { return "Enable guest debugger"; }
 
-  void usage(FILE *f) const
+  void usage(FILE *f) const override
   {
     fprintf(f, "%s\n"
                "* 'dbg on': enable guest debugger interface\n",

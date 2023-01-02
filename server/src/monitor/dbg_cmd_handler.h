@@ -32,7 +32,7 @@ public:
   char const *help() const override
   { return "Guest debugger interface"; }
 
-  void usage(FILE *f) const
+  void usage(FILE *f) const override
   {
     fprintf(f, "%s\n"
                "* 'dbg r <vcpu> <addr> [<n> [(b|w|d|q)]]': dump guest memory\n"

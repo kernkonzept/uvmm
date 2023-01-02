@@ -209,7 +209,7 @@ public:
    * \param[out] value  The value read from the IO port.
    */
   void io_in(unsigned port, Vmm::Mem_access::Width /*width*/,
-             l4_uint32_t *value)
+             l4_uint32_t *value) override
   {
     port += Smi_command;
     *value = -1U;
@@ -243,7 +243,7 @@ public:
    * \param value  The value written to the port.
    */
   void io_out(unsigned port, Vmm::Mem_access::Width /*width*/,
-              l4_uint32_t value)
+              l4_uint32_t value) override
   {
     port += Smi_command;
     switch (port)

@@ -32,7 +32,7 @@ public:
   char const *help() const override
   { return "Device list"; }
 
-  void usage(FILE *f) const
+  void usage(FILE *f) const override
   {
     fprintf(f, "%s\n"
                "* 'dev list': list available devices\n"
