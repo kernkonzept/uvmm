@@ -151,7 +151,7 @@ struct Device_lookup
     char const *err[] = {
         "ok",
         "no interrupt parent found",
-        "interrupt parent node disabled"
+        "interrupt parent node disabled",
         "interrupt parent is not a virtual interrupt controller",
         "creation of interrupt parent failed"
     };
@@ -205,7 +205,7 @@ struct Device_lookup
     char const *err[] = {
         "ok",
         "no MSI parent found",
-        "MSI parent node disabled"
+        "MSI parent node disabled",
         "MSI parent is not an MSI controller",
         "creation of MSI parent failed"
     };
