@@ -56,7 +56,7 @@ public:
 
 
   /**
-   * Get the the current verbosity level for a single component.
+   * Get the current verbosity level for a single component.
    *
    * \param c         Component for which to query verbosity.
    * \param[out] str  Pointer to the name of the current verbosity level for the
@@ -68,7 +68,7 @@ public:
   static int get_verbosity(unsigned c, char const **str);
 
   /**
-   * Get the the current verbosity level for a single component.
+   * Get the current verbosity level for a single component.
    *
    * \param c         Name of the component for which to query verbosity.
    * \param[out] str  Pointer to the name of the current verbosity level for the
