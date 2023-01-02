@@ -39,7 +39,8 @@ struct Mmio_device : public virtual Vdev::Dev_ref
   bool mergable(cxx::Ref_ptr<Mmio_device> other,
                 Guest_addr start_other, Guest_addr start_this)
   {
-    if (typeid (*this) != typeid (*other.get()))
+    auto o = other.get();
+    if (typeid (*this) != typeid (*o))
       return false;
     return _mergable(other, start_other, start_this);
   };
