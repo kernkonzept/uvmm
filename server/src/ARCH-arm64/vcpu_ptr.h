@@ -26,7 +26,7 @@ public:
   static l4_uint32_t cntfrq()
   {
     l4_uint32_t x;
-    asm volatile ("mrs %0, CNTFRQ_EL0" : "=r"(x));
+    asm volatile ("mrs %x0, CNTFRQ_EL0" : "=r"(x));
     return x;
   }
 

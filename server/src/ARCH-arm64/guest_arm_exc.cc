@@ -45,14 +45,14 @@ void enter_exception32(Vcpu_ptr vcpu, unsigned mode, Aarch32::Exc_offset off)
   if (mode == Aarch32::Psr_m_und)
     {
       // TODO: The SPSR_und register can only be accessed from EL2 mode...
-      asm volatile("msr SPSR_und, %0" : : "r"(spsr));
+      asm volatile("msr SPSR_und, %x0" : : "r"(spsr));
       // LR_und is mapped to GPR X22 on Aarch64
       vcpu->r.r[22] = return_addr;
     }
   else if (mode == Aarch32::Psr_m_abt)
     {
       // TODO: The SPSR_abt register can only be accessed from EL2 mode...
-      asm volatile("msr SPSR_abt, %0" : : "r"(spsr));
+      asm volatile("msr SPSR_abt, %x0" : : "r"(spsr));
       // LR_abt is mapped to GPR X20 on Aarch64
       vcpu->r.r[20] = return_addr;
     }
@@ -62,7 +62,7 @@ void enter_exception32(Vcpu_ptr vcpu, unsigned mode, Aarch32::Exc_offset off)
     // The guest uses high exception vectors.
     vbar = 0xffff0000;
   else
-    asm volatile ("mrs %0, VBAR_EL1" : "=r"(vbar)); // VBAR
+    asm volatile ("mrs %x0, VBAR_EL1" : "=r"(vbar)); // VBAR
 
   vcpu->r.ip = vbar + static_cast<unsigned>(off);
 }
@@ -72,7 +72,7 @@ __attribute__ ((unused))
 void inject_abort32(Vcpu_ptr vcpu, bool inst, l4_uint32_t addr)
 {
   l4_uint32_t ttbcr;
-  asm volatile ("mrs %0, TCR_EL1" : "=r"(ttbcr));
+  asm volatile ("mrs %x0, TCR_EL1" : "=r"(ttbcr));
   l4_uint32_t fsr = Aarch32::get_abort_fsr(ttbcr);
 
   l4_uint64_t far;
@@ -88,7 +88,7 @@ void inject_abort32(Vcpu_ptr vcpu, bool inst, l4_uint32_t addr)
       far |= static_cast<l4_uint64_t>(addr) << 32;
 
       // TODO: The IFSR32_EL2 register can only be accessed from EL2 mode...
-      asm volatile("msr IFSR32_EL2, %0" : : "r"(fsr));
+      asm volatile("msr IFSR32_EL2, %x0" : : "r"(fsr));
     }
   else
     {
@@ -98,7 +98,7 @@ void inject_abort32(Vcpu_ptr vcpu, bool inst, l4_uint32_t addr)
       far &= ~0xffffffffULL;
       far |= addr;
 
-      asm volatile("msr ESR_EL1, %0" : : "r"(fsr));
+      asm volatile("msr ESR_EL1, %x0" : : "r"(fsr));
     }
   asm volatile("msr FAR_EL1, %0" : : "r"(far));
 
@@ -111,7 +111,7 @@ void inject_abort64(Vcpu_ptr vcpu, bool inst, l4_addr_t addr)
   asm volatile("msr FAR_EL1, %0" : : "r"(addr));
 
   Hsr esr = Aarch64::get_abort_esr(vcpu, inst);
-  asm volatile("msr ESR_EL1, %0" : : "r"(esr.raw()));
+  asm volatile("msr ESR_EL1, %x0" : : "r"(esr.raw()));
 
   enter_exception64(vcpu);
 }
@@ -128,7 +128,7 @@ void inject_undef64(Vcpu_ptr vcpu)
   Hsr esr { 0 };
   esr.il() = vcpu.hsr().il();
   esr.ec() = Hsr::Ec_unknown;
-  asm volatile("msr ESR_EL1, %0" : : "r"(esr.raw()));
+  asm volatile("msr ESR_EL1, %x0" : : "r"(esr.raw()));
 
   enter_exception64(vcpu);
 }
