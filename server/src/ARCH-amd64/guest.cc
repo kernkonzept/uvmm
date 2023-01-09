@@ -851,7 +851,10 @@ Guest::run_vmx(Vcpu_ptr vcpu)
               vm->inject_interrupt(irq);
             }
         }
-      else
+      // At the moment, the guest is not able to receive an interrupt. In case
+      // an IRQ is pending, ensure that we are notified once the guest is ready
+      // to receive the interrupt.
+      else if(lapic(vcpu)->is_irq_pending())
         vm->enable_interrupt_window();
     }
 
