@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Kernkonzept GmbH.
+ * Copyright (C) 2017-2021 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *            Jean Wolter <jean.wolter@kernkonzept.com>
  *

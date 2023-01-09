@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Kernkonzept GmbH.
+ * Copyright (C) 2018, 2021-2022 Kernkonzept GmbH.
  * Author(s): Jean Wolter <jean.wolter@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public

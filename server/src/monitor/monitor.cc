@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Kernkonzept GmbH.
+ * Copyright (C) 2019, 2022-2023 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *            Timo Nicolai <timo.nicolai@kernkonzept.com>
  *

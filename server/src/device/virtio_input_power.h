@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only OR License-Ref-kk-custom */
 /*
- * Copyright (C) 2015-2018, 2022 Kernkonzept GmbH.
+ * Copyright (C) 2015-2022 Kernkonzept GmbH.
  * Author(s): Jean Wolter <jean.wolter@kernkonzept.com>
  */
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Kernkonzept GmbH.
+ * Copyright (C) 2019-2021 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public

@@ -7,7 +7,7 @@
  * Please see the COPYING-GPL-2 file for details.
  */
 /*
- * Copyright (C) 2015 Kernkonzept GmbH.
+ * Copyright (C) 2014-2022 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public

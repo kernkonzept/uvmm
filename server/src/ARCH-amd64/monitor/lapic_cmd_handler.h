@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Kernkonzept GmbH.
+ * Copyright (C) 2019-2020, 2023 Kernkonzept GmbH.
  * Author(s): Timo Nicolai <timo.nicolai@kernkonzept.com>
  *
  * This file is distributed under the terms of the GNU General Public

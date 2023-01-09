@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Kernkonzept GmbH.
+ * Copyright (C) 2017-2018, 2021 Kernkonzept GmbH.
  * Author(s): Adam Lackorzynski <adam@l4re.org>
  *            Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *            Georg Kotheimer <georg.kotheimer@kernkonzept.com>

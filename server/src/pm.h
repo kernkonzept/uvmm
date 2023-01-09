@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Kernkonzept GmbH.
+ * Copyright (C) 2017, 2019-2020 Kernkonzept GmbH.
  * Author: Steffen Liebergeld <steffen.liebergeld@kernkonzept.com>
  *         Adam Lackorzynski <adam@l4re.org>
  *

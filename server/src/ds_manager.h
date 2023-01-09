@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: ((GPL-2.0-only WITH mif-exception) OR LicenseRef-kk-custom) */
 /*
- * Copyright (C) 2014-2020 Kernkonzept GmbH.
+ * Copyright (C) 2014-2022 Kernkonzept GmbH.
  * Author(s): Alexander Warg <alexander.warg@kernkonzept.com>
  *
  */
