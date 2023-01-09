@@ -15,7 +15,7 @@
 #include "vm.h"
 
 namespace Vdev {
-  class Device_lookup;
+  struct Device_lookup;
 }
 
 namespace Monitor {
