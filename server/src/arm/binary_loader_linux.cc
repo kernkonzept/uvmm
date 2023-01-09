@@ -38,9 +38,13 @@ int Linux_loader::load(char const * /*bin*/, std::shared_ptr<Binary_ds> image,
     *entry = image->load_as_raw(ram, ram_base + l, free_list);
   }
   else if (h[0] == 0x1f && h[1] == 0x8b && h[2] == 0x08)
+    {
     // Gzip compressed kernel images are not self-decompressing on ARM
     L4Re::throw_error(-L4_EINVAL,
       "Cannot boot compressed images! Unzip first or enable uvmm gzip support.");
+    }
+  else
+    return -L4_EINVAL;
 
   info().printf("Linux kernel detected\n");
 
