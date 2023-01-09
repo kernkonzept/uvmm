@@ -77,7 +77,8 @@ class Acpi_tables : public Tables
     } cmd;
   };
 
-  static_assert(sizeof(Qemu_loader_entry) == 128);
+  static_assert(sizeof(Qemu_loader_entry) == 128,
+                "Invalid size of Qemu_loader_entry");
 
 public:
   static char const constexpr *Rsdp_file_name = "etc/acpi/rsdp";
