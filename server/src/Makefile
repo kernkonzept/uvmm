@@ -122,3 +122,6 @@ endif
 
 # We do not want to have -fno-strict-aliasing
 OPTS := $(OPTS_DEBUG) -O3
+
+# only relevant for Clang
+CXXFLAGS += -Wno-c99-designator
