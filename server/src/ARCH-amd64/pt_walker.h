@@ -5,7 +5,6 @@
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
-
 #pragma once
 
 #include <l4/sys/types.h>
@@ -40,14 +39,13 @@ public:
 
   l4_uint64_t walk(l4_uint64_t cr3, l4_uint64_t virt_addr)
   {
-    trace().printf("cr3 0x%llx\n", cr3);
-
     // mask everything besides the 4K-aligned PML4 table address
     l4_uint64_t *tbl = translate_to_table_base(cr3 & _phys_addr_mask_4k);
     l4_uint64_t entry = _levels[0].get_entry(tbl, virt_addr);
 
-    trace().printf("cr3 0x%llx, entry 0x%llx, vaddr 0x%llx\n", cr3, entry,
-                   virt_addr);
+    if (0)
+      trace().printf("cr3 0x%llx, entry 0x%llx, vaddr 0x%llx\n", cr3, entry,
+                     virt_addr);
 
     if (!(entry & Present_bit))
       L4Re::chksys(-L4_EINVAL, "PML4 table is present\n");
@@ -89,7 +87,8 @@ private:
   l4_uint64_t *translate_to_table_base(l4_uint64_t addr)
   {
     auto *ret = _mmap->guest2host<l4_uint64_t *>(Guest_addr(addr));
-    trace().printf("Ram_addr: addr 0x%llx --> %p\n", addr, ret);
+    if (0)
+      trace().printf("Ram_addr: addr 0x%llx --> %p\n", addr, ret);
     return ret;
   }
 
@@ -127,7 +126,8 @@ private:
 
     l4_uint64_t get_entry(l4_uint64_t *tbl, l4_uint64_t vaddr) const
     {
-      trace().printf("next level idx: %llu\n", (vaddr & mask) >> shift);
+      if (0)
+        trace().printf("next level idx: %llu\n", (vaddr & mask) >> shift);
       return tbl[(vaddr & mask) >> shift];
     }
 
@@ -135,7 +135,7 @@ private:
     l4_uint64_t const mask;
   };
 
-  static Dbg trace() { return Dbg(Dbg::Core, Dbg::Extensive); }
+  static Dbg trace() { return Dbg(Dbg::Mmio, Dbg::Trace, "PTW"); }
 
   enum
   {

@@ -84,7 +84,9 @@ Vcpu_ptr::decode_mmio() const
     }
   catch (L4::Runtime_error &e)
     {
-      Dbg().printf("Could not determine opcode for MMIO access\n");
+      warn().printf("Could not determine opcode for MMIO access. Page table "
+                    "walking failed for IP 0x%lx and reports: %s\n",
+                    vms->ip(), e.extra_str());
       return m;
     }
 
