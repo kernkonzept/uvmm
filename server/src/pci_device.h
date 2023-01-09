@@ -326,7 +326,7 @@ struct Pci_msi_cap : Pci_cap
   }
 };
 
-union alignas(l4_addr_t) Pci_header
+union alignas(sizeof(l4_uint64_t)) Pci_header
 {
   l4_uint8_t byte[Pci_header_size];
   l4_uint16_t word[Pci_header_size / 2];
