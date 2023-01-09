@@ -45,6 +45,7 @@ SRC_CC_mips-l4f  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc \
                    io_port_handler_noop.cc
 SRC_CC_amd64-l4f = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                    ARCH-amd64/rtc.cc ARCH-amd64/virt_lapic.cc \
+                   ARCH-amd64/ioapic.cc \
                    ARCH-amd64/vcpu_ptr.cc ARCH-amd64/vm_state_vmx.cc \
                    virtio_console_pci.cc virtio_proxy_pci.cc \
                    device/pci_host_bridge.cc device/pci_host_generic.cc \

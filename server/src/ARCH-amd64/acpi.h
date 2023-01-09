@@ -25,6 +25,7 @@
 #include "guest.h"
 #include "cpu_dev_array.h"
 #include "cpu_dev.h"
+#include "ioapic.h"
 #include "virt_lapic.h"
 #include "mem_types.h"
 

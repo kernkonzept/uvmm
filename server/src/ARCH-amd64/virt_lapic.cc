@@ -387,21 +387,6 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
 
 namespace {
 
-  struct G : Vdev::Factory
-  {
-    cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
-                                      Vdev::Dt_node const &node) override
-    {
-      auto msi_distr = devs->get_or_create_mc_dev(node);
-      auto io_apic = Vdev::make_device<Gic::Io_apic>(msi_distr);
-      devs->vmm()->add_mmio_device(io_apic->mmio_region(), io_apic);
-      return io_apic;
-    }
-  };
-
-  static G g;
-  static Vdev::Device_type d = {"intel,ioapic", nullptr, &g};
-
   struct F : Vdev::Factory
   {
     cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
