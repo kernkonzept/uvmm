@@ -60,7 +60,7 @@ asm
  "  mov    r3, #0                 \n"
  "  mov    sp, r6                 \n"  // restore sp from r6
  "  mcr    p15, 0, r5, c13, c0, 2 \n"  // restore TPIDRURW from r5
- "  mov    pc, #" L4_stringify(L4_SYSCALL_INVOKE) " \n"
+ "  mvn    pc, #" L4_stringify(~(L4_SYSCALL_INVOKE)) " \n"
  "                                \n"
  ".Lsave_32r:                     \n"
  "  .long save_32r                \n"
