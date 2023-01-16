@@ -160,7 +160,7 @@ Vcpu_ptr::reset(bool protected_mode)
   // mode as is required in Linux' boot protocol. Otherwise the Boot and
   // Application Processors are expected to come up in Real Mode.
   if (protected_mode)
-    vm_state()->setup_protected_mode(_s->r.ip);
+    vm_state()->setup_linux_protected_mode(_s->r.ip);
   else
     vm_state()->setup_real_mode(_s->r.ip);
 

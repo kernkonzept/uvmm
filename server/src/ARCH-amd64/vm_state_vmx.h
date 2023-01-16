@@ -243,7 +243,7 @@ public:
                 + vmx_read(VMCS_VM_EXIT_INSN_LENGTH));
   }
 
-  void setup_protected_mode(l4_addr_t entry) override
+  void setup_linux_protected_mode(l4_addr_t entry) override
   {
     vmx_write(VMCS_GUEST_CS_SELECTOR, 0x10);
     vmx_write(VMCS_GUEST_CS_ACCESS_RIGHTS, 0xd09b);
