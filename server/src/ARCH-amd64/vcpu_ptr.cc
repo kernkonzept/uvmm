@@ -55,7 +55,7 @@ Vcpu_ptr::decode_mmio() const
   try
     {
       // overwrite the virtual IP with the physical OP code
-      opcode = get_pt_walker()->walk(*this, vms->ip());
+      opcode = get_pt_walker()->walk(vms->cr3(), vms->ip());
     }
   catch (L4::Runtime_error &e)
     {

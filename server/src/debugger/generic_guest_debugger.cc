@@ -47,6 +47,6 @@ Generic_guest_debugger::vcpu_smp_active() const
 
 l4_addr_t
 Generic_guest_debugger::walk_page_table(l4_addr_t gvirt, Vmm::Vcpu_ptr vcpu)
-{ return vcpu.get_pt_walker()->walk(vcpu, gvirt); }
+{ return vcpu.get_pt_walker()->walk(vcpu.vm_state()->cr3(), gvirt); }
 
 }

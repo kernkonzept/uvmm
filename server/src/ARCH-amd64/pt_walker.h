@@ -5,6 +5,7 @@
  * This file is distributed under the terms of the GNU General Public
  * License, version 2.  Please see the COPYING-GPL-2 file for details.
  */
+
 #pragma once
 
 #include <l4/sys/types.h>
@@ -37,10 +38,8 @@ public:
     _phys_addr_mask_1g = _max_phys_addr_mask & ~((1UL << Phys_addr_1g) - 1);
   }
 
-  l4_uint64_t walk(Vcpu_ptr vcpu, l4_uint64_t virt_addr)
+  l4_uint64_t walk(l4_uint64_t cr3, l4_uint64_t virt_addr)
   {
-    l4_uint64_t cr3 = vcpu.vm_state()->cr3();
-
     trace().printf("cr3 0x%llx\n", cr3);
 
     // cr3 alignment check -- ignore bits 3 PWT, 4 PCD
@@ -138,7 +137,6 @@ private:
     int const shift;
     l4_uint64_t const mask;
   };
-
 
   static Dbg trace() { return Dbg(Dbg::Core, Dbg::Extensive); }
 
