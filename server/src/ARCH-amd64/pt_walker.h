@@ -42,11 +42,8 @@ public:
   {
     trace().printf("cr3 0x%llx\n", cr3);
 
-    // cr3 alignment check -- ignore bits 3 PWT, 4 PCD
-    if (cr3 & (~_max_phys_addr_mask | 0xfe7))
-      L4Re::chksys(-L4_EINVAL, "CR3 address is 4k aligned.");
-
-    l4_uint64_t *tbl = translate_to_table_base(cr3 & ~0x18);
+    // mask everything besides the 4K-aligned PML4 table address
+    l4_uint64_t *tbl = translate_to_table_base(cr3 & _phys_addr_mask_4k);
     l4_uint64_t entry = _levels[0].get_entry(tbl, virt_addr);
 
     trace().printf("cr3 0x%llx, entry 0x%llx, vaddr 0x%llx\n", cr3, entry,
