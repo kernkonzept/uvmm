@@ -148,6 +148,9 @@ public:
     void add_decoder_resources(Vmm::Guest *, l4_uint32_t access) override;
     void del_decoder_resources(Vmm::Guest *, l4_uint32_t access) override;
 
+    void add_exp_rom_resource() override;
+    void del_exp_rom_resource() override;
+
   private:
     void add_io_bar_resources(Pci_cfg_bar const &bar);
     void add_mmio_bar_resources(Pci_cfg_bar const &bar);
@@ -266,6 +269,7 @@ protected:
                       dinfo.name, vendor_device & 0xffff, vendor_device >> 16);
 
         h->parse_device_bars();
+        h->parse_device_exp_rom();
         h->parse_msix_cap();
         h->parse_msi_cap();
         h->setup_msix_table();

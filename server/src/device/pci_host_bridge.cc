@@ -47,6 +47,23 @@ Pci_host_bridge::Hw_pci_device::add_decoder_resources(Vmm::Guest *,
         default: break;
         }
     }
+
+  if (access & Memory_space_bit && exp_rom.virt_enabled)
+    add_exp_rom_resource();
+}
+
+void Pci_host_bridge::Hw_pci_device::add_exp_rom_resource()
+{
+  auto region =
+    Vmm::Region::ss(Vmm::Guest_addr(exp_rom.map_addr), exp_rom.size,
+                    Vmm::Region_type::Vbus, Vmm::Region_flags::Moveable);
+  info().printf("Register expansion ROM region: [0x%lx, 0x%lx], vbus base "
+                "0x%llx\n",
+                region.start.get(), region.end.get(), exp_rom.io_addr);
+
+  auto m = cxx::make_ref_obj<Ds_manager>(parent->_vbus->io_ds(),
+                                         exp_rom.io_addr, exp_rom.size);
+  parent->_vmm->add_mmio_device(region, make_device<Ds_handler>(m));
 }
 
 void
@@ -214,6 +231,20 @@ Pci_host_bridge::Hw_pci_device::del_decoder_resources(Vmm::Guest *,
         default: break;
         }
     }
+
+  if (access & Memory_space_bit && exp_rom.virt_enabled)
+    del_exp_rom_resource();
+}
+
+void Pci_host_bridge::Hw_pci_device::del_exp_rom_resource()
+{
+  auto region =
+    Vmm::Region::ss(Vmm::Guest_addr(exp_rom.map_addr), exp_rom.size,
+                    Vmm::Region_type::Virtual, Vmm::Region_flags::Moveable);
+  info().printf("Removing expansion ROM region: [0x%lx, 0x%lx]\n",
+                region.start.get(), region.end.get());
+
+  parent->_vmm->del_mmio_device(region);
 }
 
 void

@@ -113,6 +113,20 @@ struct Pci_cfg_bar
   //  (type == MMIO64) ? addr : (l4_uint32_t)(addr && 0xffffffff);
 };
 
+/**
+ * PCI expansion ROM Bar description.
+ */
+struct Pci_expansion_rom_bar
+{
+  l4_uint64_t io_addr = 0;
+  l4_uint64_t size = 0;
+  l4_uint64_t map_addr = 0;
+  bool hw_enabled = false;
+  bool virt_enabled = false;
+
+  enum { Enable_bit = 1 };
+};
+
 enum Cap_ident : l4_uint8_t
 {
   // see PCI Local Bus Specification V.3 (2004) Appendix H.
@@ -429,6 +443,9 @@ struct Pci_device : public virtual Vdev::Dev_ref
    */
   virtual void del_decoder_resources(Vmm::Guest *vmm, l4_uint32_t access) = 0;
 
+  virtual void add_exp_rom_resource() = 0;
+  virtual void del_exp_rom_resource() = 0;
+
   /*
    * Get source ID.
    *
@@ -604,6 +621,8 @@ struct Pci_device : public virtual Vdev::Dev_ref
    * Get BAR register value from shadow copy.
    */
   l4_uint32_t get_bar_regval(unsigned bar) const;
+
+  void write_exp_rom_regval(l4_uint32_t value);
 
   /**
    * Write BAR register value.
@@ -782,6 +801,44 @@ struct Pci_device : public virtual Vdev::Dev_ref
   }
 
   /**
+   * Only use for Hw_pci_device.
+   */
+  void parse_device_exp_rom()
+  {
+    Pci_header_type hdr_type = get_header_type();
+    unsigned rom_reg = expansion_rom_reg(hdr_type == Pci_header_type(0));
+
+    info().printf("Parsing expansion ROM reg 0x%x of type %i header\n", rom_reg,
+                  hdr_type);
+    l4_uint32_t access = disable_access(Access_mask);
+
+    l4_uint32_t val = 0;
+    cfg_read_raw(rom_reg, &val, Vmm::Mem_access::Wd32);
+
+    enum : l4_uint32_t
+    {
+      Expansion_rom_address_shift = 11,
+      Expansion_rom_address_mask = -1U << Expansion_rom_address_shift
+    };
+
+    l4_uint32_t size = 0;
+    cfg_write_raw(rom_reg, Expansion_rom_address_mask, Vmm::Mem_access::Wd32);
+    cfg_read_raw(rom_reg, &size, Vmm::Mem_access::Wd32);
+    cfg_write_raw(rom_reg, val, Vmm::Mem_access::Wd32);
+
+    enable_access(access);
+
+    exp_rom.io_addr = val & size;
+    exp_rom.hw_enabled = val & Pci_expansion_rom_bar::Enable_bit;
+    exp_rom.size = ~size + 1;
+
+    info().printf("Expansion ROM addr reg(0x%x) as read from hardware: 0x%x, "
+                  "size 0x%llx (from hardware: 0x%x)\n",
+                  rom_reg, val, exp_rom.size, size);
+
+  }
+
+  /**
    * Get the type of the device's PCI header.
    *
    * We are not supporting PCI-to-Cardbus bridges (Type2). If such a bridge is
@@ -822,6 +879,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
   // the control register, we actually commit the configuration (program the
   // mappings and save the configuration into the shadow registers).
   Pci_cfg_bar bars[Bar_num_max_type0];
+  Pci_expansion_rom_bar exp_rom;
   Pci_msix_cap msix_cap;               /// MSI-X capability
   Pci_msi_cap msi_cap;                 /// MSI capability
   l4_uint8_t enabled_decoders = 0;     /// Currently registered resources
@@ -990,6 +1048,9 @@ public:
 
   void add_decoder_resources(Vmm::Guest *vmm, l4_uint32_t access) override;
   void del_decoder_resources(Vmm::Guest *vmm, l4_uint32_t access) override;
+
+  void add_exp_rom_resource() override;
+  void del_exp_rom_resource() override;
 
 private:
   Pci_header _hdr;

@@ -25,10 +25,20 @@ bool Pci_device::cfg_read_bar(unsigned reg, l4_uint32_t *value,
   if (L4_UNLIKELY(reg & ((1UL << width) - 1U)))
     return true;
 
-  // We don't support expansion ROMs at all. Silently ignore.
   unsigned expansion_rom = expansion_rom_reg(type0);
   if (reg >= expansion_rom && reg <= expansion_rom + 3)
-    return true;
+    {
+      l4_uint64_t regval = exp_rom.map_addr | exp_rom.virt_enabled;
+      if (width > Vmm::Mem_access::Wd32)
+        {
+          warn().printf("Unsupported 64-bit read of expansion ROM register! Diminishing width.\n");
+          width = Vmm::Mem_access::Wd32;
+        }
+
+      *value = Vmm::Mem_access::read_width(reinterpret_cast<l4_addr_t>(&regval),
+                                           width);
+      return true;
+    }
 
   // only read one bar per access
   if (width > Vmm::Mem_access::Wd32)
@@ -70,6 +80,39 @@ l4_uint32_t Pci_device::get_bar_regval(unsigned bar) const
   return 0;
 }
 
+void Pci_device::write_exp_rom_regval(l4_uint32_t value)
+{
+  if (exp_rom.virt_enabled && (enabled_decoders & Memory_space_bit))
+    del_exp_rom_resource();
+
+  exp_rom.virt_enabled = value & Pci_expansion_rom_bar::Enable_bit;
+  exp_rom.map_addr = value & ~(exp_rom.size - 1U);
+
+  if (exp_rom.virt_enabled)
+    {
+      if (enabled_decoders & Memory_space_bit)
+        add_exp_rom_resource();
+
+      if (!exp_rom.hw_enabled)
+        {
+          // unless the HW reported the expansion ROM BAR as enabled, we
+          // enable it to allow the guest to access it. Currenlty, we don't
+          // disable expansion ROM BAR decoding again.
+          unsigned rom_reg =
+            expansion_rom_reg(get_header_type() == Pci_header_type(0));
+          cfg_write_raw(rom_reg,
+                        exp_rom.io_addr | Pci_expansion_rom_bar::Enable_bit,
+                        Vmm::Mem_access::Wd32);
+          exp_rom.hw_enabled = true;
+        }
+    }
+
+  trace()
+    .printf("wrote to expansion rom register: map_addr: 0x%llx, raw: 0x%llx\n",
+            exp_rom.map_addr | exp_rom.virt_enabled ,
+            exp_rom.io_addr | exp_rom.hw_enabled);
+}
+
 bool Pci_device::cfg_write_bar(unsigned reg, l4_uint32_t value,
                                Vmm::Mem_access::Width width)
 {
@@ -81,10 +124,12 @@ bool Pci_device::cfg_write_bar(unsigned reg, l4_uint32_t value,
   if (L4_UNLIKELY(reg & ((1UL << width) - 1U)))
     return true;
 
-  // We don't support expansion ROMs at all. Silently ignore.
   unsigned expansion_rom = expansion_rom_reg(type0);
   if (reg >= expansion_rom && reg <= expansion_rom + 3)
-    return true;
+    {
+      write_exp_rom_regval(value);
+      return true;
+    }
 
   unsigned bar = (reg - Pci_hdr_base_addr0_offset) >> 2;
   if (width != Vmm::Mem_access::Wd32)
@@ -221,5 +266,8 @@ void Virt_pci_device::del_decoder_resources(Vmm::Guest *vmm, l4_uint32_t access)
         }
     }
 }
+
+void Virt_pci_device::add_exp_rom_resource() {}
+void Virt_pci_device::del_exp_rom_resource() {}
 
 } } // namespace Vdev::Pci
