@@ -16,7 +16,7 @@ namespace Gic {
       case Ioregsel:
         return _ioregsel;
       case Iowin:
-        switch (_ioregsel)
+        switch (_ioregsel.load())
           {
           case Id_reg:
             return _id;
