@@ -474,7 +474,7 @@ private:
   cxx::Ref_ptr<Chip> _master;
   cxx::Ref_ptr<Chip> _slave;
   cxx::Ref_ptr<Gic::Msix_controller> _distr;
-  Gic::Eoi_handler *_sources[Num_irqs];
+  Gic::Eoi_handler *_sources[Num_irqs] = {};
 };
 
 } // namespace Vdev

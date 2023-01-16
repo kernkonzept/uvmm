@@ -359,7 +359,7 @@ private:
   l4_kernel_clock_t _last_ticks_tsc;
   bool _x2apic_enabled;
   std::atomic<bool> _nmi_pending;
-  Eoi_handler *_sources[256];
+  Eoi_handler *_sources[256] = {};
   std::queue<unsigned> _non_irr_irqs;
   cxx::Ref_ptr<Vmm::Cpu_dev> _cpu;
   unsigned _sipi_cnt = 0;

@@ -159,7 +159,7 @@ private:
   std::atomic<l4_uint32_t> _ioregsel;
   std::atomic<l4_uint32_t> _iowin;
   std::atomic<Redir_tbl_entry> _redirect_tbl[Io_apic_num_pins];
-  Gic::Eoi_handler *_sources[Io_apic_num_pins] = {nullptr, };
+  Gic::Eoi_handler *_sources[Io_apic_num_pins] = {};
 }; // class Io_apic
 
 } // namespace Gic

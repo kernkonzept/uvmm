@@ -221,7 +221,7 @@ private:
   // array of IRQ connections towards core IC
   cxx::unique_ptr<Vmm::Irq_sink> _irq_array[Num_irqs];
   // registered device callbacks for configuration and eoi
-  Eoi_handler *_sources[Num_irqs];
+  Eoi_handler *_sources[Num_irqs] = {};
   Cpu_info _vcpu_info[Num_vpes];
   std::mutex _lock;
 };
