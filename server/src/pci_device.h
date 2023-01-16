@@ -531,8 +531,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
    *       bit addresses take up two bars.
    */
   unsigned read_bar(unsigned bar_offs, unsigned max_bar_offs,
-                    l4_uint64_t *addr, l4_uint64_t *size,
-                    Pci_cfg_bar::Type *type)
+                    Pci_cfg_bar *res)
   {
     // Read the base address reg
     l4_uint32_t bar = 0;
@@ -546,9 +545,9 @@ struct Pci_device : public virtual Vdev::Dev_ref
 
         bar_size &= ~Bar_io_attr_mask; // clear decoding
 
-        *type = Pci_cfg_bar::IO;
-        *addr = bar & ~Bar_io_attr_mask;
-        *size = (~bar_size & 0xffff) + 1;
+        res->type = Pci_cfg_bar::IO;
+        res->io_addr = bar & ~Bar_io_attr_mask;
+        res->size = (~bar_size & 0xffff) + 1;
       }
     else if ((bar & Bar_mem_type_mask) == Bar_mem_type_32bit) // 32Bit MMIO bar
       {
@@ -558,9 +557,10 @@ struct Pci_device : public virtual Vdev::Dev_ref
 
         bar_size &= ~Bar_mem_attr_mask; // clear decoding
 
-        *type = Pci_cfg_bar::MMIO32;
-        *addr = bar & ~Bar_mem_attr_mask;
-        *size = ~bar_size + 1;
+        res->type = Pci_cfg_bar::MMIO32;
+        res->io_addr = bar & ~Bar_mem_attr_mask;
+        res->size = ~bar_size + 1;
+        res->prefetchable = (bar & Bar_mem_prefetch_bit) != 0;
       }
     else if ((bar & Bar_mem_type_mask) == Bar_mem_type_64bit) // 64Bit MMIO bar
       {
@@ -578,6 +578,8 @@ struct Pci_device : public virtual Vdev::Dev_ref
           L4Re::throw_error(-L4_ERANGE,
                             "PCI device implements 64-bit MMIO in last BAR.");
 
+        res->prefetchable = (bar & Bar_mem_prefetch_bit) != 0;
+
         cfg_read_raw(bar_offs, &bar, Vmm::Mem_access::Wd32);
         addr64 |= (l4_uint64_t)bar << 32; // shift to upper part
         bar_offs = read_bar_size(bar_offs, bar, &bar_size);
@@ -585,9 +587,9 @@ struct Pci_device : public virtual Vdev::Dev_ref
         size64 |= (l4_uint64_t)bar_size << 32; // shift to upper part
         size64 &= ~((l4_uint64_t)Bar_mem_attr_mask); // clear decoding
 
-        *type = Pci_cfg_bar::MMIO64;
-        *addr = addr64;
-        *size = ~size64 + 1;
+        res->type = Pci_cfg_bar::MMIO64;
+        res->io_addr = addr64;
+        res->size = ~size64 + 1;
       }
 
     return bar_offs;
@@ -784,8 +786,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
         Pci_cfg_bar &bar = bars[i];
 
         // Read one bar configuration
-        bar_offs = read_bar(bar_offs, max_bar_offset, &bar.io_addr, &bar.size,
-                            &bar.type);
+        bar_offs = read_bar(bar_offs, max_bar_offset, &bar);
 
         if (bar.type == Pci_cfg_bar::MMIO64)
           bars[i + 1].type = Pci_cfg_bar::Reserved_mmio64_upper;
