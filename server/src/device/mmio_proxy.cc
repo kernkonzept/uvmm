@@ -171,26 +171,7 @@ private:
         if (offs + sz > dssize)
           {
             sz = offs < dssize ? dssize - offs : 0;
-
-            unsigned poff = ((index + 1) * addr_cells
-                            + index * size_cells) * sizeof(fdt32_t);
-            switch (size_cells)
-              {
-              case 1:
-                {
-                  fdt32_t tmp = cpu_to_fdt32(sz);
-                  node.set_prop_partial("reg", poff, &tmp, sizeof(tmp));
-                  break;
-                }
-              case 2:
-                {
-                  fdt64_t tmp = cpu_to_fdt64(sz);
-                  node.set_prop_partial("reg", poff, &tmp, sizeof(tmp));
-                  break;
-                }
-              default:
-                L4Re::chksys(-L4_EINVAL, "Unknown size-cells size");
-              }
+            node.update_reg_size(index, sz);
           }
 
         if (sz)

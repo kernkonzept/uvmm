@@ -769,6 +769,28 @@ public:
   }
 
   /**
+   * Update the address part of a reg property in-place.
+   *
+   * \param[in] idx      Index of address/size pair in reg property
+   * \param[in] address  New address value to store in reg pair
+   *
+   * This function throws an exception if "reg" property does not exist.
+   */
+  void update_reg_address(uint32_t idx, uint64_t address) const
+  { update_reg_val(idx, idx, address); }
+
+  /**
+   * Update the size part of a reg property in-place.
+   *
+   * \param[in] idx   Index of address/size pair in reg property
+   * \param[in] size  New size value to store in reg pair
+   *
+   * This function throws an exception if "reg" property does not exist.
+   */
+  void update_reg_size(uint32_t idx, uint64_t size) const
+  { update_reg_val(idx + 1, idx, size); }
+
+  /**
    * Set address value
    *
    * \param[in] address Address value to store
@@ -915,6 +937,45 @@ public:
                       bool skip_disabled = true) const;
 
 private:
+  /**
+   * Update the address or size part of a reg property in-place.
+   *
+   * \param[in] addr_idx  Number of address cells to skip from the beginning
+   * \param[in] size_idx  Number of size cells to skip from the beginning
+   * \param[in] val       New value to store in reg pair
+   *
+   * To update the address part, addr_idx should be equal to size_idx.
+   * To update the size part, addr_idx = size_idx + 1.
+   * This function throws an exception if "reg" property does not exist.
+   */
+  void update_reg_val(uint32_t addr_idx, uint32_t size_idx, uint64_t val) const
+  {
+    auto parent = parent_node();
+    size_t addr_cells = get_address_cells(parent);
+    size_t size_cells = get_size_cells(parent);
+
+    unsigned poff = (addr_idx * addr_cells + size_idx * size_cells) * sizeof(fdt32_t);
+    unsigned cells = addr_idx > size_idx ? size_cells : addr_cells;
+    switch (cells)
+      {
+        case 1:
+          {
+            fdt32_t tmp = cpu_to_fdt32(val);
+            set_prop_partial("reg", poff, &tmp, sizeof(tmp));
+            break;
+          }
+        case 2:
+          {
+            fdt64_t tmp = cpu_to_fdt64(val);
+            set_prop_partial("reg", poff, &tmp, sizeof(tmp));
+            break;
+          }
+        default:
+          L4Re::chksys(-L4_EINVAL, "Unknown cells size");
+        }
+  }
+
+
   /**
    * Translate a (address, size) cell pair
    *
