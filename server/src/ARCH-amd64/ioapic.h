@@ -11,6 +11,7 @@
 #include "msi_controller.h"
 #include "msix.h"
 #include "msi_arch.h"
+#include "legacy_pic.h"
 
 namespace Gic {
 
@@ -86,8 +87,10 @@ public:
     Mmio_addr = 0xfec00000,
   };
 
-  Io_apic(cxx::Ref_ptr<Gic::Msix_controller> distr)
-  : _distr(distr), _id(Io_apic_id << Io_apic_id_offset), _ioregsel(0), _iowin(0)
+  Io_apic(cxx::Ref_ptr<Gic::Msix_controller> distr,
+          cxx::Ref_ptr<Vdev::Legacy_pic> pic)
+  : _distr(distr), _id(Io_apic_id << Io_apic_id_offset), _ioregsel(0), _iowin(0),
+    _pic(pic)
   {}
 
   // Mmio device interface
@@ -160,6 +163,7 @@ private:
   std::atomic<l4_uint32_t> _iowin;
   std::atomic<Redir_tbl_entry> _redirect_tbl[Io_apic_num_pins];
   Gic::Eoi_handler *_sources[Io_apic_num_pins] = {};
+  cxx::Ref_ptr<Vdev::Legacy_pic> _pic;
 }; // class Io_apic
 
 } // namespace Gic

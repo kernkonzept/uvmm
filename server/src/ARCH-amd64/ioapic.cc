@@ -97,6 +97,10 @@ namespace Gic {
 
   void Io_apic::set(unsigned irq)
   {
+    // send to PIC. (TODO only if line is masked at IOAPIC?)
+    if (irq < 16) // PIC can handle only the first 16 lines
+      _pic->set(irq);
+
     Redir_tbl_entry entry = redirect(irq);
     if (entry.masked())
       return;
@@ -125,8 +129,18 @@ namespace {
                                       Vdev::Dt_node const &node) override
     {
       auto msi_distr = devs->get_or_create_mc_dev(node);
-      auto io_apic = Vdev::make_device<Gic::Io_apic>(msi_distr);
+      // Create the legacy PIC device here to forward legacy Interrupts.
+      auto pic = Vdev::make_device<Vdev::Legacy_pic>(msi_distr);
+      auto io_apic = Vdev::make_device<Gic::Io_apic>(msi_distr, pic);
       devs->vmm()->add_mmio_device(io_apic->mmio_region(), io_apic);
+
+      // Register legacy PIC IO-ports
+      devs->vmm()->add_io_device(Vmm::Io_region(0x20, 0x21,
+                                                Vmm::Region_type::Virtual),
+                                 pic->master());
+      devs->vmm()->add_io_device(Vmm::Io_region(0xA0, 0xA1,
+                                                Vmm::Region_type::Virtual),
+                                 pic->slave());
       return io_apic;
     }
   };

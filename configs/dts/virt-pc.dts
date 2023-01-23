@@ -82,25 +82,16 @@
           CPU(31);
         };
 
-        PIC: pic {
-          compatible = "virt-i8259-pic";
-          reg = <0x0 0x0 0x0 0x0>;
-          msi-parent = <&msi_ctrl>;
-          interrupt-controller;
-          #address-cells = <0>;
-          #interrupt-cells = <1>;
-        };
-
         pit {
           compatible = "virt-pit";
           reg = <0x0 0x0 0x0 0x0>;
-          interrupt-parent = <&PIC>;
+          interrupt-parent = <&IOAPIC>;
           interrupts = <0>;
         };
 
         acpi_platform {
           compatible = "virt-acpi";
-          interrupt-parent = <&PIC>;
+          interrupt-parent = <&IOAPIC>;
           interrupts = <9>;
         };
 
