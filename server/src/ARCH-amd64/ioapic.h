@@ -64,7 +64,9 @@ class Io_apic : public Ic, public Vmm::Mmio_device_t<Io_apic>
     };
 
     Redir_tbl_entry() noexcept = default;
-    l4_uint64_t raw = 1ULL << 48;
+    // The IOAPIC spec mentions bit 48, which is specified as reserved, bit 16
+    // is the mask bit and I think it's sane to start out with masked vectors.
+    l4_uint64_t raw = 1ULL << 16;
 
     CXX_BITFIELD_MEMBER_RO(56, 63, dest_id, raw);
     CXX_BITFIELD_MEMBER_RO(16, 16, masked, raw);
