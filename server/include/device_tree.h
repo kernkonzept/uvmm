@@ -177,6 +177,9 @@ public:
   int setprop(int node, char const *name, void const *data, int len)
   { return fdt_setprop(dt_rw(), node, name, data, len); }
 
+  int setprop_placeholder(int node, char const *name, int len, void **prop_data)
+  { return fdt_setprop_placeholder(dt_rw(), node, name, len, prop_data); }
+
   int setprop_inplace_namelen_partial(int node,
                                       char const *name, int name_len,
                                       uint32_t idx, void const *val, int len)
@@ -493,6 +496,13 @@ public:
       ERR(this, "cannot set property '%s'", name);
   }
 
+  void setprop_placeholder(char const *name, int len, void **prop_data) const
+  {
+    int r = _fdt->setprop_placeholder(_node, name, len, prop_data);
+    if (r < 0)
+      ERR(this, "cannot resize property '%s' to %d bytes", name, len);
+  }
+
   void appendprop_u32(char const *name, l4_uint32_t value) const
   {
     int r = _fdt->appendprop_u32(_node, name, value);
@@ -789,6 +799,28 @@ public:
    */
   void update_reg_size(uint32_t idx, uint64_t size) const
   { update_reg_val(idx + 1, idx, size); }
+
+  /**
+   * Resize the reg property to the specified number of address/size pairs.
+   *
+   * \param[in] num_regs  Number of address/size pairs to reserve space for
+   *
+   * When shrinking the property (= new size is smaller than current size)
+   * the existing values are preserved. When growing the property (= new size
+   * is larger than current size, or property does not exist yet) additional
+   * space is reserved but left uninitialized.
+   *
+   * This function throws an exception if the device tree cannot be resized.
+   */
+  void resize_reg(int num_regs) const
+  {
+    auto parent = parent_node();
+    size_t addr_cells = get_address_cells(parent);
+    size_t size_cells = get_size_cells(parent);
+    int len = (addr_cells + size_cells) * num_regs * sizeof(fdt32_t);
+    void *prop_data;
+    setprop_placeholder("reg", len, &prop_data);
+  }
 
   /**
    * Set address value
