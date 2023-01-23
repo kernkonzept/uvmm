@@ -275,7 +275,7 @@ public:
   static l4_uint64_t
   verify_node(Vdev::Dt_node const &node)
   {
-    l4_uint64_t base, size, dummy;
+    l4_uint64_t base, size;
     int res = node.get_reg_val(1, &base, &size);
     if (res < 0)
       {
@@ -294,7 +294,7 @@ public:
       }
 
     // Do we have to adapt the device tree?
-    bool strip = node.get_reg_val(2, &dummy, &dummy) >= 0;
+    bool strip = node.get_reg_size_flags(2, nullptr, nullptr) >= 0;
     if ((size > L4_PAGESIZE) || strip)
       update_reg_entry(base, size, strip, node);
 
