@@ -30,7 +30,7 @@ class Pci_connector : public Vmm::Io_device
     for (unsigned i = 0; i < vcfg->num_queues; i++)
       {
         auto *qc = dev()->virtqueue_config(i);
-        assert(!qc->ready);
+        assert(qc && !qc->ready);
         qc->num = qc->num_max;
       }
   }
