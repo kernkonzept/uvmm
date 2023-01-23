@@ -236,42 +236,6 @@ public:
   void map_eager(L4::Cap<L4::Vm> vm, Vmm::Guest_addr, Vmm::Guest_addr) override
   { remap_page(vm); }
 
-  static void
-  update_reg_entry(l4_uint64_t base, l4_uint64_t size, bool strip,
-                   Vdev::Dt_node const &node)
-  {
-    l4_uint64_t gicd_base, gicd_size;
-    int res;
-
-    Dbg(Dbg::Irq, Dbg::Info, "GIC")
-      .printf("GICC virtualization only supports sizes up to 0x1000,"
-              " adjusting device tree node\n");
-    if (size > L4_PAGESIZE)
-      {
-        Dbg(Dbg::Irq, Dbg::Info, "GIC")
-          .printf("GIC %s.reg update: Adjusting GICC size from %llx to %lx\n",
-                  node.get_name(), size, L4_PAGESIZE);
-      }
-    if (strip)
-      Dbg(Dbg::Irq, Dbg::Info, "GIC")
-        .printf("GIC %s.reg update: Stripping superfluous entries\n",
-                node.get_name());
-
-    // Get GICD entry
-    if ((res = node.get_reg_val(0, &gicd_base, &gicd_size)) < 0)
-      {
-        Err().printf("Failed to read 'reg[0]' from node %s: %s\n",
-                     node.get_name(), node.strerror(res));
-        throw L4::Runtime_error(-L4_EINVAL,
-                                "Reading device tree entry for GIC");
-      }
-
-    // rewrite reg_entry
-    size = size < L4_PAGESIZE ? size : L4_PAGESIZE;
-    node.set_reg_val(gicd_base, gicd_size);
-    node.append_reg_val(base, size);
-  }
-
   static l4_uint64_t
   verify_node(Vdev::Dt_node const &node)
   {
@@ -293,10 +257,22 @@ public:
         L4Re::chksys(-L4_EINVAL, "Setting up GICC page");
       }
 
-    // Do we have to adapt the device tree?
-    bool strip = node.get_reg_size_flags(2, nullptr, nullptr) >= 0;
-    if ((size > L4_PAGESIZE) || strip)
-      update_reg_entry(base, size, strip, node);
+    if (size > L4_PAGESIZE)
+      {
+        Dbg(Dbg::Irq, Dbg::Info, "GIC")
+          .printf("GIC %s.reg update: Adjusting GICC size from %llx to %lx\n",
+                  node.get_name(), size, L4_PAGESIZE);
+        node.update_reg_size(1, L4_PAGESIZE);
+      }
+
+    // Check if there are more than two "reg" entries (VGIC registers)
+    if (node.get_reg_size_flags(2, nullptr, nullptr) == 0)
+      {
+        Dbg(Dbg::Irq, Dbg::Info, "GIC")
+          .printf("GIC %s.reg update: Stripping superfluous entries\n",
+                  node.get_name());
+        node.resize_reg(2);
+      }
 
     return base;
   }

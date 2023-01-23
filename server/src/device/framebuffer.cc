@@ -133,7 +133,7 @@ struct F : Vdev::Factory
     if (!devs->vmm()->register_framebuffer(fb_addr, fb_size, fb_viewinfo))
       return 0;
 
-    node.set_reg_val(fb_addr, fb_size);
+    node.update_reg_size(0, fb_size);
     node.setprop_u32("width", fb_viewinfo.width);
     node.setprop_u32("height", fb_viewinfo.height);
     node.setprop_u32("stride", fb_viewinfo.bytes_per_line);
