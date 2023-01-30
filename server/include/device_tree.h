@@ -635,12 +635,15 @@ public:
     return val;
   }
 
-  int set_prop_partial(char const *property, uint32_t idx,
+  void set_prop_partial(char const *property, uint32_t idx,
                         const void *val, int len) const
   {
-    return _fdt->setprop_inplace_namelen_partial(_node,
+    int r = _fdt->setprop_inplace_namelen_partial(_node,
                                                   property, strlen(property),
                                                   idx, val, len);
+    if (r < 0)
+      ERR(this, "cannot update property '%s' partially (idx=%u, len=%d): %s",
+          property, idx, len, fdt_strerror(r));
   }
 
   /**
@@ -1003,7 +1006,7 @@ private:
             break;
           }
         default:
-          L4Re::chksys(-L4_EINVAL, "Unknown cells size");
+          ERR(this, "Unexpected cell size %u", cells);
         }
   }
 
