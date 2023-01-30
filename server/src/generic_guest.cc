@@ -43,7 +43,7 @@ Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
                    index, node.get_name(), node.strerror(res));
       L4Re::throw_error(
         -L4_EINVAL,
-        "Node has enough reg property entries for given index.");
+        "Node has not enough reg property entries for given index.");
     }
 
   if (!flags.is_mmio())
