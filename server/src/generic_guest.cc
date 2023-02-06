@@ -51,7 +51,7 @@ Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
       Err()
         .printf("Invalid 'reg' property at index %zu of node %s: not an mmio region\n",
                 index, node.get_name());
-      L4Re::throw_error(-L4_EINVAL, "Reg property contains an MMIO region.");
+      L4Re::throw_error(-L4_EINVAL, "Reg property contains no MMIO region.");
     }
 
   add_mmio_device(Region::ss(Vmm::Guest_addr(base), size, type), dev);
