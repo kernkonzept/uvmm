@@ -151,14 +151,18 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
       return Jump_instr;
 
     case Exit::Exec_wrmsr:
-      if (msr_devices_rwmsr(regs, true, vcpu.get_vcpu_id()))
-        return Jump_instr;
-      else
+      if (!msr_devices_rwmsr(regs, true, vcpu.get_vcpu_id()))
         {
           warn().printf("Writing unsupported MSR 0x%lx\n", regs->cx);
           vms->inject_hw_exception(13, Vmx_state::Push_error_code, 0);
           return L4_EOK;
         }
+      // Writing an MSR e.g. IA32_EFER can lead to injection of a HW exception.
+      // In this case the instruction wasn't emulated, thus don't jump it.
+      if (vms->event_injected())
+        return L4_EOK;
+      else
+        return Jump_instr;
 
     case Exit::Virtualized_eoi:
       Dbg().printf("INFO: EOI virtualized for vector 0x%llx\n",

@@ -13,17 +13,24 @@ namespace Vmm {
 Vm_state::~Vm_state() = default;
 
 enum : unsigned long
-  {
-    Misc_enable_fast_string = 1UL,
+{
+  Misc_enable_fast_string = 1UL,
 
-    Cr0_pe_bit = 1UL,
-    Cr0_pg_bit = 1UL << 31,
+  Cr0_pe_bit = 1UL,
+  Cr0_pg_bit = 1UL << 31,
 
-    Efer_lme_bit = 1UL << 8,
-    Efer_lma_bit = 1UL << 10,
+  Cr4_pae_bit = 1UL << 5,
+  Cr4_la57_bit = 1UL << 12,
 
-    Entry_ctrl_ia32e_bit = 1UL << 9,
-  };
+  Efer_syscall_enable_bit = 1UL,
+  Efer_lme_bit = 1UL << 8,
+  Efer_lma_bit = 1UL << 10,
+  Efer_nxe_bit = 1UL << 11,
+  // EFER.LMA writes are ignored. Other bits reserved.
+  Efer_write_mask = Efer_syscall_enable_bit | Efer_lme_bit | Efer_nxe_bit,
+
+  Entry_ctrl_ia32e_bit = 1UL << 9,
+};
 
 /**
  * Handle exits due to HW/SW exceptions, NMIs, and external interrupts.
@@ -143,33 +150,26 @@ Vmx_state::write_msr(unsigned msr, l4_uint64_t value)
       break;
     case 0xc0000080: // efer
       {
-        l4_uint64_t efer = value & 0xD01;
-        auto vm_entry_ctls = vmx_read(VMCS_VM_ENTRY_CTLS);
+        l4_uint64_t old_efer = vmx_read(VMCS_GUEST_IA32_EFER);
+        // LMA writes are ignored.
+        l4_uint64_t efer = (value & Efer_write_mask) | (old_efer & Efer_lma_bit);
+        l4_uint64_t cr0 = vmx_read(VMCS_GUEST_CR0);
 
-        trace().printf("vmx read CRO: 0x%llx old efer 0x%llx new efer 0x%llx, "
-                       "vm_entry_ctls 0x%llx\n",
-                       vmx_read(VMCS_GUEST_CR0),
-                       vmx_read(VMCS_GUEST_IA32_EFER), efer,
-                       vm_entry_ctls);
+        trace().printf("IA32_EFER write: CR0: 0x%llx, old efer 0x%llx, "
+                      "new efer 0x%llx\n",
+                      cr0, old_efer, efer);
 
-        if ((efer & Efer_lme_bit)
-            && (vmx_read(VMCS_GUEST_CR0) & Cr0_pg_bit))
+        if (cr0 & Cr0_pg_bit)
           {
-            // enable long mode
-            vmx_write(VMCS_VM_ENTRY_CTLS,
-                      vm_entry_ctls | Entry_ctrl_ia32e_bit);
-            efer |= Efer_lma_bit;
-          }
-        else // There is no going back from enabling long mode.
-          {
-            if (efer & Efer_lme_bit)
+            // Can't change LME while CR0.PG is set. SDM vol 3. 4.1
+            if ((efer & Efer_lme_bit) != (old_efer & Efer_lme_bit))
               {
-                if (vm_entry_ctls & Entry_ctrl_ia32e_bit)
-                  efer |= Efer_lma_bit;
+                // Inject GPF and do not write IA32_EFER
+                inject_hw_exception(13, Vmx_state::Push_error_code, 0);
+                break;
               }
           }
-        trace().printf("efer: 0x%llx, vm_entry_ctls 0x%llx\n", efer,
-                       vm_entry_ctls);
+
         vmx_write(VMCS_GUEST_IA32_EFER, efer);
         break;
       }
@@ -196,6 +196,7 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
   auto qual = vmx_read(VMCS_EXIT_QUALIFICATION);
   int crnum;
   l4_umword_t newval;
+  long retval = Jump_instr;
 
   switch ((qual >> 4) & 3)
     {
@@ -239,47 +240,109 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
       {
         auto old_cr0 = vmx_read(VMCS_GUEST_CR0);
         trace().printf("Write to cr0: 0x%llx -> 0x%lx\n", old_cr0, newval);
+
+        l4_uint64_t cr4 = vmx_read(VMCS_GUEST_CR4);
+        l4_uint64_t efer = vmx_read(VMCS_GUEST_IA32_EFER);
+
+        // enable paging
+        if ((newval & Cr0_pg_bit) && !(old_cr0 & Cr0_pg_bit))
+          {
+            if (   (!(cr4 & Cr4_pae_bit) && (efer & Efer_lme_bit))
+                || (!(efer & Efer_lme_bit) && (cr4 & Cr4_la57_bit)))
+              {
+                // inject GPF and do not write CR0
+                inject_hw_exception(13, Vmx_state::Push_error_code, 0);
+                retval = L4_EOK;
+                break;
+              }
+
+            // LA57:   Cr4.PAE,  EFER.LME,  Cr4.LA57
+            // IA32e:  Cr4.PAE,  EFER.LME, !Cr4.LA57
+            // PAE:    Cr4.PAE, !EFER.LME, !Cr4.LA57
+            // 32bit: !Cr4.PAE, !EFER.LME, !Cr4.LA57
+            if ((cr4 & Cr4_pae_bit) && (efer & Efer_lme_bit))
+              {
+                if (cr4 & Cr4_la57_bit)
+                  info().printf("Enable LA57 paging\n");
+                else
+                  info().printf("Enable IA32e paging\n");
+
+                vmx_write(VMCS_VM_ENTRY_CTLS,
+                          vmx_read(VMCS_VM_ENTRY_CTLS) | Entry_ctrl_ia32e_bit);
+                // Contrary to SDM Vol 3, 24.8.1. IA32_EFER.LMA is not set to
+                // the value of ENTRY_CTLS.IA32e on VMentry.
+                vmx_write(VMCS_GUEST_IA32_EFER, efer | Efer_lma_bit);
+              }
+            else if (cr4 & Cr4_pae_bit) // && !EFER.LME
+                trace().printf("Enable PAE paging.\n");
+            else
+                trace().printf("Enable 32-bit paging\n");
+          }
+
+        // disable paging
+        if (!(newval & Cr0_pg_bit) && (old_cr0 & Cr0_pg_bit))
+          {
+            trace().printf("Disabling paging ...\n");
+
+            vmx_write(VMCS_VM_ENTRY_CTLS,
+                      vmx_read(VMCS_VM_ENTRY_CTLS) & ~Entry_ctrl_ia32e_bit);
+            // Contrary to SDM Vol 3, 24.8.1. IA32_EFER.LMA is not set to
+            // the value of ENTRY_CTLS.IA32e on VMentry.
+            vmx_write(VMCS_GUEST_IA32_EFER, efer & ~Efer_lma_bit);
+          }
+
         // 0x10 => Extension Type; hardcoded to 1 see manual
         vmx_write(VMCS_GUEST_CR0, newval | 0x10);
         vmx_write(VMCS_CR0_READ_SHADOW, newval);
-        if ((newval & Cr0_pg_bit)
-            && (old_cr0 & Cr0_pg_bit) == 0
-            && (vmx_read(VMCS_GUEST_IA32_EFER) & Efer_lme_bit))
-          {
-            // enable long mode
-            info().printf("Enable long mode\n");
-            vmx_write(VMCS_VM_ENTRY_CTLS,
-                      vmx_read(VMCS_VM_ENTRY_CTLS)
-                        | Entry_ctrl_ia32e_bit);
-            vmx_write(VMCS_GUEST_IA32_EFER,
-                      vmx_read(VMCS_GUEST_IA32_EFER) | Efer_lma_bit);
-          }
-
-        if ((newval & Cr0_pg_bit) == 0
-            && (old_cr0 & Cr0_pg_bit))
-          {
-            trace().printf("Disabling paging ...\n");
-            vmx_write(VMCS_VM_ENTRY_CTLS,
-                      vmx_read(VMCS_VM_ENTRY_CTLS)
-                        & ~Entry_ctrl_ia32e_bit);
-
-            if (vmx_read(VMCS_GUEST_IA32_EFER) & Efer_lme_bit)
-              vmx_write(VMCS_GUEST_IA32_EFER,
-                        vmx_read(VMCS_GUEST_IA32_EFER) & ~Efer_lma_bit);
-          }
-
         break;
       }
     case 4:
-      // force VMXE bit but hide it from guest
-      trace().printf("mov to cr4: 0x%lx, RIP 0x%lx\n", newval, ip());
-      // CR4 0x2000  = VMXEnable bit
-      vmx_write(VMCS_GUEST_CR4, newval | 0x2000);
-      vmx_write(VMCS_CR4_READ_SHADOW, newval);
-      break;
-    default: warn().printf("Unknown CR access.\n"); return -L4_EINVAL;
+      {
+        trace().printf("mov to cr4: 0x%lx, RIP 0x%lx\n", newval, ip());
+        l4_uint64_t old_cr4 = vmx_read(VMCS_GUEST_CR4);
+
+        if (vmx_read(VMCS_GUEST_CR0) & Cr0_pg_bit)
+          {
+            if ((newval & Cr4_la57_bit) != (old_cr4 & Cr4_la57_bit))
+              {
+                // inject GPF and do not write CR4
+                inject_hw_exception(13, Vmx_state::Push_error_code, 0);
+                retval = L4_EOK;
+                break;
+              }
+
+            l4_uint64_t efer = vmx_read(VMCS_GUEST_IA32_EFER);
+            if (!(newval & Cr4_pae_bit) && (efer & Efer_lme_bit))
+              {
+                // inject GPF and do not write CR4
+                inject_hw_exception(13, Vmx_state::Push_error_code, 0);
+                retval = L4_EOK;
+                break;
+              }
+            // !EFER.LME means either PAE or 32-bit paging. Transitioning
+            // between these two while Cr0.PG is set is allowed.
+          }
+
+        // We don't support 5-level page tables, be quirky and don't allow
+        // setting this bit. (Or fix page-table walker.)
+        if (newval & Cr4_la57_bit)
+          {
+            info().printf("Cr4 Guest wants to enable LA57. Filtering...\n");
+            newval &= ~Cr4_la57_bit;
+          }
+
+        // CR4 0x2000  = VMXEnable bit
+        // force VMXEnable bit, but hide it from guest
+        vmx_write(VMCS_GUEST_CR4, newval | 0x2000);
+        vmx_write(VMCS_CR4_READ_SHADOW, newval);
+        break;
+      }
+
+    default:
+      warn().printf("Unknown CR access.\n");
+      retval = -L4_EINVAL;
     }
-  return Jump_instr;
+  return retval;
 }
 
 int
