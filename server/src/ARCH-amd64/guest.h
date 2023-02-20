@@ -169,18 +169,27 @@ private:
   unsigned get_max_physical_address_bit() const
   {
     l4_umword_t ax, bx, cx, dx;
-    // check for highest CPUID leaf:
-    l4util_cpu_cpuid(0, &ax, &bx, &cx, &dx);
 
-    if (ax == 0x80000008)
+    // Check for highest extended CPUID leaf
+    l4util_cpu_cpuid(0x80000000, &ax, &bx, &cx, &dx);
+
+    if (ax >= 0x80000008)
       l4util_cpu_cpuid(0x80000008, &ax, &bx, &cx, &dx);
     else
       {
-        l4util_cpu_cpuid(0x1, &ax, &bx, &cx, &dx);
-        if (dx & (1UL << 6)) // PAE
-          ax = 36;           // minimum if leaf not supported
+        // Check for highest basic CPUID leaf
+        l4util_cpu_cpuid(0x00, &ax, &bx, &cx, &dx);
+
+        if (ax >= 0x01)
+          {
+            l4util_cpu_cpuid(0x01, &ax, &bx, &cx, &dx);
+            if (dx & (1UL << 6)) // PAE
+              ax = 36;
+            else
+              ax = 32;
+          }
         else
-          ax = 32;
+          ax = 32; // Minimum if leaf not supported
       }
 
     return ax & Max_phys_addr_bits_mask;
