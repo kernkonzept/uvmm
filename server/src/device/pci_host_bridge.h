@@ -243,8 +243,8 @@ protected:
     // Without DMA we don't pass-through PCI devices.
     if (_as_mgr->is_no_dma_mode())
       {
-        warn().
-          printf("DMA disabled, wouldn't add any PCI device to the PCI bridge!\n");
+        warn().printf("DMA disabled, will not add any physical PCI devices to "
+                      "the PCI bridge!\n");
         return;
       }
 
