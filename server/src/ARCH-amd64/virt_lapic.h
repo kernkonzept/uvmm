@@ -751,7 +751,7 @@ public:
     // Always use the extended MSI-X format. If not in use, the upper bits will
     // simply be 0. cf.  Intel Virtualization Technology for Directed I/O
     // Architecture Specification (June 2019) 5.1.8
-    l4_uint32_t id = addr.dest_id_upper() | addr.dest_id();
+    l4_uint32_t id = (addr.dest_id_upper() << 8) | addr.dest_id();
 
     if (addr.fixed() != Vdev::Msix::Address_interrupt_prefix)
       {
