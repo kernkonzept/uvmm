@@ -17,8 +17,8 @@ namespace {
 /**
  * Device to forward boot data over the qemu fw configuration interface.
  *
- * The qemu_fw_cfg node can have l4vmm,kernel, l4vmm,ramdisk and l4vmm,cmdline
- * as additional properties.
+ * The qemu_fw_cfg node must have l4vmm,kernel, l4vmm,ramdisk and l4vmm,cmdline
+ * as additional properties. Their value can be an empty string.
  *
  *      qemu_fw_if {
  *        compatible = "l4vmm,qemu-fw-cfg";
