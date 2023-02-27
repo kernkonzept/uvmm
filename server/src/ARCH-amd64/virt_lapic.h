@@ -646,7 +646,6 @@ private:
 
     // Cf. Vol 3A 10.6.1 / Figure 10-12 vs. Vol 3A 10.12.9 / Figure 10-28
     l4_uint32_t id = x2apic ? icr.dest_field_x2apic() : icr.dest_field_mmio();
-    unsigned const max_cpuid = _cpus->max_cpuid();
 
     if (data.delivery_mode() == Vdev::Msix::Delivery_mode::Dm_init
         || data.delivery_mode() == Vdev::Msix::Delivery_mode::Dm_startup)
@@ -684,16 +683,16 @@ private:
         _msix_ctrl->send(addr.raw, data.raw);
         break;
       case Destination_shorthand::All_including_self:
-        for (unsigned i = 0; i <= max_cpuid; ++i)
-          {
-            addr.dest_id() = i & 0xffU;
-            addr.dest_id_upper() = x2apic ? i >> 8 : 0U;
-            addr.dest_mode() = 0; // physical addressing
-            _msix_ctrl->send(addr.raw, data.raw);
-          }
+        // specify a physical broadcast MSI to be handled by Lapic_array
+        addr.dest_id() = 0xffU;
+        addr.dest_id_upper() = x2apic ? 0xfffffffUL : 0x0UL;
+        addr.dest_mode() = 0;
+        _msix_ctrl->send(addr.raw, data.raw);
         break;
       case Destination_shorthand::All_excluding_self:
-        for (unsigned i = 0; i <= max_cpuid; ++i)
+        // Intel SDM: Translates to physical destination mode broadcast IPI.
+        // Emulate the broadcast with single MSI for each vCPU.
+        for (unsigned i = 0; i <= _cpus->max_cpuid(); ++i)
           {
             if (i == vcpu_no)
               continue;
@@ -702,6 +701,7 @@ private:
             addr.dest_mode() = 0; // physical addressing
             _msix_ctrl->send(addr.raw, data.raw);
           }
+        break;
       }
   }
 
