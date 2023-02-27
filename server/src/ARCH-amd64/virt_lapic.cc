@@ -55,11 +55,28 @@ Virt_lapic::set(unsigned irq)
 void
 Virt_lapic::set(Vdev::Msix::Data_register_format data)
 {
+  //  assumption 1: delivery_mode lowest prio already arbitrated
+  //  assumption 2: only called if this APIC is destination
   using namespace Vdev::Msix;
 
-  irq_trigger(data.vector(),
-              data.delivery_mode() == Dm_fixed
-                || data.delivery_mode() == Dm_lowest_prio);
+  switch (data.delivery_mode())
+    {
+    case Dm_fixed: // FALL-THROUGH
+    case Dm_lowest_prio:
+      irq_trigger(data.vector(), true);
+      break;
+    case Dm_smi: info().printf("SMI dropped at LAPIC 0x%x\n", id()); break;
+    case Dm_nmi: nmi(); break;
+    case Dm_init: init_ipi(); break;
+    case Dm_startup: startup_ipi(data); break;
+    case Dm_extint: irq_trigger(data.vector(), false); break;
+    default:
+      info().printf("LAPIC 0x%x drops unknown MSI. Delivery mode 0x%x, Vector "
+                    "0x%x, data: 0x%llx\n",
+                    id(), data.delivery_mode().get(), data.vector().get(),
+                    data.raw);
+      break;
+    };
 }
 
 void

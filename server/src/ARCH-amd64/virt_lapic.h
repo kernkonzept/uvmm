@@ -171,7 +171,9 @@ class Virt_lapic : public Vdev::Timer, public Ic
   {
     Xapic_mode_local_apic_id_shift = 24,
     Xapic_mode_logical_apic_id_shift = 24,
-    Xapic_dfr_model_mask = 0xfU << 28,
+    Xapic_dfr_model_shift = 28,
+    Xapic_dfr_flat_model = 0x0fU,
+    Xapic_dfr_cluster_model = 0x00U,
 
     Apic_base_bsp_processor = 1UL << 8,
     Apic_base_x2_enabled = 1UL << 10,
@@ -180,7 +182,6 @@ class Virt_lapic : public Vdev::Timer, public Ic
     Lapic_version = 0x60014, /// 14 = xAPIC, 6 = max LVT entries - 1
 
     X2apic_ldr_logical_apic_id_mask = 0xffff,
-    X2apic_ldr_logical_cluster_id_size = 0xffff,
     X2apic_ldr_logical_cluster_id_shift = 16,
   };
 
@@ -292,31 +293,34 @@ public:
    */
   bool match_ldr(l4_uint32_t did) const
   {
-    auto logical_id = logical_apic_id();
+    l4_uint32_t logical_id = logical_apic_id();
 
     if (_x2apic_enabled)
       {
         // x2APIC supports only cluster mode
-        // ldr format: 31:16 cluster id, 15:0 logical APIC ID
-        // XXX SMP: assumption cluster id = 0 as no SMP support.
-        logical_id &= X2apic_ldr_logical_apic_id_mask;
+        // [31:16] cluster ID, [15:0] Sub-ID-bitmap
+        l4_uint32_t did_cluster = did >> X2apic_ldr_logical_cluster_id_shift;
+        l4_uint32_t lid_cluster =
+          logical_id >> X2apic_ldr_logical_cluster_id_shift;
+        return (did_cluster == lid_cluster)
+               && (logical_id & did & X2apic_ldr_logical_apic_id_mask);
       }
     else
       {
-        // Intel SDM: October 2017: cluster modes: flat and hierarchical cluster
-        // flat cluster only in p6 and pentium processors;
-        // hierarchical cluster need a cluster manager device.
-        // => flat address mode is the only supported one.
-        // flat address mode: dfr[31:28] = 0b1111;
-        if ((_regs.dfr & Xapic_dfr_model_mask) != Xapic_dfr_model_mask)
+        switch (_regs.dfr >> Xapic_dfr_model_shift)
           {
-            trace().printf(
-              "Cluster addressing mode not supported; MSI dropped\n");
+          case Xapic_dfr_flat_model:
+            // flat address mode: dfr[31:28] = 0b1111;
+            return logical_id & did;
+          case Xapic_dfr_cluster_model:
+            // cluster addressing mode:
+            // DID & logical APIC ID: [7:4]: Cluster, [3:0]: Sub-ID-bitmap
+            return (logical_id & 0xf0) == (did & 0xf0)
+                   && (logical_id & did & 0xf);
+          default:
             return false;
           }
       }
-
-    return logical_id & did;
   }
 
   l4_uint32_t id() const { return _lapic_x2_id; }
@@ -341,6 +345,8 @@ public:
                   _lapic_x2_id, entry);
     _cpu->reschedule();
   }
+
+  bool x2apic_mode() const { return _x2apic_enabled; }
 
 private:
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "LAPIC"); }
@@ -373,9 +379,49 @@ class Lapic_array
   enum { Max_lapics = Vmm::Cpu_dev::Max_cpus };
 
 public:
-  bool send_to_logical_dest_id(l4_uint32_t did,
-                               Vdev::Msix::Data_register_format data) const
+  /**
+   * Process MSI data and destination ID in physical addressing mode.
+   *
+   * \param did   Destination ID as defined in the MSI/-X address.
+   * \param data  MSI/-X data value.
+   *
+   * \pre MSI addressing format is physical.
+   */
+  void physical_mode(l4_uint32_t did, Vdev::Msix::Data_register_format data)
   {
+    if (handle_broadcast(did, data))
+      return;
+
+    auto lapic = get(did);
+    if (lapic)
+      lapic->set(data);
+    else
+      info().printf("No LAPIC for DID 0x%x with physical addressing. Data "
+                    "0x%llx\n",
+                    did, data.raw);
+  }
+
+  /**
+   * Process MSI data and destination ID in logical addressing mode.
+   *
+   * \param did   Destination ID as defined in the MSI/-X address.
+   * \param data  MSI/-X data value.
+   * \param lp    MSI requests lowest priority arbitration.
+   *
+   * \pre MSI addressing format is logical.
+   */
+  void logical_mode(l4_uint32_t did, Vdev::Msix::Data_register_format data,
+                    bool lowest_prio)
+  {
+    if (lowest_prio)
+      {
+        logical_mode_lp(did, data);
+        return;
+      }
+
+    if (handle_broadcast(did, data))
+      return;
+
     bool sent = false;
     for (auto &lapic : _lapics)
       if (lapic && lapic->match_ldr(did))
@@ -384,34 +430,14 @@ public:
           sent = true;
         }
 
-    return sent;
+    if (!sent)
+      info().printf("No matching logical DestID: 0x%x, data 0x%llx\n", did,
+                    data.raw);
   }
 
   cxx::Ref_ptr<Virt_lapic> get(unsigned core_no) const
   {
     return (core_no < Max_lapics) ? _lapics[core_no] : nullptr;
-  }
-
-  Virt_lapic *get_lowest_prio() const
-  {
-    // init value greater 15, as task priority is between 1 and 15;
-    l4_uint32_t prio = 20;
-    Virt_lapic *lowest_prio_apic = nullptr;
-
-    for (auto &lapic : _lapics)
-      {
-        if (!lapic)
-          continue;
-
-        auto apic_prio = lapic->task_prio_class();
-        if (apic_prio < prio)
-          {
-            prio = apic_prio;
-            lowest_prio_apic = lapic.get();
-          }
-      }
-
-    return lowest_prio_apic;
   }
 
   void register_core(unsigned core_no, cxx::Ref_ptr<Vmm::Cpu_dev> cpu)
@@ -426,6 +452,61 @@ public:
   }
 
 private:
+  static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "LAPIC_array"); }
+  static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "LAPIC_array"); }
+  static Dbg info() { return Dbg(Dbg::Irq, Dbg::Info, "LAPIC_array"); }
+
+  /// true, iff `did` is a broadcast in the current LAPIC mode.
+  bool is_broadcast(l4_uint32_t did) const
+  {
+    bool x2apic_mode = _lapics[0]->x2apic_mode();
+    if (x2apic_mode)
+      return 0xffffffffU == did;
+    else
+      return 0xffU == did;
+  }
+
+  /**
+   * Handle broadcast MSI for logical and physical destination mode.
+   *
+   * \return True, iff `did` indicated a broadcast.
+   */
+  bool handle_broadcast(l4_uint32_t did, Vdev::Msix::Data_register_format data)
+  {
+    if (is_broadcast(did))
+      {
+        for (auto &lapic : _lapics)
+          if (lapic)
+            lapic->set(data);
+
+        return true;
+      }
+
+    return false;
+  }
+
+  /// Handle logical mode MSI with lowest priority arbitration.
+  void logical_mode_lp(l4_uint32_t did, Vdev::Msix::Data_register_format data)
+  {
+    Virt_lapic *lowest = nullptr;
+    for (auto &lapic : _lapics)
+      {
+        if (lapic && lapic->match_ldr(did))
+          {
+            if (!lowest)
+              lowest = lapic.get();
+            else if (lapic->task_prio_class() < lowest->task_prio_class())
+              lowest = lapic.get();
+          }
+      }
+    if (lowest)
+      lowest->set(data);
+    else
+      warn().printf("Lowest priority aribitration for MSI failed. DestId 0x%x, "
+                    "Data 0x%llx\n",
+                    did, data.raw);
+  }
+
   cxx::Ref_ptr<Virt_lapic> _lapics[Vmm::Cpu_dev::Max_cpus];
 }; // class Lapic_array
 
@@ -759,69 +840,22 @@ public:
         return;
       }
 
-    switch (data.delivery_mode())
-      {
-      case Vdev::Msix::Delivery_mode::Dm_init:
-        if (auto lapic = _apics->get(id))
-          {
-            lapic->init_ipi();
-            return;
-          }
-        break;
-      case Vdev::Msix::Delivery_mode::Dm_startup:
-        if (auto lapic = _apics->get(id))
-          {
-            lapic->startup_ipi(data);
-            return;
-          }
-        break;
-      case Vdev::Msix::Delivery_mode::Dm_nmi:
-        if (auto lapic = _apics->get(id))
-          lapic->nmi();
-        return;
-      case Vdev::Msix::Delivery_mode::Dm_smi:
-        info().printf("Dropped SMI request\n");
-        return;
-      default:
-        break;
-      }
+  // If RH is set, we do lowest priority arbitration!
+  // We can only do lowest prio arbitration in logical addressing mode.
+  // Therefore, we ignore the RH bit in physical addressing mode.
+  // The same is true when the delivery mode is set to lowest priority.
+  // The encoding physical mode, broadcast ID and lowest priority is
+  // forbidden/undefined. Process it as physical broadcast just in case.
+  if (addr.dest_mode())
+    {
+      bool lowest_prio =
+        addr.redirect_hint()
+        || (data.delivery_mode() == Vdev::Msix::Dm_lowest_prio);
 
-    if (addr.redirect_hint())
-      {
-        // Find LAPIC with lowest TPR and send the MSI its way. We shortcut it
-        // here to improve performance. Alternatively, we can rewrite the MSI
-        // address to physical destination mode and write the local APIC ID to
-        // the DID field.
-        Virt_lapic *lapic = _apics->get_lowest_prio();
-
-        trace().printf(
-          "Lowest interrupt priority arbitration: send to LAPIC 0x%x\n",
-          lapic->id());
-
-        lapic->set(data);
-        return;
-      }
-
-    if (!addr.dest_mode())
-      {
-        // physical addressing mode: id references a local APIC ID
-        auto lapic = _apics->get(id).get();
-        if (lapic)
-          {
-            lapic->set(data);
-            return;
-          }
-      }
-    else
-      {
-        // logical addressing mode: id is a bitmask of logical APIC ID targets
-        if (_apics->send_to_logical_dest_id(id, data))
-          return;
-      }
-
-    info().printf(
-      "No valid LAPIC found; MSI dropped. MSI address 0x%llx, data 0x%llx\n",
-      msix_addr, msix_data);
+      _apics->logical_mode(id, data, lowest_prio);
+    }
+  else
+    _apics->physical_mode(id, data);
   }
 
 private:
