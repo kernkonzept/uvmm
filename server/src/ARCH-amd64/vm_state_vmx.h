@@ -14,6 +14,8 @@
 #include "vmcs.h"
 #include "vm_state.h"
 #include "debug.h"
+#include "event_recorder.h"
+
 #include <cstdio>
 
 #include <cassert>
@@ -365,13 +367,6 @@ public:
     vmx_write(VMCS_CR4_GUEST_HOST_MASK, ~0ULL);
   }
 
-  void reinject_event_after_vmexit()
-  {
-    Vmx_state::Idt_vectoring_info vinfo = idt_vectoring_info();
-    if (vinfo.valid())
-      inject_event(vinfo);
-  }
-
   Injection_event pending_event_injection() override
   {
     Vmx_state::Idt_vectoring_info vinfo = idt_vectoring_info();
@@ -640,43 +635,17 @@ public:
     vmx_write(VMCS_VM_ENTRY_INTERRUPT_INFO, info.field);
   }
 
-  void inject_interrupt(unsigned irq)
-  {
-    using Int_type = Vmx_int_info_field::Int_type;
-    inject_event(irq, Int_type::External_interrupt);
-  }
-
-  void inject_nmi()
-  {
-    using Int_type = Vmx_int_info_field::Int_type;
-    inject_event(2, Int_type::NMI);
-  }
-
-  /**
-   * Inject a hardware description into the guest.
-   *
-   * \param exec_num     Exception number.
-   * \param deliver_err  Deliver error code on the guest stack.
-   * \param err_code     Error code to deliver, if any.
-   */
-  void inject_hw_exception(int exc_num, Deliver_error_code deliver_err,
-                           l4_uint32_t err_code = 0)
-  {
-    using Int_type = Vmx_int_info_field::Int_type;
-    inject_event(exc_num, Int_type::Hardware_exception, deliver_err, err_code);
-  }
-
   l4_uint64_t vmx_read(unsigned int field) const
   { return l4_vm_vmx_read(_vmcs, field); }
 
   void vmx_write(unsigned field, l4_uint64_t val)
   { l4_vm_vmx_write(_vmcs, field, val); }
 
-  int handle_cr_access(l4_vcpu_regs_t *regs);
+  int handle_cr_access(l4_vcpu_regs_t *regs, Event_recorder *ev_rec);
   int handle_exception_nmi_ext_int();
 
   bool read_msr(unsigned msr, l4_uint64_t *value) const override;
-  bool write_msr(unsigned msr, l4_uint64_t value) override;
+  bool write_msr(unsigned msr, l4_uint64_t value, Event_recorder *ev_rec) override;
 
   int handle_hardware_exception(unsigned num);
 

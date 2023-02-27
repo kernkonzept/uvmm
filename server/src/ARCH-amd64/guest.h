@@ -27,6 +27,7 @@
 #include "pt_walker.h"
 #include "vm_ram.h"
 #include "binary_loader.h"
+#include "event_recorder.h"
 
 namespace Vmm {
 
@@ -166,7 +167,10 @@ private:
   template<typename VMS>
   void run_vm_t(Vcpu_ptr vcpu, VMS *vm) L4_NORETURN;
 
-  template<typename VMS>
+  template <typename VMS>
+  void event_injection_t(Vcpu_ptr vcpu, VMS *vm);
+
+  template <typename VMS>
   int handle_exit(Vcpu_ptr vcpu, VMS *vm);
 
   unsigned get_max_physical_address_bit() const
@@ -207,6 +211,10 @@ private:
   bool handle_cpuid_devices(l4_vcpu_regs_t const *regs, unsigned *a,
                             unsigned *b, unsigned *c, unsigned *d);
 
+
+  Event_recorder *recorder(unsigned num)
+  { return _event_recorders.recorder(num); }
+
   std::mutex _iomap_lock;
   Io_mem _iomap;
 
@@ -222,6 +230,7 @@ private:
   cxx::Ref_ptr<Gic::Lapic_access_handler> _lapic_access_handler;
   Boot::Binary_type _guest_t;
   cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
+  Vmm::Event_recorder_array<Max_cpus> _event_recorders;
 };
 
 /**
@@ -231,7 +240,10 @@ private:
 class Vcpu_msr_handler : public Msr_device
 {
 public:
-  Vcpu_msr_handler(Cpu_dev_array *cpus) : _cpus(cpus) {};
+  Vcpu_msr_handler(Cpu_dev_array *cpus,
+                   Vmm::Event_recorders *ev_rec)
+  : _cpus(cpus), _ev_rec(ev_rec)
+  {};
 
   bool read_msr(unsigned msr, l4_uint64_t *value, unsigned vcpu_no) const override
   {
@@ -240,11 +252,14 @@ public:
 
   bool write_msr(unsigned msr, l4_uint64_t value, unsigned vcpu_no) override
   {
-    return _cpus->vcpu(vcpu_no).vm_state()->write_msr(msr, value);
+    return _cpus->vcpu(vcpu_no)
+      .vm_state()
+      ->write_msr(msr, value, _ev_rec->recorder(vcpu_no));
   }
 
 private:
   Cpu_dev_array *_cpus;
+  Event_recorders *_ev_rec;
 };
 
 } // namespace Vmm

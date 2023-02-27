@@ -218,7 +218,7 @@ Svm_state::read_msr(unsigned msr, l4_uint64_t *value) const
 }
 
 bool
-Svm_state::write_msr(unsigned msr, l4_uint64_t value)
+Svm_state::write_msr(unsigned msr, l4_uint64_t value, Event_recorder *)
 {
   switch (msr)
     {

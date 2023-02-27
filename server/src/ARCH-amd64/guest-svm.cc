@@ -44,6 +44,7 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
   // Initially all fields are clean
   vms->mark_all_clean();
 
+  auto *ev_rec = recorder(vcpu.get_vcpu_id());
   using Exit = Svm_state::Exit;
   Exit reason = vms->exit_code();
 
@@ -157,7 +158,7 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
           {
             info().printf("%s unsupported MSR 0x%lx\n",
                           write ? "Writing" : "Reading", regs->cx);
-            vms->inject_hw_exception(13, Svm_state::Push_error_code, 0);
+            ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
             return L4_EOK;
           }
       }
@@ -191,7 +192,7 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
           {
             if (vms->vmcb()->state_save_area.cr4 & (1U << 3)) // CR4.DE set?
               {
-                vms->inject_hw_exception(6, Svm_state::No_error_code); // #UD
+                ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6);
                 return Retry;
               }
             // else: alias to DR6 & DR7
@@ -211,7 +212,7 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
     case Exit::Dr15_read:
       // AMD APM Vol 2 Chapter 13.1.1.5 "64-Bit-Mode Extended Debug Registers":
       // DR8-15 are not implemented -> #UD
-      vms->inject_hw_exception(6, Svm_state::No_error_code);
+      ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6);
       return Retry;
 
     case Exit::Dr0_write:
@@ -229,7 +230,7 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
           {
             if (vms->vmcb()->state_save_area.cr4 & (1U << 3)) // CR4.DE set?
               {
-                vms->inject_hw_exception(6, Svm_state::No_error_code); // #UD
+                ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6);
                 return Retry;
               }
           }
@@ -245,7 +246,7 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
     case Exit::Dr15_write:
       // AMD APM Vol 2 Chapter 13.1.1.5 "64-Bit-Mode Extended Debug Registers":
       // DR8-15 are not implemented -> #UD
-      vms->inject_hw_exception(6, Svm_state::No_error_code);
+      ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6);
       return Retry;
 
     default:

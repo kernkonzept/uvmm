@@ -44,6 +44,8 @@ struct Injection_event
   explicit Injection_event(l4_uint64_t val) : raw(val) {}
 };
 
+class Event_recorder;
+
 class Vm_state
 {
 public:
@@ -63,7 +65,7 @@ public:
   virtual l4_umword_t cr3() const = 0;
 
   virtual bool read_msr(unsigned msr, l4_uint64_t *value) const = 0;
-  virtual bool write_msr(unsigned msr, l4_uint64_t value) = 0;
+  virtual bool write_msr(unsigned msr, l4_uint64_t value, Event_recorder *ev_rec) = 0;
 
   virtual Injection_event pending_event_injection() = 0;
   virtual void inject_event(Injection_event const &ev) = 0;

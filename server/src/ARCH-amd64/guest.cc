@@ -20,6 +20,9 @@
 #include "msr_devices.h"
 #include "acpi.h"
 #include "mad.h"
+#include "event_recorder.h"
+#include "event_record.h"
+#include "event_record_lapic.h"
 
 static cxx::Static_container<Vmm::Guest> guest;
 Acpi::Acpi_device_hub *Acpi::Acpi_device_hub::_hub;
@@ -175,7 +178,8 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
       _apics->get(vcpu_id)->attach_cpu_thread(cpu->thread_cap());
     }
 
-  register_msr_device(Vdev::make_device<Vcpu_msr_handler>(_cpus.get()));
+  register_msr_device(Vdev::make_device<Vcpu_msr_handler>(_cpus.get(),
+                      &_event_recorders));
   register_msr_device(
     Vdev::make_device<Vdev::Microcode_revision>(_cpus->vcpu(0)));
 }
@@ -581,8 +585,6 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
           if (tag.has_error())
             Dbg().printf("tag has error, but used as ack\n");
           vcpu.process_pending_ipc(l4_utcb());
-          // Handle Fiasco emulated VM-exit during event delivery.
-          vm->reinject_event_after_vmexit();
         }
       else if (e)
         {
@@ -654,36 +656,38 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
           while (1);
         }
 
-      if (vm->can_inject_nmi())
-        {
-          vm->disable_nmi_window();
-          if (vapic->next_pending_nmi())
-            vm->inject_nmi();
-        }
-      else if (vapic->is_nmi_pending())
-        vm->enable_nmi_window();
+      event_injection_t(vcpu, vm);
+    }
+}
 
-      if (vm->can_inject_interrupt())
-        {
-          vm->disable_interrupt_window();
-          int irq = vapic->next_pending_irq();
-          if (irq >= 0)
-            {
-              if (0)
-                trace().printf(
-                  "regs: AX 0x%lx, BX 0x%lx, CX 0x%lx, DX 0x%lx, SI 0x%lx, "
-                  "DI 0x%lx, IP 0x%lx, SP 0x%lx\n",
-                  vcpu->r.ax, vcpu->r.bx, vcpu->r.cx, vcpu->r.dx,
-                  vcpu->r.si, vcpu->r.di, vm->ip(), vm->sp());
+template<typename VMS>
+void
+Guest::event_injection_t(Vcpu_ptr vcpu, VMS *vm)
+{
+  Event_recorder *rec = recorder(vcpu.get_vcpu_id());
+  // XXX Record pending events in other subsystems in the event recorder
+  Gic::Virt_lapic *apic = lapic(vcpu);
+  if (!rec->has_nmi() && apic->next_pending_nmi())
+    rec->make_add_event<Event_nmi>(apic);
 
-              vm->inject_interrupt(irq);
-            }
-        }
-      // At the moment, the guest is not able to receive an interrupt. In case
-      // an IRQ is pending, ensure that we are notified once the guest is ready
-      // to receive the interrupt.
-      else if(vapic->is_irq_pending())
-        vm->enable_interrupt_window();
+  if (!rec->has_irq() && apic->is_irq_pending())
+    {
+      // Event_record::ev_num not used on IRQ, as we query the LAPIC for the
+      // exact value.
+      rec->make_add_event<Event_irq>(apic);
+    }
+
+
+  // TODO reenqueue what we haven't injected.
+  Injection_event pending_event = vm->pending_event_injection();
+
+  if (pending_event.valid())
+    {
+      vm->inject_event(pending_event);
+    }
+  else
+    {
+      rec->inject(static_cast<Vm_state *>(vm));
     }
 }
 

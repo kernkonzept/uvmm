@@ -7,6 +7,7 @@
 
 #include "vm_state_vmx.h"
 #include "consts.h"
+#include "event_recorder.h"
 
 namespace Vmm {
 
@@ -127,7 +128,7 @@ Vmx_state::read_msr(unsigned msr, l4_uint64_t *value) const
 }
 
 bool
-Vmx_state::write_msr(unsigned msr, l4_uint64_t value)
+Vmx_state::write_msr(unsigned msr, l4_uint64_t value, Event_recorder *ev_rec)
 {
   unsigned shadow = msr_shadow_reg(msr);
   if (shadow > 0)
@@ -172,7 +173,7 @@ Vmx_state::write_msr(unsigned msr, l4_uint64_t value)
             if ((efer & Efer_lme_bit) != (old_efer & Efer_lme_bit))
               {
                 // Inject GPF and do not write IA32_EFER
-                inject_hw_exception(13, Vmx_state::Push_error_code, 0);
+                ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
                 break;
               }
           }
@@ -198,7 +199,7 @@ Vmx_state::write_msr(unsigned msr, l4_uint64_t value)
 }
 
 int
-Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
+Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs, Event_recorder *ev_rec)
 {
   auto qual = vmx_read(VMCS_EXIT_QUALIFICATION);
   int crnum;
@@ -258,8 +259,9 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
                 || (!(efer & Efer_lme_bit) && (cr4 & Cr4_la57_bit)))
               {
                 // inject GPF and do not write CR0
-                inject_hw_exception(13, Vmx_state::Push_error_code, 0);
-                retval = L4_EOK;
+                ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
+
+                retval = Retry;
                 break;
               }
 
@@ -313,8 +315,9 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
             if ((newval & Cr4_la57_bit) != (old_cr4 & Cr4_la57_bit))
               {
                 // inject GPF and do not write CR4
-                inject_hw_exception(13, Vmx_state::Push_error_code, 0);
-                retval = L4_EOK;
+                ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
+
+                retval = Retry;
                 break;
               }
 
@@ -322,8 +325,9 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
             if (!(newval & Cr4_pae_bit) && (efer & Efer_lme_bit))
               {
                 // inject GPF and do not write CR4
-                inject_hw_exception(13, Vmx_state::Push_error_code, 0);
-                retval = L4_EOK;
+                ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
+
+                retval = Retry;
                 break;
               }
             // !EFER.LME means either PAE or 32-bit paging. Transitioning

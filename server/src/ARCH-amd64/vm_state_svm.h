@@ -12,6 +12,7 @@
 #include "vm_state.h"
 #include "debug.h"
 #include "pt_walker.h"
+#include "event_recorder.h"
 
 namespace Vmm {
 
@@ -235,9 +236,6 @@ public:
   void setup_linux_protected_mode(l4_addr_t entry) override;
   void setup_real_mode(l4_addr_t entry) override;
 
-  void reinject_event_after_vmexit()
-  { /* Nothing to do on SVM */ }
-
   Injection_event pending_event_injection() override
   {
     return Injection_event(_vmcb->control_area.exitintinfo);
@@ -412,33 +410,11 @@ public:
     _vmcb->control_area.eventinj = info.field;
   }
 
-  void inject_interrupt(unsigned irq)
-  {
-    inject_event(irq, Svm_event_info::Int_type::External_interrupt);
-  }
-
-  /**
-   * Inject a hardware exception into the guest.
-   *
-   * \param exec_num     Exception number.
-   * \param deliver_err  Deliver error code on the guest stack.
-   * \param err_code     Error code to deliver, if any.
-   */
-  void inject_hw_exception(int exc_num, Deliver_error_code deliver_err,
-                           l4_uint32_t err_code = 0)
-  {
-    inject_event(exc_num, Svm_event_info::Int_type::Exception,
-                 deliver_err, err_code);
-  }
-
-  void inject_nmi()
-  { /* TODO */ }
-
   int handle_cr0_write(l4_vcpu_regs_t *regs);
   int handle_xsetbv(l4_vcpu_regs_t *regs);
 
   bool read_msr(unsigned msr, l4_uint64_t *value) const override;
-  bool write_msr(unsigned msr, l4_uint64_t value) override;
+  bool write_msr(unsigned msr, l4_uint64_t value, Event_recorder *) override;
 
   int handle_hardware_exception(unsigned num);
 

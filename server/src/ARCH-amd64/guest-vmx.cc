@@ -10,6 +10,7 @@
 #include "debug.h"
 #include "vm_state_vmx.h"
 #include "vmx_exit_to_str.h"
+#include "event_recorder.h"
 
 namespace Vmm {
 
@@ -20,6 +21,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
   using Exit = Vmx_state::Exit;
   auto reason = vms->exit_reason();
   auto *regs = &vcpu->r;
+  auto *ev_rec = recorder(vcpu.get_vcpu_id());
 
   if (reason != Vmx_state::Exit::Exec_vmcall)
     trace().printf("Exit at guest IP 0x%lx SP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
@@ -86,10 +88,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
 
         auto ret = handle_mmio(guest_phys_addr, vcpu);
 
-        // EPT violation was handled check for IDT vectoring
-        Vmx_state::Idt_vectoring_info vinfo = vms->idt_vectoring_info();
-        if (vinfo.valid())
-          vms->inject_event(vinfo);
+        // XXX Idt_vectoring_info could be valid.
 
         switch(ret)
           {
@@ -111,9 +110,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
     // VMX specific exits
     case Exit::Exception_or_nmi:
       {
-        Vmx_state::Idt_vectoring_info vinfo = vms->idt_vectoring_info();
-        if (vinfo.valid())
-          vms->inject_event(vinfo);
+        // XXX Idt_vectoring_info could be valid.
       }
       // FIXME entry info might be overwritten by exception handling
       // currently this isn't fully fletched anyways so this works for now.
@@ -136,7 +133,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
       return Jump_instr;
 
     case Exit::Cr_access:
-      return vms->handle_cr_access(regs);
+      return vms->handle_cr_access(regs, ev_rec);
 
     case Exit::Exec_rdmsr:
       if (!msr_devices_rwmsr(regs, false, vcpu.get_vcpu_id()))
@@ -144,26 +141,28 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
           warn().printf("Reading unsupported MSR 0x%lx\n", regs->cx);
           regs->ax = 0;
           regs->dx = 0;
-          vms->inject_hw_exception(13, Vmx_state::Push_error_code, 0);
-          return L4_EOK;
+          ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
+          return Retry;
         }
 
       return Jump_instr;
 
     case Exit::Exec_wrmsr:
-      if (!msr_devices_rwmsr(regs, true, vcpu.get_vcpu_id()))
-        {
-          warn().printf("Writing unsupported MSR 0x%lx\n", regs->cx);
-          vms->inject_hw_exception(13, Vmx_state::Push_error_code, 0);
-          return L4_EOK;
-        }
-      // Writing an MSR e.g. IA32_EFER can lead to injection of a HW exception.
-      // In this case the instruction wasn't emulated, thus don't jump it.
-      if (vms->event_injected())
-        return L4_EOK;
-      else
-        return Jump_instr;
-
+      {
+        bool has_already_exception = ev_rec->has_exception();
+        if (!msr_devices_rwmsr(regs, true, vcpu.get_vcpu_id()))
+          {
+            warn().printf("Writing unsupported MSR 0x%lx\n", regs->cx);
+            ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
+            return Retry;
+          }
+        // Writing an MSR e.g. IA32_EFER can lead to injection of a HW exception.
+        // In this case the instruction wasn't emulated, thus don't jump it.
+        if (!has_already_exception && ev_rec->has_exception())
+          return Retry;
+        else
+          return Jump_instr;
+      }
     case Exit::Virtualized_eoi:
       Dbg().printf("INFO: EOI virtualized for vector 0x%llx\n",
                    vms->vmx_read(VMCS_EXIT_QUALIFICATION));
@@ -198,7 +197,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
           {
             if (vms->vmx_read(VMCS_GUEST_CR4) & (1U << 3)) // CR4.DE set?
               {
-                vms->inject_hw_exception(6, Vmx_state::No_error_code);
+                ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6);
                 return Retry;
               }
             // else: alias to DR6 & DR7
