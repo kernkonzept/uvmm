@@ -638,13 +638,13 @@ public:
 
 private:
   static Dbg warn()
-  { return Dbg(Dbg::Cpu, Dbg::Warn); }
+  { return Dbg(Dbg::Cpu, Dbg::Warn, "VMX"); }
 
   static Dbg info()
-  { return Dbg(Dbg::Cpu, Dbg::Info); }
+  { return Dbg(Dbg::Cpu, Dbg::Info, "VMX"); }
 
   static Dbg trace()
-  { return Dbg(Dbg::Cpu, Dbg::Trace); }
+  { return Dbg(Dbg::Cpu, Dbg::Trace, "VMX"); }
 
   void *_vmcs;
 };
