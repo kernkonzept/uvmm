@@ -10,6 +10,7 @@
 #include "guest.h"
 #include "device/qemu_fw_cfg.h"
 
+#include <l4/cxx/unique_ptr>
 #include <l4/re/util/env_ns>
 
 namespace {
@@ -59,24 +60,28 @@ class Qemu_fw_cfg_boot : public Qemu_fw_cfg::Provider
   {
     if (!_kernel.empty())
       {
-        Boot::Binary_ds image(_kernel.c_str());
+        _kernel_binary = cxx::make_unique<Boot::Binary_ds>(_kernel.c_str());
 
-        if (!image.is_valid())
+        if (!_kernel_binary->is_valid())
           L4Re::throw_error(-L4_EINVAL, "Kernel dataspace not found.");
 
-        if (image.is_elf_binary())
+        if (_kernel_binary->is_elf_binary())
           L4Re::throw_error(-L4_EINVAL, "Elf files not supported for qemu fw.");
 
         l4_uint8_t num_setup_sects =
-          *((char *)image.get_header() + Vmm::Bp_setup_sects);
+          *((char *)_kernel_binary->get_header() + Vmm::Bp_setup_sects);
 
-        add_kernel(image.ds(), (num_setup_sects + 1) * 512);
+        add_kernel(_kernel_binary->ds(), (num_setup_sects + 1) * 512);
       }
 
     if (!_ramdisk.empty())
-      add_initrd(
-        L4Re::chkcap(L4Re::Util::Env_ns().query<L4Re::Dataspace>(_ramdisk.c_str()),
-                     "Ramdisk dataspace not found"));
+      {
+        _ramdisk_ds = L4Re::Util::Unique_cap<L4Re::Dataspace>(
+          L4Re::chkcap(L4Re::Util::Env_ns().query<L4Re::Dataspace>(
+                         _ramdisk.c_str()),
+                       "Ramdisk dataspace not found"));
+        add_initrd(_ramdisk_ds.get());
+      }
 
     if (!_cmdline.empty())
         add_cmdline(_cmdline.c_str());
@@ -120,7 +125,9 @@ class Qemu_fw_cfg_boot : public Qemu_fw_cfg::Provider
   }
 
   std::string _kernel;
+  cxx::unique_ptr<Boot::Binary_ds> _kernel_binary;
   std::string _ramdisk;
+  L4Re::Util::Unique_cap<L4Re::Dataspace> _ramdisk_ds;
   std::string _cmdline;
 };
 
