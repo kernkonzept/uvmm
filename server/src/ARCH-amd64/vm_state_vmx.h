@@ -410,10 +410,32 @@ public:
     set_activity_state(Vmx_state::Activity_state::Active);
   }
 
+  class Interruptibility_state
+  {
+    l4_uint32_t _state;
+
+  public:
+    Interruptibility_state(l4_uint32_t int_state)
+    : _state(int_state)
+    {}
+
+    bool irq_enabled() { return !sti() && !mov_ss() && !smi() && !nmi() ; }
+    bool nmi_enabled() { return !mov_ss() && !smi() && !nmi(); }
+
+    CXX_BITFIELD_MEMBER(0, 0, sti, _state);
+    CXX_BITFIELD_MEMBER(1, 1, mov_ss, _state);
+    CXX_BITFIELD_MEMBER(2, 2, smi, _state);
+    CXX_BITFIELD_MEMBER(3, 3, nmi, _state);
+    CXX_BITFIELD_MEMBER(4, 4, enclave, _state);
+  };
+
+  Interruptibility_state interrupt_state() const
+  { return Interruptibility_state(vmx_read(VMCS_GUEST_INTERRUPTIBILITY_STATE)); }
+
   bool interrupts_enabled() const
   {
     return (vmx_read(VMCS_GUEST_RFLAGS) & Interrupt_enabled_bit)
-           && (vmx_read(VMCS_GUEST_INTERRUPTIBILITY_STATE) == 0);
+           && interrupt_state().irq_enabled();
   }
 
   /**
@@ -457,7 +479,7 @@ public:
 
   bool can_inject_nmi() const
   {
-    return vmx_read(VMCS_GUEST_INTERRUPTIBILITY_STATE) == 0
+    return interrupt_state().nmi_enabled()
            && !event_injected()
            && activity_state() < Activity_state::Shutdown;
   }
