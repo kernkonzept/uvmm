@@ -187,7 +187,9 @@ public:
     // The reset values are taken from Intel SDM Vol.3 10.1.1;
     set_activity_state(Active);
     // reflect all guest exceptions back to the guest.
-    vmx_write(VMCS_EXCEPTION_BITMAP, 0xffff0000);
+    // #DB and #AC are enforced by the microkernel to always exit the VMM
+    // We also set theses bits here to enforce this behaviour
+    vmx_write(VMCS_EXCEPTION_BITMAP, 0x00020002);
 
     // PAT reset value
     vmx_write(VMCS_GUEST_IA32_PAT, 0x0007040600070406ULL);
