@@ -177,7 +177,7 @@ struct Instruction
 static l4_umword_t
 truncate(l4_umword_t v, Width width)
 {
-  if (width >= sizeof(l4_umword_t))
+  if (width_in_bytes(width) >= sizeof(l4_umword_t))
     return v;
   return v & ((1UL << (width * 8)) - 1);
 }
@@ -191,7 +191,7 @@ truncate(l4_umword_t v, Width width)
 static l4_umword_t
 sign_extend(l4_umword_t v, Width from_width)
 {
-  if (from_width >= sizeof(l4_umword_t))
+  if (width_in_bytes(from_width) >= sizeof(l4_umword_t))
     return v;
 
   l4_umword_t const msb = 1UL << (from_width * 8 - 1);
