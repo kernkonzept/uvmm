@@ -32,6 +32,38 @@ public:
     Cr15_read = 0x0f, // Cr_access
     Cr0_write = 0x10, // Cr_access
     Cr15_write = 0x1f, // Cr_access
+    Dr0_read = 0x20,   // DR access
+    Dr1_read,
+    Dr2_read,
+    Dr3_read,
+    Dr4_read,
+    Dr5_read,
+    Dr6_read,
+    Dr7_read,
+    Dr8_read,
+    Dr9_read,
+    Dr10_read,
+    Dr11_read,
+    Dr12_read,
+    Dr13_read,
+    Dr14_read,
+    Dr15_read = 0x2f,  // DR access
+    Dr0_write = 0x30,  // DR access
+    Dr1_write,
+    Dr2_write,
+    Dr3_write,
+    Dr4_write,
+    Dr5_write,
+    Dr6_write,
+    Dr7_write,
+    Dr8_write,
+    Dr9_write,
+    Dr10_write,
+    Dr11_write,
+    Dr12_write,
+    Dr13_write,
+    Dr14_write,
+    Dr15_write = 0x3f, // DR access
     Excp_0 = 0x40, // Exception_or_nmi
     Excp_31 = 0x5f, // Exception_or_nmi
     Intr = 0x60, // ??? Physical interrupt (maskable) -> directly handled by Fiasco!

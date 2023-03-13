@@ -187,6 +187,40 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
       assert(0); // Not supported
       return L4_EOK;
 
+    case Exit::Mov_debug_reg:
+      {
+        l4_uint64_t qual = vms->vmx_read(VMCS_EXIT_QUALIFICATION);
+        unsigned char dbg_reg = qual & 0x7;
+        bool read = qual & (1 << 4);
+        unsigned char gp_reg = (qual >> 8) & 0xf;
+        // check CR4.DE
+        if (dbg_reg == 4 || dbg_reg == 5)
+          {
+            if (vms->vmx_read(VMCS_GUEST_CR4) & (1U << 3)) // CR4.DE set?
+              {
+                vms->inject_hw_exception(6, Vmx_state::No_error_code);
+                return Retry;
+              }
+            // else: alias to DR6 & DR7
+          }
+
+        if (read)
+          {
+            if (gp_reg == 0x4)
+              regs->sp = 0UL;
+            else
+              {
+                l4_umword_t *r = &(regs->ax);
+                *(r - gp_reg) = 0UL;
+              }
+          }
+        // else: ignore writes
+        info().printf("MOV DR exit: %s DR%u %s GP%u. Value: 0x%lx\n",
+                      read ? "read" : "write", dbg_reg, read ? "from" : "to",
+                      gp_reg, *(&(regs->ax) - gp_reg));
+        return Jump_instr;
+      }
+
     case Exit::Task_switch:
     case Exit::Apic_access:
     case Exit::Ept_misconfig:
