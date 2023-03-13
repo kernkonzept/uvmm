@@ -62,7 +62,10 @@ Vmx_state::handle_exception_nmi_ext_int()
 
     case 0x2: warn().printf("NMI\n"); break;
     case 0x0: warn().printf("External interrupt\n"); break;
-    default: warn().printf("Unknown\n"); break;
+    default:
+      warn().printf("Unknown interrupt type: %u, vector: %u\n",
+                    interrupt_info.type().get(), interrupt_info.vector().get());
+      break;
     }
   return -L4_ENOSYS;
 }
