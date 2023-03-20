@@ -151,6 +151,8 @@ Guest::Guest()
 
   r = cxx::make_ref_obj<Sys_reg_log>("PMUSERENR_EL0");
   add_sys_reg_aarch64(3, 3, 9, 14, 0, r);
+
+  subarch_init();
 }
 
 Guest *

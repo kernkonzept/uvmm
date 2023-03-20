@@ -33,4 +33,8 @@ Guest::add_sys_reg_aarch64(unsigned, unsigned,
                            cxx::Ref_ptr<Vmm::Arm::Sys_reg> const &)
 {}
 
+void
+Guest::subarch_init()
+{}
+
 }

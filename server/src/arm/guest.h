@@ -180,6 +180,7 @@ protected:
   bool inject_abort(l4_addr_t addr, Vcpu_ptr vcpu) override;
 
 private:
+  void subarch_init();
 
   void check_guest_constraints(l4_addr_t ram_base) const;
   void arm_update_device_tree();

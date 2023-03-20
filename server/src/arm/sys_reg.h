@@ -10,6 +10,7 @@
 #include "arm_hyp.h"
 #include "vcpu_ptr.h"
 #include <l4/cxx/ref_ptr>
+#include <functional>
 
 namespace Vmm {
 namespace Arm {
@@ -83,6 +84,18 @@ class Sys_reg_const : public Sys_reg_ro
 public:
   l4_uint64_t read(Vmm::Vcpu_ptr, Key) override
   { return VAL; }
+};
+
+class Sys_reg_feat : public Sys_reg_ro {
+public:
+  Sys_reg_feat(std::function<l4_uint64_t()> value) : Sys_reg_ro()
+  { cached_value = value(); }
+
+  l4_uint64_t read(Vmm::Vcpu_ptr, Key) override
+  { return cached_value; }
+
+private:
+  l4_uint64_t cached_value;
 };
 
 }
