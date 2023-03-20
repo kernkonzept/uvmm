@@ -291,6 +291,14 @@
  *        ext_caps = { fb = fbdrv_fb },
  *      -- ...
  *
+ *
+ * Requirements on the Fiasco.OC configuration on amd64
+ * ----------------------------------------------------
+ *
+ * The kernel configuration must feature `CONFIG_SYNC_TSC=y` in order for the
+ * emulated timers to reach a sufficiently high resolution.
+ *
+ *
  * Recommended Linux configuration options for uvmm/amd64 guests
  * -------------------------------------------------------------
  *
