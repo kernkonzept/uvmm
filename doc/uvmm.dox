@@ -350,11 +350,18 @@
  * virtualization support is necessary on your host system to run uvmm guests.
  * Your host Linux version should be 4.12 or greater, **excluding 4.20**.
  *
- * To have KVM support nested virtualization you need to enable it via:
+ * Check if your KVM module has nested virtualization enabled via:
+ *
+ *     > cat /sys/module/kvm_intel/parameters/nested
+ *     Y
+ *
+ * In case it shows `N` instead of `Y` enable nested virtualization support
+ * via:
  *
  *     modprobe kvm_intel nested=1
  *
- * uvmm does currently not support AMD-V.
+ * On AMD platforms the module name is `kvm_amd`.
+ *
  *
  * QEMU network setup for a uvmm guest on amd64
  * --------------------------------------------
