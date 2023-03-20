@@ -46,7 +46,6 @@ public:
   Acpi_timer()
   : Acpi_device()
   {
-    l4_calibrate_tsc(l4re_kip());
     _timebase = l4_rdtsc();
   }
 

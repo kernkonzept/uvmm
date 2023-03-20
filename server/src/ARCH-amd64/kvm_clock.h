@@ -42,7 +42,6 @@ class Kvm_clock : public Vdev::Timer, public Device
 public:
   Kvm_clock(Vcpu_time_info *vti, bool enable)
   {
-    l4_calibrate_tsc(l4re_kip());
     configure(vti, enable);
   }
 
@@ -100,9 +99,7 @@ public:
   : _boottime(l4_rdtsc()),
     _memmap(memmap),
     _vmm(vmm)
-  {
-    l4_calibrate_tsc(l4re_kip());
-  }
+  {}
 
   bool read_msr(unsigned, l4_uint64_t *, unsigned) const override
   {

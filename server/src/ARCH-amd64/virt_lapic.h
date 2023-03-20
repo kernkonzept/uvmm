@@ -941,9 +941,7 @@ public:
   Apic_timer(Virt_lapic *lapic)
   : _tmr_cur(0), _tmr_init(0), _div_reg(0), _lvt_reg(0x10000),
     _virt_lapic(lapic)
-  {
-    l4_calibrate_tsc(l4re_kip());
-  }
+  {}
 
   l4_uint64_t read_tmr_cur()
   {

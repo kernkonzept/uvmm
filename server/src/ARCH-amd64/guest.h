@@ -49,6 +49,9 @@ public:
     add_mmio_device(_lapic_access_handler->mmio_region(),
                     _lapic_access_handler);
     register_msr_device(_lapic_access_handler);
+
+    // Do this once for all TSC-based timers used in uvmm.
+    l4_calibrate_tsc(l4re_kip());
   }
 
   static Guest *create_instance();
