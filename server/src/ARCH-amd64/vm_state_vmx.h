@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2017-2022 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>

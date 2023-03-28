@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2020-2022 Kernkonzept GmbH.
  * Author(s): Steffen Liebergeld <steffen.liebergeld@kernkonzept.com>

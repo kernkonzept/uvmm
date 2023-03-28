@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2020 Kernkonzept GmbH.
  * Author(s): Benjamin Lamowski <benjamin.lamowski@kernkonzept.com>

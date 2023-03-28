@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2021 Kernkonzept GmbH.
  * Author(s): Georg Kotheimer <georg.kotheimer@kernkonzept.com>

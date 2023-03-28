@@ -15,8 +15,8 @@ Creator: Organization: Kernkonzept GmbH (info@kernkonzept.com)
 ## Package Information
 PackageName: uvmm
 PackageOriginator: Organization: Kernkonzept GmbH (info@kernkonzept.com)
-PackageLicenseDeclared: (GPL-2.0-only OR LicenseRef-kk-custom)
-PackageLicenseConcluded: (GPL-2.0-only OR LicenseRef-kk-custom)
+PackageLicenseDeclared: GPL-2.0-only
+PackageLicenseConcluded: GPL-2.0-only
 FilesAnalyzed: false
 PackageCopyrightText: NOASSERTION
 PackageDownloadLocation: NOASSERTION
@@ -50,13 +50,3 @@ LicenseInfoInFile: NOASSERTION
 FileCopyrightText: NOASSERTION
 
 ## License Information
-LicenseID: LicenseRef-kk-custom
-ExtractedText: <text>Kernkonzept Custom License
-
-If you have sought a special licensing agreement with Kernkonzept GmbH the
-terms and conditions from therein apply to this package.
-
-If you require a different licensing scheme please contact us at
-info@kernkonzept.com.
-</text>
-LicenseName: Kernkonzept Custom License
