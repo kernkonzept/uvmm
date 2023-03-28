@@ -3,17 +3,16 @@ L4DIR           ?= $(PKGDIR)/../..
 
 include $(L4DIR)/mk/Makeconf
 
-INSTALL_TARGET   = $(patsubst $(SRC_DIR)/%.dts,%.dtb,$(wildcard $(SRC_DIR)/*.dts))
+ASSET_TYPE       = dtb
+SRC_DTS          = $(subst $(SRC_DIR)/,,$(wildcard $(SRC_DIR)/*.dts))
+PRIVATE_INCDIR   = $(PKGDIR)/configs/dts/include $(PKGDIR)/configs/dts
+DTC_FLAGS       := $(call checkdtc,-Wno-unit_address_vs_reg) \
+                   $(call checkdtc,-Wno-simple_bus_reg) \
+                   $(call checkdtc,-Wno-spi_bus_bridge) \
+                   $(call checkdtc,-Wno-alias_paths) \
+                   $(call checkdtc,-@)
 
-PRIVATE_INCDIR        = $(PKGDIR)/configs/dts/include $(PKGDIR)/configs/dts
-REQUIRE_HOST_TOOLS    = dtc
-DTC_FLAGS            := $(call checkdtc,-Wno-unit_address_vs_reg) \
-                        $(call checkdtc,-Wno-simple_bus_reg) \
-                        $(call checkdtc,-Wno-spi_bus_bridge) \
-                        $(call checkdtc,-Wno-alias_paths) \
-                        $(call checkdtc,-@)
-
-include $(L4DIR)/mk/lib.mk
+include $(L4DIR)/mk/assets.mk
 
 clean::
 	$(VERBOSE)$(RM) $(wildcard *.dtb)
