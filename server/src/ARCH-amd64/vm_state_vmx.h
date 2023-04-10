@@ -198,7 +198,6 @@ public:
 
     vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
-                | Int_window_exit_bit
                 | Hlt_exit_bit
                 | Enable_secondary_ctls_bit
               );
