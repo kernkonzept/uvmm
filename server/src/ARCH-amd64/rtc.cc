@@ -134,7 +134,7 @@ class Rtc :
   }; // struct Alarm
 
   // allow Alarm access to private Rtc members.
-  friend class Alarm;
+  friend struct Alarm;
 
   // convert internal binary representation to BCD if needed
   l4_uint32_t convert_to_guest(int val)
