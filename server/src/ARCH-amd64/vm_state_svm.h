@@ -9,7 +9,6 @@
 
 #include <l4/cxx/bitfield>
 
-#include "vmcs.h"
 #include "vm_state.h"
 #include "debug.h"
 #include "pt_walker.h"
