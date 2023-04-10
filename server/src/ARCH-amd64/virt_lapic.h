@@ -268,6 +268,7 @@ public:
   void nmi();
 
   // vCPU expected interface
+  bool is_nmi_pending();
   int next_pending_irq();
   bool is_irq_pending();
   bool next_pending_nmi();

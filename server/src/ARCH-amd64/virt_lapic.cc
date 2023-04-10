@@ -136,6 +136,10 @@ Virt_lapic::next_pending_nmi()
                                               std::memory_order_relaxed);
 }
 
+bool
+Virt_lapic::is_nmi_pending()
+{ return _nmi_pending.load(std::memory_order_relaxed); }
+
 int
 Virt_lapic::next_pending_irq()
 {
@@ -166,8 +170,7 @@ bool
 Virt_lapic::is_irq_pending()
 {
   std::lock_guard<std::mutex> lock(_int_mutex);
-  return !_non_irr_irqs.empty() || _regs.irr.has_irq()
-         || _nmi_pending.load(std::memory_order_relaxed);
+  return !_non_irr_irqs.empty() || _regs.irr.has_irq();
 }
 
 bool

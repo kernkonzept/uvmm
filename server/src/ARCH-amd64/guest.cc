@@ -553,6 +553,7 @@ void L4_NORETURN
 Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
 {
   auto cpu = _cpus->cpu(vcpu.get_vcpu_id());
+  Gic::Virt_lapic *vapic = lapic(vcpu);
 
   L4::Cap<L4::Thread> myself;
   trace().printf("Starting vCPU 0x%lx\n", vcpu->r.ip);
@@ -629,14 +630,15 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
                   // The CPU is not supposed to accept interrupts while in
                   // INIT mode. We emulate that by clearing all interrupts
                   // that happened while CPU was stopped.
-                  lapic(vcpu)->clear_irq_state();
+                  vapic->clear_irq_state();
                   break;
                 }
 
               // if an interrupt happened, the CPU must return from Halt state
               // We cannot be sure that the pending interrupt is also
               // injectable, thus we set the activity state unconditionally.
-              if (vm->is_halted() && lapic(vcpu)->is_irq_pending())
+              if (vm->is_halted()
+                  && (vapic->is_irq_pending() || vapic->is_nmi_pending()))
                 {
                   vm->resume();
                   break;
@@ -651,16 +653,16 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
       if (vm->can_inject_nmi())
         {
           vm->disable_nmi_window();
-          if (lapic(vcpu)->next_pending_nmi())
+          if (vapic->next_pending_nmi())
             vm->inject_nmi();
         }
-      else
+      else if (vapic->is_nmi_pending())
         vm->enable_nmi_window();
 
       if (vm->can_inject_interrupt())
         {
           vm->disable_interrupt_window();
-          int irq = lapic(vcpu)->next_pending_irq();
+          int irq = vapic->next_pending_irq();
           if (irq >= 0)
             {
               if (0)
@@ -676,7 +678,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
       // At the moment, the guest is not able to receive an interrupt. In case
       // an IRQ is pending, ensure that we are notified once the guest is ready
       // to receive the interrupt.
-      else if(lapic(vcpu)->is_irq_pending())
+      else if(vapic->is_irq_pending())
         vm->enable_interrupt_window();
     }
 }
