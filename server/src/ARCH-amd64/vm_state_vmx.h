@@ -492,41 +492,41 @@ public:
    *
    * \return true  iff we can inject in an interrupt into the guest
    */
-  bool can_inject_interrupt() const
+  bool can_inject_interrupt() const override
   {
     return interrupts_enabled() && !event_injected()
            && activity_state() < Activity_state::Shutdown;
   }
 
-  void disable_interrupt_window()
+  void disable_interrupt_window() override
   {
     vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
                 & ~Int_window_exit_bit);
   }
 
-  void enable_interrupt_window()
+  void enable_interrupt_window() override
   {
     vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
                 | Int_window_exit_bit);
   }
 
-  bool can_inject_nmi() const
+  bool can_inject_nmi() const override
   {
     return interrupt_state().nmi_enabled()
            && !event_injected()
            && activity_state() < Activity_state::Shutdown;
   }
 
-  void disable_nmi_window()
+  void disable_nmi_window() override
   {
     vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
                 & ~Nmi_window_exit_bit);
   }
 
-  void enable_nmi_window()
+  void enable_nmi_window() override
   {
     vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)

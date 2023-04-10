@@ -312,10 +312,10 @@ public:
    *
    * \return true  iff we can inject in an interrupt into the guest
    */
-  bool can_inject_interrupt() const
+  bool can_inject_interrupt() const override
   { return interrupts_enabled() && !event_injected(); }
 
-  void disable_interrupt_window()
+  void disable_interrupt_window() override
   {
     // Disable dummy virtual interrupt
     Interrupt_ctl int_ctl(_vmcb->control_area.interrupt_ctl);
@@ -325,7 +325,7 @@ public:
     mark_dirty(Vmcb_tpr);
   }
 
-  void enable_interrupt_window()
+  void enable_interrupt_window() override
   {
     // Add dummy virtual interrupt, so that we get notified via the VINTR
     // intercept, once the guest is ready to receive interrupts.
@@ -346,13 +346,13 @@ public:
    *
    * Starting with Zen4, AMD SVM supports VNMI for efficient injection of NMIs.
    */
-  bool can_inject_nmi() const
+  bool can_inject_nmi() const override
   { /* TODO */ return false; }
 
-  void disable_nmi_window()
+  void disable_nmi_window() override
   { /* TODO */ }
 
-  void enable_nmi_window()
+  void enable_nmi_window() override
   { /* TODO */ }
 
   struct Svm_event_info

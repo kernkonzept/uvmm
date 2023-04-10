@@ -67,6 +67,13 @@ public:
 
   virtual Injection_event pending_event_injection() = 0;
   virtual void inject_event(Injection_event const &ev) = 0;
+
+  virtual bool can_inject_nmi() const = 0;
+  virtual bool can_inject_interrupt() const = 0;
+  virtual void disable_interrupt_window() = 0;
+  virtual void enable_interrupt_window() = 0;
+  virtual void disable_nmi_window() = 0;
+  virtual void enable_nmi_window() = 0;
 };
 
 } // namespace Vmm
