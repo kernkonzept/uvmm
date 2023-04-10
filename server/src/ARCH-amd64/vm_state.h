@@ -8,8 +8,41 @@
 #pragma once
 
 #include <l4/sys/types.h>
+#include <l4/cxx/bitfield>
 
 namespace Vmm {
+
+/// Abstraction of the VMX and SVM event injection format.
+struct Injection_event
+{
+  l4_uint64_t raw = 0;
+  CXX_BITFIELD_MEMBER(0, 31, event, raw);
+  CXX_BITFIELD_MEMBER(32, 63, error, raw);
+  // SVM and VMX both use the same bit encoding in the lower 11 bits.
+  CXX_BITFIELD_MEMBER(0, 7, vector, raw);
+  CXX_BITFIELD_MEMBER(8, 10, type, raw);
+  CXX_BITFIELD_MEMBER(11, 11, error_valid, raw);
+  // SVM and VMX both use bit 31 to indicate validity of the value.
+  CXX_BITFIELD_MEMBER(31, 31, valid, raw);
+
+  Injection_event(l4_uint32_t ev, l4_uint32_t err)
+  {
+    event() = ev;
+    error() = err;
+  }
+
+  Injection_event(unsigned char v, unsigned char t, bool err_valid = false,
+                  l4_uint32_t err_code = 0)
+  {
+    vector() = v;
+    type() = t;
+    error_valid() = err_valid;
+    error() = err_code;
+    valid() = 1;
+  }
+
+  explicit Injection_event(l4_uint64_t val) : raw(val) {}
+};
 
 class Vm_state
 {
@@ -31,6 +64,9 @@ public:
 
   virtual bool read_msr(unsigned msr, l4_uint64_t *value) const = 0;
   virtual bool write_msr(unsigned msr, l4_uint64_t value) = 0;
+
+  virtual Injection_event pending_event_injection() = 0;
+  virtual void inject_event(Injection_event const &ev) = 0;
 };
 
 } // namespace Vmm

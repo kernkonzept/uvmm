@@ -372,6 +372,18 @@ public:
       inject_event(vinfo);
   }
 
+  Injection_event pending_event_injection() override
+  {
+    Vmx_state::Idt_vectoring_info vinfo = idt_vectoring_info();
+    if (vinfo.valid() && vinfo.error_valid())
+      {
+        return Injection_event(vinfo.field, vmx_read(VMCS_IDT_VECTORING_ERROR)
+                                              & 0xffffffffUL);
+      }
+    else
+      return Injection_event(vinfo.field, 0U);
+  }
+
   Exit exit_reason() const
   {
     return Exit(vmx_read(VMCS_EXIT_REASON) & 0xffffU);
@@ -592,6 +604,15 @@ public:
     if (info.error_valid())
       vmx_write(VMCS_VM_ENTRY_EXCEPTION_ERROR,
                 vmx_read(VMCS_IDT_VECTORING_ERROR));
+  }
+
+  void inject_event(Injection_event const &ev) override
+  {
+    assert(ev.valid());
+
+    vmx_write(VMCS_VM_ENTRY_INTERRUPT_INFO, ev.event());
+    if (ev.error_valid())
+      vmx_write(VMCS_VM_ENTRY_EXCEPTION_ERROR, ev.error());
   }
 
   enum Deliver_error_code : unsigned

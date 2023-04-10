@@ -238,6 +238,11 @@ public:
   void reinject_event_after_vmexit()
   { /* Nothing to do on SVM */ }
 
+  Injection_event pending_event_injection() override
+  {
+    return Injection_event(_vmcb->control_area.exitintinfo);
+  }
+
   bool pf_write() const override
   { return Npf_info(_vmcb->control_area.exitinfo1).write(); }
 
@@ -386,6 +391,12 @@ public:
     No_error_code = 0,
     Push_error_code = 1,
   };
+
+  void inject_event(Injection_event const &ev) override
+  {
+    assert(ev.valid());
+    _vmcb->control_area.eventinj = ev.raw;
+  }
 
   void inject_event(int event_num, Svm_event_info::Int_type type,
                     Deliver_error_code deliver_err = No_error_code,
