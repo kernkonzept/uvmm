@@ -123,7 +123,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
 
     case Exit::Interrupt_window:
     case Exit::Nmi_window:
-      return L4_EOK;
+      return Retry;
 
     case Exit::Exec_halt:
       if (0)
