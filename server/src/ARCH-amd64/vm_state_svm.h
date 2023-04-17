@@ -404,13 +404,13 @@ public:
 
 private:
   static Dbg warn()
-  { return Dbg(Dbg::Cpu, Dbg::Warn); }
+  { return Dbg(Dbg::Cpu, Dbg::Warn, "SVM"); }
 
   static Dbg info()
-  { return Dbg(Dbg::Cpu, Dbg::Info); }
+  { return Dbg(Dbg::Cpu, Dbg::Info, "SVM"); }
 
   static Dbg trace()
-  { return Dbg(Dbg::Cpu, Dbg::Trace); }
+  { return Dbg(Dbg::Cpu, Dbg::Trace, "SVM"); }
 
   l4_vm_svm_vmcb_t *_vmcb;
   bool halted = false;
