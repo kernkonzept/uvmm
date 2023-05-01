@@ -266,13 +266,13 @@ public:
   }
 
 private:
-  Readline_loop() {
-    rl_attempted_completion_function =
-      (CPPFunction *)(uintptr_t)attempt_completion;
+  Readline_loop()
+  {
+    rl_attempted_completion_function = attempt_completion;
     rl_completer_word_break_characters = const_cast<char *>(" \t\n");
   }
 
-  static char *generate_completion(char *, int state)
+  static char *generate_completion(const char *, int state)
   {
     static decltype(_completions_buf.size()) i;
 
@@ -285,7 +285,7 @@ private:
     return nullptr;
   }
 
-  static char **attempt_completion(char *, int, int)
+  static char **attempt_completion(char const *, int, int)
   {
     rl_attempted_completion_over = 1;
 
@@ -308,8 +308,7 @@ private:
           _completions_buf.emplace_back(completion);
       }
 
-    return completion_matches(nullptr,
-                              (CPFunction *)(uintptr_t)generate_completion);
+    return rl_completion_matches(nullptr, generate_completion);
   }
 
   static std::string trim_left(std::string const &line)
