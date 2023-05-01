@@ -363,6 +363,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     Xsave_c = (1UL << 1),
     Xget_bv = (1UL << 2),
     Xsave_s = (1UL << 3),
+    Xfd_bit = (1UL << 4),
 
     // 0x8000'0001 ECX
     PerfCtrExtCore_bit = (1UL << 23), // AMD specific, Intel reserved
@@ -440,7 +441,8 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
           a &= ~(  Xsave_opt
                    | Xsave_c
                    | Xget_bv // with ECX=1
-                   | Xsave_s   // XSAVES/XRSTORS and IA32_XSS MSR
+                   | Xsave_s // XSAVES/XRSTORS and IA32_XSS MSR
+                   | Xfd_bit
                 );
           b = 0; // Size of the state of the enabled feature bits.
           break;
