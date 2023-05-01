@@ -111,7 +111,10 @@ class Pit_timer
 
       // only rate generator mode is periodic
       if (_op_mode == Mode_rate_generator)
-        _pit->requeue_timeout(this, next_timeout_us());
+        {
+          _pit->requeue_timeout(this, next_timeout_us());
+          _reload_kip_clock = l4_kip_clock(l4re_kip());
+        }
     }
 
     /**
@@ -166,7 +169,7 @@ class Pit_timer
       // current time in microseconds
       l4_kernel_clock_t kip_us = l4_kip_clock(l4re_kip());
       // time that has gone by since _reload was set
-      l4_cpu_time_t diff_us = _reload_kip_clock - kip_us;
+      l4_cpu_time_t diff_us =  kip_us - _reload_kip_clock;
       // return current counter value
       l4_uint32_t ticks = diff_us * Pit_tick_rate / Microseconds_per_second;
       if (ticks >= _reload)
