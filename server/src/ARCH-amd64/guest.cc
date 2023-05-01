@@ -49,6 +49,15 @@ fxsave64(char *addr)
                        : "=m" (*addr));
 }
 
+static inline void cpuid(l4_uint32_t leaf, l4_uint32_t sub,
+                         l4_uint32_t *eax, l4_uint32_t *ebx, l4_uint32_t *ecx,
+                         l4_uint32_t *edx)
+{
+  asm volatile("cpuid"
+               : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx)
+               : "a"(leaf), "c"(sub));
+}
+
 }
 
 namespace Vmm {
@@ -292,9 +301,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
         a = b = c = d = 0;
     }
   else
-    asm("cpuid"
-      : "=a"(a), "=b"(b), "=c"(c), "=d"(d)
-      : "0"(rax), "2"(rcx));
+    cpuid(rax, rcx, &a, &b, &c, &d);
 
   if (0)
     trace().printf("CPUID as read 0x%lx/0x%lx: a: 0x%x, b: 0x%x, c: 0x%x, d: 0x%x\n",
