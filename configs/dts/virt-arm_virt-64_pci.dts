@@ -1,0 +1,43 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+
+  fragment@0 {
+    target-path = "/pcie@10000000";
+    __overlay__ {
+       ranges = <0x1000000 0x00 0x00000000 0x00 0x3eff0000 0x00 0x00010000
+                 0x2000000 0x00 0x10000000 0x00 0x10000000 0x00 0x2eff0000
+                 0x3000000 0x10 0x00000000 0x10 0x00000000 0x01 0x00000000>;
+    };
+  };
+
+  fragment@1 {
+    target-path = "/";
+    __overlay__ {
+      l4vmm {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        compatible = "simple-bus";
+        ranges = <0x0 0x0 0x30000000 0x21000>;
+
+        virtio_uart@20000 {
+          compatible = "virtio,mmio";
+          reg = <0x20000 0x100>;
+          interrupts = <0 122 4>;
+          l4vmm,vdev = "console";
+        };
+
+        virtio_net@10000 {
+          compatible = "virtio,mmio";
+          reg = <0x10000 0x200>;
+          interrupts = <0 123 4>;
+          l4vmm,vdev = "proxy";
+          l4vmm,virtiocap = "net";
+          l4vmm,no-notify = <1>;
+        };
+      };
+    };
+  };
+
+};
