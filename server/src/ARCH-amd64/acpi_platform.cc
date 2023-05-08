@@ -100,10 +100,10 @@ public:
   }
 
   /**
-   * Write an Acpi control object to the DSDT table that allows to guest to
+   * Write an ACPI control object to the DSDT table that allows the guest to
    * discover shutdown capability.
    *
-   * This is described in section 7.4.2 of the Acpi specification.
+   * This is described in section 7.4.2 of the ACPI specification.
    *
    * \param buf       The memory are where to put the object.
    * \param max_size  Maximum available size of the designated memory area.
@@ -135,7 +135,7 @@ public:
   /**
    * Handle pm1a enable register.
    *
-   * This handles a subset of the PM1A enable register as describes in section
+   * This handles a subset of the PM1A enable register as described in section
    * 4.8.3.1 of the ACPI specification. We support GBL_EN, PRWBTN_EN,
    * SLPBTN_EN and the RTC_EN bits. If both the corresponding status and the
    * enable bit is set, we inject an SCI.
