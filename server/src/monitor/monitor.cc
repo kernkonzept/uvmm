@@ -385,7 +385,7 @@ private:
     if (!newline)
       return false;
 
-    *line = std::string(_read_buf.data(), newline);
+    *line = std::string(_read_buf.data(), newline - _read_buf.data());
     _read_buf = std::string(newline + 1);
 
     return true;
