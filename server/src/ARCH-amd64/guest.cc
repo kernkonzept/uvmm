@@ -328,6 +328,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     // 0x7 EBX
     Tsc_adjust = (1UL << 1),
     Invpcid_bit = (1UL << 10),
+    Processor_trace = (1UL << 25),
     // 0x7 ECX
     Waitpkg_bit = (1UL << 5),
     La57_bit = (1UL << 16),
@@ -384,7 +385,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     case 0x7:
       if (!rcx)
         {
-          b &= ~(Invpcid_bit | Tsc_adjust);
+          b &= ~(Processor_trace | Invpcid_bit | Tsc_adjust);
           c &= ~(Waitpkg_bit | La57_bit | Rdpid_bit);
           d &= ~(Ibrs_ibpb_bit | Stibp_bit | Ssbd_bit
                  | Arch_capabilities_supported_bit);
