@@ -392,7 +392,9 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
       break;
 
     case 0xa:
-      a &= ~0xffULL;  // disable perfmon
+      // We do not support any performance monitoring features. Report zero in
+      // all registers.
+      a = b = c = d = 0;
       break;
 
     case 0xd:
