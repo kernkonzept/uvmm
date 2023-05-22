@@ -215,9 +215,9 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
               }
           }
         // else: ignore writes
-        info().printf("MOV DR exit: %s DR%u %s GP%u. Value: 0x%lx\n",
-                      read ? "read" : "write", dbg_reg, read ? "to" : "from",
-                      gp_reg, *(&(regs->ax) - gp_reg));
+        trace().printf("MOV DR exit: %s DR%u %s GP%u. Value: 0x%lx\n",
+                       read ? "read" : "write", dbg_reg, read ? "to" : "from",
+                       gp_reg, *(&(regs->ax) - gp_reg));
         return Jump_instr;
       }
 
