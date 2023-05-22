@@ -39,10 +39,11 @@ Svm_state::init_state()
   // Enable SVM
   _vmcb->state_save_area.efer = Efer_svme_enable;
 
-  // Intercept DR accesses. DR6,7 are virtualized, thus allowed.
-  // These bits are kernel enforced. Keep in sync here.
-  _vmcb->control_area.intercept_rd_drX = 0xff3f;
-  _vmcb->control_area.intercept_wr_drX = 0xff3f;
+  // Intercept DR accesses.
+  // The kernel enforces 0xff3f, to keep the behavior consistent with VMX, we
+  // intercept all DR accesses.
+  _vmcb->control_area.intercept_rd_drX = 0xffff;
+  _vmcb->control_area.intercept_wr_drX = 0xffff;
 
   _vmcb->control_area.intercept_exceptions = 0;
 
