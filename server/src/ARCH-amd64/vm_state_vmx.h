@@ -642,12 +642,13 @@ public:
   { l4_vm_vmx_write(_vmcs, field, val); }
 
   int handle_cr_access(l4_vcpu_regs_t *regs, Event_recorder *ev_rec);
-  int handle_exception_nmi_ext_int();
+  int handle_exception_nmi_ext_int(Event_recorder *ev_rec);
 
   bool read_msr(unsigned msr, l4_uint64_t *value) const override;
   bool write_msr(unsigned msr, l4_uint64_t value, Event_recorder *ev_rec) override;
 
-  int handle_hardware_exception(unsigned num);
+  int handle_hardware_exception(Event_recorder *ev_rec, unsigned num,
+                                l4_uint32_t err_code);
 
 private:
   static Dbg warn()

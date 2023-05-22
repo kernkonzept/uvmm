@@ -116,7 +116,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
       // currently this isn't fully fletched anyways so this works for now.
       /* fall-through */
     case Exit::External_int:
-      return vms->handle_exception_nmi_ext_int();
+      return vms->handle_exception_nmi_ext_int(ev_rec);
 
     case Exit::Interrupt_window:
     case Exit::Nmi_window:

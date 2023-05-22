@@ -40,7 +40,7 @@ enum : unsigned long
  * 'acknowledge interrupt on exit' is not set in the exit controls.
  */
 int
-Vmx_state::handle_exception_nmi_ext_int()
+Vmx_state::handle_exception_nmi_ext_int(Event_recorder *ev_rec)
 {
   Vm_exit_int_info interrupt_info = exit_int_info();
 
@@ -49,25 +49,54 @@ Vmx_state::handle_exception_nmi_ext_int()
     interrupt_error =
       (l4_uint32_t)vmx_read(VMCS_VM_EXIT_INTERRUPT_ERROR);
 
-  info().printf("Interrupt exit: 0x%x/0x%x\n", interrupt_info.field,
-                (unsigned)interrupt_error);
+  trace().printf("Exception, NMI or external interrupt exit: 0x%x/0x%x\n",
+                 interrupt_info.field, (unsigned)interrupt_error);
 
   switch ((interrupt_info.type()))
     {
-    case 0x6:
-      warn().printf("Software exception %u\n",
-                    (unsigned)interrupt_info.vector());
-      break;
-    case 0x3:
-      return handle_hardware_exception(interrupt_info.vector());
-
-    case 0x2: warn().printf("NMI\n"); break;
+    // Pin-based controlls not set, Ext_int and NMI should not happen.
     case 0x0: warn().printf("External interrupt\n"); break;
+    case 0x2: warn().printf("NMI\n"); break;
+
+    case 0x3:
+      return handle_hardware_exception(ev_rec, interrupt_info.vector(),
+                                       interrupt_error);
+
+    case 0x4: // software interrupt: INT n
+      ev_rec->make_add_event<Event_exc>(Event_prio::Sw_intN,
+                                        interrupt_info.vector());
+      return Retry;
+
+    case 0x5: // priviledged software exception: INT1
+      ev_rec->make_add_event<Event_exc>(Event_prio::Sw_int1,
+                                        interrupt_info.vector());
+      return Retry;
+
+    case 0x6: // software exception: INT3, INTO
+      {
+        unsigned vec = interrupt_info.vector();
+        if (vec == 3)
+          {
+            ev_rec->make_add_event<Event_exc>(Event_prio::Sw_int3, vec);
+            return Retry;
+          }
+        else if (vec == 4)
+          {
+            ev_rec->make_add_event<Event_exc>(Event_prio::Sw_intO, vec);
+            return Retry;
+          }
+        else
+          // not defined in Intel SDM; leave this here as debug hint.
+          warn().printf("Unknown software exception %u\n", vec);
+
+      break;
+        }
     default:
       warn().printf("Unknown interrupt type: %u, vector: %u\n",
                     interrupt_info.type().get(), interrupt_info.vector().get());
       break;
     }
+
   return -L4_ENOSYS;
 }
 
@@ -357,34 +386,30 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs, Event_recorder *ev_rec)
 }
 
 int
-Vmx_state::handle_hardware_exception(unsigned num)
+Vmx_state::handle_hardware_exception(Event_recorder *ev_rec, unsigned num,
+                                     l4_uint32_t err_code)
 {
-  Err err;
-  err.printf("Hardware exception\n");
-
+  // Reflect all hardware exceptions to the guest. Exceptions pushing an error
+  // code are handled specially.
   switch (num)
-  {
-    case 0: err.printf("Divide error\n"); break;
-    case 1: err.printf("Debug\n"); break;
-    case 3: err.printf("Breakpoint\n"); break;
-    case 4: err.printf("Overflow\n"); break;
-    case 5: err.printf("Bound range\n"); break;
-    case 6: err.printf("Invalid opcode\n"); break;
-    case 7: err.printf("Device not available\n"); break;
-    case 8: err.printf("Double fault\n"); break;
-    case 9: err.printf("Coprocessor segment overrun\n"); break;
-    case 10: err.printf("Invalid TSS\n"); break;
-    case 11: err.printf("Segment not present\n"); break;
-    case 12: err.printf("Stack-segment fault\n"); break;
-    case 13: err.printf("General protection\n"); break;
-    case 14: err.printf("Page fault\n"); break;
-    case 16: err.printf("FPU error\n"); break;
-    case 17: err.printf("Alignment check\n"); break;
-    case 18: err.printf("Machine check\n"); break;
-    case 19: err.printf("SIMD error\n"); break;
-    default: err.printf("Unknown exception\n"); break;
-  }
-  return -L4_EINVAL;
+    {
+    case 8:  // #DF
+    case 10: // #TS
+    case 11: // #NP
+    case 12: // #SS
+    case 13: // #GP
+    case 14: // #PF
+    case 17: // #AC
+    case 21: // #CP
+      ev_rec->make_add_event<Event_exc>(Event_prio::Exception, num, err_code);
+      break;
+
+    default:
+      ev_rec->make_add_event<Event_exc>(Event_prio::Exception, num);
+      break;
+    }
+
+  return Retry;
 }
 
 } //namespace Vmm
