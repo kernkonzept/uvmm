@@ -1,0 +1,47 @@
+## This file states the license of this package and possibly its subpackages
+## in machine and human readable format. The PackageName refers to the package
+## whose license is defined by PackageLicenseConcluded.
+## For more information about this file format visit the SPDX website at
+## https://spdx.org
+
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentNamespace: spdx:kernkonzept/uvmm-c9ac5a16-e7f6-11e8-9023-e32cdff45c32
+DocumentName: uvmm
+Creator: Organization: Kernkonzept GmbH (info@kernkonzept.com)
+Created: 2018-11-13T00:00:00Z
+
+## Package Information
+PackageName: uvmm
+SPDXID: SPDXRef-uvmm
+PackageOriginator: Organization: Kernkonzept GmbH (info@kernkonzept.com)
+PackageLicenseDeclared: GPL-2.0-only
+PackageLicenseConcluded: GPL-2.0-only
+FilesAnalyzed: true
+PackageCopyrightText: NOASSERTION
+PackageDownloadLocation: NOASSERTION
+
+FileName: ./configs/dts/ls1021a-twr.dts
+SPDXID: SPDXRef-dts-ls1021a-twr-dts
+LicenseConcluded: GPL-2.0-only
+LicenseInfoInFile: NOASSERTION
+FileCopyrightText: NOASSERTION
+
+FileName: ./configs/dts/ls1021a.dtsi
+SPDXID: SPDXRef-dts-ls1021a-dtsi
+LicenseConcluded: GPL-2.0-only
+LicenseInfoInFile: NOASSERTION
+FileCopyrightText: NOASSERTION
+
+FileName: ./configs/dts/include/dt-bindings/interrupt-controller/irq.h
+SPDXID: SPDXRef-dts-irq-h
+LicenseConcluded: GPL-2.0-only OR MIT
+LicenseInfoInFile: NOASSERTION
+FileCopyrightText: NOASSERTION
+
+FileName: ./configs/dts/include/dt-bindings/interrupt-controller/arm-gic.h
+SPDXID: SPDXRef-dts-arm-gic-h
+LicenseConcluded: GPL-2.0-only OR MIT
+LicenseInfoInFile: NOASSERTION
+FileCopyrightText: NOASSERTION
