@@ -418,9 +418,9 @@ public:
     : _state(int_state)
     {}
 
-    bool irq_enabled() { return !sti() && !mov_ss() && !smi() && !nmi() ; }
+    bool irq_enabled() { return !sti() && !mov_ss() && !nmi(); }
     // STI may block NMIs as well. VMX entry may fail, so check STI bit as well.
-    bool nmi_enabled() { return !sti() && !mov_ss() && !smi() && !nmi(); }
+    bool nmi_enabled() { return !sti() && !mov_ss() && !nmi(); }
 
     CXX_BITFIELD_MEMBER(0, 0, sti, _state);
     CXX_BITFIELD_MEMBER(1, 1, mov_ss, _state);
