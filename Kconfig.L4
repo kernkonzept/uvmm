@@ -1,5 +1,15 @@
 menu "uvmm virtual machine monitor"
 
+config UVMM_SUPPORTED
+	bool
+	default y
+	depends on BUILD_ARCH_arm64 || BUILD_ARCH_arm || BUILD_ARCH_amd64 || BUILD_ARCH_mips
+
+comment "uvmm is not supported on this architecture"
+	depends on !UVMM_SUPPORTED
+
+if UVMM_SUPPORTED
+
 config UVMM_MONITOR
 	bool "Monitor interface"
 	depends on !RELEASE_MODE
@@ -195,5 +205,7 @@ config UVMM_VDEV_SEL_GIC_V3
 	bool "GICv3"
 
 endchoice
+
+endif
 
 endmenu
