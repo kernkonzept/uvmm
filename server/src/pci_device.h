@@ -1133,7 +1133,7 @@ protected:
   void dump_header() const
   {
     for (unsigned i = 0; i < Pci_header_size; i += 4)
-      trace().printf("0x%x:: 0x%x 0x%x \t 0x%x 0x%x\n", i, _hdr.byte[i],
+      info().printf("0x%x:: 0x%x 0x%x \t 0x%x 0x%x\n", i, _hdr.byte[i],
                      _hdr.byte[i + 1], _hdr.byte[i + 2], _hdr.byte[i + 3]);
   }
 
