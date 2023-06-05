@@ -1053,12 +1053,6 @@ public:
   void del_exp_rom_resource() override;
 
 private:
-  Pci_header _hdr;
-  /// Index into _hdr.byte array
-  l4_uint8_t _next_free_idx;
-  /// Index into _hdr.byte array
-  l4_uint8_t *_last_caps_next_ptr;
-
   template <typename TYPE>
   static void assert_header_type()
   {
@@ -1221,6 +1215,12 @@ protected:
       size = 1ULL << (8 * sizeof(unsigned long long) - __builtin_clzll(size - 1U));
     bars[bar].size = size;
   }
+
+  Pci_header _hdr;
+  /// Index into _hdr.byte array
+  l4_uint8_t _next_free_idx;
+  /// Index into _hdr.byte array
+  l4_uint8_t *_last_caps_next_ptr;
 };
 
 } } // namespace Vdev::Pci
