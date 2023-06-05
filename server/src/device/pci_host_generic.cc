@@ -34,11 +34,11 @@ class Pci_host_generic:
   public Device,
   public Acpi::Acpi_device
 {
-  Pci_header::Type1 *header()
-  { return get_header<Pci_header::Type1>(); }
+  Pci_header::Type0 *header()
+  { return get_header<Pci_header::Type0>(); }
 
-  Pci_header::Type1 const *header() const
-  { return get_header<Pci_header::Type1>(); }
+  Pci_header::Type0 const *header() const
+  { return get_header<Pci_header::Type0>(); }
 
   void init_bridge_window(Dt_node const &node);
 
@@ -47,20 +47,24 @@ public:
                             unsigned char bus_num,
                             unsigned char subordinate_num,
                             cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
-  : Pci_host_bridge(devs, bus_num, msix_ctrl)
+  : Pci_host_bridge(devs, bus_num, msix_ctrl),
+    _secondary_bus_num(bus_num),
+    _subordinate_bus_num(subordinate_num)
   {
     init_bridge_window(node);
 
     // Linux' x86 PCI_direct code sanity checks for a device with class code
-    // PCI_CLASS_DISPLAY_VGA(0x0300) or PCI_CLASS_BRIDGE_HOST(0x00) or for a
+    // PCI_CLASS_DISPLAY_VGA(0x0300) or PCI_CLASS_BRIDGE_HOST(0x0600) or for a
     // device of vendor INTEL or COMPAQ.
     // see linux/arch/x86/pci/direct.c
     header()->classcode[2] = Pci_class_code_bridge_device;
     header()->classcode[1] = Pci_subclass_code_host;
-    header()->header_type = 1; // PCI_TO_PCI_BRIDGE
-    header()->command |= Bus_master_bit;
-    header()->secondary_bus_num = bus_num;
-    header()->subordinate_bus_num = subordinate_num;
+    header()->header_type = 0; // host bridge is a device not a bridge
+
+    header()->vendor_id = 0x1b36;        // PCI vendor id Redhat
+    header()->device_id = 0x0008;        // PCI device id Redhat PCIe host
+    header()->subsystem_vendor = 0x1af4; // PCI sub vendor id Redhat Qumranet (QEMU)
+    header()->subsystem_id = 0x1100;     // PCI sub device id QEMU
 
     setup_devices();
   }
@@ -84,8 +88,8 @@ public:
 
     alloc->Address = _ecam_mcfg_base;
     alloc->PciSegment = 0;
-    alloc->StartBusNumber = header()->secondary_bus_num;
-    alloc->EndBusNumber = header()->subordinate_bus_num;
+    alloc->StartBusNumber = _secondary_bus_num;
+    alloc->EndBusNumber = _subordinate_bus_num;
     alloc->Reserved = 0;
 
     return sizeof(ACPI_MCFG_ALLOCATION);
@@ -206,11 +210,10 @@ public:
     };
 
     // Update "bus range" with actual values from device tree
-    auto const *hdr = header();
-    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x47]) = hdr->secondary_bus_num;
-    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x49]) = hdr->subordinate_bus_num;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x47]) = _secondary_bus_num;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x49]) = _subordinate_bus_num;
     *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x4d]) =
-      hdr->subordinate_bus_num - hdr->secondary_bus_num + 1U;
+      _subordinate_bus_num - _secondary_bus_num + 1U;
 
     // Update "I/O window" with actual values from device tree
     *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x5f]) = _io_base;
@@ -335,6 +338,8 @@ private:
   l4_uint16_t _io_size = 0;
   l4_uint64_t _ecam_mcfg_base = 0;
   l4_uint64_t _ecam_mcfg_size = 0;
+  unsigned char _secondary_bus_num = 0;
+  unsigned char _subordinate_bus_num = 0;
 }; // class Pci_host_generic
 
 /**
