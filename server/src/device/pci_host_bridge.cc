@@ -17,6 +17,35 @@
 
 namespace Vdev { namespace Pci {
 
+bool
+parse_bus_range(Dt_node const &node, unsigned char *start, unsigned char *end)
+{
+  auto info = Dbg(Dbg::Dev, Dbg::Info, "PCI bus");
+  auto trace = Dbg(Dbg::Dev, Dbg::Trace, "PCI bus");
+
+  int sz;
+  if (!node.has_prop("bus-range"))
+    {
+      info.printf("Bus range not specified in device tree.\n");
+      return false;
+    }
+
+  auto bus_range = node.get_prop<fdt32_t>("bus-range", &sz);
+  if (sz != 2)
+    {
+      info.printf("Bus range property of Pci_host_bridge has invalid size\n");
+      return false;
+    }
+
+  *start = (l4_uint8_t)fdt32_to_cpu(bus_range[0]);
+  *end = (l4_uint8_t)fdt32_to_cpu(bus_range[1]);
+
+  trace.printf("Init host bridge: Found 'bus-range' 0x%x - 0x%x\n",
+               *start, *end);
+
+  return true;
+}
+
 void
 Pci_host_bridge::Hw_pci_device::add_decoder_resources(Vmm::Guest *,
                                                       l4_uint32_t access)

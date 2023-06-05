@@ -40,15 +40,15 @@ class Pci_host_generic:
   Pci_header::Type1 const *header() const
   { return get_header<Pci_header::Type1>(); }
 
-  void init_bus_range(Dt_node const &node);
   void init_bridge_window(Dt_node const &node);
 
 public:
   explicit Pci_host_generic(Device_lookup *devs, Dt_node const &node,
+                            unsigned char bus_num,
+                            unsigned char subordinate_num,
                             cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
-  : Pci_host_bridge(devs, msix_ctrl)
+  : Pci_host_bridge(devs, bus_num, msix_ctrl)
   {
-    init_bus_range(node);
     init_bridge_window(node);
 
     // Linux' x86 PCI_direct code sanity checks for a device with class code
@@ -59,6 +59,8 @@ public:
     header()->classcode[1] = Pci_subclass_code_host;
     header()->header_type = 1; // PCI_TO_PCI_BRIDGE
     header()->command |= Bus_master_bit;
+    header()->secondary_bus_num = bus_num;
+    header()->subordinate_bus_num = subordinate_num;
 
     setup_devices();
   }
@@ -495,25 +497,6 @@ public:
   }
 }; // Pci_bus_cfg_io
 
-void
-Pci_host_generic::init_bus_range(Dt_node const &node)
-{
-  int sz;
-  auto bus_range = node.get_prop<fdt32_t>("bus-range", &sz);
-  if (sz != 2)
-    {
-      warn().printf("Bus range property of Pci_host_bridge has invalid size\n");
-      return;
-    }
-
-  trace().printf("Init host bridge: Found 'bus-range' 0x%x - 0x%x\n",
-                 fdt32_to_cpu(bus_range[0]), fdt32_to_cpu(bus_range[1]));
-
-  auto *const hdr = header();
-  hdr->secondary_bus_num = (l4_uint8_t)fdt32_to_cpu(bus_range[0]);
-  hdr->subordinate_bus_num = (l4_uint8_t)fdt32_to_cpu(bus_range[1]);
-}
-
 /**
  * Retrieve bridge MMIO and I/O windows from ranges property, and the ECAM MCFG
  * window from the reg property.
@@ -600,14 +583,14 @@ struct F : Factory
     auto info = Dbg(Dbg::Dev, Dbg::Info, "PCI bus");
     info.printf("Creating host bridge\n");
 
-    if (!node.has_prop("bus-range"))
+    unsigned char bus_start = 0, bus_end = 0;
+    if (!parse_bus_range(node, &bus_start, &bus_end))
       {
-        info.printf(
-          "Bus range not specified in device tree. Device not created.\n");
+        warn.printf("Bus range invalid in device tree. Device not created.\n");
         return nullptr;
       }
 
-    auto dev = make_device<Pci_host_generic>(devs, node,
+    auto dev = make_device<Pci_host_generic>(devs, node, bus_start, bus_end,
                                              devs->get_or_create_mc_dev(node));
     if (!dev)
       {

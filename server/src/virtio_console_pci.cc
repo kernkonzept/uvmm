@@ -88,14 +88,14 @@ struct F : Factory
     if (!cap)
       return nullptr;
 
-    auto dev_id = pci->alloc_dev_id();
+    auto dev_id = pci->bus()->alloc_dev_id();
     unsigned num_msix = 5;
     auto console =
       make_device<Virtio_console_pci>(node, num_msix, devs->ram().get(), cap,
                                       pci->msix_dest(dev_id));
 
     console->register_obj(devs->vmm()->registry());
-    pci->register_device(console, dev_id);
+    pci->bus()->register_device(console, dev_id);
 
     info().printf("Console: %p\n", console.get());
 

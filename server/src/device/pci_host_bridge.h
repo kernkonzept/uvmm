@@ -24,23 +24,133 @@
 
 namespace Vdev { namespace Pci {
 
-/*
- * Enumerate PCI devices on vbus.
+/**
+ * Parse the bus-range property of the device tree node of the PCI host bridge.
+ *
+ * \param node        Device tree node.
+ * \param start[out]  Returns the start of the handled bus range.
+ * \param end[out]    Returns the inclusive end of the handled bus range.
+ *
+ * \retval true   bus-range property found and `start` and `end` valid.
+ * \retval false  bus-range property not found or faulty. `start` and `end`
+ *                invalid.
  */
-class Pci_host_bridge : public Virt_pci_device
+bool
+parse_bus_range(Dt_node const &node, unsigned char *start, unsigned char *end);
+
+/**
+ * PCI bus managing devices 'plugged' into it.
+ */
+class Pci_bus
 {
-public:
   enum
   {
     Max_num_devs = 32,
     Invalid_dev_id = 0xffffffff,
   };
 
-  Pci_host_bridge(Device_lookup *devs,
+public:
+  // Create a PCI bus with the specified bus number.
+  explicit Pci_bus(unsigned char num) : _bus_num(num) {}
+
+  /**
+   * Return the hw device referred to in the configuration address.
+   */
+  Pci_device *device(l4_uint32_t devid)
+  { return _devices[devid].get(); }
+
+  /// Number of registered devices on this bus.
+  size_t num_devices() const
+  { return _devices.size(); }
+
+  /// Number of this bus.
+  unsigned char bus_num() const
+  { return _bus_num; };
+
+  /**
+   * Register a UVMM emulated device.
+   *
+   * Disables the device to meet the required reset state. We also have not yet
+   * registered any MMIO/IO resources for the guest.
+   *
+   * \param dev     Device to register.
+   * \param dev_id  Device ID to register the device with, must be allocated via
+   *                `alloc_dev_id()`, with the exception of `Invalid_dev_id`,
+   *                which instead instructs this method to allocate a device ID.
+   *
+   * \throws L4::Bounds_error   If an out-of-range device ID is provided.
+   * \throws L4::Out_of_memory  If `Invalid_dev_id` was passed for `dev_id`, but
+   *                            allocating a device ID failed because there was
+   *                            no more free device ID.
+   */
+  void register_device(cxx::Ref_ptr<Pci_device> const &dev,
+                       unsigned dev_id = Invalid_dev_id)
+  {
+    if (dev_id == Invalid_dev_id)
+      dev_id = alloc_dev_id();
+    else if (dev_id >= Max_num_devs)
+      L4Re::throw_error(-L4_ERANGE,
+                        "Provided device ID is in the range [0, 31].");
+
+    info().printf("Registering PCI device %.02x:%.02x.0\n", _bus_num, dev_id);
+
+    if (dev_id >= _devices.size())
+      _devices.resize(dev_id + 1);
+
+    dev->disable_access(Access_mask); // PCI devices are disabled by default.
+    _devices[dev_id] = dev;
+  }
+
+  /**
+   * Allocate a device ID, which can be used to register a PCI device on this
+   * bus.
+   *
+   * \return Allocated device ID.
+   *
+   * \throws L4::Out_of_memory  If the allocation failed because there is no
+   *                            more free device ID.
+   */
+  unsigned alloc_dev_id()
+  {
+    long dev_id = _dev_id_alloc.scan_zero();
+    if (dev_id < 0)
+      L4Re::throw_error(-L4_ENOMEM,
+                        "PCI bus can accommodate no more than 32 devices. "
+                        "Consider putting the device on another PCI bus.");
+    _dev_id_alloc.set_bit(dev_id);
+    return dev_id;
+  }
+
+private:
+  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI bus"); }
+  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI bus"); }
+  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI bus"); }
+
+  unsigned char _bus_num;
+  // used for device lookup on PCI config space access
+  // may contain physical and virtual devices
+  std::vector<cxx::Ref_ptr<Pci_device>> _devices;
+  cxx::Bitmap<Max_num_devs> _dev_id_alloc;
+};
+
+/*
+ * PCI host bridge managing device accesses from the guest OS.
+ *
+ * It also iterates all PCI the vBus and places them on the virtual PCI bus to
+ * make them visible to the guest.
+ */
+class Pci_host_bridge : public Virt_pci_device
+{
+public:
+  /**
+   * Create a PCI host bridge for the given PCI bus number.
+   */
+  Pci_host_bridge(Device_lookup *devs, unsigned char bus_num,
                   cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
   : _vmm(devs->vmm()),
     _vbus(devs->vbus()),
     _as_mgr(devs->ram()->as_mgr_if()),
+    _bus({bus_num}),
     _msix_ctrl(msix_ctrl)
   {
     if (msix_ctrl)
@@ -49,6 +159,9 @@ public:
                                       devs->vbus()),
                                     devs->vmm()->registry());
   }
+
+  /// provide access to the bus
+  Pci_bus *bus() { return &_bus; }
 
   /**
    * A hardware PCI device present on the vBus.
@@ -167,12 +280,6 @@ public:
   };
 
   /**
-   * Return the hw device referred to in the configuration address.
-   */
-  Pci_device *device(l4_uint32_t devid)
-  { return _devices[devid].get(); }
-
-  /**
    * Handle incoming config space read
    *
    * \returns read value
@@ -180,10 +287,10 @@ public:
   l4_uint32_t cfg_space_read(l4_uint32_t devid, unsigned reg, Vmm::Mem_access::Width width)
   {
     l4_uint32_t value = -1U;
-    if (devid >= _devices.size())
+    if (devid >= _bus.num_devices())
       return value;
 
-    if (auto dev = device(devid))
+    if (auto dev = _bus.device(devid))
       dev->cfg_read(reg, &value, width);
 
     if (0)
@@ -197,11 +304,11 @@ public:
    */
   void cfg_space_write(l4_uint32_t devid, unsigned reg, Vmm::Mem_access::Width width, l4_uint32_t value)
   {
-    if (devid >= _devices.size())
+    if (devid >= _bus.num_devices())
       return;
 
     // Pass-through to device
-    if (auto dev = device(devid))
+    if (auto dev = _bus.device(devid))
       dev->cfg_write(_vmm, reg, value, width);
 
     if (0)
@@ -220,7 +327,7 @@ protected:
    */
   void setup_devices()
   {
-    unsigned dev_id = alloc_dev_id();
+    unsigned dev_id = _bus.alloc_dev_id();
     iterate_pci_root_bus();
 
     // Registering the host bridge itself must be the last operation, otherwise
@@ -229,7 +336,7 @@ protected:
     // half-constructed host bridge, host bridge itself is removed from
     // _devices, drops its _refcount to zero, which destroys the host bridge in
     // destruction again).
-    register_device(cxx::Ref_ptr<Pci_device>(this), dev_id);
+    _bus.register_device(cxx::Ref_ptr<Pci_device>(this), dev_id);
   }
 
   /**
@@ -264,7 +371,8 @@ protected:
         if (vendor_device == Pci_invalid_vendor_id)
           continue;
 
-        Hw_pci_device *h = new Hw_pci_device(this, pdev, alloc_dev_id(), dinfo);
+        Hw_pci_device *h =
+          new Hw_pci_device(this, pdev, _bus.alloc_dev_id(), dinfo);
         info().printf("Found PCI device: name='%s', vendor/device=%04x:%04x\n",
                       dinfo.name, vendor_device & 0xffff, vendor_device >> 16);
 
@@ -275,67 +383,13 @@ protected:
         h->setup_msix_table();
         init_dev_resources(h);
 
-        register_device(cxx::Ref_ptr<Pci_device>(h), h->dev_id);
+        _bus.register_device(cxx::Ref_ptr<Pci_device>(h), h->dev_id);
       }
   }
 
   virtual void init_dev_resources(Hw_pci_device *) = 0;
 
 public:
-  /**
-   * Register a UVMM emulated device.
-   *
-   * Disables the device to meet the required reset state. We also have not yet
-   * registered any MMIO/IO resources for the guest.
-   *
-   * \param dev     Device to register.
-   * \param dev_id  Device ID to register the device with, must be allocated via
-   *                `alloc_dev_id()`, with the exception of `Invalid_dev_id`,
-   *                which instead instructs this method to allocate a device ID.
-   *
-   * \throws L4::Bounds_error   If an out-of-range device ID is provided.
-   * \throws L4::Out_of_memory  If `Invalid_dev_id` was passed for `dev_id`, but
-   *                            allocating a device ID failed because there was
-   *                            no more free device ID.
-   */
-  void register_device(cxx::Ref_ptr<Pci_device> const &dev,
-                       unsigned dev_id = Invalid_dev_id)
-  {
-    if (dev_id == Invalid_dev_id)
-      dev_id = alloc_dev_id();
-    else if (dev_id >= Max_num_devs)
-      L4Re::throw_error(-L4_ERANGE,
-                        "Provided device ID is in the range [0, 31].");
-
-    warn().printf("Registering device %u\n", dev_id);
-
-    if (dev_id >= _devices.size())
-      _devices.resize(dev_id + 1);
-
-    dev->disable_access(Access_mask); // PCI devices are disabled by default.
-    _devices[dev_id] = dev;
-  }
-
-  /**
-   * Allocate a device ID, which can be used to register a PCI device on this
-   * host bridge.
-   *
-   * \return Allocated device ID.
-   *
-   * \throws L4::Out_of_memory  If the allocation failed because there is no
-   *                            more free device ID.
-   */
-  unsigned alloc_dev_id()
-  {
-    long dev_id = _dev_id_alloc.scan_zero();
-    if (dev_id < 0)
-      L4Re::throw_error(-L4_ENOMEM,
-                        "PCI bus can accommodate no more than 32 devices. "
-                        "Consider putting the device on another PCI bus.");
-    _dev_id_alloc.set_bit(dev_id);
-    return dev_id;
-  }
-
   /**
    * Return the virtual source ID for a PCI device registered on this host
    * bridge.
@@ -349,7 +403,7 @@ public:
     // The Requester ID consists of the bus number, device number and function
     // number. We do not support device function, therefore the following shift
     // accounts for the 3 bits allocated for the function number.
-    return dev_id << 3;
+    return ((l4_uint32_t)_bus.bus_num()) << 8 | dev_id << 3;
   }
 
   /**
@@ -362,18 +416,15 @@ public:
   }
 
 private:
-  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI vbus"); }
-  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI vbus"); }
-  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI vbus"); }
+  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI hbr"); }
+  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI hbr"); }
+  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI hbr"); }
 
 protected:
   Vmm::Guest *_vmm;
   cxx::Ref_ptr<Vmm::Virt_bus> _vbus;
   Vmm::Address_space_manager_mode_if const *_as_mgr;
-  // used for device lookup on PCI config space access
-  // may contain physical and virtual devices
-  std::vector<cxx::Ref_ptr<Pci_device>> _devices;
-  cxx::Bitmap<Max_num_devs> _dev_id_alloc;
+  Pci_bus _bus;
   /// MSI-X controller responsible for the devices of this PCIe host bridge,
   /// may be nullptr since MSI-X support is an optional feature.
   cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;

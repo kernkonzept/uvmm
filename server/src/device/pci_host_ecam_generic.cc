@@ -105,9 +105,10 @@ class Pci_host_ecam_generic
 {
 public:
   explicit Pci_host_ecam_generic(Interrupt_map const &irq_map,
+                                 unsigned char bus_num,
                                  Device_lookup *devs,
                                  cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
-  : Pci_host_bridge(devs, msix_ctrl),
+  : Pci_host_bridge(devs, bus_num, msix_ctrl),
     _irq_map(irq_map)
   {
     header()->vendor_id = 0x1b36;        // PCI vendor id Redhat
@@ -356,7 +357,16 @@ struct F : Factory
         "PCIe host bridge %s refers to invalid MSI controller: %s\n",
         node.get_name(), Device_lookup::mc_err_str(res));
 
-    auto dev = make_device<Pci_host_ecam_generic>(irq_map, devs, msix_ctrl);
+    unsigned char bus_start = 0, bus_end = 0;
+    if (!parse_bus_range(node, &bus_start, &bus_end))
+      {
+        warn().printf(
+          "Bus range invalid in device tree. Device not created.\n");
+        return nullptr;
+      }
+
+    auto dev =
+      make_device<Pci_host_ecam_generic>(irq_map, bus_start, devs, msix_ctrl);
 
     auto ecam_cfg_connector = make_device<Pci_bus_cfg_ecam>(dev);
     devs->vmm()->register_mmio_device(ecam_cfg_connector,

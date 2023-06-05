@@ -95,7 +95,7 @@ struct F : Factory
 
     // Only two MSIs (config & VQ). l4virtio supports only shared IRQs for all
     // VQs.
-    auto dev_id = pci->alloc_dev_id();
+    auto dev_id = pci->bus()->alloc_dev_id();
     int const num_msix = 2;
     auto proxy =
       make_device<Virtio_proxy_pci>(node, num_msix, cap, nnq_id,
@@ -103,7 +103,7 @@ struct F : Factory
 
     proxy->register_irq(vmm->registry());
     proxy->init_virtio_pci_device();
-    pci->register_device(proxy);
+    pci->bus()->register_device(proxy);
 
     return proxy;
   }
