@@ -583,7 +583,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
         bar_offs = read_bar_size(bar_offs, bar, &bar_size);
 
         size64 |= (l4_uint64_t)bar_size << 32; // shift to upper part
-        size64 &= ~Bar_mem_attr_mask; // clear decoding
+        size64 &= ~((l4_uint64_t)Bar_mem_attr_mask); // clear decoding
 
         *type = Pci_cfg_bar::MMIO64;
         *addr = addr64;
