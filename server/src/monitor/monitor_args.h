@@ -340,7 +340,7 @@ public:
    * This is a convencience method whose result is equal to `peek().get<T>()`.
    */
   template<typename T>
-  Arg peek(char const *msg = nullptr) const
+  T peek(char const *msg = nullptr) const
   { return peek().get<T>(msg); }
 
   /**
