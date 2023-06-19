@@ -77,13 +77,15 @@ public:
       { "Error Status",                            0x828 },
       { "Corrected Machine Check Error Interrupt", 0x82f },
       { "Interrupt Command",                       0x830, 8 },
+      { "LVT Timer",                               0x832 },
       { "LVT Thermal Sensor",                      0x833 },
       { "LVT Performance Monitoring Counters",     0x834 },
       { "LVT LINT0",                               0x835 },
       { "LVT LINT1",                               0x836 },
       { "LVT Error",                               0x837 },
       { "Initial Count",                           0x838 },
-      { "Current Count",                           0x839 }
+      { "Current Count",                           0x839 },
+      { "TSC Deadline",                            0x6e0 }
     };
 
     fprintf(f, "|%-5s |%-5s |%-40s |%-18s |\n",
