@@ -71,7 +71,7 @@ public:
       { "Logical Destination",                     0x80d },
       { "Destination Format",                      0x80e },
       { "Spurious Vector",                         0x80f },
-      { "In-Server",                               0x810, 32 },
+      { "In-Service",                              0x810, 32 },
       { "Trigger Mode",                            0x818, 32 },
       { "Interrupt Request",                       0x820, 32 },
       { "Error Status",                            0x828 },
