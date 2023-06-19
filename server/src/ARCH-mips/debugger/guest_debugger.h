@@ -16,7 +16,7 @@ namespace Monitor {
 class Guest_debugger
 {
 public:
-  Guest_debugger(Vmm::Vm *)
+  explicit Guest_debugger(Vmm::Vm *)
   {}
 };
 
