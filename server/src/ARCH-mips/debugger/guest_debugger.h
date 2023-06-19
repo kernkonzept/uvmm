@@ -13,8 +13,9 @@ namespace Vmm {
 
 namespace Monitor {
 
-struct Guest_debugger
+class Guest_debugger
 {
+public:
   Guest_debugger(Vmm::Vm *)
   {}
 };
