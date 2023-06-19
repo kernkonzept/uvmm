@@ -101,9 +101,26 @@ public:
               print_row(f, lapic_no, r, chunk);
           }
       }
+    print_row(f, "Is NMI pending",
+              static_cast<T const *>(this)->get(lapic_no)->is_nmi_pending());
   }
 
 private:
+  void print_row(FILE *f, char const *name, l4_uint64_t value) const
+  {
+    fprintf(f, "|0x%03x |%-5u ", 0, 0);
+    fprintf(f, "|%-40s ", name);
+
+    unsigned bytes = 4;
+    fprintf(f,
+            "|0x%0*llx%.*s ",
+            bytes * 2,
+            value,
+            (8 - bytes) * 2,
+            "        ");
+    fprintf(f,"|\n");
+  }
+
   void print_row(FILE *f, unsigned lapic_no, Apic_register const &r) const
   {
     print_location(f, r.msr, r.bytes);
