@@ -38,7 +38,8 @@ public:
   {
     fprintf(f, "%s\n"
                "* 'cpu list': list available CPUs\n"
-               "* 'cpu <i> <subcmd>': execute <subcmd> for CPU <i>\n",
+               "* 'cpu <i> <subcmd>': execute <subcmd> for CPU <i>\n"
+               "* 'cpu all <subcmd>': execute <subcmd> for all CPUs\n",
             help());
   }
 
@@ -80,6 +81,19 @@ public:
   {
     if (*args == "list")
       list_cpus(f);
+    else if (args->peek() == "all")
+      {
+        args->pop();
+
+        unsigned i = 0;
+        while (cpu_valid(i))
+          {
+            fprintf(f, "vCPU %u\n", i);
+            get_cpu(i)->exec(f, args);
+            fprintf(f, "\n");
+            ++i;
+          }
+      }
     else
       exec_subcmd(f, args);
   }
