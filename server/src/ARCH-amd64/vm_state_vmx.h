@@ -423,6 +423,10 @@ public:
     // STI may block NMIs as well. VMX entry may fail, so check STI bit as well.
     bool nmi_enabled() { return !sti() && !mov_ss() && !nmi(); }
 
+    void clear_sti() { sti().set(0); }
+
+    l4_uint32_t state() const { return _state; }
+
     CXX_BITFIELD_MEMBER(0, 0, sti, _state);
     CXX_BITFIELD_MEMBER(1, 1, mov_ss, _state);
     CXX_BITFIELD_MEMBER(2, 2, smi, _state);
@@ -437,6 +441,22 @@ public:
   {
     return (vmx_read(VMCS_GUEST_RFLAGS) & Interrupt_enabled_bit)
            && interrupt_state().irq_enabled();
+  }
+
+  /**
+   * Clear the STI interrupt shadow in the interruptibility state.
+   *
+   * This must be called when we emulate an instruction to ensure subsequent
+   * event injection can happen.
+   */
+  void clear_sti_shadow()
+  {
+    auto int_state = interrupt_state();
+    if (!int_state.sti())
+      return;
+
+    int_state.clear_sti();
+    vmx_write(VMCS_GUEST_INTERRUPTIBILITY_STATE, int_state.state());
   }
 
   /**

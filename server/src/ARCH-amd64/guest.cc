@@ -605,6 +605,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
           else if (ret == Jump_instr)
             {
               vm->jump_instruction();
+              vm->clear_sti_shadow();
             }
         }
 

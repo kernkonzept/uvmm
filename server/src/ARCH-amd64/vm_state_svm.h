@@ -258,6 +258,9 @@ public:
            && !(_vmcb->control_area.interrupt_shadow & 1);
   }
 
+  void clear_sti_shadow()
+  { _vmcb->control_area.interrupt_shadow &= (-1ULL << 1); }
+
   /**
    * Check if there is an event currently being injected.
    *
