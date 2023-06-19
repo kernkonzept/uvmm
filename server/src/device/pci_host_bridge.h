@@ -64,7 +64,7 @@ public:
     {}
 
     l4_uint64_t src_id() const override
-    { return dev.dev_handle() | (1ULL << 63); }
+    { return dev.dev_handle() | L4vbus::Icu::Src_dev_handle; }
 
     /**
      * Convert Mem_access, which is given in bytes, into bits.
