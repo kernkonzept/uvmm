@@ -46,19 +46,34 @@ public:
   void usage(FILE *f) const override
   {
     fprintf(f, "%s\n"
-               "* 'lapic <i>': dump local APIC registers for a specific cpu\n",
+               "* 'lapic <i>': dump local APIC registers for a specific cpu\n"
+               "* 'lapic all': dump local APIC registers for all cpus\n",
             help());
   }
 
   void exec(FILE *f, Arglist *args) override
   {
-    unsigned lapic_no =
-      args->pop<unsigned>("Failed to parse local APIC number.");
+    if (*args == "all")
+      {
+        unsigned i = 0;
+        while (lapic_check(i))
+          {
+            fprintf(f, "LAPIC %u\n", i);
+            show_lapic(f, i);
+            fprintf(f, "\n");
+            ++i;
+          }
+      }
+    else
+      {
+        unsigned lapic_no =
+          args->pop<unsigned>("Failed to parse local APIC number.");
 
-    if (!lapic_check(lapic_no))
-      argument_error("No such CPU or no local APIC registers found");
+        if (!lapic_check(lapic_no))
+          argument_error("No such CPU or no local APIC registers found");
 
-    show_lapic(f, lapic_no);
+        show_lapic(f, lapic_no);
+      }
   }
 
   void show_lapic(FILE *f, unsigned lapic_no) const
