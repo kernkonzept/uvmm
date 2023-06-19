@@ -1072,11 +1072,12 @@ public:
 
   void write_lvt_timer_reg(l4_uint64_t value)
   {
-    Lvt_timer_reg old_lvt(_lvt_reg);
+    Lvt_timer_reg old_lvt(0);
     Lvt_timer_reg new_lvt(value);
 
     {
       std::lock_guard<std::mutex> lock(_tmr_mutex);
+      old_lvt.raw = _lvt_reg.raw;
       _lvt_reg.raw = value;
     }
 
@@ -1134,43 +1135,41 @@ public:
     return _tsc_deadline;
   }
 
-  void write_tsc_deadline_msr(l4_uint64_t value)
+  void write_tsc_deadline_msr(l4_uint64_t target_tsc)
   {
-    if (!_lvt_reg.tsc_deadline())
+    // a fresh TSC deadline value always resets previous timeouts
+    dequeue_timeout(this);
+
+    bool tsc_deadline_mode;
+    {
+      std::lock_guard<std::mutex> lock(_tmr_mutex);
+      tsc_deadline_mode = _lvt_reg.tsc_deadline();
+      _tsc_deadline = target_tsc;
+    }
+
+    if (!tsc_deadline_mode)
       {
         Dbg().printf("guest programmed tsc deadline but tsc deadline mode not set\n");
         return;
       }
 
-    // a fresh TSC deadline value always resets previous timeouts
-    dequeue_timeout(this);
-
     // writing a zero disarms the timer
-    if (value == 0)
+    if (target_tsc == 0)
       return;
 
-    // handle TSC deadline timer mode
-    // the given value holds the target time stamp counter value
+    l4_kernel_clock_t tsc_diff;
     l4_cpu_time_t tsc = l4_rdtsc();
-    // if the desired timestamp already passed
-    // we inject directly without going to the timer thread
-    if (value < tsc)
-      {
-        std::lock_guard<std::mutex> lock(_tmr_mutex);
-        if (_lvt_reg.masked())
-          _lvt_reg.pending() = 1;
-        else
-          irq_trigger(_lvt_reg.vector());
-      }
+    if (target_tsc <= tsc)
+      tsc_diff = 0;
+    else
+      tsc_diff = target_tsc - tsc;
 
     if (0)
       Dbg()
         .printf("New TSC deadline: 0x%llx (now: 0x%llx) timer status: %x\n",
-                value, tsc, _lvt_reg.raw);
+                target_tsc, tsc, _lvt_reg.raw);
 
-    _tsc_deadline = value;
-
-    l4_kernel_clock_t t = l4_tsc_to_us(value - tsc);
+    l4_kernel_clock_t t = l4_tsc_to_us(tsc_diff);
     l4_kernel_clock_t kip = l4_kip_clock(l4re_kip());
     enqueue_timeout(this, kip + t);
   }
