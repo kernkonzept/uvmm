@@ -35,6 +35,7 @@ int
 Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
 {
   l4_vcpu_regs_t *regs = &vcpu->r;
+  unsigned vcpu_id = vcpu.get_vcpu_id();
 
   // Synchronize VMCB.StateSaveArea.RAX with Vcpu_regs.RAX. This is necessary
   // because the code shared between VMX and SVM uses the RAX in Vcpu_regs,
@@ -63,13 +64,14 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
         bool is_read = info.type() == 1;
         unsigned port = info.port();
 
-        trace().printf(
-          "VM exit: IO port access with exit info 0x%x: %s port 0x%x\n",
-          info.raw, is_read ? "read" : "write", port);
+        trace().printf("[%3u]: VM exit: IO port access with exit info 0x%x: "
+                       "%s port 0x%x\n",
+                       vcpu_id, info.raw, is_read ? "read" : "write", port);
 
         if (info.str())
         {
-          warn().printf("String based port access is not supported!\n");
+          warn().printf("[%3u]: String based port access is not supported!\n",
+                        vcpu_id);
           return Jump_instr;
         }
 
@@ -77,7 +79,8 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
         // which are not yet supported anyway.
         if (info.rep())
         {
-          warn().printf("Repeated port access is not supported!\n");
+          warn().printf("[%3u]: Repeated port access is not supported!\n",
+                        vcpu_id);
           return Jump_instr;
         }
 
@@ -98,8 +101,8 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
         Svm_state::Npf_info info(vms->exit_info1());
 
         trace().printf(
-          "Nested page fault at gp_addr 0x%lx with exit info 0x%llx\n",
-          guest_phys_addr, info.raw);
+          "[%3u]: Nested page fault at gp_addr 0x%lx with exit info 0x%llx\n",
+          vcpu_id, guest_phys_addr, info.raw);
 
         // TODO: Use instruction bytes provided by decode assist
         switch(handle_mmio(guest_phys_addr, vcpu))
@@ -117,7 +120,9 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
                 }
               catch (L4::Runtime_error &e)
                 {
-                  warn().printf("Could not determine opcode for MMIO access\n");
+                  warn().printf("[%3u]: Could not determine opcode for MMIO "
+                                "access\n",
+                                vcpu_id);
                   return -L4_EINVAL;
                 }
 
@@ -135,17 +140,22 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
                 return Jump_instr;
               else
                 {
-                  warn().printf("Could not determine next ip for MMIO access\n");
+                  warn().printf("[%3u]: Could not determine next ip for MMIO "
+                                "access\n",
+                                vcpu_id);
                   return -L4_EINVAL;
                 }
             }
           default: break;
           }
 
-        warn().printf("Unhandled nested page fault @ 0x%lx\n", vms->ip());
-        warn().printf("Present: %u, Type: %s, Inst.: %u Phys addr: 0x%lx\n",
-                      info.present().get(), info.write() ? "Write" : "Read",
-                      info.inst().get(), guest_phys_addr);
+        warn().printf("[%3u]: Unhandled nested page fault @ 0x%lx\n", vcpu_id,
+                      vms->ip());
+        warn()
+          .printf("[%3u]: Present: %u, Type: %s, Inst.: %u Phys addr: 0x%lx\n",
+                  vcpu_id, info.present().get(),
+                  info.write() ? "Write" : "Read", info.inst().get(),
+                  guest_phys_addr);
         return -L4_EINVAL;
       }
 
@@ -156,7 +166,7 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
           return Jump_instr;
         else
           {
-            info().printf("%s unsupported MSR 0x%lx\n",
+            info().printf("[%3u]: %s unsupported MSR 0x%lx\n", vcpu_id,
                           write ? "Writing" : "Reading", regs->cx);
             ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
             return L4_EOK;
@@ -164,7 +174,7 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
       }
 
     case Exit::Hlt:
-      trace().printf("HALT 0x%lx!\n", vms->ip());
+      trace().printf("[%3u]: HALT 0x%lx!\n", vcpu_id, vms->ip());
       vms->halt();
       return Jump_instr;
 
@@ -272,17 +282,18 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
         return vms->handle_hardware_exception(exc_num);
       }
 
-      warn().printf("Exit at guest IP 0x%lx with 0x%x (Info1: 0x%llx, Info2: 0x%llx)\n",
-                    vms->ip(), static_cast<unsigned>(reason),
+      warn().printf("[%3u]: Exit at guest IP 0x%lx with 0x%x (Info1: 0x%llx, "
+                    "Info2: 0x%llx)\n",
+                    vcpu_id, vms->ip(), static_cast<unsigned>(reason),
                     vms->exit_info1(), vms->exit_info2());
 
       auto str_exit_code = vms->str_exit_code(reason);
       if (str_exit_code)
-        warn().printf("Unhandled exit reason: %s (%d)\n",
-                      str_exit_code, static_cast<unsigned>(reason));
+        warn().printf("[%3u]: Unhandled exit reason: %s (%d)\n",
+                      vcpu_id, str_exit_code, static_cast<unsigned>(reason));
       else
-        warn().printf("Unknown exit reason: 0x%x\n",
-                      static_cast<unsigned>(reason));
+        warn().printf("[%3u]: Unknown exit reason: 0x%x\n",
+                      vcpu_id, static_cast<unsigned>(reason));
 
       return -L4_ENOSYS;
     }

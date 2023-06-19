@@ -22,10 +22,11 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
   auto reason = vms->exit_reason();
   auto *regs = &vcpu->r;
   auto *ev_rec = recorder(vcpu.get_vcpu_id());
+  unsigned vcpu_id = vcpu.get_vcpu_id();
 
   if (reason != Vmx_state::Exit::Exec_vmcall)
-    trace().printf("Exit at guest IP 0x%lx SP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
-                   vms->ip(), vms->sp(),
+    trace().printf("[%3u]: Exit at guest IP 0x%lx SP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
+                   vcpu_id, vms->ip(), vms->sp(),
                    vms->vmx_read(VMCS_EXIT_REASON),
                    vms->vmx_read(VMCS_EXIT_QUALIFICATION));
 
@@ -44,14 +45,15 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
         unsigned port = (qual >> 16) & 0xFFFFU;
 
         Dbg(Dbg::Dev, Dbg::Trace)
-          .printf("VM exit: IO port access with exit qualification 0x%llx: "
+          .printf("[%3u]: VM exit: IO port access with exit qualification 0x%llx: "
                   "%s port 0x%x\n",
-                  qual, is_read ? "read" : "write", port);
+                  vcpu_id, qual, is_read ? "read" : "write", port);
 
         if (is_string)
           {
-            warn().printf("Unhandled string IO instruction @ 0x%lx: %s%s, port 0x%x! Skipped.\n",
-                          vms->ip(), (qual & 0x20) ? "REP " : "",
+            warn().printf("[%3u]: Unhandled string IO instruction @ 0x%lx: "
+                          "%s%s, port 0x%x! Skipped.\n",
+                          vcpu_id, vms->ip(), (qual & 0x20) ? "REP " : "",
                           is_read ? "INS" : "OUTS", port);
             // This is not entirely correct: SI/DI not incremented, REP prefix
             // not handled.
@@ -60,7 +62,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
 
         if (port == 0xcfb)
           Dbg(Dbg::Dev, Dbg::Trace)
-            .printf(" 0xcfb access from ip: %lx\n", vms->ip());
+            .printf("[%3u]:  0xcfb access from ip: %lx\n", vcpu_id, vms->ip());
 
         Mem_access::Width wd = Mem_access::Wd32;
         switch(qwidth)
@@ -82,9 +84,10 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
           vms->vmx_read(VMCS_GUEST_PHYSICAL_ADDRESS);
         auto qual = vms->vmx_read(VMCS_EXIT_QUALIFICATION);
 
-        trace().printf("Exit reason due to EPT violation %i;  gp_addr 0x%llx, "
-                       "qualification 0x%llx\n",
-                       static_cast<unsigned>(reason), guest_phys_addr, qual);
+        trace().printf("[%3u]: Exit reason due to EPT violation %i;  gp_addr "
+                       "0x%llx, qualification 0x%llx\n",
+                       vcpu_id, static_cast<unsigned>(reason), guest_phys_addr,
+                       qual);
 
         auto ret = handle_mmio(guest_phys_addr, vcpu);
 
@@ -97,13 +100,15 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
           default: break;
           }
 
-        warn().printf("Unhandled pagefault @ 0x%lx\n", vms->ip());
-        warn().printf("Read: %llu, Write: %llu, Inst.: %llu Phys addr: 0x%llx\n",
-                     qual & 1, qual & 2, qual & 4, guest_phys_addr);
+        warn().printf("[%3u]: Unhandled pagefault @ 0x%lx\n", vcpu_id,
+                      vms->ip());
+        warn().printf("[%3u]: Read: %llu, Write: %llu, Inst.: %llu Phys addr: "
+                      "0x%llx\n",
+                      vcpu_id, qual & 1, qual & 2, qual & 4, guest_phys_addr);
 
         if (qual & 0x80)
-          warn().printf("Linear address: 0x%llx\n",
-                       vms->vmx_read(VMCS_GUEST_LINEAR_ADDRESS));
+          warn().printf("[%3u]: Linear address: 0x%llx\n", vcpu_id,
+                        vms->vmx_read(VMCS_GUEST_LINEAR_ADDRESS));
         return -L4_EINVAL;
       }
 
@@ -124,8 +129,8 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
 
     case Exit::Exec_halt:
       if (0)
-        info().printf("vcpu%i:HALT @ 0x%llx! Activity state 0x%llx\n",
-                      vcpu.get_vcpu_id(), vms->vmx_read(VMCS_GUEST_RIP),
+        info().printf("[%3u]: HALT @ 0x%llx! Activity state 0x%llx\n",
+                      vcpu_id, vms->vmx_read(VMCS_GUEST_RIP),
                       vms->vmx_read(VMCS_GUEST_ACTIVITY_STATE));
 
       vms->halt();
@@ -140,9 +145,10 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
       return vms->handle_cr_access(regs, ev_rec);
 
     case Exit::Exec_rdmsr:
-      if (!msr_devices_rwmsr(regs, false, vcpu.get_vcpu_id()))
+      if (!msr_devices_rwmsr(regs, false, vcpu_id))
         {
-          warn().printf("Reading unsupported MSR 0x%lx\n", regs->cx);
+          warn().printf("[%3u]: Reading unsupported MSR 0x%lx\n", vcpu_id,
+                        regs->cx);
           regs->ax = 0;
           regs->dx = 0;
           ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
@@ -156,7 +162,8 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
         bool has_already_exception = ev_rec->has_exception();
         if (!msr_devices_rwmsr(regs, true, vcpu.get_vcpu_id()))
           {
-            warn().printf("Writing unsupported MSR 0x%lx\n", regs->cx);
+            warn().printf("[%3u]: Writing unsupported MSR 0x%lx\n", vcpu_id,
+                          regs->cx);
             ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
             return Retry;
           }
@@ -168,8 +175,8 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
           return Jump_instr;
       }
     case Exit::Virtualized_eoi:
-      Dbg().printf("INFO: EOI virtualized for vector 0x%llx\n",
-                   vms->vmx_read(VMCS_EXIT_QUALIFICATION));
+      Dbg().printf("[%3u]: INFO: EOI virtualized for vector 0x%llx\n",
+                   vcpu_id, vms->vmx_read(VMCS_EXIT_QUALIFICATION));
       // Trap like exit: IP already on next instruction
       return L4_EOK;
 
@@ -179,10 +186,11 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
           l4_uint64_t value = (l4_uint64_t(regs->ax) & 0xFFFFFFFF)
                               | (l4_uint64_t(regs->dx) << 32);
           vms->vmx_write(L4_VM_VMX_VMCS_XCR0, value);
-          trace().printf("Setting xcr0 to 0x%llx\n", value);
+          trace().printf("[%3u]: Setting xcr0 to 0x%llx\n", vcpu_id, value);
           return Jump_instr;
         }
-      Dbg().printf("Writing unknown extended control register %ld\n", regs->cx);
+      Dbg().printf("[%3u]: Writing unknown extended control register %ld\n",
+                   vcpu_id, regs->cx);
       return -L4_EINVAL;
 
     case Exit::Apic_write:
@@ -218,9 +226,9 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
               }
           }
         // else: ignore writes
-        trace().printf("MOV DR exit: %s DR%u %s GP%u. Value: 0x%lx\n",
-                       read ? "read" : "write", dbg_reg, read ? "to" : "from",
-                       gp_reg, *(&(regs->ax) - gp_reg));
+        trace().printf("[%3u]: MOV DR exit: %s DR%u %s GP%u. Value: 0x%lx\n",
+                       vcpu_id, read ? "read" : "write", dbg_reg,
+                       read ? "to" : "from", gp_reg, *(&(regs->ax) - gp_reg));
         return Jump_instr;
       }
 
@@ -249,16 +257,18 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
 
     default:
       {
-        Dbg().printf("Exit at guest IP 0x%lx SP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
-                     vms->ip(), vms->sp(), vms->vmx_read(VMCS_EXIT_REASON),
+        Dbg().printf("[%3u]: Exit at guest IP 0x%lx SP 0x%lx with 0x%llx "
+                     "(Qual: 0x%llx)\n",
+                     vcpu_id, vms->ip(), vms->sp(),
+                     vms->vmx_read(VMCS_EXIT_REASON),
                      vms->vmx_read(VMCS_EXIT_QUALIFICATION));
 
         unsigned reason_u = static_cast<unsigned>(reason);
         if (reason_u < sizeof(str_exit_reason) / sizeof(*str_exit_reason))
-          Dbg().printf("Unhandled exit reason: %s (%d)\n",
-                       str_exit_reason[reason_u], reason_u);
+          Dbg().printf("[%3u]: Unhandled exit reason: %s (%d)\n",
+                       vcpu_id, str_exit_reason[reason_u], reason_u);
         else
-          Dbg().printf("Unknown exit reason: 0x%x\n", reason_u);
+          Dbg().printf("[%3u]: Unknown exit reason: 0x%x\n", vcpu_id, reason_u);
 
         return -L4_ENOSYS;
       }

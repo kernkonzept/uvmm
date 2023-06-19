@@ -572,7 +572,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
   _clocks[vcpu_id].start_clock_source_thread(vcpu_id, cpu->get_phys_cpu_id());
 
   L4::Cap<L4::Thread> myself;
-  trace().printf("Starting vCPU 0x%lx\n", vcpu->r.ip);
+  trace().printf("Starting vCPU[%3u] 0x%lx\n", vcpu_id, vcpu->r.ip);
 
   // Architecturally defined as 512 byte buffer but processor does not write
   // bytes 464:511.
@@ -592,12 +592,12 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
       // Fiasco indicates pending IRQs (IPCs); see fiasco: resume_vcpu()
         {
           if (tag.has_error())
-            Dbg().printf("tag has error, but used as ack\n");
+            Dbg().printf("[%3u]: tag has error, but used as ack\n", vcpu_id);
           vcpu.process_pending_ipc(l4_utcb());
         }
       else if (e)
         {
-          Err().printf("Resume failed with error %ld\n", e);
+          Err().printf("[%3u]: Resume failed with error %ld\n", vcpu_id, e);
           enter_kdebug("FAILURE IN VMM RESUME");
           halt_vm(vcpu);
         }
@@ -606,11 +606,11 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
           int ret = handle_exit(vcpu, vm);
           if (ret < 0)
             {
-              trace().printf("Failure in VMM %i\n", ret);
-              trace().printf("regs: AX 0x%lx, BX 0x%lx, CX 0x%lx, DX 0x%lx, SI 0x%lx, "
-                             "DI 0x%lx, IP 0x%lx\n",
-                             vcpu->r.ax, vcpu->r.bx, vcpu->r.cx, vcpu->r.dx,
-                             vcpu->r.si, vcpu->r.di, vm->ip());
+              trace().printf("[%3u]: Failure in VMM %i\n", vcpu_id, ret);
+              trace().printf("[%3u]: regs: AX 0x%lx, BX 0x%lx, CX 0x%lx, "
+                             "DX 0x%lx, SI 0x%lx, DI 0x%lx, IP 0x%lx\n",
+                             vcpu_id, vcpu->r.ax, vcpu->r.bx, vcpu->r.cx,
+                             vcpu->r.dx, vcpu->r.si, vcpu->r.di, vm->ip());
               halt_vm(vcpu);
             }
           else if (ret == Jump_instr)
