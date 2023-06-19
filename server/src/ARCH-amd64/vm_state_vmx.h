@@ -182,6 +182,7 @@ public:
 
     vmx_write(VMCS_PIN_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PIN_BASED_VM_EXEC_CTLS)
+              | Nmi_exiting_bit
               | Virtual_nmis_bit);
 
     vmx_write(VMCS_VM_ENTRY_CTLS,
