@@ -91,14 +91,14 @@ struct Pci_factory : Factory
     if (!cap)
       return nullptr;
 
-    auto dev_id = pci->alloc_dev_id();
+    auto dev_id = pci->bus()->alloc_dev_id();
     unsigned num_msix = 5;
     auto input =
       make_device<Virtio_input_power_pci>(node, num_msix, devs->ram().get(),
                                           cap, pci->msix_dest(dev_id));
 
     input->register_obj(devs->vmm()->registry());
-    pci->register_device(input, dev_id);
+    pci->bus()->register_device(input, dev_id);
 
     info().printf("Input-power registered\n");
     return input;
