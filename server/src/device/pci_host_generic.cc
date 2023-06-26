@@ -158,6 +158,20 @@ public:
    *           0x00000000,            // Translation
    *           0x11111112,            // Range Length
    *           )
+   *
+   *         QWORDMEMORY (            // Descriptor for 64-bit MMIO
+   *           ResourceProducer,      // bit 0 of general flags is 0
+   *           PosDecode,
+   *           MinFixed,              // Range is fixed
+   *           MaxFixed,              // Range is Fixed
+   *           NonCacheable,
+   *           ReadWrite,
+   *           0x00000000,            // Granularity
+   *           0xAAAAAAAAAAAAAAAA,    // Min
+   *           0xBBBBBBBBBBBBBBBB,    // Max
+   *           0x0000000000000000,    // Translation
+   *           0x1111111111111112,    // Range Length
+   *           )
    *       })
    *     }
    *   }
@@ -170,14 +184,14 @@ public:
   l4_size_t amend_dsdt(void *buf, l4_size_t max_size) const override
   {
     unsigned char dsdt_pci[] = {
-      /* 0x00 */ 0x10, 0x42, 0x08, 0x5f, 0x53, 0x42, 0x5f, 0x5b,
-      /* 0x08 */ 0x82, 0x4a, 0x07, 0x50, 0x43, 0x49, 0x30, 0x08,
+      /* 0x00 */ 0x10, 0x40, 0x0b, 0x5f, 0x53, 0x42, 0x5f, 0x5b,
+      /* 0x08 */ 0x82, 0x48, 0x0a, 0x50, 0x43, 0x49, 0x30, 0x08,
       /* 0x10 */ 0x5f, 0x48, 0x49, 0x44, 0x0c, 0x41, 0xd0, 0x0a,
       /* 0x18 */ 0x08, 0x08, 0x5f, 0x43, 0x49, 0x44, 0x0c, 0x41,
       /* 0x20 */ 0xd0, 0x0a, 0x03, 0x08, 0x5f, 0x41, 0x44, 0x52,
       /* 0x28 */ 0x00, 0x08, 0x5f, 0x42, 0x42, 0x4e, 0x00, 0x08,
       /* 0x30 */ 0x5f, 0x55, 0x49, 0x44, 0x00, 0x08, 0x5f, 0x43,
-      /* 0x38 */ 0x52, 0x53, 0x11, 0x48, 0x04, 0x0a, 0x44, 0x88,
+      /* 0x38 */ 0x52, 0x53, 0x11, 0x46, 0x07, 0x0a, 0x72, 0x88,
       /* 0x40 */ 0x0d, 0x00, 0x02, 0x0c, 0x00, 0x00, 0x00,
 
       // bus range
@@ -206,7 +220,16 @@ public:
       /* 0x79 */ 0x00, 0x00, 0x00, 0x00, // Translation
       /* 0x7d */ 0x12, 0x11, 0x11, 0x11, // Range Length
 
-      /* 0x81 */ 0x79, 0x00
+      /* 0x81 */ 0x8a, 0x2b, 0x00, 0x00, 0x0c, 0x01, 0x00,
+      /* 0x88 */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+      // MMIO64 window
+      /* 0x8f */ 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, // Min
+      /* 0x97 */ 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, // Max
+      /* 0x9f */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Translation
+      /* 0xa7 */ 0x12, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, // Range Length
+
+      /* 0xaf */ 0x79, 0x00
     };
 
     // Update "bus range" with actual values from device tree
@@ -224,6 +247,11 @@ public:
     *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x71]) = _mmio_base;
     *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x75]) = _mmio_base + _mmio_size - 1U;
     *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x7d]) = _mmio_size;
+
+    // Update "MMIO64 window" with actual values from device tree
+    *reinterpret_cast<l4_uint64_t*>(&dsdt_pci[0x8f]) = _mmio_base64;
+    *reinterpret_cast<l4_uint64_t*>(&dsdt_pci[0x97]) = _mmio_base64 + _mmio_size64 - 1U;
+    *reinterpret_cast<l4_uint64_t*>(&dsdt_pci[0xa7]) = _mmio_size64;
 
     l4_size_t size = sizeof(dsdt_pci);
     if (max_size < size)
@@ -334,6 +362,8 @@ private:
 
   l4_uint64_t _mmio_base = 0;
   l4_uint64_t _mmio_size = 0;
+  l4_uint64_t _mmio_base64 = 0;
+  l4_uint64_t _mmio_size64 = 0;
   l4_uint16_t _io_base = 0xffff;
   l4_uint16_t _io_size = 0;
   l4_uint64_t _ecam_mcfg_base = 0;
@@ -538,6 +568,11 @@ Pci_host_generic::init_bridge_window(Dt_node const &node)
           _mmio_base = parent_base.get_uint64();
           _mmio_size = size.get_uint64();
         }
+      else if (flags.is_mmio64())
+        {
+          _mmio_base64 = parent_base.get_uint64();
+          _mmio_size64 = size.get_uint64();
+        }
       else if (flags.is_ioport())
         {
           _io_base = parent_base.get_uint64();
@@ -555,6 +590,8 @@ Pci_host_generic::init_bridge_window(Dt_node const &node)
 
   trace().printf("MMIO window at [0x%llx, 0x%llx]\n", _mmio_base,
                  _mmio_base + _mmio_size - 1U);
+  trace().printf("MMIO64 window at [0x%llx, 0x%llx]\n", _mmio_base64,
+                 _mmio_base64 + _mmio_size64 - 1U);
   trace().printf("I/O window at [0x%x, 0x%x]\n", _io_base,
                  _io_base + _io_size - 1U);
   if (has_ecam())
