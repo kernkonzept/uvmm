@@ -43,6 +43,7 @@
 
 #include <l4/sys/debugger.h>
 #include <l4/sys/scheduler>
+#include <l4/sys/semaphore>
 #include <l4/re/env>
 #include <l4/re/error_helper>
 #include <l4/re/util/object_registry>
@@ -51,6 +52,7 @@
 #include <l4/util/util.h>
 
 #include "device.h"
+#include "debug.h"
 
 namespace Vdev {
 
@@ -101,7 +103,9 @@ protected:
   void enqueue_timeout(L4::Ipc_svr::Timeout_queue::Timeout *t,
                        l4_kernel_clock_t timeout)
   {
-    _clock_source->ipc_if()->add(Timeout_callback(t), timeout);
+    long err;
+    if ((err = _clock_source->ipc_if()->add(Timeout_callback(t), timeout)))
+      Err().printf("Error enqueueing timeout: %ld\n", err);
   }
 
   /**
@@ -110,7 +114,9 @@ protected:
    */
   void dequeue_timeout(L4::Ipc_svr::Timeout_queue::Timeout *t)
   {
-    _clock_source->ipc_if()->remove(Timeout_callback(t));
+    long err;
+    if ((err = _clock_source->ipc_if()->remove(Timeout_callback(t))))
+      Err().printf("Error dequeuing timeout: %ld\n", err);
   }
 
   /**
@@ -164,7 +170,8 @@ public:
    * \param vcpu_no      Guest vCPU number to run the timer for.
    * \param phys_cpu_id  Scheduler id of the physical core to run on.
    */
-  void run_timer(unsigned vcpu_no, unsigned phys_cpu_id)
+  void run_timer(unsigned vcpu_no, unsigned phys_cpu_id,
+                 L4::Cap<L4::Semaphore> sem)
   {
     // raise timer thread prio above vcpu prio
     l4_sched_param_t sp = l4_sched_param(3);
@@ -184,6 +191,7 @@ public:
     snprintf(buf, sizeof(buf), "clock timer %1u", vcpu_no);
     l4_debugger_set_object_name(Pthread::L4::cap(pthread_self()).cap(), buf);
 
+    sem->up(); // signal to the vcpu-thread that the timer is ready
     _server->loop();
   }
 
@@ -195,7 +203,14 @@ public:
    */
   void start_timer_thread(unsigned vcpu_no, unsigned phys_cpu_id)
   {
-    _thread = std::thread(&Clock_source::run_timer, this, vcpu_no, phys_cpu_id);
+    auto factory = L4Re::Env::env()->factory();
+    L4Re::Util::Unique_cap<L4::Semaphore> sem =
+      L4Re::Util::make_unique_cap<L4::Semaphore>();
+    L4Re::chksys(factory->create(sem.get()),
+                 "Create timer thread startup semaphore");
+    _thread = std::thread(&Clock_source::run_timer, this, vcpu_no,
+                          phys_cpu_id, sem.get());
+    sem->down(); // wait until timer thread is alive
   }
 
   // Clock_source_adapter
