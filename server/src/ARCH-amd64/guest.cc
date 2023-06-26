@@ -173,9 +173,6 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
       _apics->register_core(vcpu_id, cpu);
       register_timer_device(_apics->get(vcpu_id)->timer(), vcpu_id);
       _apics->get(vcpu_id)->attach_cpu_thread(cpu->thread_cap());
-
-      auto phys_cpu_id = cpu->get_phys_cpu_id();
-      _clocks[id].start_timer_thread(id, phys_cpu_id);
     }
 
   register_msr_device(Vdev::make_device<Vcpu_msr_handler>(_cpus.get()));
@@ -555,8 +552,11 @@ template<typename VMS>
 void L4_NORETURN
 Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
 {
-  auto cpu = _cpus->cpu(vcpu.get_vcpu_id());
+  unsigned vcpu_id = vcpu.get_vcpu_id();
+  auto cpu = _cpus->cpu(vcpu_id);
   Gic::Virt_lapic *vapic = lapic(vcpu);
+
+  _clocks[vcpu_id].start_timer_thread(vcpu_id, cpu->get_phys_cpu_id());
 
   L4::Cap<L4::Thread> myself;
   trace().printf("Starting vCPU 0x%lx\n", vcpu->r.ip);
