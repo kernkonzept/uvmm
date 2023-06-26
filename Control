@@ -1,3 +1,3 @@
 requires: stdlibs libstdc++ libpthread libio-vbus libfdt l4virtio libloader
-optional: readline acpica zlib
+optional: readline acpica zlib rtc
 maintainer: alexander.warg@kernkonzept.com adam@l4re.org

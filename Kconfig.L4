@@ -21,10 +21,13 @@ config UVMM_MONITOR
 
 config UVMM_LOADER_GZIP
 	bool "GZIP/ZLIB loading"
-	depends on BUILD_ARCH_arm64 || BUILD_ARCH_arm
+	depends on (BUILD_ARCH_arm64 || BUILD_ARCH_arm) && HAVE_BIDPC_ZLIB
 	default y
 	help
 	  Allows to load gzip or zlib compressed kernel images.
+
+comment "GZIP/ZLIB compression not available due to missing zlib package"
+	depends on !HAVE_BIDPC_ZLIB
 
 config UVMM_LOADER_ROM
 	bool "ROM loading"
@@ -118,10 +121,15 @@ config UVMM_VDEV_ROM
 
 config UVMM_EXTERNAL_RTC
 	bool "l4rtc time source"
+	depends on HAVE_BIDPC_RTC
+	default y
 	help
 	  A driver to retrieve wallclock time from an L4Re rtc server.
 	
 	  For details on the configuration see device/l4rtc.cc
+
+comment "l4rtc time source not available due to missing rtc package"
+	depends on !HAVE_BIDPC_RTC
 
 comment "Device Emulation"
 
