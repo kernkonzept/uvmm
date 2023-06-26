@@ -162,23 +162,24 @@ public:
   { timer->set_clock_source(this); }
 
   /**
-   * Migrate a vCPU's timer thread to its physical core and run the timer loop.
+   * Migrate a vCPU's clock_source thread to its physical core and run the
+   * clock_source loop.
    *
-   * The migration is needed so the timer value is consistent with the hardware
-   * virtualized RDTSC instruction in the guest.
+   * The migration is needed so the clock_source value is consistent with the
+   * hardware virtualized RDTSC instruction in the guest.
    *
-   * \param vcpu_no      Guest vCPU number to run the timer for.
+   * \param vcpu_no      Guest vCPU number to run the clock_source for.
    * \param phys_cpu_id  Scheduler id of the physical core to run on.
    */
-  void run_timer(unsigned vcpu_no, unsigned phys_cpu_id,
-                 L4::Cap<L4::Semaphore> sem)
+  void run_clock_source(unsigned vcpu_no, unsigned phys_cpu_id,
+                        L4::Cap<L4::Semaphore> sem)
   {
-    // raise timer thread prio above vcpu prio
+    // raise clock_source thread prio above vcpu prio
     l4_sched_param_t sp = l4_sched_param(3);
     sp.affinity = l4_sched_cpu_set(phys_cpu_id, 0);
     auto sched = L4Re::Env::env()->scheduler();
     L4Re::chksys(sched->run_thread(Pthread::L4::cap(pthread_self()), sp),
-                 "Run timer thread.");
+                 "Run clock source thread.");
 
     // instantiate server loop
     _server = new L4Re::Util::Registry_server<Loop_hooks>(
@@ -186,9 +187,9 @@ public:
     _clock_if =
       L4::cap_cast<Clock_source_if>(_server->registry()->register_obj(this));
 
-    Dbg().printf("Hello Timer on CPU %u\n", vcpu_no);
+    Dbg().printf("Hello clock source for vCPU %u\n", vcpu_no);
     char buf[18];
-    snprintf(buf, sizeof(buf), "clock timer %1u", vcpu_no);
+    snprintf(buf, sizeof(buf), "clock source %1u", vcpu_no);
     l4_debugger_set_object_name(Pthread::L4::cap(pthread_self()).cap(), buf);
 
     sem->up(); // signal to the vcpu-thread that the timer is ready
@@ -196,19 +197,19 @@ public:
   }
 
   /**
-   * Start a new thread to run the timer loop.
+   * Start a new thread to run the clock_source loop.
    *
-   * \param vcpu_no      Guest vCPU number to run the timer for.
+   * \param vcpu_no      Guest vCPU number to run the clock_source for.
    * \param phys_cpu_id  Scheduler id of the physical core to run on.
    */
-  void start_timer_thread(unsigned vcpu_no, unsigned phys_cpu_id)
+  void start_clock_source_thread(unsigned vcpu_no, unsigned phys_cpu_id)
   {
     auto factory = L4Re::Env::env()->factory();
     L4Re::Util::Unique_cap<L4::Semaphore> sem =
       L4Re::Util::make_unique_cap<L4::Semaphore>();
     L4Re::chksys(factory->create(sem.get()),
-                 "Create timer thread startup semaphore");
-    _thread = std::thread(&Clock_source::run_timer, this, vcpu_no,
+                 "Create clock source thread startup semaphore");
+    _thread = std::thread(&Clock_source::run_clock_source, this, vcpu_no,
                           phys_cpu_id, sem.get());
     sem->down(); // wait until timer thread is alive
   }

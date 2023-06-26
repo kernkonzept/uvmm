@@ -556,7 +556,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
   auto cpu = _cpus->cpu(vcpu_id);
   Gic::Virt_lapic *vapic = lapic(vcpu);
 
-  _clocks[vcpu_id].start_timer_thread(vcpu_id, cpu->get_phys_cpu_id());
+  _clocks[vcpu_id].start_clock_source_thread(vcpu_id, cpu->get_phys_cpu_id());
 
   L4::Cap<L4::Thread> myself;
   trace().printf("Starting vCPU 0x%lx\n", vcpu->r.ip);
