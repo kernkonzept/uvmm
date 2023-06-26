@@ -69,7 +69,7 @@ end
 
 function start_vm(options)
   local nr      = options.id;
-  local size_mb = options.mem or 16;
+  local size_mb = 0;
   local vbus    = options.vbus;
   local vnet    = options.net;
   local prio    = options.prio;
@@ -114,16 +114,32 @@ function start_vm(options)
     keyb_shortcut = "key=" .. nr;
   end
 
-  local mem_flags = L4.Mem_alloc_flags.Continuous
+  local vm_ram;
+  if type(options.mem) == "userdata" then
+    -- User gave us a cap. Using this as dataspace for guest RAM.
+    vm_ram = options.mem
+  elseif type(options.mem) == "number" then
+    -- User gave us a number. Using this as size for a new Dataspace.
+    size_mb = options.mem
+  else
+    -- User did not give us any valid value.
+    size_mb = 16
+  end
+
+  if size_mb > 0 then
+    local mem_flags = L4.Mem_alloc_flags.Continuous
                     | L4.Mem_alloc_flags.Pinned
                     | L4.Mem_alloc_flags.Super_pages;
+
+    vm_ram = L4.Env.user_factory:create(L4.Proto.Dataspace,
+                                        size_mb * 1024 * 1024,
+                                        mem_flags, align):m("rw");
+  end
 
   local caps = {
     net  = vnet;
     vbus = vbus;
-    ram  = L4.Env.user_factory:create(L4.Proto.Dataspace,
-                                      size_mb * 1024 * 1024,
-                                      mem_flags, align):m("rw");
+    ram  = vm_ram;
   };
 
   if options.jdb then
