@@ -109,4 +109,4 @@ endif
 OPTS := $(OPTS_DEBUG) -O3
 
 # only relevant for Clang
-CXXFLAGS += -Wno-c99-designator
+CXXFLAGS += $(if $(BID_COMPILER_IS_CLANG),-Wno-c99-designator)
