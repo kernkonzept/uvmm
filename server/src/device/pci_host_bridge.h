@@ -338,6 +338,8 @@ public:
     void del_mmio_bar_resources(Pci_cfg_bar const &bar);
     void del_msix_bar_resources(Pci_cfg_bar const &bar);
 
+    void msi_cap_write_ctrl(l4_uint16_t ctrl);
+
     static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "HW PCI dev"); }
     static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "HW PCI dev"); }
     static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "HW PCI dev"); }

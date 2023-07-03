@@ -323,6 +323,20 @@ bool Pci_host_bridge::Hw_pci_device::msi_cap_read(unsigned reg,
   bool sixtyfour = msi_cap.ctrl.sixtyfour();
   switch (offset)
     {
+    case 0x0:
+      if (width <= Vmm::Mem_access::Width::Wd16)
+        // access only to non-emulated part, forward to hardware
+        break;
+      else
+        {
+          // read lower 16 bits from hardware
+          l4_uint32_t val;
+          L4Re::chksys(dev.cfg_read(reg, &val, mem_access_to_bits(width)),
+                       "PCI MSI cap access: read");
+          // and combine with emulated upper 16 bits.
+          *value = (msi_cap.ctrl.raw << 16) | (val & 0xffff);
+          return true;
+        }
     case 0x2:
       *value = msi_cap.ctrl.raw;
       return true;
@@ -355,6 +369,44 @@ bool Pci_host_bridge::Hw_pci_device::msi_cap_read(unsigned reg,
   return false;
 }
 
+void
+Pci_host_bridge::Hw_pci_device::msi_cap_write_ctrl(l4_uint16_t ctrl)
+{
+  bool was_enabled = msi_cap.ctrl.msi_enable();
+  msi_cap.write_ctrl(ctrl);
+
+  if (!was_enabled && msi_cap.ctrl.msi_enable())
+    {
+      if (parent->_msi_src_factory)
+        {
+          info().printf("MSI enabled: devid = 0x%x, ctrl = 0x%x\n", dev_id,
+                        msi_cap.ctrl.raw);
+          l4_icu_msi_info_t msiinfo;
+          msi_src = parent->_msi_src_factory
+            ->configure_msi_route(msi_cap, parent->msix_dest(dev_id),
+                                  src_id(), &msiinfo);
+          if (msi_src)
+            cfg_space_write_msi_cap(&msiinfo);
+        }
+      else
+        warn().printf("MSI enabled, but bridge lacks support: devid = 0x%x "
+                      "ctrl = 0x%x.\n Your device will probably not work!\n",
+                      dev_id, msi_cap.ctrl.raw);
+    }
+  else if (was_enabled && !msi_cap.ctrl.msi_enable())
+    {
+      if (parent->_msi_src_factory)
+        {
+          cfg_space_write_msi_cap();
+          parent->_msi_src_factory->reset_msi_route(msi_src);
+        }
+      msi_src = nullptr;
+
+      trace().printf("MSI disabled: devid = 0x%x ctrl = 0x%x\n", dev_id,
+                     msi_cap.ctrl.raw);
+    }
+}
+
 bool Pci_host_bridge::Hw_pci_device::msi_cap_write(unsigned reg,
                                                    l4_uint32_t value,
                                                    Vmm::Mem_access::Width width)
@@ -365,6 +417,10 @@ bool Pci_host_bridge::Hw_pci_device::msi_cap_write(unsigned reg,
   unsigned offset = reg - msi_cap.offset;
   trace().printf("write: devid = 0x%x offset = 0x%x width = %d value = 0x%x\n",
                  dev_id, offset, width, value);
+  if (   (width == Vmm::Mem_access::Width::Wd8 && offset != 0)
+      || (offset % (mem_access_to_bits(width) / 8) != 0))
+    warn().printf("Unaligned or partial write to MSI cap fields not supported. "
+                  "State might become inconsistent.\n");
 
   // guard against multiple threads accessing the device
   std::lock_guard<std::mutex> lock(_mutex);
@@ -374,43 +430,25 @@ bool Pci_host_bridge::Hw_pci_device::msi_cap_write(unsigned reg,
   bool consume_write = true;
   switch (offset)
     {
+    case 0x0:
+      if (width <= Vmm::Mem_access::Width::Wd16)
+        // access only to non-emulated part, forward to hardware
+        consume_write = false;
+      else
+        {
+          // write lower 16 bits to hardware
+          L4Re::chksys(dev.cfg_write(reg, value & 0xffff, 16),
+                       "PCI MSI cap access: write");
+
+          msi_cap_write_ctrl(value >> 16);
+        }
+      break;
+
     case 0x2:
       {
-        bool was_enabled = msi_cap.ctrl.msi_enable();
-        msi_cap.ctrl.raw = value & 0xffff;
-        msi_cap.ctrl.multiple_message_capable() = 0;
-        if (!was_enabled && msi_cap.ctrl.msi_enable())
-          {
-            if (parent->_msi_src_factory)
-              {
-                info().printf("MSI enabled: devid = 0x%x, ctrl = 0x%x\n",
-                              dev_id, msi_cap.ctrl.raw);
-                l4_icu_msi_info_t msiinfo;
-                msi_src = parent->_msi_src_factory->configure_msi_route(
-                  msi_cap, parent->msix_dest(dev_id), src_id(), &msiinfo);
-                if (msi_src)
-                  cfg_space_write_msi_cap(&msiinfo);
-              }
-            else
-              warn().printf("MSI enabled but bridge lacks support: devid = "
-                            "0x%x ctrl = 0x%x.\n"
-                            " Your device will probably not work!\n",
-                            dev_id, msi_cap.ctrl.raw);
-          }
-        else if (was_enabled && !msi_cap.ctrl.msi_enable())
-          {
-            if (parent->_msi_src_factory)
-              {
-                cfg_space_write_msi_cap();
-                parent->_msi_src_factory->reset_msi_route(msi_src);
-              }
-            msi_src = nullptr;
-
-            trace().printf("MSI disabled: devid = 0x%x ctrl = 0x%x\n",
-                           dev_id, msi_cap.ctrl.raw);
-          }
+        msi_cap_write_ctrl(value);
+        break;
       }
-      break;
 
     case 0x4: // message address
       msi_cap.address = value;
@@ -437,11 +475,15 @@ bool Pci_host_bridge::Hw_pci_device::msi_cap_write(unsigned reg,
         warn().printf("write to RO field: pending bits. Ignored\n");
       break;
 
-    case 0x12:
+    case 0x14:
       warn().printf("write to RO field: pending bits. Ignored\n");
       break;
 
-    default: warn().printf("Unhandled MSI CAP register\n"); break;
+    default:
+      warn().printf("Write to unhandled MSI CAP register: devid = 0x%x offset "
+                    "= 0x%x width = %d value = 0x%x\n",
+                    dev_id, offset, width, value);
+      break;
     }
 
   return consume_write;

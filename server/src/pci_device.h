@@ -320,6 +320,14 @@ struct Pci_msi_cap : Pci_cap
   l4_uint32_t upper_address;
   unsigned offset; // the offset into the devices config space
 
+  void write_ctrl(l4_uint16_t val)
+  {
+    static l4_uint16_t const ro_mask = 0xff8e;
+    static l4_uint16_t const wr_mask = 0x0071;
+
+    ctrl.raw = (ctrl.raw & ro_mask) | (val & wr_mask);
+  };
+
   l4_uint64_t addr() const
   {
     l4_uint64_t addr = address;
