@@ -71,6 +71,7 @@ public:
     Nmi = 0x61, // ??? Exception_or_nmi
     Vintr = 0x64, // ??? Virtual interrupt
     Cr0_sel_write = 0x65, // Cr_access
+    Rdpmc = 0x6f,  // RDPMC instruction
     Cpuid = 0x72, // Cpuid
     Hlt = 0x78, // Exec_halt
     Ioio = 0x7b, // Io_access
@@ -99,6 +100,7 @@ public:
     Intercept_init          = 1 << 3,
     Intercept_vintr         = 1 << 4,
     Intercept_cr0_sel_write = 1 << 5,
+    Intercept_rdpmc         = 1 << 15,
     Intercept_cpuid         = 1 << 18,
     Intercept_invd          = 1 << 22,
     Intercept_hlt           = 1 << 24,

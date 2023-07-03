@@ -49,9 +49,10 @@ Svm_state::init_state()
 
   _vmcb->control_area.intercept_instruction0 =
       Intercept_intr | Intercept_nmi | Intercept_smi | Intercept_init
-    | Intercept_vintr | Intercept_cr0_sel_write | Intercept_cpuid
-    | Intercept_invd | Intercept_hlt | Intercept_ioio | Intercept_msr
-    | Intercept_task_switch | Intercept_freeze | Intercept_shutdown;
+    | Intercept_vintr | Intercept_cr0_sel_write | Intercept_rdpmc
+    | Intercept_cpuid | Intercept_invd | Intercept_hlt | Intercept_ioio
+    | Intercept_msr | Intercept_task_switch | Intercept_freeze
+    | Intercept_shutdown;
 
   // TODO: These are the instructions intercepts that Fiasco enforces. Check
   // if we intercept too less or too much...

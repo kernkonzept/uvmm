@@ -120,6 +120,7 @@ public:
   {
     Int_window_exit_bit = (1UL << 2),
     Hlt_exit_bit = (1UL << 7),
+    Rdpmc_exit_bit = (1UL << 11),
     Tpr_shadow_bit = (1UL << 21),
     Nmi_window_exit_bit = (1UL << 22),
     Mov_dr_exit_bit = (1UL << 23),
@@ -203,6 +204,7 @@ public:
     vmx_write(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PRI_PROC_BASED_VM_EXEC_CTLS)
                 | Hlt_exit_bit
+                | Rdpmc_exit_bit // kernel enforced. keep in sync here.
                 | Mov_dr_exit_bit // kernel enforced. keep in sync here.
                 | Enable_secondary_ctls_bit
               );

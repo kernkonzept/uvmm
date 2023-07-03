@@ -132,6 +132,10 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
 
       return Jump_instr;
 
+    case Exit::Exec_rdpmc:
+      ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
+      return Retry;
+
     case Exit::Cr_access:
       return vms->handle_cr_access(regs, ev_rec);
 

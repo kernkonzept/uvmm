@@ -357,7 +357,15 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     Xget_bv = (1UL << 2),
     Xsave_s = (1UL << 3),
 
-    // 0x8000'0001
+    // 0x8000'0001 ECX
+    PerfCtrExtCore_bit = (1UL << 23), // AMD specific, Intel reserved
+    PerfCtrExtNB_bit = (1UL << 24),   // AMD specific, Intel reserved
+    PerfTsc_bit = (1UL << 27),        // AMD specific, Intel reserved
+    PerfCtrExtLLC_bit = (1UL << 28),  // AMD specific, Intel reserved
+    Amd_perfctr_mask = PerfCtrExtCore_bit | PerfCtrExtNB_bit | PerfTsc_bit
+                       | PerfCtrExtLLC_bit, // AMD specific, Intel reserved
+
+    // 0x8000'0001 EDX
     Rdtscp_bit = (1UL << 27),
   };
 
@@ -432,6 +440,7 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
 
     case 0x80000001:
       {
+        c &= ~(Amd_perfctr_mask);
         d &= ~( Rdtscp_bit );
         break;
       }

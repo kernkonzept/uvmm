@@ -178,6 +178,10 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
       // Used as interrupt window notification, handled in run_vm().
       return L4_EOK;
 
+    case Exit::Rdpmc:
+      ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
+      return Retry;
+
     case Exit::Dr0_read:
     case Exit::Dr1_read:
     case Exit::Dr2_read:
