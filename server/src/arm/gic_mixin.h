@@ -7,7 +7,9 @@
 
 #pragma once
 
-#include "gic.h"
+#include "gic_cpu.h"
+#include "gic_dist.h"
+#include "mmio_device.h"
 
 namespace Gic {
 

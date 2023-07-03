@@ -7,7 +7,6 @@
 
 #pragma once
 
-#include "debug.h"
 #include "device.h"
 #include "vcpu_ptr.h"
 
@@ -30,43 +29,21 @@ public:
   public:
     enum { Max_version = 3 };
     /// initialize, and register this factory
-    explicit Factory(unsigned version)
-    {
-      if (version < (Max_version + 1))
-        _factory[version] = this;
-    }
+    explicit Factory(unsigned version);
 
     /// create a GIC (Distributor)
     virtual cxx::Ref_ptr<Dist_if>
     create(unsigned tnline) const = 0;
 
     /// destroy and deregister this factory
-    virtual ~Factory()
-    {
-      for (auto &f: _factory)
-        if (f == this)
-          f = nullptr;
-    };
+    virtual ~Factory();
 
     /// Create a GIC (Distributor) of the given version.
     static cxx::Ref_ptr<Dist_if>
-    create(unsigned version, unsigned tnlines)
-    {
-      Dbg(Dbg::Irq, Dbg::Info, "GIC")
-        .printf("create ARM GICv%u\n", version);
-
-      if (version <= Max_version && _factory[version])
-        return _factory[version]->create(tnlines);
-
-      Err().printf("could not create GIC, unknown version: %u\n",
-                   version);
-
-      return nullptr;
-    }
+    create(unsigned version, unsigned tnlines);
 
   private:
     friend class Dist_if;
-    static Factory const *_factory[Max_version + 1];
   };
 
   /// Create a GIC (Distributor) of the given version.

@@ -30,7 +30,8 @@ SRC_CC_arm-common-$(CONFIG_UVMM_VDEV_GIC_V3) += arm/gic-v3.cc
 SRC_CC_arm-common-$(CONFIG_UVMM_FAULT_INJECT)  += ARCH-$(ARCH)/guest_arm_exc.cc
 SRC_CC_arm-common-$(CONFIG_UVMM_FAULT_INJECT)y += arm/guest_arm_noexc.cc
 
-SRC_CC_arm-common = arm/gic.cc arm/guest_arm.cc arm/cpu_dev_arm.cc \
+SRC_CC_arm-common = arm/gic_cpu.cc arm/gic_iface.cc \
+                    arm/guest_arm.cc arm/cpu_dev_arm.cc \
                     io_port_handler_noop.cc ARCH-$(ARCH)/guest_subarch.cc
 
 SRC_CC_arm-l4f   = $(SRC_CC_arm-common) $(SRC_CC_arm-common-y)

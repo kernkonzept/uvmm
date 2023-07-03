@@ -8,9 +8,10 @@
 #include <array>
 
 #include <l4/bid_config.h>
+#include <l4/cxx/utils>
 
 #include "device_factory.h"
-#include "gic.h"
+#include "gic_cpu.h"
 #include "gic_mixin.h"
 #include "guest.h"
 #include "mem_types.h"

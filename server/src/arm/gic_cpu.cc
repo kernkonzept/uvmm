@@ -5,11 +5,9 @@
  *
  */
 
-#include "gic.h"
+#include "gic_cpu.h"
 
 namespace Gic {
-
-Dist_if::Factory const *Dist_if::Factory::_factory[4];
 
 static bool atomic_set_bits(uint32_t *addr, uint32_t mask)
 {

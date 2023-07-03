@@ -5,7 +5,7 @@
  *
  */
 
-#include "gic.h"
+#include "gic_cpu.h"
 #include "gic_mixin.h"
 #include "guest.h"
 #include "mem_types.h"
