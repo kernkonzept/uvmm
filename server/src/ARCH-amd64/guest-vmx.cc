@@ -224,6 +224,21 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
         return Jump_instr;
       }
 
+    case Exit::Exec_vmclear:
+    case Exit::Exec_vmlaunch:
+    case Exit::Exec_vmptrld:
+    case Exit::Exec_vmptrst:
+    case Exit::Exec_vmread:
+    case Exit::Exec_vmresume:
+    case Exit::Exec_vmwrite:
+    case Exit::Exec_vmxoff:
+    case Exit::Exec_vmxon:
+    case Exit::Exec_invept:
+    case Exit::Exec_invvpid:
+      // Unsupported instructions, inject undefined opcode exception
+      ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6); // #UD
+      return Retry;
+
     case Exit::Task_switch:
     case Exit::Apic_access:
     case Exit::Ept_misconfig:

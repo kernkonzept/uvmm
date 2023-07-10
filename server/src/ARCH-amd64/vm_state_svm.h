@@ -76,7 +76,13 @@ public:
     Hlt = 0x78, // Exec_halt
     Ioio = 0x7b, // Io_access
     Msr = 0x7c, // Exec_rdmsr and Exec_wrmsr
+    Vmrun = 0x80,   // VMRUN instruction
     Vmmcall = 0x81, // Exec_vmcall
+    Vmload = 0x82,  // VMLOAD instruction
+    Vmsave = 0x83,  // VMSAVE instruction
+    Stgi = 0x84,    // STGI instruction
+    Clgi = 0x85,    // CLGI instruction
+    Skinit = 0x86,    // SKINIT instruction
     Xsetbv = 0x8d, // Exec_xsetbv, write to xcr0 field in guest_state
     Cr0_write_trap = 0x90, // Cr_access
     Cr15_write_trap = 0x9f, // Cr_access

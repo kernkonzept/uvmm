@@ -253,6 +253,16 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
       ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6);
       return Retry;
 
+    case Exit::Vmrun:
+    case Exit::Vmload:
+    case Exit::Vmsave:
+    case Exit::Stgi:
+    case Exit::Clgi:
+    case Exit::Skinit:
+      // Unsupported instructions, inject undefined opcode exception
+      ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6);
+      return Retry;
+
     default:
       if (reason >= Exit::Excp_0 && reason <= Exit::Excp_31)
       {
