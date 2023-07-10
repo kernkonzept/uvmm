@@ -27,6 +27,7 @@ SRC_CC_amd64-l4f-$(CONFIG_UVMM_MONITOR) += debugger/generic_guest_debugger.cc
 
 SRC_CC_arm-common-$(CONFIG_UVMM_VDEV_GIC_V2) += arm/gic-v2.cc
 SRC_CC_arm-common-$(CONFIG_UVMM_VDEV_GIC_V3) += arm/gic-v3.cc
+SRC_CC_arm-common-$(CONFIG_UVMM_VDEV_GIC_ITS) += arm/gic-v3_its.cc
 SRC_CC_arm-common-$(CONFIG_UVMM_FAULT_INJECT)  += ARCH-$(ARCH)/guest_arm_exc.cc
 SRC_CC_arm-common-$(CONFIG_UVMM_FAULT_INJECT)y += arm/guest_arm_noexc.cc
 
