@@ -22,7 +22,7 @@ class Dist
   friend Monitor::Gic_cmd_handler<Monitor::Enabled, Dist<AFF_ROUTING>>;
 
 protected:
-  Dbg gicd_trace;
+  static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "GICD"); }
 
 public:
   using Irq = Cpu::Irq;
@@ -39,7 +39,7 @@ public:
   unsigned char tnlines;
 
   Dist(unsigned tnlines, unsigned max_cpus)
-  : gicd_trace(Dbg::Irq, Dbg::Trace, "GICD"), ctlr(0), tnlines(tnlines),
+  : ctlr(0), tnlines(tnlines),
     _cpu(max_cpus),
     _spis(tnlines * 32, Cpu::Num_local),
     _lpis(nullptr)
@@ -156,8 +156,8 @@ public:
     // the entry for the boot CPU is not yet set up in the _cpu vector.
     Vmm::Vcpu_ptr sentinel_vcpu = cpu != 0 ? _cpu[0]->vcpu() : vcpu;
 
-    gicd_trace.printf("set CPU interface for CPU %02d (%p) to %p\n",
-                      cpu, &_cpu[cpu], *vcpu);
+    trace().printf("set CPU interface for CPU %02d (%p) to %p\n",
+                   cpu, &_cpu[cpu], *vcpu);
     _cpu.set_at(cpu, cxx::make_unique<Cpu>(vcpu, sentinel_vcpu, &_spis));
     Cpu *ret = _cpu[cpu].get();
     ret->register_lpis(_lpis);

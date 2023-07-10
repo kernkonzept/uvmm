@@ -81,8 +81,8 @@ public:
           return c->pending_irqs();
 
         if (0)
-          this->gicd_trace.printf("Inject: irq=%u on cpu=%d... ",
-                                  irq->id(), current_cpu);
+          this->trace().printf("Inject: irq=%u on cpu=%d... ",
+                               irq->id(), current_cpu);
         c->add_pending_irq<typename GIC_IMPL::Cpu_if>(empty_lr - 1, *irq);
       }
   }
