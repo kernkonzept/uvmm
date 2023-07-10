@@ -26,6 +26,14 @@ namespace Vdev {
  * After a read-back command with status field, the following bits in the
  * status field latched are not supported: OUTPUT [7], NULL COUNT [6].
  *
+ * Modes 0-3 are supported for both counters.
+ * Mode 4 is only useable on counter 0, for the triggered interrupt.
+ * Mode 5 is not supported.
+ *
+ * Modes 4 and 5 are not supported for counter 2, because the single tick
+ * change in output is not emulated and its questionable, if the emulation
+ * would be precise enough to allow visiblity to the guest.
+ *
  * \note This timer model uses the KIP clock as time base. You need to
  *       configure the Microkernel with CONFIG_SYNC_TSC in order to achieve
  *       sufficient granularity.
@@ -35,22 +43,6 @@ class Pit_timer
   public Vdev::Device,
   public Vdev::Timer
 {
-  struct Port61 : public Vmm::Io_device
-  {
-    l4_uint8_t val = 0;
-    void io_in(unsigned, Vmm::Mem_access::Width, l4_uint32_t *value) override
-    {
-      *value = val;
-      val &= ~(1 << 5); // destructive read
-    }
-
-    void io_out(unsigned, Vmm::Mem_access::Width, l4_uint32_t value) override
-    { val = value & 0xff; }
-
-    bool channel_2_on() const { return val & 0x1; }
-    void set_output() { val |= (1 << 5); }
-  };
-
   enum
   {
     Channels = 2,
@@ -70,6 +62,16 @@ class Pit_timer
     Access_lobyte = 1,
     Access_hibyte = 2,
     Access_lohi = 3,
+
+    Mode_terminal_count = 0,
+    Mode_hw_oneshot = 1,
+    Mode_rate_gen = 2,
+    Mode_rate_gen2 = 6,
+    Mode_square_wave = 3,
+    Mode_square_wave2 = 7,
+    Mode_sw_triggerd_strobe = 4,
+    // mode 5 unsupported.
+    Mode_periodic_mask = 0x2,
   };
 
   class Channel: public L4::Ipc_svr::Timeout_queue::Timeout
@@ -94,6 +96,18 @@ class Pit_timer
 
       void write(l4_uint8_t val)
       { raw = (val & ~Retain_mask) | (raw & Retain_mask); }
+
+      bool is_periodic_mode() const { return opmode() > Mode_hw_oneshot; }
+      bool is_one_shot_mode() const { return !is_periodic_mode(); }
+
+      bool is_mode0() const { return opmode() == Mode_terminal_count; }
+      bool is_mode1() const { return opmode() == Mode_hw_oneshot; }
+      bool is_mode2() const
+      { return opmode() == Mode_rate_gen || opmode() == Mode_rate_gen2; }
+      bool is_mode3() const
+      { return opmode() == Mode_square_wave || opmode() == Mode_square_wave2; }
+      bool is_mode4() const
+      { return opmode() == Mode_sw_triggerd_strobe; }
     };
 
     struct Latch
@@ -112,23 +126,38 @@ class Pit_timer
 
   public:
     Channel(Pit_timer *pit, bool is_channel2 = false)
-    : _is_channel2(is_channel2), _pit(pit)
+    : _is_channel2(is_channel2), _gate(!is_channel2), _pit(pit)
     {}
 
     // called in the context of the timer thread, be careful with locking!
     void expired()
     {
-      if (_is_channel2 && _pit->_port61->channel_2_on())
-        _pit->_port61->set_output();
+      // Unimplemented: mode2, 4, 5: output shall be low for one tick
+      // the single-tick output change in modes 2, 4 & 5 is not emulated
+      if (_status.is_mode3())
+        {
+          // Toggle output
+          set_output(!_status.output());
+        }
+      else
+        set_output(true);
 
-      if (!_is_channel2)
+      if(!_is_channel2)
         _pit->_irq.inject();
 
-      // only rate generator mode is periodic
-      if (_status.opmode() == 0x2) // Mode: rate generator
+      if (_status.is_mode2() || _status.is_mode3())
         {
-          _pit->requeue_timeout(this, next_timeout_us());
           _reload_kip_clock = l4_kip_clock(l4re_kip());
+          if (_reload)
+            _pit->requeue_timeout(this, next_timeout_us());
+        }
+      else
+        {
+          // The timer in the non periodic modes does not stop, but rolls over
+          // and continues counting until gate is low or counter is set to 0.
+          // Mode0 would not fire an interrupt again, since out is high until
+          // reprogrammed. We don't emulate any of this and just stop.
+          _running = false;
         }
     }
 
@@ -155,6 +184,46 @@ class Pit_timer
     void write_count(l4_uint8_t value);
     void write_status(l4_uint8_t value);
     l4_uint8_t read();
+
+    bool gate() const { return _gate; }
+    void gate(bool high)
+    {
+      // We know we are on channel 2, as only channel 2's gate can change.
+      trace().printf("Channel 2: set gate to %i from %i\n", high, _gate);
+
+      if (_status.is_mode0())
+        {
+          if (!high && _gate)
+            stop_counter();
+          else if (high && !_gate)
+            start_counter();
+          // XXX this reloads the counter, but it should stop counting and
+          // continue after gate goes high again, unless output is high;
+        }
+      else if (_status.is_mode1())
+        {
+          if (high && !_gate) // retrigger
+            {
+              stop_counter();
+              start_counter();
+              set_output(false);
+            }
+        }
+      else if (_status.is_mode2() || _status.is_mode3())
+        {
+          // the single-tick output change in modes 2, 4 & 5 is not emulated
+          if (high && !_gate)
+            {
+              start_counter();
+              set_output(true);
+            }
+          else if (!high && _gate)
+            stop_counter();
+        }
+      // modes 4 & 5 not supported
+
+      _gate = high;
+    }
 
   private:
     static l4_uint8_t low_byte(l4_uint16_t v)
@@ -188,31 +257,42 @@ class Pit_timer
       else
         {
           _reload = set_high_byte(_reload, value);
-          start_counter();
+          check_start_counter();
         }
 
       _write_lo = !_write_lo;
     }
 
-    void disable_irq()
-    { _pit->dequeue_timeout(this); }
-
-    void enable_irq()
+    void set_output(bool out)
     {
-      if (_reload)
-        _pit->enqueue_timeout(this, next_timeout_us());
+      _status.output() = out;
+      if (_is_channel2)
+        out ? _pit->_port61->set_out() : _pit->_port61->clear_out();
     }
 
     void start_counter()
     {
       _reload_kip_clock = l4_kip_clock(l4re_kip());
-      enable_irq();
+      if (_reload)
+        {
+          _pit->enqueue_timeout(this, next_timeout_us());
+          trace().printf("start counter for channel %i (was %s)\n",
+                         _is_channel2 ? 2 : 0,
+                         _running ? "running" : "not running");
+          _running = true;
+        }
     }
 
     void stop_counter()
     {
-      disable_irq();
+      trace().printf("stop counter for channel %i (was %s), reload: 0x%x\n",
+                     _is_channel2 ? 2 : 0, _running ? "running" : "not running",
+                     _reload);
+      _pit->dequeue_timeout(this);
+      _running = false;
     }
+
+    void check_start_counter();
 
     /**
      * Next absolute timeout in microseconds.
@@ -224,6 +304,11 @@ class Pit_timer
       l4_kernel_clock_t kip = l4_kip_clock(l4re_kip());
       l4_cpu_time_t timeout_us =
         _reload * Microseconds_per_second / Pit_tick_rate;
+
+      // square wave with half-time toggle
+      if (_status.is_mode3())
+        timeout_us /= 2;
+
       return kip + timeout_us;
     }
 
@@ -246,6 +331,16 @@ class Pit_timer
       l4_cpu_time_t diff_us =  kip_us - _reload_kip_clock;
       // return current counter value
       l4_uint32_t ticks = diff_us * Pit_tick_rate / Microseconds_per_second;
+      if (_status.is_mode3())
+        {
+          // in mode3 the counter decrements by two on each tick, since we
+          // compare to _reload, we have to double the number of counter
+          // decrements. expired() is called on each half-period, where
+          // _reload_kip_clock is adapted to track only the time since the last
+          // reload.
+          ticks *= 2;
+        }
+
       if (ticks >= _reload)
         return 0;
       return _reload - ticks;
@@ -254,12 +349,38 @@ class Pit_timer
     l4_uint16_t _reload = 0U;
     Status _status;
     bool _is_channel2;
+    bool _gate; //< 0 = low
+    bool _running = false;
     Latch _count_latch;
     Latch _status_latch;
     Pit_timer *_pit;
     l4_cpu_time_t _reload_kip_clock = 0ULL;
     bool _read_lo = true;
     bool _write_lo = true;
+  };
+
+  struct Port61 : public Vmm::Io_device
+  {
+    Port61(Channel *ch2) : _ch2(ch2) {}
+
+    void io_in(unsigned, Vmm::Mem_access::Width, l4_uint32_t *value) override
+    {
+      *value = val;
+      val &= ~(1 << 5); // destructive read
+    }
+
+    void io_out(unsigned, Vmm::Mem_access::Width, l4_uint32_t value) override
+    {
+      _ch2->gate(value & 0x1);
+      val = value & 0xff;
+    }
+
+    bool channel_2_on() const { return val & 0x1; }
+    void set_out() { val |= (1 << 5); }
+    void clear_out() { val &= ~(1 << 5); }
+
+    l4_uint8_t val = 0;
+    Channel *_ch2;
   };
 
   struct Control_reg
@@ -297,7 +418,7 @@ private:
   Vmm::Irq_edge_sink _irq;
   cxx::unique_ptr<Channel> _channel[Channels];
   std::mutex _mutex;
-  cxx::Ref_ptr<Port61> const _port61;
+  cxx::Ref_ptr<Port61> _port61;
 };
 
 } // namespace Vdev

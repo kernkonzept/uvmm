@@ -13,10 +13,11 @@
 namespace Vdev {
 
 Pit_timer::Pit_timer(cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
-: _irq(ic, irq), _port61(make_device<Port61>())
+: _irq(ic, irq)
 {
   _channel[0] = cxx::make_unique_ptr<Channel>(new Channel(this));
   _channel[1] = cxx::make_unique_ptr<Channel>(new Channel(this, true));
+  _port61 = make_device<Port61>(_channel[1].get());
 }
 
 void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
@@ -115,17 +116,22 @@ void Pit_timer::Channel::write_count(l4_uint8_t value)
 {
   _count_latch.reset();
   _status_latch.reset();
-  stop_counter();
+
+  if (_status.is_mode0())
+    {
+      // when writing a new count, out goes low.
+      set_output(false);
+    }
 
   switch(_status.access())
     {
     case Access_lobyte:
       _reload = set_low_byte(_reload, value);
-      start_counter();
+      check_start_counter();
       break;
     case Access_hibyte:
       _reload = set_high_byte(_reload, value);
-      start_counter();
+      check_start_counter();
       break;
     case Access_lohi:
       write_lo_hi(value);
@@ -134,8 +140,33 @@ void Pit_timer::Channel::write_count(l4_uint8_t value)
       warn().printf("Invalid access value for write to counter: counter "
                     "%u, status 0x%x\n",
                     _is_channel2 ? 2U : 0U, _status.raw);
-      break;
+      return;
     }
+  trace().printf("Written new counter value to channel %i: reload: 0x%x, value "
+                 "0x%x\n",
+                 _is_channel2 ? 2U : 0U, _reload, value);
+}
+
+void Pit_timer::Channel::check_start_counter()
+{
+  // Assumption: only called after the full write of a counter
+  if (!_gate)
+    {
+      warn().printf("count written, but gate not high: Counter %i\n",
+                    _is_channel2 ? 2 : 0);
+      return;
+    }
+
+  if (_status.is_mode0() || _status.is_mode4())
+    {
+      if (_running)
+        stop_counter();
+      start_counter();
+    }
+  else if (!_running && (_status.is_mode2() || _status.is_mode3()))
+    start_counter();
+
+  // modes 1, 2, 3, 5 do not change their counter value on a new reload value.
 }
 
 void Pit_timer::Channel::write_status(l4_uint8_t value)
@@ -154,7 +185,11 @@ void Pit_timer::Channel::write_status(l4_uint8_t value)
   _write_lo = true;
 
   _status.write(value);
-  trace().printf("New status on channel: 0x%x\n", _status.raw);
+  // initial output level depends on the mode. Only mode0 is initially low.
+  set_output(!_status.is_mode0());
+
+  trace().printf("New status on channel %i: 0x%x (mode %u)\n",
+                 _is_channel2 ? 2 : 0, _status.raw, _status.opmode().get());
 }
 
 l4_uint8_t Pit_timer::Channel::read()
