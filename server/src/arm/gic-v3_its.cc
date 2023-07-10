@@ -48,7 +48,7 @@ private:
 
   enum
   {
-    Lpi_base       = Dist_v3::Lpi_base,
+    Lpi_base       = Cpu::Lpi_base,
     Num_lpis       = 512,
 
     /**

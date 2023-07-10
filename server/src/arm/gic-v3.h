@@ -138,7 +138,7 @@ public:
       unsigned num_lpis()
       {
         unsigned lpis = (1 << (id_bits() + 1));
-        return lpis > Lpi_base ? lpis - Lpi_base : 0;
+        return lpis > Cpu::Lpi_base ? lpis - Cpu::Lpi_base : 0;
       }
     };
 

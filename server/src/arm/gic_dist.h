@@ -27,9 +27,6 @@ protected:
 public:
   using Irq = Cpu::Irq;
 
-  enum { Num_local = 32 };
-  enum { Lpi_base = 8192 };
-
   enum Regs
   {
     CTLR  = 0x000,
@@ -44,7 +41,7 @@ public:
   Dist(unsigned tnlines, unsigned max_cpus)
   : gicd_trace(Dbg::Irq, Dbg::Trace, "GICD"), ctlr(0), tnlines(tnlines),
     _cpu(max_cpus),
-    _spis(tnlines * 32, Num_local),
+    _spis(tnlines * 32, Cpu::Num_local),
     _lpis(nullptr)
   {
   }
@@ -354,10 +351,10 @@ private:
     unsigned const irq_s = (offset & (~0U) << size) << SHIFT;
     unsigned const nirq = (1 << size) << SHIFT;
 
-    if (irq_s < Num_local)
+    if (irq_s < Cpu::Num_local)
       _demux_irq_reg<SHIFT>(_cpu[cpu_id]->local_irqs(), irq_s, nirq, reg, op);
-    else if (irq_s - Num_local < _spis.size())
-      _demux_irq_reg<SHIFT>(_spis, irq_s - Num_local, nirq, reg, op);
+    else if (irq_s - Cpu::Num_local < _spis.size())
+      _demux_irq_reg<SHIFT>(_spis, irq_s - Cpu::Num_local, nirq, reg, op);
   }
 
   /**
