@@ -105,6 +105,7 @@ class Dist_v3 : public Dist_mixin<Dist_v3, true>
 {
 private:
   using Dist = Dist_mixin<Dist_v3, true>;
+  friend class Redist;
   friend class Sgir_sysreg;
 
 public:
@@ -226,206 +227,9 @@ public:
     Lpi_config *_config_table = nullptr;
   };
 
-  class Redist : public Vmm::Mmio_device_t<Redist>
-  {
-  private:
-    Dist_v3 *_dist;
-
-    std::mutex _lock;
-    std::vector<Redist_cpu> _redist_cpu;
-
-    enum
-    {
-      IID  = 0x43b,
-      IID2 = 3 << 4,
-      // All but proc_num and affinity and last.
-      // CommonLPIAff = 0 -> All redistributors must share LPI config table.
-      // DirectLPI = 0 -> Direct injection of LPIs not supported.
-      TYPE = 0,
-    };
-
-    l4_uint32_t status() const
-    { return 0; }
-
-    void status(l4_uint32_t) const
-    {}
-
-    l4_uint32_t type() const
-    {
-      l4_uint32_t type = TYPE;
-      if (_dist->_lpis)
-        type |= 1 << 0; // Physical LPIs are supported
-      return type;
-    }
-
-    enum
-    {
-      CTLR      = 0x0,
-      IIDR      = 0x4,
-      TYPER     = 0x8,
-      STATUSR   = 0x10,
-      WAKER     = 0x14,
-      PROPBASER = 0x70,
-      PENDBASER = 0x78,
-      IIDR2     = 0xffe8,
-    };
-
-    l4_uint64_t read_rd(Cpu *cif, unsigned reg, char size, bool last)
-    {
-      unsigned r32 = reg & ~3u;
-      using Ma = Vmm::Mem_access;
-
-      switch (r32)
-        {
-        case CTLR:
-          {
-            std::lock_guard<std::mutex> lock(_lock);
-            return _redist_cpu[cif->vcpu_id()].ctlr();
-          }
-
-        case IIDR:
-          return IID;
-
-        case IIDR2:
-          return IID2;
-
-        case TYPER:
-        case TYPER + 4:
-          return Ma::read(type() | cif->get_typer() | (last ? 0x10 : 0x00),
-                          reg, size);
-        case STATUSR:
-          return status();
-
-        case WAKER:
-          return 0;
-
-        case PROPBASER:
-        case PROPBASER + 4:
-          {
-            std::lock_guard<std::mutex> lock(_lock);
-            return Ma::read(_redist_cpu[cif->vcpu_id()].propbase(), reg, size);
-          }
-
-        case PENDBASER:
-        case PENDBASER + 4:
-          {
-            std::lock_guard<std::mutex> lock(_lock);
-            return Ma::read(_redist_cpu[cif->vcpu_id()].pendbase(), reg, size);
-          }
-
-        default:
-          break;
-        }
-
-      return 0;
-    }
-
-    void write_rd(Cpu *cif, unsigned reg, char size, l4_uint64_t value)
-    {
-      unsigned r32 = reg & ~3u;
-
-      switch (r32)
-        {
-        case CTLR:
-          {
-            std::lock_guard<std::mutex> lock(_lock);
-            _redist_cpu[cif->vcpu_id()].ctlr(_dist, value);
-            return;
-          }
-
-        case STATUSR:
-          status(value);
-          return;
-
-        case WAKER:
-          return;
-
-        case PROPBASER:
-        case PROPBASER + 4:
-          {
-            std::lock_guard<std::mutex> lock(_lock);
-            _redist_cpu[cif->vcpu_id()].propbase(reg, size, value);
-            return;
-          }
-
-        case PENDBASER:
-        case PENDBASER + 4:
-          {
-            std::lock_guard<std::mutex> lock(_lock);
-            _redist_cpu[cif->vcpu_id()].pendbase(reg, size, value);
-            return;
-          }
-
-        default:
-          break;
-        }
-      return;
-    }
-
-  public:
-    enum
-    {
-      Stride = 17, // 17bit stride -> 2 64K regions RD + SGI
-    };
-
-    explicit Redist(Dist_v3 *dist)
-    : _dist(dist),
-      _redist_cpu(_dist->_cpu.capacity())
-    {
-    }
-
-    Redist_cpu const *cpu(unsigned cpu_id) const
-    {
-      return cpu_id < _redist_cpu.size() ? &_redist_cpu[cpu_id] : nullptr;
-    }
-
-    l4_uint64_t read(unsigned reg, char size, unsigned)
-    {
-      unsigned cpu_id = reg >> Stride;
-      if (cpu_id >= _dist->_cpu.size())
-        return 0;
-
-      unsigned blk = (reg >> 16) & ~((~0u) << (Stride - 16));
-      reg &= 0xffff;
-
-      l4_uint64_t res = 0;
-      switch (blk)
-        {
-          case 0:
-            return read_rd(_dist->_cpu[cpu_id].get(), reg, size,
-                           cpu_id + 1 == _dist->_cpu.size());
-          case 1:
-            _dist->read_multi_irq(reg, size, cpu_id, &res);
-            return res;
-          default:
-            return 0;
-        }
-    }
-
-    void write(unsigned reg, char size, l4_uint64_t value, unsigned)
-    {
-      unsigned cpu_id = reg >> Stride;
-      if (cpu_id >= _dist->_cpu.size())
-        return;
-
-      unsigned blk = (reg >> 16) & ~((~0u) << (Stride - 16));
-      reg &= 0xffff;
-      switch (blk)
-        {
-          case 0:
-            return write_rd(_dist->_cpu[cpu_id].get(), reg, size, value);
-          case 1:
-            _dist->write_multi_irq(reg, size, value, cpu_id);
-            return;
-          default:
-            break;
-        }
-    }
-  };
-
   cxx::Ref_ptr<Vmm::Vm_ram> _ram;
   cxx::unique_ptr<l4_uint64_t[]> _router;
-  cxx::Ref_ptr<Redist> _redist;
+  cxx::Ref_ptr<Mmio_device> _redist;
   l4_uint64_t _redist_size;
   cxx::Ref_ptr<Vmm::Arm::Sys_reg> _sgir;
 
@@ -453,10 +257,7 @@ public:
 
   l4_uint32_t get_typer() const override;
 
-  Redist_cpu const *redist(unsigned cpu_id) const
-  {
-    return _redist->cpu(cpu_id);
-  }
+  Redist_cpu const *redist(unsigned cpu_id) const;
 
   cxx::Ref_ptr<Vdev::Device> setup_gic(Vdev::Device_lookup *devs,
                                        Vdev::Dt_node const &node) override;
