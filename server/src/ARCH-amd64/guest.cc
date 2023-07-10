@@ -307,6 +307,8 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     Ecx_vmx_bit = (1UL << 5),
     Ecx_smx_bit = (1UL << 6),
     Ecx_speed_step_tech_bit = (1UL << 7),
+    Ecx_thermal_mon2 = (1UL << 8),
+    Ecx_sdbg = (1UL << 11),
     Ecx_pcid_bit = (1UL << 17),
     Ecx_x2apic_bit = (1UL << 21),
     Ecx_xsave_bit = (1UL << 26),
@@ -319,8 +321,11 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     Edx_acpi_bit = (1UL << 22),
 
     // 0x6 EAX
+    Digital_sensor = (1UL << 0),
     Power_limit_notification = (1UL << 4),
-    Hwp_feature_mask = (0x1f << 7),
+    Hwp_feature_mask = (0x3UL << 23) | (0x3fUL << 15) | (0x1f << 7),
+    Hdc_feature = (1UL << 13), // HDC MSR support
+
     // 0x6 ECX
     Performance_energy_bias_preference = (1UL << 3),
     // presence of MSRs IA32_MPERF and IA32_APERF
@@ -378,7 +383,9 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
       c &= ~(  Ecx_monitor_bit
              | Ecx_vmx_bit
              | Ecx_smx_bit
+             | Ecx_thermal_mon2
              | Ecx_speed_step_tech_bit
+             | Ecx_sdbg
              | Ecx_pcid_bit
             );
       c |= Ecx_hypervisor_bit;
@@ -387,10 +394,11 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
       break;
 
     case 0x6:
-      a &= ~(Power_limit_notification | Hwp_feature_mask);
+      a &= ~(Digital_sensor | Power_limit_notification | Hwp_feature_mask
+             | Hdc_feature);
       // filter IA32_ENERGEY_PERF_BIAS
-      c &= ~(Performance_energy_bias_preference);
-      c &= ~(Hardware_coordination_feedback_capability);
+      c &= ~(Performance_energy_bias_preference
+             | Hardware_coordination_feedback_capability);
       break;
 
     case 0x7:
