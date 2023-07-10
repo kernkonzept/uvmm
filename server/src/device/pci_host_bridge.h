@@ -150,7 +150,7 @@ public:
   : _vmm(devs->vmm()),
     _vbus(devs->vbus()),
     _as_mgr(devs->ram()->as_mgr_if()),
-    _bus({bus_num}),
+    _bus(bus_num),
     _msix_ctrl(msix_ctrl)
   {
     if (msix_ctrl)
