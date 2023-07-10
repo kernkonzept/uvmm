@@ -112,7 +112,8 @@ private:
       case CTLR:
         {
           std::lock_guard<std::mutex> lock(_lock);
-          _redist_cpu[cif->vcpu_id()].ctlr(_dist, value);
+          _redist_cpu[cif->vcpu_id()].ctlr(_dist->num_lpi_bits(),
+                                           *_dist->_ram.get(), value);
           return;
         }
 

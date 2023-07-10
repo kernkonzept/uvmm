@@ -158,11 +158,11 @@ public:
     l4_uint32_t ctlr() const
     { return lpis_enabled() ? GICR_CTRL_enable_lpi : 0; }
 
-    void ctlr(Dist_v3 *dist, l4_uint32_t ctrl)
+    void ctlr(unsigned num_lpi_bits, Vmm::Vm_ram const &ram, l4_uint32_t ctrl)
     {
       // Once LPI support has been enabled, it cannot be disabled again.
-      if (dist->_lpis && !lpis_enabled() && (ctrl & GICR_CTRL_enable_lpi))
-        enable_lpis(dist);
+      if (num_lpi_bits > 0 && !lpis_enabled() && (ctrl & GICR_CTRL_enable_lpi))
+        enable_lpis(num_lpi_bits, ram);
     }
 
     l4_uint64_t propbase() const
@@ -205,12 +205,12 @@ public:
     }
 
   private:
-    void enable_lpis(Dist_v3 *dist)
+    void enable_lpis(unsigned num_lpi_bits, Vmm::Vm_ram const &ram)
     {
       // If number of LPIs configured in Propbaser is larger the number of LPIs
       // supported by the distributor, the distributor's limit applies.
-      _num_lpis = cxx::min(_propbase.num_lpis(), 1u << dist->num_lpi_bits());
-      _config_table = dist->_ram->guest2host<Lpi_config *>(
+      _num_lpis = cxx::min(_propbase.num_lpis(), 1u << num_lpi_bits);
+      _config_table = ram.guest2host<Lpi_config *>(
         Vmm::Region::ss(Vmm::Guest_addr(_propbase.pa()), _num_lpis,
                         Vmm::Region_type::Ram));
 
