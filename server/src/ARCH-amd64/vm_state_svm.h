@@ -73,6 +73,7 @@ public:
     Cr0_sel_write = 0x65, // Cr_access
     Rdpmc = 0x6f,  // RDPMC instruction
     Cpuid = 0x72, // Cpuid
+    Sw_int = 0x75, // INTn instruction
     Hlt = 0x78, // Exec_halt
     Ioio = 0x7b, // Io_access
     Msr = 0x7c, // Exec_rdmsr and Exec_wrmsr
@@ -84,6 +85,7 @@ public:
     Clgi = 0x85,    // CLGI instruction
     Skinit = 0x86,    // SKINIT instruction
     Rdtscp = 0x87,    // RDTSCP instruction
+    Icebp = 0x88, // INT1 instruction
     Xsetbv = 0x8d, // Exec_xsetbv, write to xcr0 field in guest_state
     Cr0_write_trap = 0x90, // Cr_access
     Cr15_write_trap = 0x9f, // Cr_access
@@ -425,7 +427,7 @@ public:
   bool read_msr(unsigned msr, l4_uint64_t *value) const override;
   bool write_msr(unsigned msr, l4_uint64_t value, Event_recorder *) override;
 
-  int handle_hardware_exception(unsigned num);
+  int handle_hardware_exception(Event_recorder *ev_rec, unsigned num);
 
   l4_umword_t read_gpr(l4_vcpu_regs_t *regs, unsigned reg) const;
 

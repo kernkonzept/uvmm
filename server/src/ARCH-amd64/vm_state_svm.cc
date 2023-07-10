@@ -326,32 +326,49 @@ Svm_state::handle_xsetbv(l4_vcpu_regs_t *regs)
 }
 
 int
-Svm_state::handle_hardware_exception(unsigned num)
+Svm_state::handle_hardware_exception(Event_recorder *ev_rec, unsigned num)
 {
   Err err;
-  err.printf("Hardware exception\n");
 
+  // Besides #DB and #AC all hardware exceptions are reflected to the guest.
+  // The print statements serve as (paranoid) debug help in case the reflection
+  // does not happen.
   switch (num)
   {
-    case 0: err.printf("Divide error\n"); break;
-    case 1: err.printf("Debug\n"); break;
-    case 3: err.printf("Breakpoint\n"); break;
-    case 4: err.printf("Overflow\n"); break;
-    case 5: err.printf("Bound range\n"); break;
-    case 6: err.printf("Invalid opcode\n"); break;
-    case 7: err.printf("Device not available\n"); break;
-    case 8: err.printf("Double fault\n"); break;
-    case 10: err.printf("Invalid TSS\n"); break;
-    case 11: err.printf("Segment not present\n"); break;
-    case 12: err.printf("Stack-segment fault\n"); break;
-    case 13: err.printf("General protection\n"); break;
-    case 14: err.printf("Page fault\n"); break;
-    case 16: err.printf("FPU error\n"); break;
-    case 17: err.printf("Alignment check\n"); break;
-    case 18: err.printf("Machine check\n"); break;
-    case 19: err.printf("SIMD error\n"); break;
-    default: err.printf("Unknown exception\n"); break;
+    case 0: err.printf("Hardware exception: Divide error\n"); break;
+
+    case 1: // #DB
+      {
+        ev_rec->make_add_event<Event_exc>(Event_prio::Exception, num);
+        // #DB exceptions are either of fault type or of trap type. We reflect
+        // both to the guest, without changing state, thus don't change the IP.
+        return Retry;
+      }
+
+    case 3: err.printf("Hardware exception: Breakpoint\n"); break;
+    case 4: err.printf("Hardware exception: Overflow\n"); break;
+    case 5: err.printf("Hardware exception: Bound range\n"); break;
+    case 6: err.printf("Hardware exception: Invalid opcode\n"); break;
+    case 7: err.printf("Hardware exception: Device not available\n"); break;
+    case 8: err.printf("Hardware exception: Double fault\n"); break;
+    case 10: err.printf("Hardware exception: Invalid TSS\n"); break;
+    case 11: err.printf("Hardware exception: Segment not present\n"); break;
+    case 12: err.printf("Hardware exception: Stack-segment fault\n"); break;
+    case 13: err.printf("Hardware exception: General protection\n"); break;
+    case 14: err.printf("Hardware exception: Page fault\n"); break;
+    case 16: err.printf("Hardware exception: FPU error\n"); break;
+
+    case 17: // #AC
+      {
+        l4_uint64_t err_code = exit_info1();
+        ev_rec->make_add_event<Event_exc>(Event_prio::Exception, num, err_code);
+        return Retry;
+      }
+    case 18: err.printf("Hardware exception: Machine check\n"); break;
+    case 19: err.printf("Hardware exception: SIMD error\n"); break;
+    default: err.printf("Hardware exception: Unknown exception\n"); break;
   }
+
   return -L4_EINVAL;
 }
 

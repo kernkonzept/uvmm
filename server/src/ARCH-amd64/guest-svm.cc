@@ -274,12 +274,31 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
       ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6);
       return Retry;
 
+    case Exit::Sw_int:
+      {
+        // exit_info1[7:0] contains vector
+        l4_uint32_t sw_int_num = vms->exit_info1() & 0xff;
+
+        using Event_sw_int = Event_sw_generic<4>;
+        ev_rec->make_add_event<Event_sw_int>(Event_prio::Sw_intN, sw_int_num,
+                                             0U);
+
+        return Retry;
+      }
+
+    case Exit::Icebp:
+      // Emulating ICEBP this way leads to an additional DPL check, which INT1
+      // does not do normally, but normally, the INT1 is for HW vendors only.
+      ev_rec->make_add_event<Event_exc>(Event_prio::Sw_int1, 1); // #DB
+
+      return Retry;
+
     default:
       if (reason >= Exit::Excp_0 && reason <= Exit::Excp_31)
       {
         int exc_num = static_cast<unsigned>(reason)
                       - static_cast<unsigned>(Exit::Excp_0);
-        return vms->handle_hardware_exception(exc_num);
+        return vms->handle_hardware_exception(ev_rec, exc_num);
       }
 
       warn().printf("[%3u]: Exit at guest IP 0x%lx with 0x%x (Info1: 0x%llx, "
