@@ -227,6 +227,7 @@ public:
     Lpi_config *_config_table = nullptr;
   };
 
+private:
   cxx::Ref_ptr<Vmm::Vm_ram> _ram;
   cxx::unique_ptr<l4_uint64_t[]> _router;
   cxx::Ref_ptr<Mmio_device> _redist;
