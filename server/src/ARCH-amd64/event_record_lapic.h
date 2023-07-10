@@ -16,7 +16,8 @@ namespace Vmm
  */
 struct Event_nmi : Event_record
 {
-  Event_nmi(Gic::Virt_lapic *apic) : Event_record(Event_prio::Nmi), lapic(apic)
+  explicit Event_nmi(Gic::Virt_lapic *apic)
+  : Event_record(Event_prio::Nmi), lapic(apic)
   {}
 
   bool inject(Vm_state *vm) override;
@@ -29,7 +30,8 @@ struct Event_nmi : Event_record
  */
 struct Event_irq : Event_record
 {
-  Event_irq(Gic::Virt_lapic *apic) : Event_record(Event_prio::Irq), lapic(apic)
+  explicit Event_irq(Gic::Virt_lapic *apic)
+  : Event_record(Event_prio::Irq), lapic(apic)
   {}
 
   bool inject(Vm_state *vm) override;
