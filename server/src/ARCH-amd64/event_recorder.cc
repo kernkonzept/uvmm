@@ -75,7 +75,7 @@ bool Event_recorder::empty() const
 void Event_recorder::dump() const
 {
   static char const *Event_prio_names[Event_prio::Prio_max] = {
-    "Abort"
+    "Abort",
     "Exception",
     "Sw_int1",
     "Sw_int3",
