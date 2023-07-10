@@ -417,8 +417,7 @@ private:
     if (!lpi)
       return Cmd::Err_int_unmapped_interrupt;
 
-    trigger_lpi(lpi);
-    return Cmd::Err_ok;
+    return trigger_lpi(lpi) ? Cmd::Err_ok : Cmd::Err_int_unmapped_interrupt;
   }
 
   /**
@@ -772,16 +771,17 @@ private:
     lpi->pending(false);
   }
 
-  void trigger_lpi(Irq *lpi) const
+  bool trigger_lpi(Irq *lpi) const
   {
     // If the LPI does not target a valid CPU (e.g. the ICID assigned to the LPI
     // has not been mapped to a redistributor) or if the targeted redistributor
     // has LPIs disabled, ignore this attempt to make the LPI pending.
     auto redist = _gic->redist(lpi->cpu());
     if (!redist || !redist->lpis_enabled())
-      return;
+      return false;
 
     _gic->set(lpi->id());
+    return true;
   }
 
   template<typename C>
