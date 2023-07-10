@@ -15,7 +15,7 @@ private:
   Dist_v3 *_dist;
 
   std::mutex _lock;
-  std::vector<Dist_v3::Redist_cpu> _redist_cpu;
+  std::vector<Redist_cpu> _redist_cpu;
 
   enum
   {
@@ -158,7 +158,7 @@ public:
   {
   }
 
-  Dist_v3::Redist_cpu const *cpu(unsigned cpu_id) const
+  Redist_cpu const *cpu(unsigned cpu_id) const
   {
     return cpu_id < _redist_cpu.size() ? &_redist_cpu[cpu_id] : nullptr;
   }
@@ -314,7 +314,7 @@ Dist_v3::get_typer() const
   return type;
 }
 
-Dist_v3::Redist_cpu const *
+Redist_cpu const *
 Dist_v3::redist(unsigned cpu_id) const
 {
   return static_cast<Redist *>(_redist.get())->cpu(cpu_id);

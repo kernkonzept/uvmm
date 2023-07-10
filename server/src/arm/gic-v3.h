@@ -58,6 +58,127 @@ struct Gic_mem_reg : public REG
   }
 };
 
+/**
+ * Per vCPU redistributor state.
+ */
+class Redist_cpu
+{
+private:
+  enum
+  {
+    GICR_CTRL_enable_lpi = 1 << 0,
+  };
+
+  struct Lpi_config
+  {
+    l4_uint8_t raw;
+    CXX_BITFIELD_MEMBER          (0, 0, enable, raw);
+    CXX_BITFIELD_MEMBER_UNSHIFTED(2, 7, priority, raw);
+  };
+
+  struct Propbaser
+  {
+    l4_uint64_t raw = 0;
+    CXX_BITFIELD_MEMBER          ( 0,  4, id_bits, raw);
+    CXX_BITFIELD_MEMBER          ( 7,  9, inner_cache, raw);
+    CXX_BITFIELD_MEMBER          (10, 11, share, raw);
+    CXX_BITFIELD_MEMBER_UNSHIFTED(12, 51, pa, raw);
+    CXX_BITFIELD_MEMBER          (56, 58, outer_cache, raw);
+
+    enum { Ro_mask = 0 };
+
+    unsigned num_lpis()
+    {
+      unsigned lpis = (1 << (id_bits() + 1));
+      return lpis > Cpu::Lpi_base ? lpis - Cpu::Lpi_base : 0;
+    }
+  };
+
+  struct Pendbaser
+  {
+    l4_uint64_t raw = 0;
+    CXX_BITFIELD_MEMBER          ( 7,  9, inner_cache, raw);
+    CXX_BITFIELD_MEMBER          (10, 11, share, raw);
+    CXX_BITFIELD_MEMBER_UNSHIFTED(16, 51, pa, raw);
+    CXX_BITFIELD_MEMBER          (56, 58, outer_cache, raw);
+    CXX_BITFIELD_MEMBER          (62, 62, ptz, raw);
+
+    enum { Ro_mask = 0 };
+  };
+
+public:
+  l4_uint32_t ctlr() const
+  { return lpis_enabled() ? GICR_CTRL_enable_lpi : 0; }
+
+  void ctlr(unsigned num_lpi_bits, Vmm::Vm_ram const &ram, l4_uint32_t ctrl)
+  {
+    // Once LPI support has been enabled, it cannot be disabled again.
+    if (num_lpi_bits > 0 && !lpis_enabled() && (ctrl & GICR_CTRL_enable_lpi))
+      enable_lpis(num_lpi_bits, ram);
+  }
+
+  l4_uint64_t propbase() const
+  { return _propbase.raw; }
+
+  void propbase(unsigned reg, char size, l4_uint64_t value)
+  {
+    if (!lpis_enabled())
+      _propbase.write(value, reg, size);
+  }
+
+  l4_uint64_t pendbase() const
+  { return _pendbase.raw; }
+
+  void pendbase(unsigned reg, char size, l4_uint64_t value)
+  {
+    if (!lpis_enabled())
+      _pendbase.write(value, reg, size);
+  }
+
+  bool lpis_enabled() const
+  { return _lpis_enabled.load(std::memory_order_acquire); }
+
+  /**
+   * Return whether the LPI is enabled in the LPI configuration table.
+   *
+   * \pre Must only be called after checking lpis_enabled() == true.
+   */
+  bool lpi_enabled(unsigned lpi) const
+  { return lpi < _num_lpis && _config_table[lpi].enable(); }
+
+  /**
+   * Return the priority configured for LPI in the LPI configuration table.
+   *
+   * \pre Must only be called after checking lpis_enabled() == true.
+   */
+  l4_uint8_t lpi_priority(unsigned lpi) const
+  {
+    return lpi < _num_lpis ? _config_table[lpi].priority() : 0;
+  }
+
+private:
+  void enable_lpis(unsigned num_lpi_bits, Vmm::Vm_ram const &ram)
+  {
+    // If number of LPIs configured in Propbaser is larger the number of LPIs
+    // supported by the distributor, the distributor's limit applies.
+    _num_lpis = cxx::min(_propbase.num_lpis(), 1u << num_lpi_bits);
+    _config_table = ram.guest2host<Lpi_config *>(
+      Vmm::Region::ss(Vmm::Guest_addr(_propbase.pa()), _num_lpis,
+                      Vmm::Region_type::Ram));
+
+    // Incomplete: For now, we do not support setting the initial pending
+    // state of LPIs via the pendbase register.
+
+    _lpis_enabled.store(true, std::memory_order_release);
+  }
+
+  std::atomic<bool> _lpis_enabled = { false };
+  Gic_mem_reg<Propbaser> _propbase;
+  Gic_mem_reg<Pendbaser> _pendbase;
+  unsigned _num_lpis = 0;
+  Lpi_config *_config_table = nullptr;
+};
+
 struct Cpu_if_v3
 {
   struct Lr
@@ -107,125 +228,6 @@ private:
   using Dist = Dist_mixin<Dist_v3, true>;
   friend class Redist;
   friend class Sgir_sysreg;
-
-public:
-  class Redist_cpu
-  {
-  private:
-    enum
-    {
-      GICR_CTRL_enable_lpi = 1 << 0,
-    };
-
-    struct Lpi_config
-    {
-      l4_uint8_t raw;
-      CXX_BITFIELD_MEMBER          (0, 0, enable, raw);
-      CXX_BITFIELD_MEMBER_UNSHIFTED(2, 7, priority, raw);
-    };
-
-    struct Propbaser
-    {
-      l4_uint64_t raw = 0;
-      CXX_BITFIELD_MEMBER          ( 0,  4, id_bits, raw);
-      CXX_BITFIELD_MEMBER          ( 7,  9, inner_cache, raw);
-      CXX_BITFIELD_MEMBER          (10, 11, share, raw);
-      CXX_BITFIELD_MEMBER_UNSHIFTED(12, 51, pa, raw);
-      CXX_BITFIELD_MEMBER          (56, 58, outer_cache, raw);
-
-      enum { Ro_mask = 0 };
-
-      unsigned num_lpis()
-      {
-        unsigned lpis = (1 << (id_bits() + 1));
-        return lpis > Cpu::Lpi_base ? lpis - Cpu::Lpi_base : 0;
-      }
-    };
-
-    struct Pendbaser
-    {
-      l4_uint64_t raw = 0;
-      CXX_BITFIELD_MEMBER          ( 7,  9, inner_cache, raw);
-      CXX_BITFIELD_MEMBER          (10, 11, share, raw);
-      CXX_BITFIELD_MEMBER_UNSHIFTED(16, 51, pa, raw);
-      CXX_BITFIELD_MEMBER          (56, 58, outer_cache, raw);
-      CXX_BITFIELD_MEMBER          (62, 62, ptz, raw);
-
-      enum { Ro_mask = 0 };
-    };
-
-  public:
-    l4_uint32_t ctlr() const
-    { return lpis_enabled() ? GICR_CTRL_enable_lpi : 0; }
-
-    void ctlr(unsigned num_lpi_bits, Vmm::Vm_ram const &ram, l4_uint32_t ctrl)
-    {
-      // Once LPI support has been enabled, it cannot be disabled again.
-      if (num_lpi_bits > 0 && !lpis_enabled() && (ctrl & GICR_CTRL_enable_lpi))
-        enable_lpis(num_lpi_bits, ram);
-    }
-
-    l4_uint64_t propbase() const
-    { return _propbase.raw; }
-
-    void propbase(unsigned reg, char size, l4_uint64_t value)
-    {
-      if (!lpis_enabled())
-        _propbase.write(value, reg, size);
-    }
-
-    l4_uint64_t pendbase() const
-    { return _pendbase.raw; }
-
-    void pendbase(unsigned reg, char size, l4_uint64_t value)
-    {
-      if (!lpis_enabled())
-        _pendbase.write(value, reg, size);
-    }
-
-    bool lpis_enabled() const
-    { return _lpis_enabled.load(std::memory_order_acquire); }
-
-    /**
-     * Return whether the LPI is enabled in the LPI configuration table.
-     *
-     * \pre Must only be called after checking lpis_enabled() == true.
-     */
-    bool lpi_enabled(unsigned lpi) const
-    { return lpi < _num_lpis && _config_table[lpi].enable(); }
-
-    /**
-     * Return the priority configured for LPI in the LPI configuration table.
-     *
-     * \pre Must only be called after checking lpis_enabled() == true.
-     */
-    l4_uint8_t lpi_priority(unsigned lpi) const
-    {
-      return lpi < _num_lpis ? _config_table[lpi].priority() : 0;
-    }
-
-  private:
-    void enable_lpis(unsigned num_lpi_bits, Vmm::Vm_ram const &ram)
-    {
-      // If number of LPIs configured in Propbaser is larger the number of LPIs
-      // supported by the distributor, the distributor's limit applies.
-      _num_lpis = cxx::min(_propbase.num_lpis(), 1u << num_lpi_bits);
-      _config_table = ram.guest2host<Lpi_config *>(
-        Vmm::Region::ss(Vmm::Guest_addr(_propbase.pa()), _num_lpis,
-                        Vmm::Region_type::Ram));
-
-      // Incomplete: For now, we do not support setting the initial pending
-      // state of LPIs via the pendbase register.
-
-      _lpis_enabled.store(true, std::memory_order_release);
-    }
-
-    std::atomic<bool> _lpis_enabled = { false };
-    Gic_mem_reg<Propbaser> _propbase;
-    Gic_mem_reg<Pendbaser> _pendbase;
-    unsigned _num_lpis = 0;
-    Lpi_config *_config_table = nullptr;
-  };
 
 private:
   cxx::Ref_ptr<Vmm::Vm_ram> _ram;
