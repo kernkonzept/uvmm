@@ -259,6 +259,7 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
     case Exit::Stgi:
     case Exit::Clgi:
     case Exit::Skinit:
+    case Exit::Rdtscp:
       // Unsupported instructions, inject undefined opcode exception
       ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6);
       return Retry;

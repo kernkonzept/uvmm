@@ -83,6 +83,7 @@ public:
     Stgi = 0x84,    // STGI instruction
     Clgi = 0x85,    // CLGI instruction
     Skinit = 0x86,    // SKINIT instruction
+    Rdtscp = 0x87,    // RDTSCP instruction
     Xsetbv = 0x8d, // Exec_xsetbv, write to xcr0 field in guest_state
     Cr0_write_trap = 0x90, // Cr_access
     Cr15_write_trap = 0x9f, // Cr_access

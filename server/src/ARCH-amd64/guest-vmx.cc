@@ -235,6 +235,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
     case Exit::Exec_vmxon:
     case Exit::Exec_invept:
     case Exit::Exec_invvpid:
+    case Exit::Exec_rdtscp:
       // Unsupported instructions, inject undefined opcode exception
       ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6); // #UD
       return Retry;
