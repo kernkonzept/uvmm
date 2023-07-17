@@ -46,9 +46,6 @@ enum Event_prio : char
 struct Event_record
 {
   explicit Event_record(Event_prio p) : prio(p) {}
-  explicit Event_record(Event_prio p, unsigned e_val )
-  : prio(p), error_valid(true), error_val(e_val)
-  {}
 
   virtual ~Event_record() = default;
 
@@ -63,9 +60,7 @@ struct Event_record
   constexpr bool operator == (Event_record const &o) const
   { return prio == o.prio; }
 
-  Event_prio const prio;        //< Type of the Event_record
-  bool error_valid = false;     //< Validity indicator for `error_val`
-  unsigned error_val = 0;       //< Error value to push on the stack
+  Event_prio const prio;        ///< Type of the Event_record
 };
 
 /**
@@ -78,12 +73,14 @@ struct Event_exc : Event_record
   {}
 
   Event_exc(Event_prio p, unsigned ev_num, unsigned e_val)
-  : Event_record(p, e_val), ev_num(ev_num)
+  : Event_record(p), ev_num(ev_num), error_valid(true), error_val(e_val)
   {}
 
   bool inject(Vm_state *vm) override;
 
-  unsigned ev_num;
+  unsigned ev_num;              ///< Event number to inject
+  bool error_valid = false;     ///< Validity indicator for `error_val`
+  unsigned error_val = 0;       ///< Error value to push on the stack
 };
 
 } // namespace Vmm
