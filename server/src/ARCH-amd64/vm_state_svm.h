@@ -433,6 +433,9 @@ public:
 
   void dump(l4_vcpu_regs_t const *regs) const;
 
+  void advance_entry_ip(unsigned bytes) override
+  { _vmcb->control_area.n_rip += bytes; }
+
 private:
   static Dbg warn()
   { return Dbg(Dbg::Cpu, Dbg::Warn, "SVM"); }

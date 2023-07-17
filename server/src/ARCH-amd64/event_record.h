@@ -83,4 +83,29 @@ struct Event_exc : Event_record
   unsigned error_val = 0;       ///< Error value to push on the stack
 };
 
+/**
+ * Generic software exception/interrupt event to inject into the guest.
+ *
+ * \tparam TYPE  Event type to use in injection.
+ */
+template <l4_uint8_t TYPE>
+struct Event_sw_generic : Event_record
+{
+  Event_sw_generic(Event_prio p, unsigned ev_num, unsigned insn_len)
+  : Event_record(p), ev_num(ev_num), instruction_len(insn_len)
+  {}
+
+  bool inject(Vm_state *vm) override
+  {
+    vm->inject_event(Injection_event(ev_num, TYPE, false));
+    if (vm->type() == Vm_state::Type::Vmx)
+      vm->advance_entry_ip(instruction_len);
+
+    return true;
+  }
+
+  unsigned ev_num;              ///< Event number to inject
+  unsigned instruction_len;     ///< Bytes to advance IP
+};
+
 } // namespace Vmm

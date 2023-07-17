@@ -63,26 +63,35 @@ Vmx_state::handle_exception_nmi_ext_int(Event_recorder *ev_rec)
                                        interrupt_error);
 
     case 0x4: // software interrupt: INT n
-      ev_rec->make_add_event<Event_exc>(Event_prio::Sw_intN,
-                                        interrupt_info.vector());
+      // Software interrupt event record
+      using Event_sw_int = Event_sw_generic<4>;
+
+      ev_rec->make_add_event<Event_sw_int>(Event_prio::Sw_intN,
+                                           interrupt_info.vector(),
+                                           2U); // opcode + operand
       return Retry;
 
     case 0x5: // priviledged software exception: INT1
-      ev_rec->make_add_event<Event_exc>(Event_prio::Sw_int1,
-                                        interrupt_info.vector());
+      // Priveledged software exception event record
+      using Event_priv_sw_exc = Event_sw_generic<5>;
+
+      ev_rec->make_add_event<Event_priv_sw_exc>(Event_prio::Sw_int1, 1, 1U);
       return Retry;
 
     case 0x6: // software exception: INT3, INTO
       {
+        // Software exception event record
+        using Event_sw_exc = Event_sw_generic<6>;
+
         unsigned vec = interrupt_info.vector();
         if (vec == 3)
           {
-            ev_rec->make_add_event<Event_exc>(Event_prio::Sw_int3, vec);
+            ev_rec->make_add_event<Event_sw_exc>(Event_prio::Sw_int3, vec, 1U);
             return Retry;
           }
         else if (vec == 4)
           {
-            ev_rec->make_add_event<Event_exc>(Event_prio::Sw_intO, vec);
+            ev_rec->make_add_event<Event_sw_exc>(Event_prio::Sw_intO, vec, 1U);
             return Retry;
           }
         else

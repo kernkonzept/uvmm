@@ -76,6 +76,9 @@ public:
   virtual void enable_interrupt_window() = 0;
   virtual void disable_nmi_window() = 0;
   virtual void enable_nmi_window() = 0;
+
+  // must only be called once per VM entry
+  virtual void advance_entry_ip(unsigned bytes) = 0;
 };
 
 } // namespace Vmm

@@ -652,6 +652,9 @@ public:
   int handle_hardware_exception(Event_recorder *ev_rec, unsigned num,
                                 l4_uint32_t err_code);
 
+  void advance_entry_ip(unsigned bytes) override
+  { vmx_write(VMCS_VM_ENTRY_INSN_LEN, bytes); }
+
 private:
   static Dbg warn()
   { return Dbg(Dbg::Cpu, Dbg::Warn, "VMX"); }
