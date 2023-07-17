@@ -450,6 +450,13 @@ protected:
         h->map_additional_iomem_resources(_vmm, _vbus->io_ds());
         init_dev_resources(h);
 
+        if (!h->has_msi && !h->has_msix)
+          warn().printf("\n\nDevice '%s' with vendor/device=%04x:%04x supports "
+                        "neither MSI nor MSI-X. Legacy interrupts are not "
+                        "supported. Device will not work properly.\n\n",
+                        dinfo.name, vendor_device & 0xffff,
+                        vendor_device >> 16);
+
         _bus.register_device(cxx::Ref_ptr<Pci_device>(h), h->dev_id);
       }
   }
