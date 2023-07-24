@@ -136,7 +136,8 @@ public:
   {
     if (l4virtio_get_feature(_config->dev_features_map,
                              L4VIRTIO_FEATURE_CMD_CONFIG))
-      return _config->config_queue(num, _host_irq.get(), _guest_irq.get());
+      // Do busy waiting, because the irq could arrive on any CPU
+      return _config->config_queue(num, _host_irq.get(), L4::Cap<L4::Triggerable>());
 
     _config->queues()[num].driver_notify_index = 0;
 
@@ -188,7 +189,8 @@ public:
                            L4VIRTIO_FEATURE_CMD_CONFIG);
 
     if (use_irq)
-      _config->set_status(status, _host_irq.get(), _guest_irq.get());
+      // Do busy waiting, because the irq could arrive on any CPU
+      _config->set_status(status, _host_irq.get(), L4::Cap<L4::Triggerable>());
     else
       _device->set_status(status);
   }
