@@ -94,10 +94,10 @@ public:
     if (*_main_vcpu)
       L4Re::throw_error(-L4_EEXIST, "cannot allocate mutiple main CPUs");
 
-    _main_bm.setup_wait(l4_utcb(), L4::Ipc_svr::Reply_separate);
     _main_vcpu = alloc_vcpu(0);
     _main_vcpu.thread_attach();
     _main_vcpu.set_ipc_registry(&_main_registry);
+    _main_vcpu.set_bm(&_main_bm);
   }
 
 protected:

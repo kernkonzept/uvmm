@@ -27,7 +27,6 @@ Generic_cpu_dev::startup()
   if (!_attached)
     {
       _attached = true;
-      _bm.setup_wait(l4_utcb(), L4::Ipc_svr::Reply_separate);
       _vcpu.thread_attach();
     }
 
@@ -66,6 +65,7 @@ Generic_cpu_dev::powerup_cpu()
 
       _registry.set_server(thread_cap());
       _vcpu.set_ipc_registry(&_registry);
+      _vcpu.set_bm(&_bm);
     }
 
   char n[8];

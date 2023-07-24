@@ -16,6 +16,7 @@
 #include <l4/sys/thread>
 #include <l4/sys/vcpu.h>
 #include <l4/re/util/object_registry>
+#include <l4/re/util/br_manager>
 
 #include "debug.h"
 
@@ -64,6 +65,12 @@ public:
   void set_ipc_registry(L4Re::Util::Object_registry *registry)
   { _s->user_data[Reg_ipc_registry] = reinterpret_cast<l4_umword_t>(registry); }
 
+  L4Re::Util::Br_manager *get_bm() const
+  { return reinterpret_cast<L4Re::Util::Br_manager *>(_s->user_data[Reg_bm]); }
+
+  void set_bm(L4Re::Util::Br_manager *bm)
+  { _s->user_data[Reg_bm] = reinterpret_cast<l4_umword_t>(bm); }
+
   Pt_walker *get_pt_walker() const
   { return reinterpret_cast<Pt_walker *>(_s->user_data[Reg_ptw_ptr]); }
 
@@ -86,6 +93,7 @@ public:
   void wait_for_ipc(l4_utcb_t *utcb, l4_timeout_t to)
   {
     l4_umword_t src;
+    get_bm()->setup_wait(utcb, L4::Ipc_svr::Reply_separate);
     l4_msgtag_t tag = l4_ipc_wait(utcb, &src, to);
     if (!tag.has_error())
       handle_ipc(tag, src, utcb);
@@ -102,6 +110,7 @@ protected:
   {
     Reg_vcpu_id = 0,
     Reg_ipc_registry,
+    Reg_bm,
     Reg_ptw_ptr,
     Reg_arch_base
   };
