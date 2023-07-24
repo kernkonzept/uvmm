@@ -655,6 +655,12 @@ public:
   void advance_entry_ip(unsigned bytes) override
   { vmx_write(VMCS_VM_ENTRY_INSN_LEN, bytes); }
 
+  void additional_failure_info()
+  {
+    warn().printf("VM instruction error: 0x%llx\n",
+                  vmx_read(VMCS_VM_INSN_ERROR));
+  }
+
 private:
   static Dbg warn()
   { return Dbg(Dbg::Cpu, Dbg::Warn, "VMX"); }

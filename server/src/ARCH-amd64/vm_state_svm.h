@@ -436,6 +436,8 @@ public:
   void advance_entry_ip(unsigned bytes) override
   { _vmcb->control_area.n_rip += bytes; }
 
+  void additional_failure_info() {}
+
 private:
   static Dbg warn()
   { return Dbg(Dbg::Cpu, Dbg::Warn, "SVM"); }
