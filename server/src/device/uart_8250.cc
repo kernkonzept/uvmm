@@ -467,7 +467,7 @@ struct F : Vdev::Factory
   cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
-    Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual 8250 console\n");
+    Dbg(Dbg::Dev, Dbg::Info, "uart_8250").printf("Create virtual 8250 console\n");
 
     auto cap = Vdev::get_cap<L4::Vcon>(node, "l4vmm,vcon_cap",
                                        L4Re::Env::env()->log());
