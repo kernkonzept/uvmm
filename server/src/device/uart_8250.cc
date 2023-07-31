@@ -22,6 +22,7 @@
 #include "irq_dt.h"
 #include "io_device.h"
 #include "mmio_device.h"
+#include "vcon_device.h"
 
 static Dbg warn(Dbg::Mmio, Dbg::Warn, "uart_8250");
 
@@ -66,6 +67,7 @@ namespace {
 
 class Uart_8250_base
 : public Vdev::Device,
+  public Vcon_device,
   public L4::Irqep_t<Uart_8250_base>
 {
   enum Regs
@@ -196,7 +198,7 @@ class Uart_8250_base
 public:
   Uart_8250_base(L4::Cap<L4::Vcon> con, l4_uint64_t regshift,
                  cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
-  : _con(con), _regshift(regshift), _sink(ic, irq)
+  : Vcon_device(con), _regshift(regshift), _sink(ic, irq)
   {
     l4_vcon_attr_t attr;
     if (l4_error(con->get_attr(&attr)) != L4_EOK)
@@ -215,17 +217,6 @@ public:
     _lsr.dr() = 1;
     if (!_iir.error_irq()) // error has higher prio. Don't overwrite.
       signal_readable();
-  }
-
-  void attach_con_irq()
-  {
-    L4Re::chksys(_con->bind(0, _con_irq), "Bind UART 8250 notification IRQ.");
-  }
-
-  void register_obj(L4::Registry_iface *registry)
-  {
-    _con_irq =
-      L4Re::chkcap(registry->register_irq_obj(this), "Registering 8250 device");
   }
 
   l4_uint32_t read(unsigned reg, char size, unsigned)
@@ -286,7 +277,7 @@ public:
   {
     if (!_enabled)
       {
-        attach_con_irq();
+        attach_con_irq("UART 8250");
         _enabled = true;
       }
 
@@ -414,8 +405,6 @@ private:
     _sink.inject();
   }
 
-  L4::Cap<L4::Vcon> _con;
-  L4::Cap<L4::Irq> _con_irq;
   l4_uint64_t _regshift;
   Vmm::Irq_sink _sink;
   bool _enabled = false;
@@ -494,7 +483,7 @@ struct F : Vdev::Factory
       {
         auto region = Vmm::Io_region(0x3f8, 0x400, Vmm::Region_type::Virtual);
         auto c = Vdev::make_device<Uart_8250_io>(cap, it.ic(), it.irq());
-        c->register_obj(devs->vmm()->registry());
+        c->register_obj<Uart_8250_io>(devs->vmm()->registry());
         devs->vmm()->add_io_device(region, c);
         return c;
       }
@@ -502,7 +491,7 @@ struct F : Vdev::Factory
       {
         auto c = Vdev::make_device<Uart_8250_mmio>(cap, regshift, it.ic(),
                                                    it.irq());
-        c->register_obj(devs->vmm()->registry());
+        c->register_obj<Uart_8250_mmio>(devs->vmm()->registry());
         devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
         return c;
       }

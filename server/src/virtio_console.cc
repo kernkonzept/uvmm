@@ -31,7 +31,7 @@ struct F : Factory
     if (c->init_irqs(devs, node) < 0)
       return nullptr;
 
-    c->register_obj(devs->vmm()->registry());
+    c->register_obj<Virtio_console_mmio>(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
     return c;
   }

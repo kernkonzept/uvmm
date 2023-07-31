@@ -20,6 +20,7 @@
 #include "irq.h"
 #include "irq_dt.h"
 #include "mmio_device.h"
+#include "vcon_device.h"
 
 namespace {
 
@@ -78,6 +79,7 @@ namespace {
 class Pl011_mmio
 : public Vmm::Mmio_device_t<Pl011_mmio>,
   public Vdev::Device,
+  public Vcon_device,
   public L4::Irqep_t<Pl011_mmio>
 {
 public:
@@ -161,7 +163,7 @@ public:
   };
 
   Pl011_mmio(cxx::Ref_ptr<Gic::Ic> const &ic, int irq, L4::Cap<L4::Vcon> con)
-  : _con(con), _sink(ic, irq)
+  : Vcon_device(con), _sink(ic, irq)
   {
     l4_vcon_attr_t attr;
     if (l4_error(con->get_attr(&attr)) != L4_EOK)
@@ -181,16 +183,6 @@ public:
     _fr.rxfe().set(0);
     _ris.rx().set(1);
     _sink.inject();
-  }
-
-  void attach_con_irq()
-  {
-    L4Re::chksys(_con->bind(0, _con_irq), "Bind PL011 notification IRQ.");
-  }
-
-  void register_obj(L4::Registry_iface *registry)
-  {
-    _con_irq = L4Re::chkcap(registry->register_irq_obj(this), "Registering pl011 device");
   }
 
   l4_uint32_t read(unsigned reg, char size, unsigned cpu_id)
@@ -312,7 +304,7 @@ public:
       case CR:
         _cr.raw = value;
         if (_cr.enable() && _cr.rxe())
-          attach_con_irq();
+          attach_con_irq("pl011 device");
         break;
       case IFLS:
         // FIFO setup is ignored, so just ignore the interrupt trigger level.
@@ -335,8 +327,6 @@ public:
   }
 
 private:
-  L4::Cap<L4::Vcon> _con;
-  L4::Cap<L4::Irq> _con_irq;
   Vmm::Irq_sink _sink;
 
   Rsr_ecr_reg _rsr_ecr;
@@ -369,7 +359,7 @@ struct F : Vdev::Factory
       L4Re::chksys(-L4_EINVAL, "PL011 requires a virtual interrupt controller");
 
     auto c = Vdev::make_device<Pl011_mmio>(it.ic(), it.irq(), cap);
-    c->register_obj(devs->vmm()->registry());
+    c->register_obj<Pl011_mmio>(devs->vmm()->registry());
     devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
     return c;
   }

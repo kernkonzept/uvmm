@@ -94,7 +94,7 @@ struct F : Factory
       make_device<Virtio_console_pci>(node, num_msix, devs->ram().get(), cap,
                                       pci->msix_dest(dev_id));
 
-    console->register_obj(devs->vmm()->registry());
+    console->register_obj<Virtio_console_pci>(devs->vmm()->registry());
     pci->bus()->register_device(console, dev_id);
 
     info().printf("Console: %p\n", console.get());

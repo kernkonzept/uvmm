@@ -11,6 +11,7 @@
 #include "mmio_device.h"
 #include "debug.h"
 #include "irq.h"
+#include "vcon_device.h"
 #include "virtio_dev.h"
 #include "virtio_event_connector.h"
 
@@ -43,6 +44,7 @@ namespace Vdev {
 template <typename DEV>
 class Virtio_console
 : public Virtio::Dev,
+  public Vcon_device,
   public L4::Irqep_t<Virtio_console<DEV> >
 {
   typedef L4virtio::Svr::Virtqueue::Desc Desc;
@@ -76,7 +78,7 @@ public:
 
   Virtio_console(Vmm::Vm_ram *ram, L4::Cap<L4::Vcon> con)
   : Virtio::Dev(ram, 0x44, L4VIRTIO_ID_CONSOLE),
-    _con(con)
+    Vcon_device(con)
   {
     Features feat(0);
     feat.ring_indirect_desc() = true;
@@ -125,7 +127,7 @@ public:
                       dev()->template devaddr_to_virt<void>(qc->used_addr));
         qc->ready = 1;
 
-        attach_con_irq();
+        attach_con_irq("VirtIO console");
       }
   }
 
@@ -255,17 +257,6 @@ public:
       }
   }
 
-  void attach_con_irq()
-  {
-    L4Re::chksys(_con->bind(0, _con_irq), "Bind notification IRQ to Vcon.");
-  }
-
-  void register_obj(L4::Registry_iface *registry)
-  {
-    _con_irq = L4Re::chkcap(registry->register_irq_obj(this),
-                            "Register Vcon notification IRQ.");
-  }
-
   void handle_irq()
   {
     Virtio::Event_set ev;
@@ -294,9 +285,6 @@ public:
     return &_vqs[qn];
   }
 private:
-  L4::Cap<L4::Vcon> _con;
-  L4::Cap<L4::Irq> _con_irq;
-
   DEV *dev() { return static_cast<DEV *>(this); }
 };
 
