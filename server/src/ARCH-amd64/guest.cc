@@ -329,6 +329,8 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     // 0x7 EBX
     Tsc_adjust = (1UL << 1),
     Invpcid_bit = (1UL << 10),
+    Intel_rdtm_bit = (1UL << 12),
+    Intel_rdta_bit = (1UL << 15),
     Processor_trace = (1UL << 25),
     // 0x7 ECX
     Waitpkg_bit = (1UL << 5),
@@ -394,7 +396,8 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
     case 0x7:
       if (!rcx)
         {
-          b &= ~(Processor_trace | Invpcid_bit | Tsc_adjust);
+          b &= ~(Processor_trace | Invpcid_bit | Intel_rdtm_bit | Intel_rdta_bit
+                 | Tsc_adjust);
           c &= ~(Waitpkg_bit | La57_bit | Rdpid_bit);
           d &= ~(Ibrs_ibpb_bit | Stibp_bit | Ssbd_bit
                  | Arch_capabilities_supported_bit);
@@ -436,6 +439,16 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
 
         default: break;
         }
+      break;
+
+    case 0xf:
+      // Intel RDT Monitoring not supported, sub-leaf 0 and 1 report zero.
+      a = b = c = d = 0;
+      break;
+
+    case 0x10:
+      // Intel RDT Allocation not supported, sub-leaf 0 and 1 report zero.
+      a = b = c = d = 0;
       break;
 
     case 0x80000001:
