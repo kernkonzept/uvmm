@@ -289,11 +289,13 @@ Guest::handle_io_access(unsigned port, bool is_in, Mem_access::Width op_width,
 }
 
 int
-Guest::handle_cpuid(l4_vcpu_regs_t *regs)
+Guest::handle_cpuid(Vcpu_ptr vcpu)
 {
+  l4_vcpu_regs_t *regs = &vcpu->r;
   unsigned int a,b,c,d;
   auto rax = regs->ax;
   auto rcx = regs->cx;
+  Vm_state *vms = vcpu.vm_state();
 
   if (rax >= 0x40000000 && rax <= 0x4fffffff)
     {
@@ -366,6 +368,8 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
 
 
     // 0xd
+    // fiasco limits to x87, SEE, AVX, AVX512 states
+    Xcr0_fiasco_feature_mask = 0xe7,
     Xsave_opt = 1,
     Xsave_c = (1UL << 1),
     Xget_bv = (1UL << 2),
@@ -431,15 +435,80 @@ Guest::handle_cpuid(l4_vcpu_regs_t *regs)
         {
         case 0:
           {
-            // Check the host-enabled XCR0 bits and report these to the guest,
-            // instead of the physical hardware features.
-            // XXX If we report other than the host-enabled XCR0 bits, we need
-            // to adapt the size returned in ECX!
-            l4_uint32_t ax = 0, dx = 0;
-            asm volatile ("xgetbv" : "=a"(ax), "=d"(dx) : "c"(0));
-            trace().printf("Get XCR0 host state: 0x%x:0x%x\n", dx, ax);
+            // limit reply to what fiasco supports
+            a = a & Xcr0_fiasco_feature_mask;
 
-            a = ax;
+            if (!_xsave_layout.valid)
+              {
+                trace().printf("\n\n building xsave cache \n\n");
+
+                // build cache
+                for (int i = 2; a >> i; ++i)
+                  {
+                    if (!((a >> i) & 1))
+                      continue;
+
+                    l4_uint32_t ax, bx, cx, dx;
+                    cpuid(0xd, i, &ax, &bx, &cx, &dx);
+                    _xsave_layout.feat[i].size = ax;
+                    _xsave_layout.feat[i].offset = bx;
+                  }
+                _xsave_layout.valid = true;
+                // feature offset and size does not change during runtime.
+              }
+
+            l4_uint64_t xcr0_guest_enabled = vms->xcr0();
+            l4_uint64_t offset = 0;
+            int highest_index_feat = 0; // default to x87
+            int highest_index_feat_enabled = 0; // default to x87
+
+            // Find the feature and the enabled feature with the highest
+            // offset in the Xsave state. This only works in standard format!
+            // Compact format not supported, see case 1: below.
+            for (int i = 2; i < Xsave_state_area::Num_fields; ++i)
+              {
+                if (_xsave_layout.feat[i].offset > offset)
+                  {
+                    offset = _xsave_layout.feat[i].offset;
+                    highest_index_feat = i;
+                    if (xcr0_guest_enabled & (1 << i))
+                      highest_index_feat_enabled = i;
+                  }
+              }
+
+            if (highest_index_feat == 0)
+              {
+                // x87 is always on, but we then have only the legacy area.
+                // SSE on or off is handled in the legacy area and thus doesn't
+                // affect the size computation.
+                b = c = 512 + 64; // bytes; legacy area + Xsave header
+                d = 0;
+              }
+            else
+              {
+                // report possible XSAVE state size
+                Xsave_state_area::Size_off feat =
+                  _xsave_layout.feat[highest_index_feat];
+                c = feat.offset + feat.size;
+
+                // report enabled XSAVE state size
+                if (highest_index_feat_enabled == 0)
+                  {
+                    b = 512 + 64; // bytes; legacy area + Xsave header
+                  }
+                else
+                  {
+                    feat = _xsave_layout.feat[highest_index_feat_enabled];
+                    b = feat.offset + feat.size;
+                  }
+
+                d = 0;
+              }
+
+            if (0)
+              trace().printf("\nReturn XCR0 guest state: 0x%x:0x%x b=%x c=%x, "
+                             "(guest XCR0: 0x%llx) \n\n",
+                             d, a, b, c, xcr0_guest_enabled);
             break;
           }
 

@@ -151,7 +151,7 @@ public:
   cxx::Ref_ptr<Gic::Lapic_array> apic_array() { return _apics; }
   cxx::Ref_ptr<Gic::Icr_handler> icr_handler() { return _icr_handler; }
 
-  int handle_cpuid(l4_vcpu_regs_t *regs);
+  int handle_cpuid(Vcpu_ptr vcpu);
   int handle_vm_call(l4_vcpu_regs_t *regs);
   int handle_io_access(unsigned port, bool is_in, Mem_access::Width op_width,
                        l4_vcpu_regs_t *regs);
@@ -162,6 +162,41 @@ private:
   enum : unsigned
   {
     Max_phys_addr_bits_mask = 0xff,
+  };
+
+  struct Xsave_state_area
+  {
+    struct Size_off { l4_uint64_t size = 0, offset = 0; };
+
+    enum
+    {
+      // Some indices are valid in xcr0, some is xss.
+      x87 = 0,      // XCR0
+      sse,          // XCR0
+      avx,          // XCR0
+      mpx1,         // XCR0
+      mpx2,         // XCR0
+      avx512_1,     // XCR0
+      avx512_2,     // XCR0
+      avx512_3,     // XCR0
+      pts,          // XSS
+      pkru,         // XCR0,
+      pasid,        // XSS
+      cetu,         // XSS
+      cets,         // XSS
+      hdc,          // XSS
+      uintr,        // XSS
+      lbr,          // XSS
+      hwp,          // XSS
+      tilecfg,      // XCR0
+      tiledata,     // XCR0
+
+      Num_fields = 31,
+    };
+
+    bool valid = false;
+    // first two fields are legacy area, so always (size=0, offset=0);
+    Size_off feat[Num_fields];
   };
 
   template<typename VMS>
@@ -231,6 +266,7 @@ private:
   Boot::Binary_type _guest_t;
   cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
   Vmm::Event_recorder_array<Max_cpus> _event_recorders;
+  Xsave_state_area _xsave_layout;
 };
 
 /**

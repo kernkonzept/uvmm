@@ -27,7 +27,8 @@ Svm_state::init_state()
   _vmcb->control_area.np_enable = 1;
   // Initiated to default values at reset: WB,WT,WC,UC,WB,WT,UC-,UC
   _vmcb->state_save_area.g_pat = 0x0007040600010406ULL;
-
+  // Reset value of XCR0
+  _vmcb->state_save_area.xcr0 = 1ULL;
 
   _vmcb->state_save_area.rflags = 0;
   _vmcb->state_save_area.cr3 = 0;

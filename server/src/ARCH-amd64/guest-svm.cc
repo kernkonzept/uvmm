@@ -54,7 +54,7 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
     // TODO: Lacks handlers for some of the enabled intercepts, which have not
     // been triggered during development. If one of these interceptions is hit,
     // first an error message is printed and then the VM is stopped.
-    case Exit::Cpuid: return handle_cpuid(regs);
+    case Exit::Cpuid: return handle_cpuid(vcpu);
 
     case Exit::Vmmcall: return handle_vm_call(regs);
 

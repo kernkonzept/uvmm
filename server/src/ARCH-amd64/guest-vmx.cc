@@ -32,7 +32,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
 
   switch (reason)
     {
-    case Exit::Cpuid: return handle_cpuid(regs);
+    case Exit::Cpuid: return handle_cpuid(vcpu);
 
     case Exit::Exec_vmcall: return handle_vm_call(regs);
 

@@ -184,6 +184,9 @@ public:
     // PAT reset value
     vmx_write(VMCS_GUEST_IA32_PAT, 0x0007040600070406ULL);
 
+    // XCR0 reset value;
+    vmx_write(L4_VM_VMX_VMCS_XCR0, 0x1ULL);
+
     vmx_write(VMCS_PIN_BASED_VM_EXEC_CTLS,
               vmx_read(VMCS_PIN_BASED_VM_EXEC_CTLS)
               | Nmi_exiting_bit
@@ -244,6 +247,9 @@ public:
 
   l4_umword_t cr3() const override
   { return l4_vm_vmx_read_nat(_vmcs, VMCS_GUEST_CR3); }
+
+  l4_uint64_t xcr0() const override
+  { return vmx_read(L4_VM_VMX_VMCS_XCR0); }
 
   void jump_instruction()
   {

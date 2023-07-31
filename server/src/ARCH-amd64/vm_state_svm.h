@@ -264,6 +264,9 @@ public:
   l4_umword_t cr3() const override
   { return _vmcb->state_save_area.cr3; }
 
+  l4_uint64_t xcr0() const override
+  { return _vmcb->state_save_area.xcr0; }
+
   bool determine_next_ip_from_ip(l4_vcpu_regs_t *regs, unsigned char *inst_buf,
                                  unsigned inst_buf_len);
 
