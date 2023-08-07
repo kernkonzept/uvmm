@@ -122,16 +122,23 @@ Virt_lapic::nmi()
 void
 Virt_lapic::irq_trigger(l4_uint32_t irq, bool irr)
 {
+  bool trigger = true;
   {
     std::lock_guard<std::mutex> lock(_int_mutex);
 
     if (irr)
-      _regs.irr.set_irq(irq);
+      // don't trigger lapic_irq, if the IRR has this IRQ already queued.
+      trigger = !_regs.irr.set_irq(irq);
     else
-      _non_irr_irqs.push(irq);
+      {
+        // don't trigger lapic_irq again, if an IRQ is already queued.
+        trigger = _non_irr_irqs.empty();
+        _non_irr_irqs.push(irq);
+      }
   }
 
-  _lapic_irq->trigger();
+  if (trigger)
+    _lapic_irq->trigger();
 }
 
 bool

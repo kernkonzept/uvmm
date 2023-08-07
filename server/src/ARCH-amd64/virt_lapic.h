@@ -83,10 +83,16 @@ class Virt_lapic : public Ic
     };
 
   public:
-    void set_irq(l4_uint8_t irq)
+    /**
+     * Returns true, if IRQ was set before.
+     */
+    bool set_irq(l4_uint8_t irq)
     {
       l4_uint8_t idx = irq / Reg_bits;
-      _reg.u64[idx] |= 1ULL << (irq % Reg_bits);
+      l4_uint64_t bit = 1ULL << (irq % Reg_bits);
+      bool already_set = _reg.u64[idx] & bit;
+      _reg.u64[idx] |= bit;
+      return already_set;
     }
 
     void clear_irq(l4_uint8_t irq)
