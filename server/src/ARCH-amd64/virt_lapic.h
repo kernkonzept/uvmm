@@ -223,8 +223,15 @@ public:
 
   int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override;
 
-  // APIC soft Irq to force VCPU to handle IRQs
-  void irq_trigger(l4_uint32_t irq, bool irr = true);
+  /**
+   * APIC soft Irq to force VCPU to handle IRQs.
+   *
+   * \param irq    Interrupt vector to send to the guest.
+   * \param level  Iff true, the interrupt vector is level triggerd; default:
+   *               edge triggered;
+   * \param irr    Iff true, the interrupt is to be enqueued in the IRR.
+   */
+  void irq_trigger(l4_uint32_t irq, bool level = false, bool irr = true);
   void nmi();
 
   // vCPU expected interface

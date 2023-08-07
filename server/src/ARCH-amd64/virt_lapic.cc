@@ -65,13 +65,13 @@ Virt_lapic::set(Vdev::Msix::Data_register_format data)
     {
     case Dm_fixed: // FALL-THROUGH
     case Dm_lowest_prio:
-      irq_trigger(data.vector(), true);
+      irq_trigger(data.vector(), data.trigger_mode(), true);
       break;
     case Dm_smi: info().printf("SMI dropped at LAPIC 0x%x\n", id()); break;
     case Dm_nmi: nmi(); break;
     case Dm_init: init_ipi(); break;
     case Dm_startup: startup_ipi(data); break;
-    case Dm_extint: irq_trigger(data.vector(), false); break;
+    case Dm_extint: irq_trigger(data.vector(), false, false); break;
     default:
       info().printf("LAPIC 0x%x drops unknown MSI. Delivery mode 0x%x, Vector "
                     "0x%x, data: 0x%llx\n",
@@ -160,15 +160,21 @@ Virt_lapic::nmi()
  * \param irq  Interrupt to inject.
  */
 void
-Virt_lapic::irq_trigger(l4_uint32_t irq, bool irr)
+Virt_lapic::irq_trigger(l4_uint32_t irq, bool level, bool irr)
 {
   bool trigger = true;
   {
     std::lock_guard<std::mutex> lock(_int_mutex);
 
     if (irr)
-      // don't trigger lapic_irq, if the IRR has this IRQ already queued.
-      trigger = !_regs.irr.set_irq(irq);
+      {
+        // don't trigger lapic_irq, if the IRR has this IRQ already queued.
+        trigger = !_regs.irr.set_irq(irq);
+        if (level)
+          _regs.tmr.set_irq(irq);
+        else
+          _regs.tmr.clear_irq(irq);
+      }
     else
       {
         // don't trigger lapic_irq again, if an IRQ is already queued.
