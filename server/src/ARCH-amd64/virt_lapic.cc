@@ -288,7 +288,7 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
     case Msr_ia32_tsc_deadline:
       _apic_timer->write_tsc_deadline_msr(value);
       break;
-    case Msr_ia32_x2apic_version: _lapic_version = value; break;
+    case Msr_ia32_x2apic_version: break; // RO register: ignore write
     case Msr_ia32_x2apic_tpr: _regs.tpr = value; break;
     case Msr_ia32_x2apic_ldr:
       // not writable in x2apic mode
