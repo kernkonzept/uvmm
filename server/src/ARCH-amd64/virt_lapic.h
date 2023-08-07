@@ -423,6 +423,15 @@ public:
     _lapics[core_no] = Vdev::make_device<Virt_lapic>(core_no, cpu);
   }
 
+  /// bind an EOI handler to all local APICS
+  void apics_bind_irq_src_handler_logical(unsigned did, unsigned irq,
+                                          Irq_src_handler *hdlr)
+  {
+    for (auto &lapic : _lapics)
+      if (lapic && lapic->match_ldr(did))
+        lapic->bind_irq_src_handler(irq, hdlr);
+  }
+
 private:
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "LAPIC_array"); }
   static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "LAPIC_array"); }

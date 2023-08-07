@@ -19,15 +19,8 @@ namespace Gic {
 /**
  * Virtual IOAPIC implementation of a 82093AA.
  *
- * TODO The Ic interface is a bit off, as there is no way to clear an IRQ, as
- * the IOAPIC sends an MSI to the MSI-controller when a device sends a legacy
- * IRQ.
- *  set: send an MSI instead of the legacy IRQ (programmed by OS)
- *  clear: nop
- *  bind_irq_src_handler:  ?
- *  get_irq_src_handler: ?
- *  dt_get_interrupt: parse DT
- *
+ * The IOAPIC sends legacy IRQs onwards as MSI as programmed into the
+ * redirection table by the guest.
  */
 class Io_apic : public Ic, public Vmm::Mmio_device_t<Io_apic>
 {
@@ -61,7 +54,10 @@ class Io_apic : public Ic, public Vmm::Mmio_device_t<Io_apic>
     {
       Delivery_status_bit = 12,
       Remote_irr_bit = 14,
-      Ro_mask = 1U << Delivery_status_bit | 1U << Remote_irr_bit,
+      Masked_bit = 16,
+      Nospec_level_set_bit = 17,
+      Ro_mask = 1U << Nospec_level_set_bit | 1U << Delivery_status_bit
+                | 1U << Remote_irr_bit,
     };
 
     Redir_tbl_entry() noexcept = default;
@@ -69,10 +65,16 @@ class Io_apic : public Ic, public Vmm::Mmio_device_t<Io_apic>
     // is the mask bit and I think it's sane to start out with masked vectors.
     l4_uint64_t raw = 1ULL << 16;
 
+    bool is_level_triggered() const { return trigger_mode(); }
+    bool is_pending() { return is_level_triggered() && level_set(); }
+
     CXX_BITFIELD_MEMBER_RO(56, 63, dest_id, raw);
+    // use reserved bit for internal state of level triggered input line.
+    // only relevant, if line is masked
+    CXX_BITFIELD_MEMBER(17, 17, level_set, raw);
     CXX_BITFIELD_MEMBER_RO(16, 16, masked, raw);
     CXX_BITFIELD_MEMBER_RO(15, 15, trigger_mode, raw);
-    CXX_BITFIELD_MEMBER_RO(14, 14, remote_irr, raw);
+    CXX_BITFIELD_MEMBER(14, 14, remote_irr, raw);
     CXX_BITFIELD_MEMBER_RO(13, 13, pin_polarity, raw);
     CXX_BITFIELD_MEMBER_RO(12, 12, delivery_status, raw);
     CXX_BITFIELD_MEMBER_RO(11, 11, dest_mode, raw);
@@ -84,6 +86,37 @@ class Io_apic : public Ic, public Vmm::Mmio_device_t<Io_apic>
     CXX_BITFIELD_MEMBER(32, 63, upper_reg, raw);
   };
 
+  struct Ioapic_irq_src_handler : public Irq_src_handler
+  {
+    void eoi() override
+    {
+      assert(ioapic != nullptr);
+
+      // clear state in redirection table entry
+      ioapic->entry_eoi(irq_num);
+
+      {
+        // MSI generated from the IRQ can have multiple target cores. If this
+        // IRQ/MSI is level triggered, multiple cores would send an EOI.
+        // Would be insane, but who knows.
+        std::lock_guard<std::mutex> lock(_mtx);
+
+        // get IRQ src handler of input IRQ and forward EOI signal
+        Irq_src_handler *hdlr = ioapic->get_irq_src_handler(irq_num);
+        if (hdlr)
+          hdlr->eoi();
+      }
+    }
+
+    unsigned irq_num = 0;
+    Io_apic *ioapic = nullptr;
+    unsigned vector = -1U;
+    unsigned dest = -1U;
+    unsigned dest_mod = 0; // default: physical
+  private:
+    std::mutex _mtx;
+  };
+
 public:
   enum
   {
@@ -91,10 +124,19 @@ public:
   };
 
   Io_apic(cxx::Ref_ptr<Gic::Msix_controller> distr,
+          cxx::Ref_ptr<Gic::Lapic_array> apic_array,
           cxx::Ref_ptr<Vdev::Legacy_pic> pic)
-  : _distr(distr), _id(Io_apic_id << Io_apic_id_offset), _ioregsel(0), _iowin(0),
+  : _distr(distr), _lapics(apic_array),
+    _id(Io_apic_id << Io_apic_id_offset), _ioregsel(0), _iowin(0),
     _pic(pic)
-  {}
+  {
+    // initialize IRQ src handler for LAPIC communication
+    for (unsigned i = 0; i < Io_apic_num_pins; ++i)
+      {
+        _apic_irq_src[i].irq_num = i;
+        _apic_irq_src[i].ioapic = this;
+      }
+  }
 
   // Mmio device interface
   l4_uint64_t read(unsigned reg, char, unsigned cpu_id);
@@ -104,8 +146,12 @@ public:
   void set(unsigned irq) override;
   void clear(unsigned) override {}
 
-  // XXX unclear if this function is used. Required by Gic::Ic.
-  // Dummy implementation.
+  /**
+   * Bind the IRQ src handler of a level-triggered legacy interrupt.
+   *
+   * This handler is signaled, if the IOAPIC receives an EOI signal from the
+   * local APIC for the corresponding interrupt line.
+   */
   void bind_irq_src_handler(unsigned irq, Irq_src_handler *handler) override
   {
     if (irq >= Io_apic_num_pins)
@@ -114,12 +160,14 @@ public:
         return;
       }
     if (handler && _sources[irq])
-      throw L4::Runtime_error(-L4_EEXIST);
+      L4Re::throw_error(-L4_EEXIST, "Bind IRQ src handler at IOAPIC." );
     _sources[irq] = handler;
   }
 
-  // XXX unclear if this function is used. Required by Gic::Ic.
-  // Dummy implementation.
+  /**
+   * Get IRQ src handler bound for the given legacy interrupt line or
+   * `nullptr` if no handler is bound.
+   */
   Irq_src_handler *get_irq_src_handler(unsigned irq) const override
   {
     if (irq >= Io_apic_num_pins)
@@ -165,13 +213,67 @@ private:
     return _redirect_tbl[irq];
   }
 
+  void entry_eoi(unsigned irq)
+  {
+    assert(irq < Io_apic_num_pins);
+
+    // clear remote_irr and for level triggered the level_set bit.
+    Redir_tbl_entry e = _redirect_tbl[irq];
+    Redir_tbl_entry e_new;
+
+    do
+      {
+        e_new = e;
+        e_new.remote_irr() = 0;
+        e_new.level_set() = 0;
+      }
+    while (!_redirect_tbl[irq].compare_exchange_weak(e, e_new));
+  }
+
+  void set_level_set(unsigned irq)
+  {
+    assert(irq < Io_apic_num_pins);
+
+    Redir_tbl_entry e = _redirect_tbl[irq];
+    Redir_tbl_entry e_new;
+
+    do
+      {
+        e_new = e;
+        e_new.level_set() = 1;
+      }
+    while (!_redirect_tbl[irq].compare_exchange_weak(e, e_new));
+  }
+
+  void set_remote_irr(unsigned irq)
+  {
+    assert(irq < Io_apic_num_pins);
+
+    Redir_tbl_entry e = _redirect_tbl[irq];
+    Redir_tbl_entry e_new;
+
+    do
+      {
+        e_new = e;
+        e_new.remote_irr() = 1;
+      }
+    while (!_redirect_tbl[irq].compare_exchange_weak(e, e_new));
+  }
+
+  void apic_bind_irq_src_handler(unsigned entry_num, unsigned vec,
+                                 unsigned dest, unsigned dest_mod);
+  void apic_unbind_irq_src_handler(unsigned entry_num);
+  void do_apic_bind_irq_src_handler(Ioapic_irq_src_handler *hdlr, bool bind);
+
   cxx::Ref_ptr<Gic::Msix_controller> _distr;
+  cxx::Ref_ptr<Lapic_array> _lapics;
   std::atomic<l4_uint32_t> _id;
   std::atomic<l4_uint32_t> _ioregsel;
   std::atomic<l4_uint32_t> _iowin;
   std::atomic<Redir_tbl_entry> _redirect_tbl[Io_apic_num_pins];
   Gic::Irq_src_handler *_sources[Io_apic_num_pins] = {};
   cxx::Ref_ptr<Vdev::Legacy_pic> _pic;
+  Ioapic_irq_src_handler _apic_irq_src[Io_apic_num_pins];
 }; // class Io_apic
 
 } // namespace Gic
