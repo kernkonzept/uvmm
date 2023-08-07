@@ -45,8 +45,10 @@ public:
   explicit Pci_host_generic(Device_lookup *devs, Dt_node const &node,
                             unsigned char bus_num,
                             unsigned char subordinate_num,
-                            cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
+                            cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl,
+                            cxx::Ref_ptr<Gic::Ic> ic)
   : Pci_host_bridge(devs, node, bus_num, msix_ctrl),
+    _ic(ic),
     _secondary_bus_num(bus_num),
     _subordinate_bus_num(subordinate_num)
   {
@@ -68,7 +70,7 @@ public:
     setup_devices();
   }
 
-  void init_dev_resources(Hw_pci_device *) override;
+  void init_dev_resources(Hw_pci_device *hw_dev) override;
 
   bool has_ecam() const
   { return _ecam_mcfg_size != 0; }
@@ -363,6 +365,10 @@ private:
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI bus"); }
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI bus"); }
 
+  cxx::Ref_ptr<Gic::Ic> irq_ic() { return _ic; }
+
+  /// IC to route legacy IRQs of PCI devices behind this host bridge.
+  cxx::Ref_ptr<Gic::Ic> _ic;
   l4_uint64_t _ecam_mcfg_base = 0;
   l4_uint64_t _ecam_mcfg_size = 0;
   unsigned char _secondary_bus_num = 0;
@@ -560,8 +566,57 @@ Pci_host_generic::read_ecam_area(Dt_node const &node)
 }
 
 void
-Pci_host_generic::init_dev_resources(Hw_pci_device *)
-{}
+Pci_host_generic::init_dev_resources(Hw_pci_device *hw_dev)
+{
+  // deal with legacy IRQs
+  unsigned pin = Pci_config_consts::Interrupt_pin_unused;
+  hw_dev->cfg_read(Pci_hdr_interrupt_pin_offset, &pin,
+                   Vmm::Mem_access::Width::Wd8);
+  if (pin == Pci_config_consts::Interrupt_pin_unused)
+    {
+      info().printf("Device 0x%x has no legacy IRQs.\n", hw_dev->dev_id);
+      return;
+    }
+
+  unsigned line = Pci_config_consts::Interrupt_line_unknown;
+  hw_dev->cfg_read(Pci_hdr_interrupt_line_offset, &line,
+                   Vmm::Mem_access::Width::Wd8);
+  if (line == Pci_config_consts::Interrupt_line_unknown)
+    {
+      info().printf("Device 0x%x uses no legacy IRQs. %i\n",
+                    hw_dev->dev_id, line);
+      return;
+    }
+
+  int io_irq = -1;
+  unsigned char edge_triggered = 0;
+  unsigned char dummy;
+  if ((io_irq = hw_dev->dev.irq_enable(&edge_triggered, &dummy)) < 0)
+    {
+      warn().printf("Could not enable and acquire PCI device IRQ: %i\n", io_irq);
+      return;
+    }
+
+  info().printf("Device 0x%x: io provides legacy IRQ resource %i\n",
+                hw_dev->dev_id, io_irq);
+
+  // Create the io IRQ to guest IRQ mapping
+  hw_dev->irq = cxx::make_ref_obj<Vdev::Irq_svr>(_vmm->registry(), _vbus->icu(),
+                                                 io_irq, irq_ic(), line);
+  if (!hw_dev->irq)
+    {
+      warn().printf("[0x%x] Creation for vBus IRQ resource %i failed. Might be "
+                    "already in use and multiplexing is not available. "
+                    "PCI cfg space IRQ pin %u and IRQ line %u.\n",
+                    hw_dev->dev_id, io_irq, pin, line);
+      return;
+    }
+
+  if (!edge_triggered)
+    hw_dev->irq->eoi();
+
+  info().printf("  legacy IRQ mapping: %d -> %d\n", io_irq, line);
+}
 
 } } // namespace Vdev::Pci
 
@@ -585,8 +640,18 @@ struct F : Factory
         return nullptr;
       }
 
+    cxx::Ref_ptr<Gic::Ic> ic;
+    devs->get_or_create_ic(node, &ic);
+    if (!ic)
+      {
+        warn.printf("No valid interrupt controller or no 'interrupt-parent' "
+                    "property provided.\n");
+        return nullptr;
+      }
+
     auto dev = make_device<Pci_host_generic>(devs, node, bus_start, bus_end,
-                                             devs->get_or_create_mc_dev(node));
+                                             devs->get_or_create_mc_dev(node),
+                                             ic);
     if (!dev)
       {
         warn.printf("Failed to create PCI host bridge.");

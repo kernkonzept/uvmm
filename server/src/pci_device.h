@@ -69,6 +69,8 @@ enum Pci_config_consts
   Bar_mem_non_prefetch_bit = 0x0,
   Bar_num_max_type0 = 6,
   Bar_num_max_type1 = 2,
+  Interrupt_line_unknown = 255,
+  Interrupt_pin_unused = 0,
 };
 
 /**
