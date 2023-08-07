@@ -364,7 +364,13 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
     case Msr_ia32_x2apic_eoi:
       {
         std::lock_guard<std::mutex> lock(_int_mutex);
-        _regs.isr.clear_highest_irq();
+        int irq_num = _regs.isr.clear_highest_irq();
+        if (irq_num > 0)
+          {
+            Irq_src_handler *hdlr = get_irq_src_handler(irq_num);
+            if (hdlr)
+              hdlr->eoi();
+          }
       }
       if (value != 0)
         {

@@ -122,11 +122,13 @@ class Virt_lapic : public Ic
       memset(_reg.u64, 0, sizeof(l4_uint64_t) * Reg_no);
     }
 
-    void clear_highest_irq()
+    /// returns the IRQ number of the cleared IRQ. -1 if none found.
+    int clear_highest_irq()
     {
       int highest = get_highest_irq();
       if (highest != -1)
         clear_irq(highest);
+      return highest;
     }
 
     bool has_irq() const
