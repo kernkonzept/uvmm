@@ -565,4 +565,58 @@ void Pci_host_bridge::Hw_pci_device::setup_msix_table()
                   dinfo.name, dev_id, bir);
 }
 
+void Pci_host_bridge::Hw_pci_device::map_additional_iomem_resources(
+  Vmm::Guest *vmm, L4::Cap<L4Re::Dataspace> io_ds)
+{
+  for (unsigned i = 0; i < dinfo.num_resources; ++i)
+    {
+      l4vbus_resource_t res;
+      L4Re::chksys(dev.get_resource(i, &res), "Cannot get vbus resource.");
+
+      // we only handle iomem resources
+      if (res.type != L4VBUS_RESOURCE_MEM)
+        continue;
+
+      unsigned mmio_space_rw =
+        L4VBUS_RESOURCE_F_MEM_MMIO_READ | L4VBUS_RESOURCE_F_MEM_MMIO_WRITE;
+      bool is_mmio_space = res.flags & mmio_space_rw;
+
+      // we only handle mmio resources (not spaces)
+      if (is_mmio_space)
+        continue;
+
+      auto size = res.end - res.start + 1;
+      // we only handle resources that are not handled via PCI BARs
+      bool is_pci_bar = false;
+      for (unsigned j = 0; j < Bar_num_max_type0; ++j)
+        {
+          if (bars[j].type == Pci_cfg_bar::Unused_empty
+              || bars[j].type == Pci_cfg_bar::Reserved_mmio64_upper
+              || bars[j].type == Pci_cfg_bar::IO)
+            continue;
+          if (res.start == bars[j].io_addr && size == bars[j].size)
+            is_pci_bar = true;
+        }
+      if (is_pci_bar)
+        continue;
+
+      info().printf("Additional MMIO resource %s.%.4s : "
+                    "[0x%lx - 0x%lx] flags = 0x%x\n",
+                    dinfo.name, reinterpret_cast<char const *>(&res.id),
+                    res.start, res.end, res.flags);
+      auto region = Vmm::Region::ss(Vmm::Guest_addr(res.start), size,
+                                    Vmm::Region_type::Vbus);
+      l4_uint32_t rights = 0;
+      if (res.flags & L4VBUS_RESOURCE_F_MEM_R)
+        rights |= L4_FPAGE_RO;
+      if (res.flags & L4VBUS_RESOURCE_F_MEM_W)
+        rights |= L4_FPAGE_W;
+      auto handler = Vdev::make_device<
+        Ds_handler>(cxx::make_ref_obj<Vmm::Ds_manager>(io_ds, res.start, size,
+                                                       L4Re::Rm::Region_flags(
+                                                         rights)),
+                    static_cast<L4_fpage_rights>(rights));
+      vmm->add_mmio_device(region, handler);
+    }
+}
 }} // namespace Vdev::Pci
