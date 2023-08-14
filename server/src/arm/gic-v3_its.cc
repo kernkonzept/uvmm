@@ -378,7 +378,7 @@ private:
     CXX_BITFIELD_MEMBER_UNSHIFTED( 8, 51, itt_addr, raw2);
     CXX_BITFIELD_MEMBER          (63, 63, valid, raw2);
   };
-  static_assert(sizeof(Cmd) == Cmd::Size);
+  static_assert(sizeof(Cmd) == Cmd::Size, "Check sizeof(cmd)");
 
   // FIXME: We have to ensure that pending interrupts already written into a
   // list register are pulled out of it when their pending state or target
