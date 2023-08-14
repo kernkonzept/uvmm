@@ -63,11 +63,14 @@ void Vmm::Mmio_device::map_guest_range(L4::Cap<L4::Vm> vm_task,
       auto doffs = dest.get() + offs;
       char ps = get_page_shift(doffs, dest.get(), dest_end, offs, src);
       auto res = l4_error(vm_task->map(L4Re::This_task,
-                                       l4_fpage(src + offs, ps, attr),
-                                       doffs));
+                                       l4_fpage(src + offs, ps, attr), doffs));
       if (res < 0)
-        Err().printf("Could not map (%lx, %d) to (%lx, %d)\n", src + offs, ps,
-                     doffs, ps);
+        {
+          Err().printf("Could not map (%lx, %d) to (%lx, %d)\n",
+                       src + offs, ps, doffs, ps);
+          L4Re::throw_error(-L4_ENOMEM, "Mapping guest range.");
+        }
+
       offs += (l4_addr_t)1 << ps;
     }
 }
