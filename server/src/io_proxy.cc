@@ -176,8 +176,8 @@ mmio_region_valid(Vmm::Vm_mem const *memmap, l4_uint64_t addr, l4_uint64_t size,
 
   if (f == memmap->end())
     {
-      warn.printf("No corresponding IO resource for '%s'.reg[%d].\n",
-                  node.get_name(), index);
+      warn.printf("No corresponding IO resource for '%s'.reg[%d] (0x%llx-0x%llx).\n",
+                  node.get_name(), index, addr, addr + size - 1);
       return false;
     }
 
