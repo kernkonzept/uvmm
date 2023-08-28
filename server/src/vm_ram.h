@@ -189,9 +189,6 @@ public:
 
   Vmm::Address_space_manager *as_mgr() const { return _as_mgr.get(); }
 
-  Vmm::Address_space_manager_mode_if const *as_mgr_if() const
-  { return static_cast<Vmm::Address_space_manager_mode_if *>(_as_mgr.get()); }
-
   /**
    * Add a new RAM region.
    *

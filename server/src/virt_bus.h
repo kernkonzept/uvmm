@@ -22,7 +22,6 @@
 #include "device.h"
 #include "vbus_event.h"
 #include "msi_allocator.h"
-#include "address_space_manager_mode_if.h"
 
 namespace Vmm {
 
@@ -165,9 +164,8 @@ private:
   };
 
 public:
-  explicit Virt_bus(L4::Cap<L4vbus::Vbus> bus, L4::Registry_iface *registry,
-                    Vmm::Address_space_manager_mode_if const *as_mgr)
-  : _bus(bus), _vbus_event(bus, registry), _as_mgr(as_mgr)
+  explicit Virt_bus(L4::Cap<L4vbus::Vbus> bus, L4::Registry_iface *registry)
+  : _bus(bus), _vbus_event(bus, registry)
   {
     if (!bus.is_valid())
       {
@@ -281,7 +279,6 @@ private:
 
   L4::Cap<L4vbus::Vbus> _bus;
   Vbus_event _vbus_event;
-  Vmm::Address_space_manager_mode_if const *_as_mgr;
   L4::Cap<L4::Icu> _icu;
   std::vector<Devinfo> _devices;
   Irq_bitmap _irqs;

@@ -19,7 +19,6 @@
 #include "msi.h"
 #include "msi_controller.h"
 #include "msi_memory.h"
-#include "address_space_manager_mode_if.h"
 #include "ds_mmio_handling.h"
 
 namespace Vdev { namespace Pci {
@@ -149,7 +148,6 @@ public:
                   cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
   : _vmm(devs->vmm()),
     _vbus(devs->vbus()),
-    _as_mgr(devs->ram()->as_mgr_if()),
     _bus(bus_num),
     _msix_ctrl(msix_ctrl)
   {
@@ -359,14 +357,6 @@ protected:
     if (!_vbus.get() || !_vbus->available())
       return;
 
-    // Without DMA we don't pass-through PCI devices.
-    if (_as_mgr->is_no_dma_mode())
-      {
-        warn().printf("DMA disabled, will not add any physical PCI devices to "
-                      "the PCI bridge!\n");
-        return;
-      }
-
     auto root = _vbus->bus()->root();
     L4vbus::Pci_dev pdev;
     l4vbus_device_t dinfo;
@@ -443,7 +433,6 @@ private:
 protected:
   Vmm::Guest *_vmm;
   cxx::Ref_ptr<Vmm::Virt_bus> _vbus;
-  Vmm::Address_space_manager_mode_if const *_as_mgr;
   Pci_bus _bus;
   /// MSI-X controller responsible for the devices of this PCIe host bridge,
   /// may be nullptr since MSI-X support is an optional feature.
