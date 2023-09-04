@@ -155,6 +155,7 @@ public:
 private:
   Arg(char const *arg, size_t arglen)
   : _arg(arg, arglen),
+    _unsigned_cache(0),
     _unsigned_cached(false)
   {}
 

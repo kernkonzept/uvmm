@@ -42,6 +42,7 @@ public:
   : ctlr(0), tnlines(tnlines),
     _cpu(max_cpus),
     _spis(tnlines * 32, Cpu::Num_local),
+    _prio_mask(0),
     _lpis(nullptr)
   {
   }

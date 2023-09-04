@@ -253,7 +253,7 @@ struct Pci_cap
 
   // see PCI Local Bus Specification V.3 (2010) 6.8.2.
   l4_uint8_t const cap_type;
-  l4_uint8_t cap_next;
+  l4_uint8_t cap_next = 0;
 };
 
 /// Class for all vendor specific PCI capabilities.
@@ -314,11 +314,11 @@ struct Pci_msi_cap : Pci_cap
     CXX_BITFIELD_MEMBER(0, 0, msi_enable, raw);
   } ctrl;
 
-  l4_uint32_t address;
-  l4_uint16_t data;
+  l4_uint32_t address = 0;
+  l4_uint16_t data = 0;
   // optional, depends on ctrl.sixtyfour()
-  l4_uint32_t upper_address;
-  unsigned offset; // the offset into the devices config space
+  l4_uint32_t upper_address = 0;
+  unsigned offset = 0; // the offset into the devices config space
 
   void write_ctrl(l4_uint16_t val)
   {

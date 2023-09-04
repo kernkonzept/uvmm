@@ -50,7 +50,8 @@ private:
 
 public:
   Generic_cpu_dev(unsigned idx, unsigned phys_id)
-  : _vcpu(nullptr), _phys_cpu_id(phys_id), _registry(&_bm)
+  : _vcpu(nullptr), _phys_cpu_id(phys_id), _thread(nullptr),
+    _registry(&_bm)
   {
     // The CPU 0 (boot CPU) vCPU is allocated in main
     if (_main_vcpu_used || (idx != 0))

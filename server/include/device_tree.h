@@ -106,7 +106,7 @@ private:
 class Fdt
 {
 public:
-  Fdt() : _dtmem(nullptr) {}
+  Fdt() {}
   Fdt(void *dtmem) : _dtmem(dtmem) {}
   Fdt(Fdt const &o, int padding = 0)
   : _owned(true)
@@ -242,7 +242,7 @@ private:
   mutable std::map<fdt32_t, int> _phandles;
   mutable std::map<int, int> _parents;
 
-  void *_dtmem;
+  void *_dtmem = nullptr;
   bool _owned = false;
 };
 
@@ -1069,7 +1069,7 @@ private:
     return strcmp(devtype, "isa") == 0 || strcmp(devtype, "eisa") == 0;
   }
 
-  Fdt *_fdt;
+  Fdt *_fdt = nullptr;
   int _node;
 };
 

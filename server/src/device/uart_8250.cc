@@ -198,7 +198,8 @@ class Uart_8250_base
 public:
   Uart_8250_base(L4::Cap<L4::Vcon> con, l4_uint64_t regshift,
                  cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
-  : Vcon_device(con), _regshift(regshift), _sink(ic, irq)
+  : Vcon_device(con), _regshift(regshift), _sink(ic, irq),
+    _scr(0), _dll(0), _dlm(0)
   {
     l4_vcon_attr_t attr;
     if (l4_error(con->get_attr(&attr)) != L4_EOK)

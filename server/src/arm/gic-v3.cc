@@ -268,6 +268,7 @@ Dist_v3::Dist_v3(unsigned tnlines)
 : Dist(tnlines, Num_cpus),
   _router(cxx::make_unique<l4_uint64_t[]>(32 * tnlines)),
   _redist(new Redist(this)),
+  _redist_size(0),
   _sgir(new Sgir_sysreg(this))
 {
   ctlr = Gicd_ctlr_must_set;

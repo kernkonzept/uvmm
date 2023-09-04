@@ -95,10 +95,10 @@ namespace Vmm {
 class Irq_sink
 {
 public:
-  Irq_sink() : _ic(nullptr), _state(false) {}
+  Irq_sink() : _ic(nullptr) {}
 
   Irq_sink(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned irq)
-  : _irq(irq), _ic(ic), _state(false)
+  : _irq(irq), _ic(ic)
   {}
 
   Irq_sink(Irq_sink const &) = delete;
@@ -152,9 +152,9 @@ public:
   }
 
 private:
-  unsigned _irq;
+  unsigned _irq = 0;
   cxx::Ref_ptr<Gic::Ic> _ic;
-  bool _state;
+  bool _state = false;
 };
 
 /**

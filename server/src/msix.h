@@ -26,8 +26,8 @@ struct Table_entry
    * [    127:96     |     95:64    |        63:32      |       31:0      ]
    * [Vector control | Message Data | Message Addr high | Message Addr low]
    */
-  l4_uint64_t addr;
-  l4_uint32_t data;
+  l4_uint64_t addr = 0;
+  l4_uint32_t data = 0;
   l4_uint32_t vector_ctrl;
 
   Table_entry() : vector_ctrl(Vector_ctrl_mask_bit) {}
