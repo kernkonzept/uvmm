@@ -19,6 +19,7 @@
 
 #include "debug.h"
 #include "pci_device.h"
+#include "virt_pci_device.h"
 #include "io_device.h"
 #include "virtio_dev.h"
 #include "pci_virtio_config.h"

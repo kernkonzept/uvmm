@@ -16,6 +16,7 @@
 #include "irq_svr.h"
 #include "guest.h"
 #include "pci_device.h"
+#include "virt_pci_device.h"
 #include "msi.h"
 #include "msi_controller.h"
 #include "msi_memory.h"
