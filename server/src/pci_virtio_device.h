@@ -76,7 +76,7 @@ public:
     cap = create_vio_pci_cap_device_entry(cap, 1);
     _device_config_len = cap ? (bars[1].size - cap->offset) : 0;
 
-    dbg().printf("Virtio_device_pci: device configured\n");
+    trace().printf("Virtio_device_pci: device configured\n");
   }
 
   /**
@@ -228,10 +228,10 @@ private:
     cap->pba.offset()    = L4_PAGESIZE >> 3;
     cap->pba.bir()       = bar_index;
 
-    dbg().printf("msi.msg_ctrl 0x%x\n", cap->ctrl.raw);
-    dbg().printf("msi.table 0x%x\n", cap->tbl.raw);
-    dbg().printf("msi.pba 0x%x\n", cap->pba.raw);
-    dbg().printf("Size of MSI-X cap 0x%lx\n", sizeof(*cap));
+    trace().printf("msi.msg_ctrl 0x%x\n", cap->ctrl.raw);
+    trace().printf("msi.table 0x%x\n", cap->tbl.raw);
+    trace().printf("msi.pba 0x%x\n", cap->pba.raw);
+    trace().printf("Size of MSI-X cap 0x%lx\n", sizeof(*cap));
   }
 
   inline void

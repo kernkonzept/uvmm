@@ -817,8 +817,8 @@ struct Pci_device : public virtual Vdev::Dev_ref
     Pci_header_type hdr_type = get_header_type();
     unsigned rom_reg = expansion_rom_reg(hdr_type == Pci_header_type(0));
 
-    info().printf("Parsing expansion ROM reg 0x%x of type %i header\n", rom_reg,
-                  hdr_type);
+    trace().printf("Parsing expansion ROM reg 0x%x of type %i header\n",
+                   rom_reg, hdr_type);
     l4_uint32_t access = disable_access(Access_mask);
 
     l4_uint32_t val = 0;
@@ -1039,16 +1039,16 @@ public:
     assert((unsigned)cap_offset + sizeof(T) < 0x100);
 
     T *ret = new (&_hdr.byte[cap_offset]) T();
-    info().printf("cap offset 0x%x, cap size 0x%zx\n", cap_offset,
-                  sizeof(*ret));
+    trace().printf("cap offset 0x%x, cap size 0x%zx\n", cap_offset,
+                   sizeof(*ret));
 
     *_last_caps_next_ptr = cap_offset;
     _last_caps_next_ptr = &ret->cap_next;
 
     _next_free_idx = cap_offset + sizeof(*ret);
 
-    info().printf("indexes: cap's next ptr %p, next free byte 0x%x\n",
-                  &_last_caps_next_ptr, _next_free_idx);
+    trace().printf("indexes: cap's next ptr %p, next free byte 0x%x\n",
+                   &_last_caps_next_ptr, _next_free_idx);
 
     ret->cap_next = 0;
     assert(ret->cap_type == T::Cap_id);
