@@ -33,6 +33,11 @@ public:
     Max_size = 4 /**< Maximal number of allowed cells */
   };
 
+  static Cell make_cell(std::initializer_list<uint32_t> l)
+  {
+    return Cell(l);
+  }
+
   /**
    * Construct a default invalid cell
    *
@@ -59,30 +64,6 @@ public:
 
     for (unsigned i = 0, offs = Max_size - size; i < size; ++i)
       _values[offs + i] = fdt32_to_cpu(values[i]);
-  }
-
-  Cell(std::initializer_list<uint32_t> l)
-  {
-    assert(l.size() <= Max_size);
-    for (auto &v: _values)
-      v = 0;
-
-    unsigned i = Max_size - l.size();
-    for (uint32_t v : l)
-      _values[i++] = v;
-  }
-
-  /**
-   * Construct a Cell object from a 32bit value
-   *
-   * \param val Value the cell should be set to
-   */
-  Cell(uint32_t val)
-  {
-    for (auto &v: _values)
-      v = 0;
-
-    _values[Max_size - 1] = val;
   }
 
   uint32_t const &operator [] (size_t idx) const
@@ -241,6 +222,18 @@ public:
   }
 
 private:
+
+  Cell(std::initializer_list<uint32_t> l)
+  {
+    assert(l.size() <= Max_size);
+    for (auto &v: _values)
+      v = 0;
+
+    unsigned i = Max_size - l.size();
+    for (uint32_t v : l)
+      _values[i++] = v;
+  }
+
   /**
    * Compare two cell objects
    *
