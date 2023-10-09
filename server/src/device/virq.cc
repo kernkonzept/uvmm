@@ -84,8 +84,8 @@ struct F_rcv : Factory
               node.get_name(), l4sys_errtostr(res.cap()));
     L4Re::chkcap(res, "Register object", -L4_EINVAL);
 
-    // chkcap() throughs an exception; we will not continue here
-    return nullptr;
+    // chkcap() throws an exception; we will not continue here
+    __builtin_unreachable();
   }
 };
 
