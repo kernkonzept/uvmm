@@ -76,16 +76,14 @@ struct F_rcv : Factory
 
     auto c = make_device<Irq_rcv>(it.ic(), it.irq());
     auto res = devs->vmm()->registry()->register_obj(c.get(), cap);
-    if (res.is_valid())
-      return c;
-
-    Dbg(Dbg::Dev, Dbg::Warn, "Virq")
-      .printf("Failed to register Virq on %s.l4vmm,virqcap: %s\n",
-              node.get_name(), l4sys_errtostr(res.cap()));
-    L4Re::chkcap(res, "Register object", -L4_EINVAL);
-
-    // chkcap() throws an exception; we will not continue here
-    __builtin_unreachable();
+    if (!res.is_valid())
+      {
+        Dbg(Dbg::Dev, Dbg::Warn, "Virq")
+          .printf("Failed to register Virq on %s.l4vmm,virqcap: %s\n",
+                  node.get_name(), l4sys_errtostr(res.cap()));
+        L4Re::chkcap(res, "Register object", -L4_EINVAL); // does not return
+      }
+    return c;
   }
 };
 
