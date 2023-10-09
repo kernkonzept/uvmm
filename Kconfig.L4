@@ -19,23 +19,58 @@ config UVMM_MONITOR
 	  the guest state at runtime. When enabled the interface must also be switched
 	  on at runtime using the `mon` command line option.
 
+menu "Supported Loaders"
+
+config UVMM_LOADER_RAW
+	bool "RAW images"
+	default y
+	help
+	  Allows to raw kernel images from an address. The format for the file name
+	  is 'raw:addr=0xcaffee:filename' where addr is the address the image should
+	  be loaded to, relative to the guest ram base.
+
+config UVMM_LOADER_ELF
+	bool "ELF images"
+	default y
+	help
+	  Enable loading of elf images. The file found under the file name passed to
+	  uvmm must be a valid ELF file for the loader to pick it up.
+
+config UVMM_LOADER_PE
+	bool "PE images (error handling only)"
+	default y
+	help
+	  Print usefull errors when trying to load PE images. If the file found under
+	  the file name passed to uvmm is a PE file uvmm will not load it but provides
+	  helpful error messages.
+
+config UVMM_LOADER_ROM
+	bool "ROM images (from guest memory locations)"
+	default y
+	help
+	  Enable loading of images from a guest memory location. The format for the
+	  kernel file name passed to uvmm is 'rom:addr=0xcaffee' where 0xcaffee is
+	  a valid address in the memory of the guest. If the format is
+	  'rom:addr=0xcaffee:64bit' then the guest is a 64 bit guest.
+
+config UVMM_LOADER_LINUX
+	bool "Linux images (non-elf)"
+	depends on BUILD_ARCH_arm64 || BUILD_ARCH_arm || BUILD_ARCH_amd64
+	default y
+	help
+	  Loads a Linux image.
+
 config UVMM_LOADER_GZIP
-	bool "GZIP/ZLIB loading"
-	depends on (BUILD_ARCH_arm64 || BUILD_ARCH_arm) && HAVE_BIDPC_ZLIB
+	bool "GZIP/ZLIB loading for Linux images"
+	depends on (BUILD_ARCH_arm64 || BUILD_ARCH_arm) && HAVE_BIDPC_ZLIB && UVMM_LOADER_LINUX
 	default y
 	help
 	  Allows to load gzip or zlib compressed kernel images.
 
+endmenu
+
 comment "GZIP/ZLIB compression not available due to missing zlib package"
 	depends on !HAVE_BIDPC_ZLIB
-
-config UVMM_LOADER_ROM
-	bool "ROM loading"
-	default y
-	help
-	  Binary loader which starts binary out of an guest memory location.
-	
-	  For details on the configuration see binary_loader_rom.cc
 
 config UVMM_QEMU_FW_IF
 	bool "Qemu firmware configuration device"

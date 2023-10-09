@@ -81,10 +81,13 @@ SRC_CC_amd64-l4f-$(CONFIG_UVMM_QEMU_FW_IF) += \
 	ARCH-amd64/qemu_fw_cfg_acpi.cc \
 	ARCH-amd64/qemu_fw_cfg_boot.cc
 
-SRC_CC += binary_loader.cc binary_loader_raw.cc binary_loader_elf.cc binary_loader_pe.cc
+SRC_CC += binary_loader.cc
+SRC_CC-$(CONFIG_UVMM_LOADER_RAW) += binary_loader_raw.cc
+SRC_CC-$(CONFIG_UVMM_LOADER_ELF) += binary_loader_elf.cc
+SRC_CC-$(CONFIG_UVMM_LOADER_PE)  += binary_loader_pe.cc
 SRC_CC-$(CONFIG_UVMM_LOADER_ROM) += binary_loader_rom.cc
-SRC_CC_amd64-l4f += ARCH-amd64/binary_loader_linux.cc
-SRC_CC_arm-common += arm/binary_loader_linux.cc
+SRC_CC_amd64-l4f-$(CONFIG_UVMM_LOADER_LINUX)  += ARCH-amd64/binary_loader_linux.cc
+SRC_CC_arm-common-$(CONFIG_UVMM_LOADER_LINUX) += arm/binary_loader_linux.cc
 SRC_CC-$(CONFIG_UVMM_LOADER_GZIP) += arm/binary_loader_linux_compressed.cc
 REQUIRES_LIBS-$(CONFIG_UVMM_LOADER_GZIP) += zlib
 
