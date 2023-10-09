@@ -18,8 +18,10 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   virt_bus.cc io_proxy.cc \
                   mmio_device.cc \
                   pm.cc vbus_event.cc vm_memmap.cc vm_ram.cc vm.cc \
-                  address_space_manager.cc pci_device.cc \
+                  address_space_manager.cc \
                   device/rtc-hub.cc
+
+SRC_CC-$(CONFIG_UVMM_PCI_SUPPORT)       += pci_device.cc
 
 SRC_CC-$(CONFIG_RELEASE_MODE)y          += debug.cc
 SRC_CC-$(CONFIG_UVMM_MONITOR)           += monitor/monitor.cc

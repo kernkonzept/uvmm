@@ -95,6 +95,13 @@ config UVMM_VDEV_PSCI
 	help
 	  Emulates a PSCI interface for the guest.
 
+config UVMM_PCI_SUPPORT
+	bool "Support PCI emulation" if BUILD_ARCH_arm64 || BUILD_ARCH_arm
+	default y
+	help
+	  Configures if the PCI subsystem (and the corresponding devices using the
+	  PCI transport) should be available in uvmm.
+
 config UVMM_VDEV_OPTEE
 	bool "OPTEE SMC call forwarding"
 	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
@@ -197,7 +204,7 @@ config UVMM_VDEV_PL031
 config UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC
 	bool "ECAM PCIe host bridge support"
 	default y
-	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	depends on (BUILD_ARCH_arm || BUILD_ARCH_arm64) && UVMM_PCI_SUPPORT
 	help
 	  Emulates a generic PCIe host bridge for ARM platforms.
 
