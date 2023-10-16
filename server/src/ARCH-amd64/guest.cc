@@ -618,9 +618,9 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
         }
       else if (e)
         {
-          Err().printf("[%3u]: Resume failed with error %ld\n", vcpu_id, e);
+          Err().printf("[%3u]: Entering VM failed with error %ld\n",
+                       vcpu_id, e);
           vm->additional_failure_info();
-          enter_kdebug("FAILURE IN VMM RESUME");
           halt_vm(vcpu);
         }
       else
