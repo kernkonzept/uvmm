@@ -310,7 +310,11 @@ public:
           break;
         }
 
-      case 0x50: dev()->virtio_queue_notify(value); break;
+      case 0x50:
+        vcfg->queue_notify = value;
+        writeback_cache(&vcfg->queue_notify);
+        dev()->virtio_queue_notify(value);
+        break;
 
       case 0x64:
         dev()->virtio_irq_ack(value);

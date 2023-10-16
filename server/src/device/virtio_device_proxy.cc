@@ -73,9 +73,11 @@ class Virtio_device_proxy
 public:
   Virtio_device_proxy(L4::Cap<L4::Rcv_endpoint> ep, l4_size_t cfg_size,
                       l4_uint64_t drvmem_base, l4_uint64_t drvmem_size,
-                      Vmm::Guest *vmm, cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
+                      Vmm::Guest *vmm, cxx::Ref_ptr<Gic::Ic> const &ic, int irq,
+                      Vmm::Address_space_manager *as_mgr)
         : Read_mapped_mmio_device_t("Virtio_device_proxy", cfg_size,
                                     L4Re::Rm::F::Cache_normal),
+          _as_mgr(as_mgr),
           _host_irq(this), _irq_sink(ic, irq), _ack_pending(false), _ep(ep),
           _drvmem_base(drvmem_base), _drvmem_size(drvmem_size), _vmm(vmm)
   {
@@ -83,6 +85,8 @@ public:
                          L4VIRTIO_FEATURE_VERSION_1);
     l4virtio_set_feature(mmio_local_addr()->dev_features_map,
                          L4VIRTIO_FEATURE_CMD_CONFIG);
+
+    Vmm::Generic_cpu_dev::main_vcpu().get_bm()->alloc_buffer_demand(get_buffer_demand());
   }
 
   void write(unsigned reg, char width, l4_umword_t value, unsigned cpu_id)
@@ -172,11 +176,15 @@ public:
                    "Received dataspace capability valid.");
     L4Re::chksys(L4::Epiface::server_iface()->realloc_rcv_cap(0));
 
+    auto ds_mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Virtio_device_proxy: ram",
+                                                     ds, offset, sz);
     _vmm->add_mmio_device(Vmm::Region::ss(Vmm::Guest_addr(_drvmem_base + ds_base),
                                           sz, Vmm::Region_type::Virtual),
-                          Vdev::make_device<Ds_handler>(
-                            cxx::make_ref_obj<Vmm::Ds_manager>(
-                              "Virtio_device_proxy: ram", ds, offset, sz)));
+                          Vdev::make_device<Ds_handler>(ds_mgr));
+
+    if (_as_mgr->is_iommu_mode())
+        _as_mgr->add_ram_iommu(Vmm::Guest_addr(_drvmem_base + ds_base),
+                               ds_mgr->local_addr<l4_addr_t>(), sz);
 
     return 0;
   }
@@ -255,6 +263,7 @@ public:
   { return -L4_ENOSYS; }
 
 private:
+  Vmm::Address_space_manager *_as_mgr;
   L4Re::Util::Unique_cap<L4::Irq> _kick_guest_irq;
   Host_irq _host_irq;
 
@@ -313,7 +322,8 @@ struct F : Factory
                                               drvmem_base, drvmem_size,
                                               devs->vmm(),
                                               it.ic(),
-                                              it.irq());
+                                              it.irq(),
+                                              devs->ram()->as_mgr());
 
     // register as mmio device for config space
     devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node, 0);
