@@ -12,12 +12,30 @@
         compatible = "simple-bus";
         ranges = <0x0 0x30000000 0x21000>;
 
+        apb_dummy_pclk: dummy_clk {
+            compatible = "fixed-clock";
+            #clock-cells = <0>;
+            clock-frequency = <1000000>;
+        };
+
+        uart0: pl011_uart@2000 {
+            compatible = "arm,primecell", "arm,pl011";
+            reg = <0x2000 0x1000>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 121 4>;
+            clocks = <&apb_dummy_pclk>;
+            clock-names = "apb_pclk";
+            status = "okay";
+        };
+
         virtio_uart@20000 {
             compatible = "virtio,mmio";
             reg = <0x20000 0x100>;
             interrupt-parent = <&gic>;
             interrupts = <0 122 4>;
             l4vmm,vdev = "console";
+            /* To be used instead of pl011 UART */
+            status = "disabled";
         };
 
         virtio_net@10000 {

@@ -111,7 +111,8 @@
           reg = <0x0 0x0 0x0 0x0>;
           interrupt-parent = <&IOAPIC>;
           interrupts = <4>;
-          l4vmm,vcon_cap = "uart";
+          /* Redirecting to another vcon channel is possible: */
+          /* l4vmm,vcon_cap = "uart"; */
         };
 
         l4rtc {
@@ -216,6 +217,9 @@
                      0x01000014 0x0 0x0 0x0   0x80>;
               msi-parent = <&msi_ctrl>;
               l4vmm,vdev = "console";
+              /* Emulated UART is used by default for best bring-up
+              * experience */
+              status = "disabled";
             };
 
             virtio_net@1 {
