@@ -295,6 +295,8 @@ int main(int argc, char *argv[])
   vmm->prepare_binary_run(&vm_instance, entry, kernel_image, cmd_line,
                           dt_boot_addr);
 
+  vmm->memmap()->dump(Dbg::Info);
+
   info.printf("Populating RAM of virtual machine\n");
   vmm->map_eager();
 
