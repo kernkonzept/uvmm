@@ -119,7 +119,7 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
                                    L4Re::Rm::F::Search_addr
                                    | L4Re::Rm::F::R, file),
                    "Attach file dataspace for reading.");
-      memcpy((char *)local_start() + offset + this->offset(), src, sz);
+      memcpy((char *)local_start() + offset, src, sz);
       L4Re::chksys(e->rm()->detach(src, 0),
                    "Detach file dataspace.");
     }
