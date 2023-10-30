@@ -307,30 +307,17 @@ public:
   }
 
   /**
-   * Setup Application Processors in Real Mode.
+   * Setup the Real Mode startup procedure for AP startup and BSP resume.
    *
-   * Processor setup according to manual Volume 3B 9.1.1. The other case
-   * handled is when a startup-IPI (SIPI, Volume 3B 8.4.3) is received. Any
-   * other start address is architecturally undefined.
+   * This follows the hardware reset behavior described in Intel SDM "10.1.4
+   * First Instruction Executed".
    */
   void setup_real_mode(l4_addr_t entry) override
   {
-    if (entry == 0xfffffff0U)
-      {
-        // Bootstrap Processor (BSP) boot
-        vmx_write(VMCS_GUEST_CS_SELECTOR, 0xf000U);
-        vmx_write(VMCS_GUEST_CS_BASE, 0xffff0000U);
-        vmx_write(VMCS_GUEST_RIP, 0xfff0U);
-      }
-    else if ((entry & ~(l4_addr_t)0x00ff000U) == 0)
-      {
-        // Application Processor (AP) boot via Startup IPI (SIPI)
-        vmx_write(VMCS_GUEST_CS_SELECTOR, (entry >> 4));
-        vmx_write(VMCS_GUEST_CS_BASE, entry);
-        vmx_write(VMCS_GUEST_RIP, 0);
-      }
-    else
-      L4Re::throw_error(-L4_EINVAL, "Invalid CPU startup address");
+    l4_addr_t base_addr = entry & 0xffff0000U;
+    vmx_write(VMCS_GUEST_CS_SELECTOR, (base_addr >> 4) & 0xffffU);
+    vmx_write(VMCS_GUEST_CS_BASE, base_addr);
+    vmx_write(VMCS_GUEST_RIP, entry & 0xffffU);
 
     vmx_write(VMCS_GUEST_CS_ACCESS_RIGHTS, 0x9b);
     vmx_write(VMCS_GUEST_CS_LIMIT, 0xffff);

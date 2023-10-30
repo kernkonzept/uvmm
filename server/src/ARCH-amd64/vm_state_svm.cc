@@ -111,20 +111,21 @@ Svm_state::setup_linux_protected_mode(l4_addr_t entry)
 }
 
 /**
- * Setup Application Processors in Real Mode.
+ * Setup the Real Mode startup procedure for AP startup and BSP resume.
  *
- * The entry page is set up using the Code Segment because Linux uses an
- * entry page address larger than 16 bits, hence the 20 bit Segment Base is
- * set up according to Vol. 3B, 20.1.1 Figure 20-1 and the instruction
- * pointer is set to zero.
+ * This follows the hardware reset behavior described in AMD APM "14.1.5
+ * Fetching the first instruction".
  */
 void
 Svm_state::setup_real_mode(l4_addr_t entry)
 {
-  _vmcb->state_save_area.cs.selector = (entry >> 4);
+  l4_addr_t base_addr = entry & 0xffff0000U;
+  _vmcb->state_save_area.cs.selector = (base_addr >> 4) & 0xffffU;
+  _vmcb->state_save_area.cs.base = base_addr;
+  _vmcb->state_save_area.rip = entry & 0xffffU;
+
   _vmcb->state_save_area.cs.attrib = 0x9b; // TYPE=11, S, P
   _vmcb->state_save_area.cs.limit = 0xffff;
-  _vmcb->state_save_area.cs.base = entry;
 
   _vmcb->state_save_area.ss.selector = 0x18;
   _vmcb->state_save_area.ss.attrib = 0x93; // TYPE=3, S, P
@@ -156,7 +157,6 @@ Svm_state::setup_real_mode(l4_addr_t entry)
   _vmcb->state_save_area.tr.limit = 0xffff;
   _vmcb->state_save_area.tr.base = 0;
 
-  _vmcb->state_save_area.rip = 0;
   _vmcb->state_save_area.rsp = 0;
   _vmcb->state_save_area.cr0 = 0x10030;
   _vmcb->state_save_area.cr4 = 0x680;
