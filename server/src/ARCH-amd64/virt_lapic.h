@@ -774,6 +774,8 @@ public:
                            Vmm::Region_type::Virtual);
   }
 
+  char const *dev_name() const override { return "Lapic_access_handler"; }
+
 private:
   /**
    * Forward an MSR-encoded write to the ICR handler or to a local APIC.

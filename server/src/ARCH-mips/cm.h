@@ -188,6 +188,8 @@ public:
       }
   }
 
+  char const *dev_name() const override { return "Coherency_manager"; }
+
 private:
   cxx::Ref_ptr<Vdev::Mips_cpc> _cpc;
   Vmm::Vm_mem *_memmap;

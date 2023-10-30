@@ -21,7 +21,8 @@ class Framebuffer : public Vmm::Ds_manager
 {
 public:
   Framebuffer(cxx::unique_ptr<L4Re::Util::Video::Goos_fb> gfb) :
-    Ds_manager(gfb->buffer(), 0, gfb->buffer()->size()), _gfb(cxx::move(gfb))
+    Ds_manager("Framebuffer", gfb->buffer(), 0, gfb->buffer()->size()),
+               _gfb(cxx::move(gfb))
   {
   }
 private:

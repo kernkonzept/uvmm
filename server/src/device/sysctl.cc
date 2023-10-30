@@ -92,6 +92,8 @@ struct System_controller_mmio
   System_controller_mmio(Vmm::Guest *vmm)
   : System_controller(vmm)
   {}
+
+  char const *dev_name() const override { return "System_controller_mmio"; }
 };
 
 struct F : Factory

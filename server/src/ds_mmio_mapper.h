@@ -155,11 +155,14 @@ private:
     return Vmm::Retry;
   }
 
+  char const *dev_name() const override { return _ds->dev_name(); }
+
   char const *dev_info(char *buf, size_t size) const override
   {
-    snprintf(buf, size, "mmio ds: [%lx - ?] -> [%lx:%lx - ?]",
-             _ds->local_addr<unsigned long>(), _ds->dataspace().cap(),
-             (long)_ds->offset() + _offset);
+    snprintf(buf, size, "%s: DS local=%lx cap=%lx offset=%lx",
+             dev_name(), _ds->local_addr<unsigned long>(),
+             _ds->dataspace().cap(), (long)_ds->offset() + _offset);
+    buf[size - 1] = '\0';
     return buf;
   }
 
@@ -248,10 +251,13 @@ private:
     return Vmm::Retry;
   }
 
+  char const *dev_name() const override { return _ds->dev_name(); }
+
   char const *dev_info(char *buf, size_t size) const override
   {
-    snprintf(buf, size, "mmio ds: [not mapped] -> [%lx:%lx - ?]",
-             _ds.cap(), _offset);
+    snprintf(buf, size, "%s: DS cap=%lx offset=%lx",
+             dev_name(), _ds.cap(), _offset);
+    buf[size - 1] = '\0';
     return buf;
   }
 

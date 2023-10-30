@@ -283,6 +283,8 @@ public:
     return base;
   }
 
+  char const *dev_name() const override { return "Gicc"; };
+
 private:
   void remap_page(L4::Cap<L4::Vm> vm) const
   {

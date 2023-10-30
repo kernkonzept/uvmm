@@ -125,6 +125,8 @@ public:
     return 0;
   }
 
+  char const *dev_name() const override { return "Irq_snd"; }
+
 private:
   L4::Cap<L4::Irq> _irq;
 };

@@ -315,6 +315,8 @@ public:
       }
   }
 
+  char const *dev_name() const override { return "Its"; }
+
 private:
   class Cmd
   {

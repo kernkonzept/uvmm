@@ -96,7 +96,8 @@ public:
                          "Associate with physical address space");
           }
 
-        auto mgr = cxx::make_ref_obj<Vmm::Ds_manager>(dscap, 0, dscap->size());
+        auto mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Mmio_proxy", dscap, 0,
+                                                      dscap->size());
 
         if (physmap)
           register_physmap_region(mgr, devs, node, dma.get());

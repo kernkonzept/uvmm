@@ -103,6 +103,8 @@ public:
   unsigned max_cpuid() const
   { return _cpus->max_cpuid(); }
 
+  char const *dev_name() const override { return "Mips_cpc"; }
+
 private:
   l4_umword_t cpc_read_core(unsigned reg, unsigned cpuid);
   void cpc_write_core(unsigned reg, l4_umword_t value, unsigned cpuid);

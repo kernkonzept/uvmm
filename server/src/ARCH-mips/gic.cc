@@ -24,7 +24,7 @@ static Dbg dbg(Dbg::Irq, Dbg::Info, "GIC");
 namespace Gic {
 
 Dist::Dist(Mips_core_ic *core_ic)
-: Read_mapped_mmio_device_t(Gic_shared_size),
+: Read_mapped_mmio_device_t("Dist", Gic_shared_size),
   _core_ic(core_ic)
 {
   static_assert(L4_PAGESIZE <= 16 * 1024, "Maximum supported page size is 16k");

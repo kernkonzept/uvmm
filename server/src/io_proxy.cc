@@ -298,8 +298,9 @@ struct F : Factory
                       dtaddr, dtaddr + (dtsize - 1));
 
             auto handler = Vdev::make_device<Ds_handler>(
-                cxx::make_ref_obj<Vmm::Ds_manager>(vbus->io_ds(),
-                                                   res.start, dtsize)
+                cxx::make_ref_obj<Vmm::Ds_manager>("Io_proxy: vbus",
+                                                   vbus->io_ds(), res.start,
+                                                   dtsize)
               );
 
             auto region = Vmm::Region::ss(Vmm::Guest_addr(dtaddr), dtsize,

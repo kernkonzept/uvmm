@@ -488,6 +488,8 @@ public:
         break;
       }
   }
+
+  char const *dev_name() const override { return "Qemu_fw_if_mmio"; }
 };
 
 class Qemu_fw_if_io

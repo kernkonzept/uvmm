@@ -74,7 +74,8 @@ public:
   Virtio_device_proxy(L4::Cap<L4::Rcv_endpoint> ep, l4_size_t cfg_size,
                       l4_uint64_t drvmem_base, l4_uint64_t drvmem_size,
                       Vmm::Guest *vmm, cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
-        : Read_mapped_mmio_device_t(cfg_size, L4Re::Rm::F::Cache_normal),
+        : Read_mapped_mmio_device_t("Virtio_device_proxy", cfg_size,
+                                    L4Re::Rm::F::Cache_normal),
           _host_irq(this), _irq_sink(ic, irq), _ack_pending(false), _ep(ep),
           _drvmem_base(drvmem_base), _drvmem_size(drvmem_size), _vmm(vmm)
   {
@@ -160,8 +161,11 @@ public:
                    "Received dataspace capability valid.");
     L4Re::chksys(L4::Epiface::server_iface()->realloc_rcv_cap(0));
 
-    _vmm->add_mmio_device(Vmm::Region::ss(Vmm::Guest_addr(_drvmem_base + ds_base), sz, Vmm::Region_type::Virtual),
-                          Vdev::make_device<Ds_handler>(cxx::make_ref_obj<Vmm::Ds_manager>(ds, offset, sz)));
+    _vmm->add_mmio_device(Vmm::Region::ss(Vmm::Guest_addr(_drvmem_base + ds_base),
+                                          sz, Vmm::Region_type::Virtual),
+                          Vdev::make_device<Ds_handler>(
+                            cxx::make_ref_obj<Vmm::Ds_manager>(
+                              "Virtio_device_proxy: ram", ds, offset, sz)));
 
     return 0;
   }

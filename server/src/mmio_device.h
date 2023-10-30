@@ -181,11 +181,14 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    */
   virtual int access(l4_addr_t pfa, l4_addr_t offset, Vcpu_ptr vcpu,
                      L4::Cap<L4::Vm> vm_task, l4_addr_t s, l4_addr_t e) = 0;
+
+  virtual char const *dev_name() const = 0;
+
   virtual char const *dev_info(char *buf, size_t size) const
   {
     if (size > 0)
       {
-        strncpy(buf, typeid(*this).name(), size);
+        strncpy(buf, dev_name(), size);
         buf[size - 1] = '\0';
       }
     return buf;
@@ -417,7 +420,8 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
    *       by the dataspace mapped into the guest. Any read access outside
    *       the area then needs to be emulated as in the standard MMIO device.
    */
-  explicit Read_mapped_mmio_device_t(l4_size_t size,
+  explicit Read_mapped_mmio_device_t(char const *dev_name,
+                                     l4_size_t size,
                                      L4Re::Rm::Flags rm_flags = L4Re::Rm::F::Cache_uncached)
   {
     auto *e = L4Re::Env::env();
@@ -428,8 +432,9 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
 
     L4Re::chksys(e->mem_alloc()->alloc(size, ds.get()),
                  "Allocate memory for read-mapped MMIO device.");
-    _mgr = cxx::make_unique<Ds_manager>(ds, 0, size, rm_flags.region_flags()
-                                                     | L4Re::Rm::F::RW);
+    _mgr = cxx::make_unique<Ds_manager>(dev_name, ds, 0, size,
+                                        rm_flags.region_flags() |
+                                          L4Re::Rm::F::RW);
     _mgr->local_addr<void *>();
   }
 
@@ -443,6 +448,8 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
   { return _mgr->local_addr<T *>(); }
 
 private:
+  virtual char const *dev_name() const override { return _mgr->dev_name(); }
+
   cxx::unique_ptr<Ds_manager> _mgr;
 };
 

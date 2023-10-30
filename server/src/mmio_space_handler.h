@@ -35,6 +35,8 @@ public:
   void write(unsigned addr, char width, l4_uint64_t value, unsigned)
   { _server->mmio_write(addr + _offset, width, value); }
 
+  char const *dev_name() const override { return "Mmio_space_handler"; }
+
 private:
   L4::Cap<L4Re::Mmio_space> _server;
   long _offset;

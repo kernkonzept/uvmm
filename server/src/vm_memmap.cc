@@ -17,13 +17,13 @@ throw_error(char const *msg,
 {
   char buf[80], buf_new[80];
   Err().printf("%s:\n"
-               "\tVM addresses:\t[%08lx:%08lx] <-> [%08lx:%08lx]\n"
-               "\tDevice info:\t(%s) <-> (%s)\n", msg,
+               " VM addresses: [%08lx:%08lx] <-> [%08lx:%08lx]\n"
+               " Device info:  %s <-> %s\n", msg,
                region.start.get(), region.end.get(),
                new_region.start.get(), new_region.end.get(),
                dev->dev_info(buf, sizeof(buf)),
                new_dev->dev_info(buf_new, sizeof(buf_new)));
-  L4Re::chksys(-L4_EINVAL, msg);
+  L4Re::throw_error(-L4_EINVAL, msg);
 }
 
 void

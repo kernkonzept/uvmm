@@ -326,6 +326,8 @@ public:
       };
   }
 
+  char const *dev_name() const override { return "Pl011_mmio"; }
+
 private:
   Vmm::Irq_sink _sink;
 

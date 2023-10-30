@@ -205,6 +205,8 @@ public:
           break;
       }
   }
+
+  char const *dev_name() const override { return "Redist"; }
 };
 
 class Sgir_sysreg : public Vmm::Arm::Sys_reg

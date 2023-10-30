@@ -90,7 +90,8 @@ void Pci_host_bridge::Hw_pci_device::add_exp_rom_resource()
                 "0x%llx\n",
                 region.start.get(), region.end.get(), exp_rom.io_addr);
 
-  auto m = cxx::make_ref_obj<Ds_manager>(parent->_vbus->io_ds(),
+  auto m = cxx::make_ref_obj<Ds_manager>("Pci_host_bridge: rom",
+                                         parent->_vbus->io_ds(),
                                          exp_rom.io_addr, exp_rom.size);
   parent->_vmm->add_mmio_device(region, make_device<Ds_handler>(m));
 }
@@ -127,8 +128,9 @@ Pci_host_bridge::Hw_pci_device::add_mmio_bar_resources(Pci_cfg_bar const &bar)
   warn().printf("Register MMIO region: [0x%lx, 0x%lx], vbus base 0x%llx\n",
                 region.start.get(), region.end.get(), bar.io_addr);
 
-  auto m = cxx::make_ref_obj<Ds_manager>(parent->_vbus->io_ds(),
-                                         bar.io_addr, size);
+  auto m = cxx::make_ref_obj<Ds_manager>("Pci_host_bridge: mmio bar",
+                                         parent->_vbus->io_ds(), bar.io_addr,
+                                         size);
   parent->_vmm->add_mmio_device(region, make_device<Ds_handler>(m));
 }
 
@@ -174,7 +176,8 @@ Pci_host_bridge::Hw_pci_device::add_msix_bar_resources(Pci_cfg_bar const &bar)
 
   cxx::Ref_ptr<Vmm::Ds_manager> m;
   if (before_pages_size || after_pages_size)
-    m = cxx::make_ref_obj<Vmm::Ds_manager>(parent->_vbus->io_ds(),
+    m = cxx::make_ref_obj<Vmm::Ds_manager>("Pci_host_bridge: io mem",
+                                           parent->_vbus->io_ds(),
                                            bar.io_addr, bar.size);
 
   if (before_pages_size)
@@ -612,7 +615,8 @@ void Pci_host_bridge::Hw_pci_device::map_additional_iomem_resources(
       if (res.flags & L4VBUS_RESOURCE_F_MEM_W)
         rights |= L4_FPAGE_W;
       auto handler = Vdev::make_device<
-        Ds_handler>(cxx::make_ref_obj<Vmm::Ds_manager>(io_ds, res.start, size,
+        Ds_handler>(cxx::make_ref_obj<Vmm::Ds_manager>("Pci_host_bridge: additional io mem",
+                                                       io_ds, res.start, size,
                                                        L4Re::Rm::Region_flags(
                                                          rights)),
                     static_cast<L4_fpage_rights>(rights));

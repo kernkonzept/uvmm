@@ -122,6 +122,8 @@ public:
   void write(unsigned reg, char size, l4_umword_t value, unsigned = 0) const
   { _mem_mgr->write(_offset + reg, size, value); }
 
+  char const *dev_name() const override { return "Mmio_ds_converter"; }
+
 private:
   /// MMIO memory region manager.
   cxx::Ref_ptr<Ds_access_mgr> _mem_mgr;

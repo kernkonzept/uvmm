@@ -429,6 +429,8 @@ public:
                  cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
   : Uart_8250_base(con, regshift, ic, irq)
   {}
+
+  char const *dev_name() const override { return "Uart_8250_mmio"; }
 };
 
 class Uart_8250_io

@@ -300,6 +300,8 @@ public:
 
   Virtio::Event_connector_irq *event_connector() { return &_evcon; }
 
+  char const *dev_name() const override { return "Virtio_console_mmio"; }
+
 private:
   Virtio::Event_connector_irq _evcon;
 };

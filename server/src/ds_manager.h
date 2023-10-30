@@ -28,6 +28,8 @@ namespace Vmm {
 class Ds_manager : public cxx::Ref_obj
 {
 private:
+  /// Debug name
+  char const *_dev_name;
   /// Dataspace capability for the dataspace to be managed
   L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap _ds;
   /// Offset within the dataspace of the managed part
@@ -68,12 +70,14 @@ public:
   /**
    * Create a manager for the given part of the given dataspace.
    */
-  Ds_manager(L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap const &ds,
+  Ds_manager(char const *dev_name,
+             L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap const &ds,
              L4Re::Dataspace::Offset offset,
              L4Re::Dataspace::Size size,
              L4Re::Rm::Region_flags local_flags = L4Re::Rm::F::RW,
              unsigned char align = L4_SUPERPAGESHIFT)
-  : _ds(ds), _offset(offset), _size(size), _local_flags(local_flags),
+  : _dev_name(dev_name),
+    _ds(ds), _offset(offset), _size(size), _local_flags(local_flags),
     _align(align)
   {}
 
@@ -115,6 +119,11 @@ public:
 
   L4Re::Rm::Region_flags local_flags() const
   { return _local_flags; }
+
+  /**
+   * Returns the dev name.
+   */
+  char const *dev_name() const { return _dev_name; }
 };
 
 }

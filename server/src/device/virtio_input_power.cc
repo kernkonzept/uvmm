@@ -105,6 +105,8 @@ public:
       }
   }
 
+  char const *dev_name() const override { return "Virtio_input_power_mmio"; }
+
 private:
   Virtio::Event_connector_irq _evcon;
 };

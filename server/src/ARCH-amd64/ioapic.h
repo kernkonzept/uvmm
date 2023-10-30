@@ -147,6 +147,8 @@ public:
                            Vmm::Region_type::Virtual);
   }
 
+  char const *dev_name() const override { return "Ioapic"; }
+
 private:
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "IOAPIC"); }
   static Dbg info() { return Dbg(Dbg::Irq, Dbg::Info, "IOAPIC"); }

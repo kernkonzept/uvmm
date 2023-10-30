@@ -131,7 +131,7 @@ public:
 
     trace.printf("OP-TEE start = 0x%lx  size = 0x%lx\n", p[1], p[2]);
     auto handler = Vdev::make_device<Ds_handler>(
-        cxx::make_ref_obj<Vmm::Ds_manager>(iods, p[1], p[2])
+        cxx::make_ref_obj<Vmm::Ds_manager>("Optee", iods, p[1], p[2])
       );
     // XXX should check that the resource is actually available
     vmm->add_mmio_device(Vmm::Region(Vmm::Guest_addr(p[1]),

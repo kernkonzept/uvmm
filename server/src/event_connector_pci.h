@@ -75,7 +75,8 @@ private:
     L4Re::chksys(L4Re::Env::env()->mem_alloc()->alloc(size, ds.get(), flags),
                  "Allocate memory in dataspace.");
 
-    return cxx::make_ref_obj<Vmm::Ds_manager>(ds, 0, size);
+    return cxx::make_ref_obj<Vmm::Ds_manager>("Event_connector_msix", ds, 0,
+                                              size);
   }
 
 }; // class Event_connector_msix

@@ -111,6 +111,8 @@ public:
   {
     warn.printf("RTC write access not implemented\n");
   }
+
+  char const *dev_name() const override { return "Pl031"; }
 };
 
 struct F : Vdev::Factory

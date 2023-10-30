@@ -323,6 +323,8 @@ public:
   {
     ctlr = (val & 3U) | Gicd_ctlr_must_set;
   }
+
+  char const *dev_name() const override { return "Dist_v3"; }
 };
 
 }

@@ -125,6 +125,8 @@ public:
     // else: PCIe brings TPH Requester fields for vector control.
   }
 
+  char const *dev_name() const override { return "Virt_msix_table"; }
+
 protected:
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PassThrough"); }
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PassThrough"); }

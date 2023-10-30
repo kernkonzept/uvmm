@@ -90,7 +90,8 @@ Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
               if (res.flags & L4VBUS_RESOURCE_F_MEM_W)
                 rights |= L4_FPAGE_W;
               auto handler = Vdev::make_device<Ds_handler>(
-                  cxx::make_ref_obj<Ds_manager>(io_ds(), res.start, size,
+                  cxx::make_ref_obj<Ds_manager>("Virt_bus", io_ds(),
+                                                res.start, size,
                                                 L4Re::Rm::Region_flags(rights)),
                   static_cast<L4_fpage_rights>(rights)
                 );

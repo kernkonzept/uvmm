@@ -165,6 +165,8 @@ public:
       Dbg(Dbg::Mmio, Dbg::Warn, "Dist")
         .printf("Ignoring write access to %x, %x\n", r, value);
   }
+
+  char const *dev_name() const override { return "Dist_v2"; }
 };
 
 struct DF : Dist<false>::Factory

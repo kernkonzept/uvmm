@@ -67,6 +67,8 @@ public:
                           (Vmm::Mem_access::Width)width, val);
   }
 
+  char const *dev_name() const override { return "Pci_bus_cfg_ecam"; }
+
   cxx::Ref_ptr<Pci_host_bridge> _bus;
 };
 

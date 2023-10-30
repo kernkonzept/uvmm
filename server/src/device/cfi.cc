@@ -102,7 +102,7 @@ public:
   {
     unsigned int chip_shift = 8 * sizeof(unsigned int)
                               - __builtin_clz(bank_width / device_width) - 1;
-    _mgr = cxx::make_unique<Vmm::Ds_manager>(ds, 0, _size,
+    _mgr = cxx::make_unique<Vmm::Ds_manager>("Cfi_flash", ds, 0, _size,
                                              ro ? L4Re::Rm::F::R : L4Re::Rm::F::RW);
 
     // Fill CFI table. See JESD6801...
@@ -187,6 +187,7 @@ public:
   void map_eager(L4::Cap<L4::Vm>, Vmm::Guest_addr, Vmm::Guest_addr) override
   {}
 
+  char const *dev_name() const override { return _mgr->dev_name(); }
 
 private:
   void set_mode(L4::Cap<L4::Vm> vm_task, uint8_t cmd)
