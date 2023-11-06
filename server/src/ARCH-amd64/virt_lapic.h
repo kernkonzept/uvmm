@@ -650,6 +650,15 @@ private:
     if (data.delivery_mode() == Vdev::Msix::Delivery_mode::Dm_init
         || data.delivery_mode() == Vdev::Msix::Delivery_mode::Dm_startup)
       {
+        // filter deassert IPIs; HW does not support these since Pentium D.
+        if (data.delivery_mode() == Vdev::Msix::Delivery_mode::Dm_init
+            && icr.trigger_mode() == 1 && icr.trigger_level() == 0)
+          {
+            info().printf("{INIT,STARTUP} IPI: INIT deassert filtered. ICR: "
+                          "0x%llx\n", icr.raw);
+            return;
+          }
+
         // filter unsupported destination modes
         switch (icr.dest_shorthand())
           {
