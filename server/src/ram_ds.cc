@@ -14,7 +14,7 @@
 #include "ram_ds.h"
 
 static Dbg warn(Dbg::Mmio, Dbg::Warn, "ram");
-static Dbg trace(Dbg::Mmio, Dbg::Warn, "trace");
+static Dbg trace(Dbg::Mmio, Dbg::Trace, "ram");
 
 namespace Vmm {
 
