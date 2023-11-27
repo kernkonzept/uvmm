@@ -130,7 +130,6 @@ public:
       vcpu->r.ip += 4;
   }
 
-  void map_gicc(Vdev::Device_lookup *devs, Vdev::Dt_node const &node) const;
   void handle_wfx(Vcpu_ptr vcpu);
   void handle_ppi(Vcpu_ptr vcpu);
 
