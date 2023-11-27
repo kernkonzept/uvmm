@@ -294,7 +294,10 @@ private:
               dest_cpu->notify_irq();
           }
           return;
-      case R_icenable: if (value) irq.enable(false);   return;
+      case R_icenable:
+        if (value)
+          irq.enable(false);
+        return;
       case R_ispend:
         if (value)
           {
@@ -303,9 +306,18 @@ private:
               dest_cpu->notify_irq();
           }
           return;
-      case R_icpend:   if (value) irq.pending(false);  return;
-      case R_isactive: if (value) irq.active(true);    return;
-      case R_icactive: if (value) irq.active(false);   return;
+      case R_icpend:
+        if (value)
+          irq.pending(false);
+        return;
+      case R_isactive:
+        if (value)
+          irq.active(true);
+        return;
+      case R_icactive:
+        if (value)
+          irq.active(false);
+        return;
       case R_prio:     irq.prio(value & _prio_mask);   return;
       case R_target:
         if (!AFF_ROUTING && irq.id() >= Cpu::Num_local)
