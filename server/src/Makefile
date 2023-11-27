@@ -115,6 +115,3 @@ endif
 
 # We do not want to have -fno-strict-aliasing
 OPTS := $(OPTS_DEBUG) -O3
-
-# only relevant for Clang
-CXXFLAGS += $(if $(BID_COMPILER_IS_CLANG),-Wno-c99-designator)
