@@ -10,9 +10,9 @@
 
 #include <l4/cxx/ref_ptr>
 #include <l4/re/error_helper>
-#include <l4/re/util/object_registry>
 
 #include "debug.h"
+#include "ipc_registry.h"
 #include "irq.h"
 
 namespace Vdev {
@@ -28,7 +28,7 @@ class Irq_svr
   public cxx::Ref_obj
 {
 public:
-  Irq_svr(L4Re::Util::Object_registry *registry, L4::Cap<L4::Icu> icu,
+  Irq_svr(Vcpu_obj_registry *registry, L4::Cap<L4::Icu> icu,
           unsigned irq, cxx::Ref_ptr<Gic::Ic> const &ic, unsigned dt_irq)
   {
     if (ic->get_eoi_handler(dt_irq))

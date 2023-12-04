@@ -7,11 +7,11 @@
 
 #include <l4/sys/icu.h>
 #include <l4/sys/irq>
-#include <l4/re/util/object_registry>
 #include <l4/re/error_helper>
 
 #include "debug.h"
 #include "device.h"
+#include "ipc_registry.h"
 #include "msi_controller.h"
 #include "msi_allocator.h"
 #include "pci_device.h"
@@ -58,7 +58,7 @@ class Msi_src_factory : public virtual Vdev::Dev_ref
 {
 public:
   Msi_src_factory(cxx::Ref_ptr<Vdev::Msi::Allocator> msi_alloc,
-                  L4Re::Util::Object_registry *registry)
+                  Vcpu_obj_registry *registry)
   : _msi_alloc(msi_alloc), _registry(registry)
   {}
 
@@ -111,7 +111,7 @@ private:
   static Dbg warn()  { return Dbg(Dbg::Irq, Dbg::Warn,  "MSI FCTRY"); }
 
   cxx::Ref_ptr<Vdev::Msi::Allocator> _msi_alloc;
-  L4Re::Util::Object_registry *_registry;
+  Vcpu_obj_registry *_registry;
 }; // class Msi_src_factory
 
 } } // namespace Vdev::Msi

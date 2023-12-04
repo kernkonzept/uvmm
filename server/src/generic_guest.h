@@ -11,7 +11,6 @@
 #include <l4/sys/vm>
 #include <l4/re/dataspace>
 #include <l4/re/util/br_manager>
-#include <l4/re/util/object_registry>
 #include <l4/re/util/unique_cap>
 #include <l4/re/video/goos>
 #include <mutex>
@@ -26,6 +25,7 @@
 #include "monitor/monitor.h"
 #include "io_device.h"
 #include "generic_cpu_dev.h"
+#include "ipc_registry.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -70,7 +70,7 @@ public:
   void prepare_generic_platform(Vdev::Device_lookup *devs)
   { _pm = devs->pm(); }
 
-  L4Re::Util::Object_registry *registry()
+  Vcpu_obj_registry *registry()
   { return Generic_cpu_dev::main_vcpu().get_ipc_registry(); }
 
   void register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,

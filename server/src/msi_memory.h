@@ -10,9 +10,9 @@
 #include <mutex>
 
 #include <l4/cxx/unique_ptr>
-#include <l4/re/util/object_registry>
 
 #include "debug.h"
+#include "ipc_registry.h"
 #include "mem_access.h"
 #include "pci_device.h"
 #include "msix.h"
@@ -72,7 +72,7 @@ public:
    */
   Virt_msix_table(cxx::Ref_ptr<Vdev::Mmio_ds_converter> &&con,
                   cxx::Ref_ptr<Vdev::Msi::Allocator> msi_alloc,
-                  L4Re::Util::Object_registry *registry,
+                  Vcpu_obj_registry *registry,
                   l4_uint64_t src_id,
                   unsigned num_entries,
                   Gic::Msix_dest const &msix_dest)
@@ -282,7 +282,7 @@ private:
   }
 
   cxx::Ref_ptr<Vdev::Mmio_ds_converter> _con;
-  L4Re::Util::Object_registry *_registry;
+  Vcpu_obj_registry *_registry;
   cxx::Ref_ptr<Vdev::Msi::Allocator> _msi_alloc;
   std::vector<cxx::Ref_ptr<Msix_src>> _msi_irqs;
   l4_uint64_t const _src_id;

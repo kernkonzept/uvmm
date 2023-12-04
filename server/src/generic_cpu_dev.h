@@ -15,23 +15,13 @@
 #include <l4/re/error_helper>
 #include <l4/re/util/kumem_alloc>
 #include <l4/re/util/br_manager>
-#include <l4/re/util/object_registry>
 
 #include <debug.h>
 #include <device.h>
 #include <vcpu_ptr.h>
+#include <ipc_registry.h>
 
 namespace Vmm {
-
-class Generic_cpu_dev_registry : public L4Re::Util::Object_registry
-{
-public:
-  explicit Generic_cpu_dev_registry(L4::Ipc_svr::Server_iface *sif)
-  : L4Re::Util::Object_registry(sif) {}
-
-  void set_server(L4::Cap<L4::Thread> server)
-  { _server = server; }
-};
 
 class Generic_cpu_dev : public Vdev::Device
 {
@@ -107,13 +97,13 @@ protected:
   unsigned _phys_cpu_id;
   pthread_t _thread;
   L4Re::Util::Br_manager _bm;
-  Generic_cpu_dev_registry _registry;
+  Vcpu_obj_registry _registry;
   bool _attached = false;
 
 private:
   static Vcpu_ptr _main_vcpu;
   static L4Re::Util::Br_manager _main_bm;
-  static L4Re::Util::Object_registry _main_registry;
+  static Vcpu_obj_registry _main_registry;
   static bool _main_vcpu_used;
 };
 

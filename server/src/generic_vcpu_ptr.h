@@ -15,10 +15,10 @@
 #include <l4/re/util/cap_alloc>
 #include <l4/sys/thread>
 #include <l4/sys/vcpu.h>
-#include <l4/re/util/object_registry>
 #include <l4/re/util/br_manager>
 
 #include "debug.h"
+#include "ipc_registry.h"
 
 namespace Vmm {
 
@@ -59,10 +59,10 @@ public:
   void set_vcpu_id(unsigned id)
   { _s->user_data[Reg_vcpu_id] = id; }
 
-  L4Re::Util::Object_registry *get_ipc_registry() const
-  { return reinterpret_cast<L4Re::Util::Object_registry *>(_s->user_data[Reg_ipc_registry]); }
+  Vcpu_obj_registry *get_ipc_registry() const
+  { return reinterpret_cast<Vcpu_obj_registry *>(_s->user_data[Reg_ipc_registry]); }
 
-  void set_ipc_registry(L4Re::Util::Object_registry *registry)
+  void set_ipc_registry(Vcpu_obj_registry *registry)
   { _s->user_data[Reg_ipc_registry] = reinterpret_cast<l4_umword_t>(registry); }
 
   L4Re::Util::Br_manager *get_bm() const

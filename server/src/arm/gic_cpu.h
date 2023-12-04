@@ -195,7 +195,7 @@ private:
   /// Is the corresponding vCPU online?
   bool _online = false;
 
-  void rebind(L4Re::Util::Object_registry *registry)
+  void rebind(Vcpu_obj_registry *registry)
   {
     L4Re::chkcap(registry->register_obj(this, _migration_event.get()),
                  "Cannot register migration event");
