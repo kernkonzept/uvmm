@@ -29,7 +29,7 @@ class Ds_manager : public cxx::Ref_obj
 {
 private:
   /// Debug name
-  char const *_dev_name;
+  std::string const _dev_name;
   /// Dataspace capability for the dataspace to be managed
   L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap _ds;
   /// Offset within the dataspace of the managed part
@@ -70,7 +70,7 @@ public:
   /**
    * Create a manager for the given part of the given dataspace.
    */
-  Ds_manager(char const *dev_name,
+  Ds_manager(std::string const &dev_name,
              L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap const &ds,
              L4Re::Dataspace::Offset offset,
              L4Re::Dataspace::Size size,
@@ -123,7 +123,7 @@ public:
   /**
    * Returns the dev name.
    */
-  char const *dev_name() const { return _dev_name; }
+  char const *dev_name() const { return _dev_name.c_str(); }
 };
 
 }
