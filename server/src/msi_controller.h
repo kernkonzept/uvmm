@@ -9,6 +9,7 @@
 
 #include "pci_device.h"
 #include "device.h"
+#include "ipc_registry.h"
 
 namespace Gic {
 
@@ -22,8 +23,8 @@ struct Msix_controller : virtual Vdev::Dev_ref
   virtual ~Msix_controller() = default;
 
   /// Send MSI-X message to controller.
-  virtual void send(l4_uint64_t msix_addr, l4_uint64_t msix_data,
-                    l4_uint32_t vsrc_id = Invalid_vsrc_id) const = 0;
+  virtual Vcpu_obj_registry *send(l4_uint64_t msix_addr, l4_uint64_t msix_data,
+                                  l4_uint32_t vsrc_id = Invalid_vsrc_id) const = 0;
 };
 
 /**
@@ -52,9 +53,9 @@ public:
    *
    * \pre MSI-X controller is assigned, see `is_present()`
    */
-  void send_msix(l4_uint64_t msix_addr, l4_uint64_t msix_data) const
+  Vcpu_obj_registry *send_msix(l4_uint64_t msix_addr, l4_uint64_t msix_data) const
   {
-    _distr->send(msix_addr, msix_data, _vsrc_id);
+    return _distr->send(msix_addr, msix_data, _vsrc_id);
   }
 
   /**

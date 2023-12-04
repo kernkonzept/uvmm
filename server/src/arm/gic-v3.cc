@@ -158,6 +158,11 @@ public:
   {
   }
 
+  Redist_cpu *cpu(unsigned cpu_id)
+  {
+    return cpu_id < _redist_cpu.size() ? &_redist_cpu[cpu_id] : nullptr;
+  }
+
   Redist_cpu const *cpu(unsigned cpu_id) const
   {
     return cpu_id < _redist_cpu.size() ? &_redist_cpu[cpu_id] : nullptr;
@@ -290,6 +295,8 @@ Dist_v3::setup_cpu(Vmm::Vcpu_ptr vcpu)
 
   for (unsigned i = 0; i < Cpu::Num_local; ++i)
     c->local_irq(i).target(0, c);
+
+  redist(vcpu.get_vcpu_id())->ipc_registry(vcpu.get_ipc_registry());
 }
 
 l4_uint32_t
@@ -315,6 +322,12 @@ Dist_v3::get_typer() const
       type |= (9 << 19);
     }
   return type;
+}
+
+Redist_cpu *
+Dist_v3::redist(unsigned cpu_id)
+{
+  return static_cast<Redist *>(_redist.get())->cpu(cpu_id);
 }
 
 Redist_cpu const *

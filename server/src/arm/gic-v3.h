@@ -156,6 +156,12 @@ public:
     return lpi < _num_lpis ? _config_table[lpi].priority() : 0;
   }
 
+  Vcpu_obj_registry *ipc_registry() const
+  { return _registry; }
+
+  void ipc_registry(Vcpu_obj_registry *registry)
+  { _registry = registry; }
+
 private:
   void enable_lpis(unsigned num_lpi_bits, Vmm::Vm_ram const &ram)
   {
@@ -172,6 +178,7 @@ private:
     _lpis_enabled.store(true, std::memory_order_release);
   }
 
+  Vcpu_obj_registry *_registry = nullptr;
   std::atomic<bool> _lpis_enabled = { false };
   Gic_mem_reg<Propbaser> _propbase;
   Gic_mem_reg<Pendbaser> _pendbase;
@@ -260,6 +267,7 @@ public:
 
   l4_uint32_t get_typer() const override;
 
+  Redist_cpu *redist(unsigned cpu_id);
   Redist_cpu const *redist(unsigned cpu_id) const;
 
   cxx::Ref_ptr<Vdev::Device> setup_gic(Vdev::Device_lookup *devs,

@@ -67,7 +67,7 @@ class Vcpu_handler : public L4::Irqep_t<Vcpu_handler>
 
 public:
   Vcpu_handler(Vmm::Vcpu_ptr vcpu, Vmm::Vcpu_ptr sentinel_vcpu)
-  : _cpu_id(vcpu.get_vcpu_id())
+  : _vcpu(vcpu)
   {
     auto *registry = vcpu.get_ipc_registry();
     L4Re::chkcap(registry->register_irq_obj(&_irq_event),
@@ -158,14 +158,15 @@ public:
       }
   }
 
-  unsigned vcpu_id() const { return _cpu_id; }
+  Vmm::Vcpu_ptr vcpu() const { return _vcpu; }
+  unsigned vcpu_id() const { return _vcpu.get_vcpu_id(); }
 
 protected:
   /// Priority sorted list of pending IRQs owned by this vCPU.
   Atomic_fwd_list<Irq> _owned_pend_irqs;
 
-  /// The logical CPU number this interface belongs to
-  unsigned _cpu_id;
+  /// The VCPU
+  Vmm::Vcpu_ptr _vcpu;
 
   /**
    * Move all new pending Irqs to our priority sorted _owned_pend_irqs
@@ -545,6 +546,10 @@ public:
     // not harm.
     if (in_list() && old != vcpu)
       old->notify_migration();
+
+    // Inform handler of new CPU
+    if (vcpu && _src)
+      _src->irq_src_target(vcpu->vcpu());
   }
 
   Vcpu_handler *vcpu_handler() const
@@ -735,7 +740,7 @@ public:
             if (it->prio() >= min_prio)
               break;
 
-            auto took = it->take_on_cpu(_cpu_id);
+            auto took = it->take_on_cpu(vcpu_id());
             if (took)
               {
                 Irq *ret = *it;
@@ -963,7 +968,7 @@ Cpu::inject(Irq &irq, unsigned src_cpu)
   if (!lr_idx)
     return false;
 
-  if (!irq.take_on_cpu(_cpu_id))
+  if (!irq.take_on_cpu(vcpu_id()))
     return false;
 
   add_pending_irq<CPU_IF>(lr_idx - 1, irq, src_cpu);

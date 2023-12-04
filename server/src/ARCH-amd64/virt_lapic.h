@@ -352,6 +352,8 @@ public:
 
   bool x2apic_mode() const { return _x2apic_enabled; }
 
+  Vcpu_obj_registry *registry() const { return _registry; }
+
 private:
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "LAPIC"); }
   static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "LAPIC"); }
@@ -368,6 +370,7 @@ private:
   Irq_src_handler *_sources[256] = {};
   std::queue<unsigned> _non_irr_irqs;
   cxx::Ref_ptr<Vmm::Cpu_dev> _cpu;
+  Vcpu_obj_registry * const _registry;
   unsigned _sipi_cnt = 0;
 }; // class Virt_lapic
 
@@ -385,12 +388,15 @@ public:
    * \param did   Destination ID as defined in the MSI/-X address.
    * \param data  MSI/-X data value.
    *
+   * \return The destination vCPU IPC registry or nullptr.
+   *
    * \pre MSI addressing format is physical.
    */
-  void physical_mode(l4_uint32_t did, Vdev::Msix::Data_register_format data)
+  Vcpu_obj_registry *physical_mode(l4_uint32_t did,
+                                   Vdev::Msix::Data_register_format data)
   {
     if (handle_broadcast(did, data))
-      return;
+      return nullptr;
 
     auto lapic = get(did);
     if (lapic)
@@ -399,6 +405,8 @@ public:
       info().printf("No LAPIC for DID 0x%x with physical addressing. Data "
                     "0x%llx\n",
                     did, data.raw);
+
+    return lapic ? lapic->registry() : nullptr;
   }
 
   /**
@@ -408,31 +416,33 @@ public:
    * \param data  MSI/-X data value.
    * \param lp    MSI requests lowest priority arbitration.
    *
+   * \return The destination vCPU IPC registry or nullptr.
+   *
    * \pre MSI addressing format is logical.
    */
-  void logical_mode(l4_uint32_t did, Vdev::Msix::Data_register_format data,
-                    bool lowest_prio)
+  Vcpu_obj_registry *logical_mode(l4_uint32_t did,
+                                  Vdev::Msix::Data_register_format data,
+                                  bool lowest_prio)
   {
     if (lowest_prio)
-      {
-        logical_mode_lp(did, data);
-        return;
-      }
+      return logical_mode_lp(did, data);
 
     if (handle_broadcast(did, data))
-      return;
+      return nullptr;
 
-    bool sent = false;
+    Vcpu_obj_registry *reg = nullptr;
     for (auto &lapic : _lapics)
       if (lapic && lapic->match_ldr(did))
         {
           lapic->set(data);
-          sent = true;
+          reg = lapic->registry();
         }
 
-    if (!sent)
+    if (!reg)
       info().printf("No matching logical DestID: 0x%x, data 0x%llx\n", did,
                     data.raw);
+
+    return reg;
   }
 
   cxx::Ref_ptr<Virt_lapic> get(unsigned core_no) const
@@ -486,7 +496,8 @@ private:
   }
 
   /// Handle logical mode MSI with lowest priority arbitration.
-  void logical_mode_lp(l4_uint32_t did, Vdev::Msix::Data_register_format data)
+  Vcpu_obj_registry *logical_mode_lp(l4_uint32_t did,
+                                     Vdev::Msix::Data_register_format data)
   {
     Virt_lapic *lowest = nullptr;
     for (auto &lapic : _lapics)
@@ -505,6 +516,10 @@ private:
       warn().printf("Lowest priority aribitration for MSI failed. DestId 0x%x, "
                     "Data 0x%llx\n",
                     did, data.raw);
+
+    // The assumption is that rebinding the interrupt is just not worth the
+    // effort because the target changes dynamically.
+    return nullptr;
   }
 
   cxx::Ref_ptr<Virt_lapic> _lapics[Vmm::Cpu_dev::Max_cpus];
@@ -834,8 +849,8 @@ public:
   Msix_control(cxx::Ref_ptr<Lapic_array> apics) : _apics(apics) {}
 
   /// Analyse the MSI-X message and send it to the specified local APIC.
-  void send(l4_uint64_t msix_addr, l4_uint64_t msix_data,
-            l4_uint32_t) const override
+  Vcpu_obj_registry *send(l4_uint64_t msix_addr, l4_uint64_t msix_data,
+                          l4_uint32_t) const override
   {
     Vdev::Msix::Interrupt_request_compat addr(msix_addr);
     Vdev::Msix::Data_register_format data(msix_data);
@@ -848,7 +863,7 @@ public:
     if (addr.fixed() != Vdev::Msix::Address_interrupt_prefix)
       {
         trace().printf("Interrupt request prefix invalid; MSI dropped.\n");
-        return;
+        return nullptr;
       }
 
   // If RH is set, we do lowest priority arbitration!
@@ -863,10 +878,10 @@ public:
         addr.redirect_hint()
         || (data.delivery_mode() == Vdev::Msix::Dm_lowest_prio);
 
-      _apics->logical_mode(id, data, lowest_prio);
+      return _apics->logical_mode(id, data, lowest_prio);
     }
   else
-    _apics->physical_mode(id, data);
+    return _apics->physical_mode(id, data);
   }
 
 private:

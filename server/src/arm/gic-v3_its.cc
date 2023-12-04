@@ -181,7 +181,7 @@ public:
   }
 
   // Msix_controller interface
-  void send(l4_uint64_t, l4_uint64_t msix_data, l4_uint32_t src_id) const override
+  Vcpu_obj_registry *send(l4_uint64_t, l4_uint64_t msix_data, l4_uint32_t src_id) const override
   {
     Dev_id dev_id = src_id;
     Event_id event_id = msix_data;
@@ -195,11 +195,11 @@ public:
         {
           warn().printf("LPI lookup for DeviceID %u and EventID %u failed!\n",
                         dev_id, event_id);
-          return;
+          return nullptr;
         }
     }
 
-    trigger_lpi(lpi);
+    return trigger_lpi(lpi);
   }
 
   l4_uint64_t read(unsigned reg, char size, unsigned)
@@ -773,17 +773,17 @@ private:
     lpi->pending(false);
   }
 
-  bool trigger_lpi(Irq *lpi) const
+  Vcpu_obj_registry *trigger_lpi(Irq *lpi) const
   {
     // If the LPI does not target a valid CPU (e.g. the ICID assigned to the LPI
     // has not been mapped to a redistributor) or if the targeted redistributor
     // has LPIs disabled, ignore this attempt to make the LPI pending.
     auto redist = _gic->redist(lpi->cpu());
     if (!redist || !redist->lpis_enabled())
-      return false;
+      return nullptr;
 
     _gic->set(lpi->id());
-    return true;
+    return redist->ipc_registry();
   }
 
   template<typename C>

@@ -14,6 +14,7 @@
 #include "debug.h"
 #include "ipc_registry.h"
 #include "irq.h"
+#include "vcpu_ptr.h"
 
 namespace Vdev {
 
@@ -75,6 +76,12 @@ public:
   {
     _irq.ack();
     _eoi->unmask(_irq_num);
+  }
+
+  void irq_src_target(Vmm::Generic_vcpu_ptr vcpu) override
+  {
+    auto *registry = vcpu.get_ipc_registry();
+    L4Re::chkcap(registry->move_obj(this), "move registry");
   }
 
 private:

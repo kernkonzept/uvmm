@@ -399,10 +399,7 @@ Pci_host_bridge::Hw_pci_device::msi_cap_write_ctrl(l4_uint16_t ctrl)
   else if (was_enabled && !msi_cap.ctrl.msi_enable())
     {
       if (parent->_msi_src_factory)
-        {
-          cfg_space_write_msi_cap();
-          parent->_msi_src_factory->reset_msi_route(msi_src);
-        }
+        cfg_space_write_msi_cap();
       msi_src = nullptr;
 
       trace().printf("MSI disabled: devid = 0x%x ctrl = 0x%x\n", dev_id,

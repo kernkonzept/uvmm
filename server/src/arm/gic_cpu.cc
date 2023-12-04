@@ -45,7 +45,7 @@ void Vcpu_handler::handle_migrations()
   fetch_pending_irqs();
   for (auto it = _owned_pend_irqs.begin(); it != _owned_pend_irqs.end();)
     {
-      if (!it->is_pending_and_enabled() || !it->is_for_cpu(_cpu_id))
+      if (!it->is_pending_and_enabled() || !it->is_for_cpu(vcpu_id()))
         {
           Irq *removed = *it;
           it = _owned_pend_irqs.erase(it);

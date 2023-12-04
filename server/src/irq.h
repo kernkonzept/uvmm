@@ -15,6 +15,7 @@
 
 #include "device.h"
 #include "device_tree.h"
+#include "generic_vcpu_ptr.h"
 
 namespace Gic {
 
@@ -29,7 +30,15 @@ struct Irq_src_handler
   /**
    * Guest has issued end-of-interrupt message.
    */
-  virtual void eoi() = 0;
+  virtual void eoi() {}
+
+  /**
+   * Hint that the target vCPU of an IRQ source has changed.
+   *
+   * Might be used by the IRQ source to change the interrupt affinity
+   * accordingly.
+   */
+  virtual void irq_src_target(Vmm::Generic_vcpu_ptr) {}
 
 protected:
   virtual ~Irq_src_handler() = default;

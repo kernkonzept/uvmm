@@ -29,7 +29,8 @@ Virt_lapic::Virt_lapic(unsigned id, cxx::Ref_ptr<Vmm::Cpu_dev> cpu)
   _lapic_version(Lapic_version),
   _x2apic_enabled(false),
   _nmi_pending(false),
-  _cpu(cpu)
+  _cpu(cpu),
+  _registry(cpu->vcpu().get_ipc_registry())
 {
   trace().printf("Virt_lapic ctor; ID 0x%x\n", id);
 
