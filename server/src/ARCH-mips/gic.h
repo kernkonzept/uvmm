@@ -140,7 +140,7 @@ public:
       _irq_array[irq]->ack();
   }
 
-  void bind_eoi_handler(unsigned irq, Eoi_handler *handler) override
+  void bind_irq_src_handler(unsigned irq, Irq_src_handler *handler) override
   {
     assert(irq < Num_irqs);
 
@@ -150,7 +150,7 @@ public:
     _sources[irq] = handler;
   }
 
-  Eoi_handler *get_eoi_handler(unsigned irq) const override
+  Irq_src_handler *get_irq_src_handler(unsigned irq) const override
   { return _sources[irq]; }
 
   int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override
@@ -221,7 +221,7 @@ private:
   // array of IRQ connections towards core IC
   cxx::unique_ptr<Vmm::Irq_sink> _irq_array[Num_irqs];
   // registered device callbacks for configuration and eoi
-  Eoi_handler *_sources[Num_irqs] = {};
+  Irq_src_handler *_sources[Num_irqs] = {};
   Cpu_info _vcpu_info[Num_vpes];
   std::mutex _lock;
 };

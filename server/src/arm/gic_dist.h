@@ -90,18 +90,18 @@ public:
   /// \{
   void clear(unsigned) override {}
 
-  void bind_eoi_handler(unsigned irq, Eoi_handler *handler) override
+  void bind_irq_src_handler(unsigned irq, Irq_src_handler *handler) override
   {
     Irq &pin = spi(irq - Cpu::Num_local);
 
-    if (handler && pin.get_eoi_handler())
-      L4Re::chksys(-L4_EEXIST, "Assigning EOI handler to GIC");
+    if (handler && pin.get_irq_src_handler())
+      L4Re::chksys(-L4_EEXIST, "Assigning IRQ src handler to GIC");
 
-    pin.set_eoi(handler);
+    pin.set_irq_src(handler);
   }
 
-  Eoi_handler *get_eoi_handler(unsigned irq) const override
-  { return spi(irq - Cpu::Num_local).get_eoi_handler(); }
+  Irq_src_handler *get_irq_src_handler(unsigned irq) const override
+  { return spi(irq - Cpu::Num_local).get_irq_src_handler(); }
 
   int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override
   {

@@ -126,7 +126,7 @@ Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus,
   info.printf("IO device '%s' - registering irq 0x%x -> 0x%x\n",
       dev_name, io_irq, dt_irq);
 
-  auto *irq_source = ic->get_eoi_handler(dt_irq);
+  auto *irq_source = ic->get_irq_src_handler(dt_irq);
   if (!irq_source)
     {
       auto irq_svr =

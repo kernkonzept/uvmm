@@ -425,7 +425,7 @@ public:
 
   void clear(unsigned) override {}
 
-  void bind_eoi_handler(unsigned irq, Gic::Eoi_handler *handler) override
+  void bind_irq_src_handler(unsigned irq, Gic::Irq_src_handler *handler) override
   {
     assert(irq < Num_irqs);
     if (handler && _sources[irq])
@@ -434,7 +434,7 @@ public:
     _sources[irq] = handler;
   }
 
-  Gic::Eoi_handler *get_eoi_handler(unsigned irq) const override
+  Gic::Irq_src_handler *get_irq_src_handler(unsigned irq) const override
   {
     assert(irq < Num_irqs);
     return _sources[irq];
@@ -474,7 +474,7 @@ private:
   cxx::Ref_ptr<Chip> _master;
   cxx::Ref_ptr<Chip> _slave;
   cxx::Ref_ptr<Gic::Msix_controller> _distr;
-  Gic::Eoi_handler *_sources[Num_irqs] = {};
+  Gic::Irq_src_handler *_sources[Num_irqs] = {};
 };
 
 } // namespace Vdev

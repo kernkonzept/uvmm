@@ -23,7 +23,7 @@ namespace Vdev {
  * Forwards L4Re interrupts to an Irq_sink.
  */
 class Irq_svr
-: public Gic::Eoi_handler,
+: public Gic::Irq_src_handler,
   public L4::Irqep_t<Irq_svr>,
   public cxx::Ref_obj
 {
@@ -31,7 +31,7 @@ public:
   Irq_svr(Vcpu_obj_registry *registry, L4::Cap<L4::Icu> icu,
           unsigned irq, cxx::Ref_ptr<Gic::Ic> const &ic, unsigned dt_irq)
   {
-    if (ic->get_eoi_handler(dt_irq))
+    if (ic->get_irq_src_handler(dt_irq))
       L4Re::throw_error(-L4_EEXIST, "Bind IRQ for Irq_svr object.");
 
     L4Re::chkcap(registry->register_irq_obj(this), "Cannot register irq");
@@ -60,12 +60,12 @@ public:
     // Point irq_svr to ic:dt_irq for upstream events (like
     // interrupt delivery)
     _irq.rebind(ic, dt_irq);
-    _irq.set_eoi_handler(this);
+    _irq.set_irq_src_handler(this);
   }
 
   ~Irq_svr() noexcept
   {
-    unbind_eoi_handler();
+    unbind_irq_src_handler();
   }
 
   void handle_irq()
@@ -81,8 +81,8 @@ private:
   void set_eoi(L4::Cap<L4::Irq_eoi> eoi)
   { _eoi = eoi; }
 
-  void unbind_eoi_handler() const
-  { _irq.set_eoi_handler(nullptr); }
+  void unbind_irq_src_handler() const
+  { _irq.set_irq_src_handler(nullptr); }
 
   Vmm::Irq_sink _irq;
   L4::Cap<L4::Irq_eoi> _eoi;

@@ -76,13 +76,13 @@ public:
       }
   }
 
-  void bind_eoi_handler(unsigned, Eoi_handler *) override
+  void bind_irq_src_handler(unsigned, Irq_src_handler *) override
   {
     L4Re::chksys(-L4_ENOSYS, "unmask not supported for Core IC. "
                              "Use GIC for devices that require EOI via IC.");
   }
 
-  Eoi_handler *get_eoi_handler(unsigned) const override
+  Irq_src_handler *get_irq_src_handler(unsigned) const override
   { return nullptr; }
 
   int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override

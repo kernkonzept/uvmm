@@ -264,8 +264,8 @@ public:
   // Overload for MSIs
   void set(Vdev::Msix::Data_register_format data);
 
-  void bind_eoi_handler(unsigned irq, Eoi_handler *handler) override;
-  Eoi_handler *get_eoi_handler(unsigned irq) const override;
+  void bind_irq_src_handler(unsigned irq, Irq_src_handler *handler) override;
+  Irq_src_handler *get_irq_src_handler(unsigned irq) const override;
 
   int dt_get_interrupt(fdt32_t const *prop, int propsz, int *read) const override;
 
@@ -365,7 +365,7 @@ private:
   LAPIC_registers _regs;
   bool _x2apic_enabled;
   std::atomic<bool> _nmi_pending;
-  Eoi_handler *_sources[256] = {};
+  Irq_src_handler *_sources[256] = {};
   std::queue<unsigned> _non_irr_irqs;
   cxx::Ref_ptr<Vmm::Cpu_dev> _cpu;
   unsigned _sipi_cnt = 0;

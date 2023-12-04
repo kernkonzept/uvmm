@@ -445,7 +445,7 @@ public:
   unsigned char prio() const { return _irq.prio(); }
   unsigned char target() const { return _irq.target(); }
 
-  Eoi_handler *get_eoi_handler() const { return _eoi; }
+  Irq_src_handler *get_irq_src_handler() const { return _src; }
 
   bool is_pending_and_enabled() const { return _irq.is_pending_and_enabled(); }
   bool is_for_cpu(unsigned char cpu_id)
@@ -455,7 +455,7 @@ public:
   unsigned id() const { return _id; }
   unsigned lr() const { return _lr; }
 
-  void set_eoi(Eoi_handler *eoi) { _eoi = eoi; }
+  void set_irq_src(Irq_src_handler *src) { _src = src; }
   void set_id(uint16_t id) { _id = id; }
 
   Vcpu_handler *enable(bool ena)
@@ -501,8 +501,8 @@ public:
   {
     if (_irq.eoi())
       vcpu_handler()->notify_irq();
-    if (_eoi)
-      _eoi->eoi();
+    if (_src)
+      _src->eoi();
   }
 
   void prio(unsigned char p) { _irq.prio(p); }
@@ -552,7 +552,7 @@ public:
 
 private:
   Vcpu_handler *_vcpu = nullptr;
-  Eoi_handler *_eoi = nullptr;
+  Irq_src_handler *_src = nullptr;
   Irq_info _irq;
   uint16_t _id = 0;
 

@@ -23,8 +23,8 @@ namespace Gic {
  * IRQ.
  *  set: send an MSI instead of the legacy IRQ (programmed by OS)
  *  clear: nop
- *  bind_eoi_handler:  ?
- *  get_eoi_handler: ?
+ *  bind_irq_src_handler:  ?
+ *  get_irq_src_handler: ?
  *  dt_get_interrupt: parse DT
  *
  */
@@ -105,7 +105,7 @@ public:
 
   // XXX unclear if this function is used. Required by Gic::Ic.
   // Dummy implementation.
-  void bind_eoi_handler(unsigned irq, Eoi_handler *handler) override
+  void bind_irq_src_handler(unsigned irq, Irq_src_handler *handler) override
   {
     if (irq >= Io_apic_num_pins)
       {
@@ -119,7 +119,7 @@ public:
 
   // XXX unclear if this function is used. Required by Gic::Ic.
   // Dummy implementation.
-  Eoi_handler *get_eoi_handler(unsigned irq) const override
+  Irq_src_handler *get_irq_src_handler(unsigned irq) const override
   {
     if (irq >= Io_apic_num_pins)
       {
@@ -166,7 +166,7 @@ private:
   std::atomic<l4_uint32_t> _ioregsel;
   std::atomic<l4_uint32_t> _iowin;
   std::atomic<Redir_tbl_entry> _redirect_tbl[Io_apic_num_pins];
-  Gic::Eoi_handler *_sources[Io_apic_num_pins] = {};
+  Gic::Irq_src_handler *_sources[Io_apic_num_pins] = {};
   cxx::Ref_ptr<Vdev::Legacy_pic> _pic;
 }; // class Io_apic
 
