@@ -318,4 +318,91 @@ private:
   Event_recorders *_ev_rec;
 };
 
+/**
+ * Handler for MSR access to all MTRR registeres.
+ *
+ * MTRR are architectural registers and do not differ between AMD and Intel.
+ * MTRRs are core specific and must be kept in sync.
+ * Since all writes are ignored and reads just show the static state, we do
+ * no core specific handling for these registers.
+ */
+class Mtrr_msr_handler : public Msr_device
+{
+public:
+  Mtrr_msr_handler() = default;
+
+  bool read_msr(unsigned msr, l4_uint64_t *value, unsigned) const override
+  {
+    switch(msr)
+      {
+      case 0xfe:           // IA32_MTRRCAP, RO
+        *value = 1U << 10; // WriteCombining support bit.
+        break;
+      case 0x2ff:          // IA32_MTRR_DEF_TYPE
+        *value = 1U << 11; // E/MTRR enable bit
+        break;
+
+      // MTRRphysMask/Base[0-9]; only present if IA32_MTRRCAP[7:0] > 0
+      case 0x200: case 0x201: case 0x202: case 0x203: case 0x204: case 0x205:
+      case 0x206: case 0x207: case 0x208: case 0x209: case 0x20a: case 0x20b:
+      case 0x20c: case 0x20d: case 0x20e: case 0x20f: case 0x210: case 0x211:
+      case 0x212: case 0x213:
+        *value = 0;
+        break;
+
+      case 0x250:  // MTRRfix64K_0000
+          // fall-through
+      case 0x258:  // MTRRfix16K
+          // fall-through
+      case 0x259:  // MTRRfix16K
+          // fall-through
+      // MTRRfix_4K_*
+      case 0x268: case 0x269: case 0x26a: case 0x26b: case 0x26c: case 0x26d:
+      case 0x26e: case 0x26f:
+        *value = 0;
+        break;
+
+      default:
+        return false;
+      }
+
+    return true;
+  }
+
+  bool write_msr(unsigned msr, l4_uint64_t, unsigned) override
+  {
+    switch(msr)
+      {
+      case 0x2ff: // MTRRdefType
+        // We report no MTRRs in the MTRRdefType MSR. Thus we ignore writes here.
+        // MTRRs might also be disabled temporarily by the guest.
+        break;
+
+      // Ignore all writes to MTRR registers, we flagged all of them as unsupported
+      // MTRRphysMask/Base[0-9]; only present if MTRRcap[7:0] > 0
+      case 0x200: case 0x201: case 0x202: case 0x203: case 0x204: case 0x205:
+      case 0x206: case 0x207: case 0x208: case 0x209: case 0x20a: case 0x20b:
+      case 0x20c: case 0x20d: case 0x20e: case 0x20f: case 0x210: case 0x211:
+      case 0x212: case 0x213:
+        break;
+
+      case 0x250:  // MTRRfix64K_0000
+          // fall-through
+      case 0x258:  // MTRRfix16K
+          // fall-through
+      case 0x259:  // MTRRfix16K
+          // fall-through
+      // MTRRfix_4K_*
+      case 0x268: case 0x269: case 0x26a: case 0x26b: case 0x26c: case 0x26d:
+      case 0x26e: case 0x26f:
+        break;
+
+      default:
+        return false;
+      }
+
+    return true;
+  }
+}; // class Mtrr_msr_handler
+
 } // namespace Vmm

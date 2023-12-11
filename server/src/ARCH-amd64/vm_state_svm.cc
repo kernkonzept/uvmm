@@ -217,6 +217,9 @@ Svm_state::read_msr(unsigned msr, l4_uint64_t *value) const
       // Lock register so the guest does not try to enable anything.
       *value = 1U;
       break;
+    case 0x277: // PAT
+      *value =_vmcb->state_save_area.g_pat;
+      break;
     case 0xc0000080: // efer
       // Hide SVME bit
       *value = _vmcb->state_save_area.efer & ~Efer_svme_enable;
@@ -239,10 +242,33 @@ Svm_state::read_msr(unsigned msr, l4_uint64_t *value) const
 }
 
 bool
-Svm_state::write_msr(unsigned msr, l4_uint64_t value, Event_recorder *)
+Svm_state::write_msr(unsigned msr, l4_uint64_t value, Event_recorder *ev_rec)
 {
   switch (msr)
     {
+    case 0x277: // PAT
+      // sanitization of 7 PAT values
+      // 0xF8 are reserved bits
+      // 0x2 and 0x3 are reserved encodings
+      // usage of reserved bits and encodings results in a #GP
+      if (value & 0xF8F8F8F8F8F8F8F8ULL)
+        {
+          ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
+          break;
+        }
+
+      for (unsigned i = 0; i < 7; ++i)
+        {
+          l4_uint64_t const PAi_mask = (value & (0x7ULL << i * 8)) >> i * 8;
+          if ((PAi_mask == 0x2ULL) || (PAi_mask == 0x3ULL))
+            {
+              ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
+              break;
+            }
+        }
+
+      _vmcb->state_save_area.g_pat = value;
+      break;
     case 0xc0000080: // efer
       {
         // Force the SVME bit

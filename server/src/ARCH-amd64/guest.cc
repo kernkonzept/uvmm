@@ -173,6 +173,7 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
                       &_event_recorders));
   register_msr_device(
     Vdev::make_device<Vdev::Microcode_revision>(_cpus->vcpu(0)));
+  register_msr_device(Vdev::make_device<Mtrr_msr_handler>());
 }
 
 void

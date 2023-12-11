@@ -131,10 +131,6 @@ Vmx_state::read_msr(unsigned msr, l4_uint64_t *value) const
           // Lock register so the guest does not try to enable anything.
           *value = 1U;
           break;
-        case 0xfe: // IA32_MTRRCAP
-        case 0x2ff: // IA32_MTRR_DEF_TYPE
-          *value = 0U;
-          break;
         case 0x277: // IA32_PAT
           *value = vmx_read(VMCS_GUEST_IA32_PAT);
           break;
@@ -183,16 +179,22 @@ Vmx_state::write_msr(unsigned msr, l4_uint64_t value, Event_recorder *ev_rec)
       // 0x2 and 0x3 are reserved encodings
       // usage of reserved bits and encodings results in a #GP
       if (value & 0xF8F8F8F8F8F8F8F8ULL)
-        return false;
+        {
+          ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
+          break;
+        }
+
       for (unsigned i = 0; i < 7; ++i)
-        if (((value & (0x7ULL << i*8)) >> i*8 == 0x2ULL)
-            || ((value & (0x7ULL << i*8)) >> i*8 == 0x3ULL))
-          return false;
+        {
+          l4_uint64_t const PAi_mask = (value & (0x7ULL << i * 8)) >> i * 8;
+          if ((PAi_mask == 0x2ULL) || (PAi_mask == 0x3ULL))
+            {
+              ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
+              break;
+            }
+        }
+
       vmx_write(VMCS_GUEST_IA32_PAT, value);
-      break;
-    case 0x2ff: // IA32_MTRR_DEF_TYPE
-      // We report no MTRRs in the IA32_MTRRCAP MSR. Thus we ignore writes here.
-      // MTRRs might also be disabled temporarily by the guest.
       break;
     case 0xc0000080: // efer
       {
