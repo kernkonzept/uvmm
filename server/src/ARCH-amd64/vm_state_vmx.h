@@ -157,8 +157,10 @@ public:
 
   enum Vmx_vm_exit_ctls : unsigned long
   {
-    Vm_exit_save_ia32_efer = (1UL << 20),
-    Vm_exit_load_ia32_efer = (1UL << 21),
+    Vm_exit_save_ia32_pat = (1UL << 18),  ///< save guest PAT
+    Vm_exit_load_ia32_pat = (1UL << 19),  ///< load host PAT
+    Vm_exit_save_ia32_efer = (1UL << 20), ///< save guest EFER
+    Vm_exit_load_ia32_efer = (1UL << 21), ///< load host EFER
     Host_address_space_size = (1UL << 9),
   };
 
@@ -198,9 +200,11 @@ public:
                | Vm_entry_load_ia32_efer)
                 & ~Ia32e_mode_guest); // disable long mode
 
+    // Guest PAT & EFER are emulated on each access, no need to additionally
+    // store them on VMexit.
     vmx_write(VMCS_VM_EXIT_CTLS,
               vmx_read(VMCS_VM_EXIT_CTLS)
-              | Vm_exit_save_ia32_efer
+              | Vm_exit_load_ia32_pat
               | Vm_exit_load_ia32_efer
               | Host_address_space_size);
 
