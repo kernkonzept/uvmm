@@ -248,6 +248,20 @@ config UVMM_VDEV_GIC_ITS
 	depends on UVMM_VDEV_GIC_V3
 	default y
 
+config UVMM_IRQ_DIRECT_INJECT
+	bool "Utilize direct guest vIRQ injection"
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	default y
+	help
+          On Arm platforms, the kernel optionally supports forwarding hardware
+          interrupts directly to a guest. This reduces the interrupt latency
+          but the "pending" and "active" bits in the virtual distributor are
+          not updated any more. This usually does not pose any problem, though.
+
+          It is safe to enable the feature in uvmm even if the kernel does not
+          support it. Uvmm will transparently fall back to regular, IPC based
+          interrupt forwarding.
+
 menuconfig UVMM_VDEV_VIRTIO
 	bool "Virtio driver/device support"
 	default y

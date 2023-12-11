@@ -196,6 +196,17 @@ namespace Gic_h {
     void set_cpuid(unsigned cpu) { cpuid() = cpu; }
   };
 
+  struct Vcpu_irq_cfg
+  {
+    l4_umword_t raw;
+    Vcpu_irq_cfg() = default;
+    explicit Vcpu_irq_cfg(l4_umword_t v) : raw(v) {}
+
+    CXX_BITFIELD_MEMBER(  0, 19,  vid, raw);
+    CXX_BITFIELD_MEMBER( 23, 23, grp1, raw);
+    CXX_BITFIELD_MEMBER( 24, 31, prio, raw);
+  };
+
   /**
    * Initialize the vCPU state for virtual GIC support.
    */

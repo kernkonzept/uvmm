@@ -53,11 +53,14 @@ class Irq;
 class Vcpu_handler : public L4::Irqep_t<Vcpu_handler>
 {
   /**
-   * Dummy handler for X-CPU IPIs.
+   * Dummy handler for Irqs.
    *
-   * Only exists so that the target vCPU traps into the vmm on X-CPU
-   * interrupts. Is always bound to the target vCPU thread even when the CPU
-   * is offline.
+   * Only exists so that
+   *
+   *  - X-CPU IPIs trap the target vCPU into uvmm, and
+   *  - doorbell interrupts wake the vCPU from wait_for_ipc().
+   *
+   * Is always bound to the target vCPU thread even when the CPU is offline.
    */
   struct Irq_event_receiver : public L4::Irqep_t<Irq_event_receiver>
   {
@@ -78,6 +81,13 @@ public:
     L4Re::chksys(L4Re::Env::env()->factory()->create(_migration_event.get()),
                  "create migration event");
     rebind(sentinel_vcpu.get_ipc_registry());
+
+    L4Re::chkcap(registry->register_irq_obj(&_doorbell_irq),
+                 "Cannot create doorbell irq");
+    int err = l4_error(registry->server()
+                ->register_doorbell_irq(_doorbell_irq.obj_cap()));
+    if (err < 0 && err != -L4_ENOSYS)
+      L4Re::throw_error(err, "Cannot register doorbell irq");
   }
 
   /// Send a notification to this vCPU that an Irq is pending.
@@ -195,6 +205,9 @@ private:
 
   /// Is the corresponding vCPU online?
   bool _online = false;
+
+  /// The doorbell interrupt that a guest interrupt is pending
+  Irq_event_receiver _doorbell_irq;
 
   void rebind(Vcpu_obj_registry *registry)
   {
@@ -456,7 +469,12 @@ public:
   unsigned id() const { return _id; }
   unsigned lr() const { return _lr; }
 
-  void set_irq_src(Irq_src_handler *src) { _src = src; }
+  void set_irq_src(Irq_src_handler *src)
+  {
+    _src = src;
+    src->configure(vcpu_irq_cfg());
+  }
+
   void set_id(uint16_t id) { _id = id; }
 
   Vcpu_handler *enable(bool ena)
@@ -466,9 +484,15 @@ public:
       {
         if (_irq.enable())
           dest_vcpu = vcpu_handler();
+        if (_src && _src->enable())
+          return nullptr;
       }
     else
-      _irq.disable();
+      {
+        _irq.disable();
+        if (_src)
+          _src->disable();
+      }
 
     if (dest_vcpu)
       dest_vcpu->queue(this);
@@ -506,9 +530,21 @@ public:
       _src->eoi();
   }
 
-  void prio(unsigned char p) { _irq.prio(p); }
+  void prio(unsigned char p)
+  {
+    _irq.prio(p);
+    if (_src)
+      _src->configure(vcpu_irq_cfg());
+  }
+
+  void group(bool grp1)
+  {
+    _irq.group(grp1);
+    if (_src)
+      _src->configure(vcpu_irq_cfg());
+  }
+
   void active(bool act) { _irq.active(act); }
-  void group(bool grp1) { _irq.group(grp1); }
   void config(unsigned char cfg) { _irq.config(cfg); }
 
   void set_lr(unsigned idx) { _lr = idx; }
@@ -570,6 +606,15 @@ private:
 
   void set_vcpu_handler(Vcpu_handler *vcpu)
   { __atomic_store_n(&_vcpu, vcpu, __ATOMIC_RELEASE); }
+
+  l4_umword_t vcpu_irq_cfg() const
+  {
+     Vmm::Arm::Gic_h::Vcpu_irq_cfg cfg(0);
+     cfg.vid() = id();
+     cfg.grp1() = group();
+     cfg.prio() = prio();
+     return cfg.raw;
+  }
 };
 
 class Irq_array

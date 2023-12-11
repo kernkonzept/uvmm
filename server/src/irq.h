@@ -40,6 +40,42 @@ struct Irq_src_handler
    */
   virtual void irq_src_target(Vmm::Generic_vcpu_ptr) {}
 
+  /**
+   * Set IRQ configuration.
+   *
+   * If direct IRQ injection is supported by the platform, update the vCPU
+   * interrupt specification.
+   *
+   * \arg cfg   Architecture specific vIRQ configuration
+   */
+  virtual void configure(l4_umword_t /* cfg */) {}
+
+  /**
+   * Enable interrupt source.
+   *
+   * Called from the virtual interrupt controller if the guest enabled the
+   * interrupt.
+   *
+   * Bind the interrupt source and forward interrupts to the guest. If the
+   * platform supports direct interrupt injection, the function will return
+   * true. The virtual interrupt controller must not forward any events for the
+   * IRQ then. Otherwise, the function returns false and all event delivery is
+   * up to the virtual interrupt controller.
+   *
+   * \retval true   Direct IRQ forwarding supported and enabled.
+   * \retval false  No direct IRQ forwading. Interrupt will be injected via
+   *                Gic::Ic::set().
+   */
+  virtual bool enable() { return false; }
+
+  /**
+   * Disable interrupt source.
+   *
+   * Called from the virtual interrupt controller if the guest disabled the
+   * interrupt.
+   */
+  virtual void disable() {}
+
 protected:
   virtual ~Irq_src_handler() = default;
 };
