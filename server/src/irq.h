@@ -230,6 +230,9 @@ public:
   void inject()
   { _ic->set(_irq); }
 
+  unsigned irq() const { return _irq; }
+  Gic::Ic* ic() const { return _ic.get(); }
+
 private:
   unsigned _irq;
   cxx::Ref_ptr<Gic::Ic> _ic;

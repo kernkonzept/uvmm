@@ -12,6 +12,8 @@
 
 namespace Gic {
 
+struct Irq_src_handler;
+
 /**
  * Abstract GIC interface for the ARM VMM
  */
@@ -79,6 +81,18 @@ public:
    * *Must* be called from target CPU!
    */
   virtual void cpu_offline(Vmm::Vcpu_ptr vcpu) = 0;
+
+  /**
+   * Register an Irq_src_handler for a PPI on a vCPU.
+   *
+   * @param cpu     The CPU number
+   * @param irq     The PPI number (0..31)
+   * @param handler The Irq_src_handler.
+   *
+   * Note that the vCPU must have been created already.
+   */
+  virtual void bind_cpulocal_irq_src_handler(unsigned cpu, unsigned irq,
+                                             Irq_src_handler *handler) = 0;
 
   virtual ~Dist_if() = 0;
 };

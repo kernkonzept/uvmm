@@ -112,6 +112,14 @@ public:
     l4_umword_t v = reg_extend_width(m.value, hsr().pf_sas(), hsr().pf_sse());
     set_gpr(hsr().pf_srt(), v);
   }
+
+  Arm::Gic_h::Vcpu_ppi_cfg vtmr() const
+  {
+    return Arm::Gic_h::Vcpu_ppi_cfg(l4_vcpu_e_read_32(_s, L4_VCPU_E_VTMR_CFG));
+  }
+
+  void vtmr(Arm::Gic_h::Vcpu_ppi_cfg cfg)
+  { l4_vcpu_e_write_32(_s, L4_VCPU_E_VTMR_CFG, cfg.raw); }
 };
 
 } // namespace

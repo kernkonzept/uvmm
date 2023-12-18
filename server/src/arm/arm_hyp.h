@@ -207,6 +207,21 @@ namespace Gic_h {
     CXX_BITFIELD_MEMBER( 24, 31, prio, raw);
   };
 
+  struct Vcpu_ppi_cfg
+  {
+    l4_uint32_t raw;
+    Vcpu_ppi_cfg() = default;
+    explicit Vcpu_ppi_cfg(l4_uint32_t v) : raw(v) {}
+
+    CXX_BITFIELD_MEMBER(  0,  4, vid, raw);       ///< PPI irq id in LR
+    CXX_BITFIELD_MEMBER( 16, 16, direct, raw);    ///< directly inject into vcpu
+    CXX_BITFIELD_MEMBER( 17, 17, enabled, raw);   ///< vtimer ppi enabled
+    CXX_BITFIELD_MEMBER( 18, 18, pending, raw);   ///< vtimer ppi pending
+    CXX_BITFIELD_MEMBER( 19, 19, active, raw);    ///< vtimer ppi active
+    CXX_BITFIELD_MEMBER( 23, 23, grp1, raw);      ///< set if group1 irq
+    CXX_BITFIELD_MEMBER( 24, 31, vgic_prio, raw); ///< Prio value in vgic LR
+  };
+
   /**
    * Initialize the vCPU state for virtual GIC support.
    */

@@ -7,13 +7,55 @@
  */
 #pragma once
 
+#include <map>
+
+#include <l4/cxx/unique_ptr>
 #include <l4/re/error_helper>
 
 #include "device.h"
+#include "gic_iface.h"
 #include "irq.h"
 #include "vcpu_ptr.h"
 
 namespace Vdev {
+
+class Cpu_timer_irq : public Gic::Irq_src_handler
+{
+  Vmm::Vcpu_ptr _vcpu;
+
+public:
+  Cpu_timer_irq(Vmm::Vcpu_ptr vcpu) : _vcpu(vcpu) {}
+
+  void configure(l4_umword_t cfg) override
+  {
+    Vmm::Arm::Gic_h::Vcpu_irq_cfg c(cfg);
+
+    Vmm::Arm::Gic_h::Vcpu_ppi_cfg v = _vcpu.vtmr();
+    v.grp1() = c.grp1();
+    v.vgic_prio() = c.prio();
+    _vcpu.vtmr(v);
+  }
+
+  bool enable() override
+  {
+    Vmm::Arm::Gic_h::Vcpu_ppi_cfg v = _vcpu.vtmr();
+    v.enabled() = 1;
+    _vcpu.vtmr(v);
+
+    // We don't really know if Fiasco will take care because it's an optional
+    // feature. But if it does then we'll never see an guest_ppi(1) so this is
+    // safe...
+    return false;
+  }
+
+  void disable() override
+  {
+    Vmm::Arm::Gic_h::Vcpu_ppi_cfg v = _vcpu.vtmr();
+    v.enabled() = 0;
+    _vcpu.vtmr(v);
+  }
+};
+
 
 struct Core_timer : public Device, public Vmm::Irq_edge_sink
 {
@@ -166,9 +208,24 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
               cntfrq, _scale, _scaled_ticks_per_us, _cyc2ms_scale, _shift);
   }
 
+  void add_cpu(Vmm::Vcpu_ptr vcpu)
+  {
+    Vmm::Arm::Gic_h::Vcpu_ppi_cfg cfg(0);
+    cfg.vid() = irq();
+    cfg.direct() = 1;
+    vcpu.vtmr(cfg);
+
+    auto timer = cxx::make_unique<Cpu_timer_irq>(vcpu);
+
+    dynamic_cast<Gic::Dist_if*>(ic())
+      ->bind_cpulocal_irq_src_handler(vcpu.get_vcpu_id(), irq(), timer.get());
+    _per_cpu_timers[vcpu.get_vcpu_id()] = cxx::move(timer);
+  }
+
 private:
   l4_uint32_t _scale, _scaled_ticks_per_us;
   l4_uint32_t _cyc2ms_scale, _shift;
+  std::map<unsigned, cxx::unique_ptr<Cpu_timer_irq>> _per_cpu_timers;
 };
 
 

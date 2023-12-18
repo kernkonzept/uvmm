@@ -368,6 +368,8 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
                     cpu.get());
 
       _gic->setup_cpu(vcpu);
+      if (_timer)
+        _timer->add_cpu(vcpu);
     }
   cpus->cpu(0)->mark_on_pending();
   cpus->cpu(0)->startup();

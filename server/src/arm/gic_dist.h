@@ -47,6 +47,18 @@ public:
   {
   }
 
+  Irq &ppi(unsigned cpu, unsigned ppi)
+  {
+    assert (ppi < Cpu::Num_local);
+    return _cpu[cpu]->local_irqs()[ppi];
+  }
+
+  Irq const &ppi(unsigned cpu, unsigned ppi) const
+  {
+    assert (ppi < Cpu::Num_local);
+    return _cpu[cpu]->local_irqs()[ppi];
+  }
+
   Irq &spi(unsigned spi)
   {
     assert (spi < _spis.size());
@@ -83,6 +95,17 @@ public:
   {
     assert (_lpis && lpi < _lpis->size());
     return (*_lpis)[lpi];
+  }
+
+  void bind_cpulocal_irq_src_handler(unsigned cpu, unsigned irq,
+                                     Irq_src_handler *handler) override
+  {
+    auto &pin = ppi(cpu, irq);
+
+    if (handler && pin.get_irq_src_handler())
+      L4Re::chksys(-L4_EEXIST, "Assigning IRQ src handler to PPI");
+
+    pin.set_irq_src(handler);
   }
 
 
