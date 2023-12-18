@@ -9,6 +9,7 @@
 
 #include <l4/sys/err.h>
 #include <l4/sys/l4int.h>
+#include <l4/sys/cache.h>
 
 namespace Vmm {
 
@@ -66,6 +67,20 @@ struct Mem_access
       case Wd16: *reinterpret_cast<l4_uint16_t volatile *>(addr) = value; break;
       case Wd32: *reinterpret_cast<l4_uint32_t volatile *>(addr) = value; break;
       case Wd64: *reinterpret_cast<l4_uint64_t volatile *>(addr) = value; break;
+      default: return -L4_EINVAL;
+      }
+
+    return L4_EOK;
+  }
+
+  static int cache_clean_data_width(l4_addr_t addr, char width)
+  {
+    switch (width)
+      {
+      case Wd8:  l4_cache_clean_data(addr, addr + 1); break;
+      case Wd16: l4_cache_clean_data(addr, addr + 2); break;
+      case Wd32: l4_cache_clean_data(addr, addr + 4); break;
+      case Wd64: l4_cache_clean_data(addr, addr + 8); break;
       default: return -L4_EINVAL;
       }
 

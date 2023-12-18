@@ -231,7 +231,10 @@ public:
       {
         l4_addr_t a = reinterpret_cast<l4_addr_t>(vcfg) + reg;
         if (Vmm::Mem_access::write_width(a, value, size) == L4_EOK)
-          dev()->virtio_device_config_written(reg - Device_config_start);
+          {
+            Vmm::Mem_access::cache_clean_data_width(a, size);
+            dev()->virtio_device_config_written(reg - Device_config_start);
+          }
         return;
       }
 

@@ -109,6 +109,14 @@ public:
 
     Vmm::Mem_access::write_width(l, value, width);
 
+    if (reg >= 0x100)
+      {
+        // The guest accessed the device specific config. Make sure the cache
+        // is cleaned.
+        Vmm::Mem_access::cache_clean_data_width(l, width);
+        return;
+      }
+
     switch (reg)
       {
       case offsetof(l4virtio_config_hdr_t, magic):

@@ -200,6 +200,18 @@ public:
       _device->set_status(status);
   }
 
+  void cfg_changed(unsigned reg)
+  {
+    bool use_irq = l4virtio_get_feature(_config->dev_features_map,
+                                        L4VIRTIO_FEATURE_CMD_CONFIG);
+
+    if (use_irq)
+      // Do busy waiting, because the irq could arrive on any CPU
+      _config->cfg_changed(reg, _host_irq.get(), L4::Cap<L4::Triggerable>());
+    else
+      L4Re::throw_error(-L4_EINVAL, "Direct config change not supported in L4Virtio protocol.");
+  }
+
   ~Device()
   {
     if (!_config.get())
@@ -313,8 +325,8 @@ public:
   l4virtio_config_hdr_t *virtio_cfg()
   { return _dev.device_config(); }
 
-  void virtio_device_config_written(unsigned)
-  {}
+  void virtio_device_config_written(unsigned reg)
+  { _dev.cfg_changed(reg); }
 
   L4virtio::Device::Config_queue *virtqueue_config(unsigned qn)
   {
