@@ -18,7 +18,7 @@
 #include <l4/re/util/br_manager>
 
 #include "debug.h"
-#include "ipc_registry.h"
+#include "vcpu_obj_registry.h"
 
 namespace Vmm {
 

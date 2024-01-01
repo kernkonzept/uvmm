@@ -9,7 +9,7 @@
 
 #include "pci_device.h"
 #include "device.h"
-#include "ipc_registry.h"
+#include "vcpu_obj_registry.h"
 
 namespace Gic {
 

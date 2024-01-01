@@ -25,7 +25,7 @@
 #include "monitor/monitor.h"
 #include "io_device.h"
 #include "generic_cpu_dev.h"
-#include "ipc_registry.h"
+#include "vcpu_obj_registry.h"
 
 #include <cstdio>
 #include <cstdlib>

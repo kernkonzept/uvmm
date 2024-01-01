@@ -12,7 +12,7 @@
 #include <l4/cxx/unique_ptr>
 
 #include "debug.h"
-#include "ipc_registry.h"
+#include "vcpu_obj_registry.h"
 #include "mem_access.h"
 #include "pci_device.h"
 #include "msix.h"

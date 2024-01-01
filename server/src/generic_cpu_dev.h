@@ -19,7 +19,7 @@
 #include <debug.h>
 #include <device.h>
 #include <vcpu_ptr.h>
-#include <ipc_registry.h>
+#include <vcpu_obj_registry.h>
 
 namespace Vmm {
 

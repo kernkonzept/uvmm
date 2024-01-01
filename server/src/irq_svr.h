@@ -12,7 +12,7 @@
 #include <l4/re/error_helper>
 
 #include "debug.h"
-#include "ipc_registry.h"
+#include "vcpu_obj_registry.h"
 #include "irq.h"
 #include "vcpu_ptr.h"
 

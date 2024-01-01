@@ -14,7 +14,7 @@
 #include <l4/sys/irq>
 
 #include "debug.h"
-#include "ipc_registry.h"
+#include "vcpu_obj_registry.h"
 #include "msi_allocator.h"
 #include "msi_controller.h"
 
