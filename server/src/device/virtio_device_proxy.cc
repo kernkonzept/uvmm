@@ -96,9 +96,10 @@ public:
       return;
 
     l4_uint32_t old_value = 0;
-    if (reg == 0xf8 || reg == 0)
+    if (reg == offsetof(l4virtio_config_hdr_t, cmd) ||
+        reg == offsetof(l4virtio_config_hdr_t, magic))
       old_value = *reinterpret_cast<l4_uint32_t *>(l);
-    else if (reg == 0x50) // queue notify
+    else if (reg == offsetof(l4virtio_config_hdr_t, queue_notify))
       {
         _kick_guest_irq->trigger();
         return; // do not actually write the value
@@ -108,7 +109,7 @@ public:
 
     switch (reg)
       {
-      case 0:
+      case offsetof(l4virtio_config_hdr_t, magic):
         if (old_value == L4VIRTIO_MAGIC)
           {
             L4Re::chksys(-L4_EINVAL, "Virtio magic value overwritten.\n");
@@ -121,7 +122,7 @@ public:
             _vmm->registry()->register_obj(this, _ep);
           }
         break;
-      case 0xf8: // l4virtio config cmd
+      case offsetof(l4virtio_config_hdr_t, cmd):
         if (value == 0)
           {
             if (old_value & L4VIRTIO_CMD_MASK)
