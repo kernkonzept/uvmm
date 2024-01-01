@@ -221,8 +221,6 @@ public:
     set_status(0); // reset
   }
 
-  l4_uint32_t irq_status() const { return _config->irq_status; }
-
 protected:
   L4::Cap<L4virtio::Device> _device;
   L4Re::Rm::Unique_region<L4virtio::Device::Config_hdr *> _config;
@@ -246,9 +244,6 @@ class Virtio_proxy
   public Device,
   public Monitor::Virtio_proxy_cmd_handler<Monitor::Enabled, Virtio_proxy<DEV>>
 {
-private:
-  l4_uint32_t _irq_status_shadow = 0;
-
 public:
   Virtio_proxy(L4::Cap<L4virtio::Device> device, l4_size_t config_size,
                Vmm::Vm_ram *ram)
@@ -284,28 +279,18 @@ public:
     //        And use event index 0 for config events.
     auto s = _dev.device_config()->irq_status;
     if (s & L4VIRTIO_IRQ_STATUS_CONFIG)
-      {
-        _irq_status_shadow |= L4VIRTIO_IRQ_STATUS_CONFIG;
         ev.set(0);
-      }
     if (s & L4VIRTIO_IRQ_STATUS_VRING)
-      {
-        _irq_status_shadow |= L4VIRTIO_IRQ_STATUS_VRING;
         ev.set(1); // set event index 1 for all queue events
-      }
 
-    if (_dev.device_config()->irq_status != _irq_status_shadow)
-      dev()->set_irq_status(_irq_status_shadow);
-
+    // Write back the irq status, so that required cache management can happen
+    dev()->set_irq_status(s);
     dev()->event_connector()->send_events(cxx::move(ev));
   }
 
   void virtio_irq_ack(unsigned val)
   {
-    _irq_status_shadow &= ~val;
-    if (_dev.device_config()->irq_status != _irq_status_shadow)
-      dev()->set_irq_status(_irq_status_shadow);
-
+    dev()->set_irq_status(_dev.device_config()->irq_status & ~val);
     dev()->event_connector()->clear_events(val);
   }
 
