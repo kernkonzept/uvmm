@@ -162,6 +162,8 @@ public:
       {
         // Acknowledge earlier queue irqs
         irq_ack();
+        // Now kick the driver
+        mmio_local_addr()->irq_status |= L4VIRTIO_IRQ_STATUS_VRING;
         _kick_guest_irq->trigger();
         return; // do not actually write the value
       }
@@ -198,6 +200,7 @@ public:
             if (old_value & L4VIRTIO_CMD_MASK)
               {
                 L4virtio::wmb();
+                mmio_local_addr()->irq_status |= L4VIRTIO_IRQ_STATUS_VRING;
                 _kick_guest_irq->trigger();
               }
 

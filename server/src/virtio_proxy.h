@@ -291,14 +291,18 @@ public:
     // FIXME: our L4 transport supports just a single IRQ, so trigger event 1
     //        for all queues until we implemented per-queue events.
     //        And use event index 0 for config events.
-    auto s = 1; // FIXME: correctly set irq_status in devices: _dev.irq_status();
-    if (s & 1)
-      ev.set(1); // set event index 1 for all queue events
+    auto s = _dev.device_config()->irq_status;
+    if (s & L4VIRTIO_IRQ_STATUS_CONFIG)
+      {
+        _irq_status_shadow |= L4VIRTIO_IRQ_STATUS_CONFIG;
+        ev.set(0);
+      }
+    if (s & L4VIRTIO_IRQ_STATUS_VRING)
+      {
+        _irq_status_shadow |= L4VIRTIO_IRQ_STATUS_VRING;
+        ev.set(1); // set event index 1 for all queue events
+      }
 
-    if (s & 2)
-      ev.set(0);
-
-    _irq_status_shadow |= 1;
     if (_dev.device_config()->irq_status != _irq_status_shadow)
       dev()->set_irq_status(_irq_status_shadow);
 
