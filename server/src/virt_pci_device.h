@@ -13,6 +13,7 @@
 #include "pci_device.h"
 #include "mmio_device.h"
 #include "io_device.h"
+#include "device/pci_bridge_windows.h"
 
 namespace Vdev { namespace Pci {
 
@@ -32,7 +33,7 @@ public:
    *
    * This implies a type0 device.
    */
-  Virt_pci_device(Vdev::Dt_node const &node);
+  Virt_pci_device(Vdev::Dt_node const &node, Pci_bridge_windows *wnds);
 
   /**
    * Read from the PCI header config.

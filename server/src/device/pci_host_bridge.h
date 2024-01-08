@@ -21,6 +21,7 @@
 #include "msi_controller.h"
 #include "msi_memory.h"
 #include "ds_mmio_handling.h"
+#include "pci_bridge_windows.h"
 
 namespace Vdev { namespace Pci {
 
@@ -145,12 +146,14 @@ public:
   /**
    * Create a PCI host bridge for the given PCI bus number.
    */
-  Pci_host_bridge(Device_lookup *devs, unsigned char bus_num,
+  Pci_host_bridge(Device_lookup *devs, Dt_node const &node,
+                  unsigned char bus_num,
                   cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
   : _vmm(devs->vmm()),
     _vbus(devs->vbus()),
     _bus(bus_num),
-    _msix_ctrl(msix_ctrl)
+    _msix_ctrl(msix_ctrl),
+    _windows(node)
   {
     if (msix_ctrl)
       _msi_src_factory = make_device<
@@ -161,6 +164,11 @@ public:
 
   /// provide access to the bus
   Pci_bus *bus() { return &_bus; }
+
+  /// access to bridge window management
+  Pci_bridge_windows *bridge_windows() { return &_windows; }
+  /// access to bridge window management
+  Pci_bridge_windows const *bridge_windows() const { return &_windows; }
 
   /**
    * A hardware PCI device present on the vBus.
@@ -257,6 +265,43 @@ public:
     /// Setup virtual MSI-X table and map vbus resources as needed.
     void setup_msix_table();
 
+    /**
+     * Allocate BAR memory from the bridge windows.
+     *
+     * \pre BAR size already read from hardware device.
+     */
+    void alloc_bars_in_windows()
+    {
+      for (int i = 0; i < Bar_num_max_type0; ++i)
+        {
+          Pci_cfg_bar &bar = bars[i];
+
+          if (bar.type >= Pci_cfg_bar::MMIO32 && bar.type <= Pci_cfg_bar::IO)
+            bar.map_addr =
+              parent->bridge_windows()->alloc_bar_resource(bar.size, bar.type);
+          else
+            continue;
+
+          info().printf("  bar[%u] hw_addr=0x%llx map_addr=0x%llx size=0x%llx "
+                        "type=%s\n",
+                        i, bar.io_addr, bar.map_addr, bar.size,
+                        bar.to_string());
+        }
+
+      // check if IO supports the expansion ROM, if so set it up.
+      if (exp_rom.io_addr > 0 && exp_rom.size > 0)
+        {
+          exp_rom.map_addr =
+            parent->bridge_windows()
+              ->alloc_bar_resource(exp_rom.size, Pci_cfg_bar::Type::MMIO32);
+
+          info().printf("  exp_rom hw_addr=0x%llx map_addr=0x%llx size=0x%llx "
+                        "type=%s\n",
+                        exp_rom.io_addr, exp_rom.map_addr, exp_rom.size,
+                        "MMIO32");
+        }
+    }
+
     Pci_host_bridge *parent;             /// Parent host bridge of device
     unsigned dev_id;                     /// Virtual device id
     L4vbus::Pci_dev dev;                 /// Reference to vbus PCI device
@@ -288,7 +333,7 @@ public:
     static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "HW PCI dev"); }
 
     std::mutex _mutex;                   /// Protect MSI cap reads/writes
-  };
+  }; // struct Hw_pci_device
 
   /**
    * Handle incoming config space read
@@ -380,6 +425,7 @@ protected:
                       dinfo.name, vendor_device & 0xffff, vendor_device >> 16);
 
         h->parse_device_bars();
+        h->alloc_bars_in_windows();
         h->parse_device_exp_rom();
         h->parse_msix_cap();
         h->parse_msi_cap();
@@ -438,6 +484,7 @@ protected:
   /// MSI-X controller responsible for the devices of this PCIe host bridge,
   /// may be nullptr since MSI-X support is an optional feature.
   cxx::Ref_ptr<Gic::Msix_controller> _msix_ctrl;
+  Pci_bridge_windows _windows;
 
   cxx::Ref_ptr<Vdev::Msi::Msi_src_factory> _msi_src_factory;
 };

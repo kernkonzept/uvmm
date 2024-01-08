@@ -40,7 +40,6 @@ class Pci_host_generic:
   Pci_header::Type0 const *header() const
   { return get_header<Pci_header::Type0>(); }
 
-  void init_bridge_window(Dt_node const &node);
   void read_ecam_area(Dt_node const &node);
 
 public:
@@ -48,11 +47,10 @@ public:
                             unsigned char bus_num,
                             unsigned char subordinate_num,
                             cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
-  : Pci_host_bridge(devs, bus_num, msix_ctrl),
+  : Pci_host_bridge(devs, node, bus_num, msix_ctrl),
     _secondary_bus_num(bus_num),
     _subordinate_bus_num(subordinate_num)
   {
-    init_bridge_window(node);
     read_ecam_area(node);
 
     // Linux' x86 PCI_direct code sanity checks for a device with class code
@@ -240,20 +238,24 @@ public:
     *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x4d]) =
       _subordinate_bus_num - _secondary_bus_num + 1U;
 
+    Pci_bridge_windows const *wnds = bridge_windows();
+    auto win = wnds->get_window(Pci_cfg_bar::Type::IO);
     // Update "I/O window" with actual values from device tree
-    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x5f]) = _io_base;
-    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x61]) = _io_base + _io_size - 1U;
-    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x65]) = _io_size;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x5f]) = win.first & 0xffffu;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x61]) = (win.first + win.second - 1U) & 0xffffu;
+    *reinterpret_cast<l4_uint16_t*>(&dsdt_pci[0x65]) = win.second & 0xffffu;
 
+    win = wnds->get_window(Pci_cfg_bar::Type::MMIO32);
     // Update "MMIO window" with actual values from device tree
-    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x71]) = _mmio_base;
-    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x75]) = _mmio_base + _mmio_size - 1U;
-    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x7d]) = _mmio_size;
+    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x71]) = win.first & 0xffff'ffffu;
+    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x75]) = (win.first + win.second - 1U) & 0xffff'ffffu;
+    *reinterpret_cast<l4_uint32_t*>(&dsdt_pci[0x7d]) = win.second & 0xffff'ffffu;
 
+    win = wnds->get_window(Pci_cfg_bar::Type::MMIO64);
     // Update "MMIO64 window" with actual values from device tree
-    *reinterpret_cast<l4_uint64_t*>(&dsdt_pci[0x8f]) = _mmio_base64;
-    *reinterpret_cast<l4_uint64_t*>(&dsdt_pci[0x97]) = _mmio_base64 + _mmio_size64 - 1U;
-    *reinterpret_cast<l4_uint64_t*>(&dsdt_pci[0xa7]) = _mmio_size64;
+    *reinterpret_cast<l4_uint64_t*>(&dsdt_pci[0x8f]) = win.first;
+    *reinterpret_cast<l4_uint64_t*>(&dsdt_pci[0x97]) = win.first + win.second - 1U;
+    *reinterpret_cast<l4_uint64_t*>(&dsdt_pci[0xa7]) = win.second;
 
     l4_size_t size = sizeof(dsdt_pci);
     if (max_size < size)
@@ -362,12 +364,6 @@ private:
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI bus"); }
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI bus"); }
 
-  l4_uint64_t _mmio_base = 0;
-  l4_uint64_t _mmio_size = 0;
-  l4_uint64_t _mmio_base64 = 0;
-  l4_uint64_t _mmio_size64 = 0;
-  l4_uint16_t _io_base = 0xffff;
-  l4_uint16_t _io_size = 0;
   l4_uint64_t _ecam_mcfg_base = 0;
   l4_uint64_t _ecam_mcfg_size = 0;
   unsigned char _secondary_bus_num = 0;
@@ -533,61 +529,6 @@ public:
     trace().printf("Unhandled IN access @0x%x/%d\n", port, width);
   }
 }; // Pci_bus_cfg_io
-
-/**
- * Retrieve bridge MMIO and I/O windows from ranges property.
- *
- * The actual values are irrelevant for uvmm. They are only gathered to be
- * forwarded to the guest via ACPI. See amend_dsdt() above.
- */
-void
-Pci_host_generic::init_bridge_window(Dt_node const &node)
-{
-  int prop_size;
-  auto prop = node.get_prop<fdt32_t>("ranges", &prop_size);
-  if (!prop)
-    L4Re::throw_error(-L4_EINVAL, "missing ranges property");
-
-  auto parent = node.parent_node();
-  auto parent_addr_cells = node.get_address_cells(parent);
-  size_t child_addr_cells = node.get_address_cells(node);
-  size_t child_size_cells = node.get_size_cells(node);
-
-  unsigned range_size = child_addr_cells + parent_addr_cells + child_size_cells;
-  if (prop_size % range_size != 0)
-    L4Re::throw_error(-L4_EINVAL, "invalid ranges property");
-
-  for (auto end = prop + prop_size; prop < end; prop += range_size)
-    {
-      auto flags = Dtb::Reg_flags::pci(fdt32_to_cpu(*prop));
-      Dtb::Cell parent_base(prop + child_addr_cells, parent_addr_cells);
-      Dtb::Cell size(prop + child_addr_cells + parent_addr_cells,
-                     child_size_cells);
-
-      if (flags.is_mmio32())
-        {
-          _mmio_base = parent_base.get_uint64();
-          _mmio_size = size.get_uint64();
-        }
-      else if (flags.is_mmio64())
-        {
-          _mmio_base64 = parent_base.get_uint64();
-          _mmio_size64 = size.get_uint64();
-        }
-      else if (flags.is_ioport())
-        {
-          _io_base = parent_base.get_uint64();
-          _io_size = size.get_uint64();
-        }
-    }
-
-  trace().printf("MMIO window at [0x%llx, 0x%llx]\n", _mmio_base,
-                 _mmio_base + _mmio_size - 1U);
-  trace().printf("MMIO64 window at [0x%llx, 0x%llx]\n", _mmio_base64,
-                 _mmio_base64 + _mmio_size64 - 1U);
-  trace().printf("I/O window at [0x%x, 0x%x]\n", _io_base,
-                 _io_base + _io_size - 1U);
-}
 
 /**
  * Retrieve bridge ECAM MCFG area from the DT node's reg property.

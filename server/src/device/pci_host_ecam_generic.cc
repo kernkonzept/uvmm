@@ -109,8 +109,9 @@ public:
   explicit Pci_host_ecam_generic(Interrupt_map const &irq_map,
                                  unsigned char bus_num,
                                  Device_lookup *devs,
+                                 Dt_node const &node,
                                  cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
-  : Pci_host_bridge(devs, bus_num, msix_ctrl),
+  : Pci_host_bridge(devs, node, bus_num, msix_ctrl),
     _irq_map(irq_map)
   {
     header()->vendor_id = 0x1b36;        // PCI vendor id Redhat
@@ -367,8 +368,8 @@ struct F : Factory
         return nullptr;
       }
 
-    auto dev =
-      make_device<Pci_host_ecam_generic>(irq_map, bus_start, devs, msix_ctrl);
+    auto dev = make_device<Pci_host_ecam_generic>(irq_map, bus_start, devs,
+                                                  node, msix_ctrl);
 
     auto ecam_cfg_connector = make_device<Pci_bus_cfg_ecam>(dev);
     devs->vmm()->register_mmio_device(ecam_cfg_connector,

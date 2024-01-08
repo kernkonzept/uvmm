@@ -7,10 +7,12 @@
 
 #include "guest.h"
 #include "virt_pci_device.h"
+#include "device/pci_host_bridge.h"
 
 namespace Vdev { namespace Pci {
 
-Virt_pci_device::Virt_pci_device(Vdev::Dt_node const &node)
+Virt_pci_device::Virt_pci_device(Vdev::Dt_node const &node,
+                                 Pci_bridge_windows *wnds)
 : Virt_pci_device()
 {
   l4_uint64_t size;
@@ -35,11 +37,23 @@ Virt_pci_device::Virt_pci_device(Vdev::Dt_node const &node)
       check_power_of_2(size, "BAR size must be power of 2");
 
       if (flags.is_mmio64())
-        set_mem64_space<Pci_header::Type0>(bar, 0, size);
+        {
+          l4_addr_t addr =
+            wnds->alloc_bar_resource(size, Pci_cfg_bar::Type::MMIO64);
+          set_mem64_space<Pci_header::Type0>(bar, addr, size);
+        }
       else if (flags.is_mmio32())
-        set_mem_space<Pci_header::Type0>(bar, 0, size);
+        {
+          l4_addr_t addr =
+            wnds->alloc_bar_resource(size, Pci_cfg_bar::Type::MMIO32);
+          set_mem_space<Pci_header::Type0>(bar, addr, size);
+        }
       else if (flags.is_ioport())
-        set_io_space<Pci_header::Type0>(bar, 0, size);
+        {
+          l4_addr_t addr =
+            wnds->alloc_bar_resource(size, Pci_cfg_bar::Type::IO);
+          set_io_space<Pci_header::Type0>(bar, addr, size);
+        }
       else
         L4Re::throw_error(-L4_EINVAL,
                           "PCI dev reg property has invalid type");

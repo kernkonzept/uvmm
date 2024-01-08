@@ -600,23 +600,32 @@ void Pci_host_bridge::Hw_pci_device::map_additional_iomem_resources(
       if (is_pci_bar)
         continue;
 
+      // ignore ROM resource. If supported the expansion ROM BAR is
+      // already set up.
+      if (res.id == 0x4d4f52) // "ROM"
+        continue;
+
+      // Default to 1:1 mapping of additional resources, e.g. for i915.
+      l4_addr_t map_addr = res.start;
+
       info().printf("Additional MMIO resource %s.%.4s : "
-                    "[0x%lx - 0x%lx] flags = 0x%x\n",
+                    "[0x%lx - 0x%lx] -> [0x%lx, 0x%lx] flags = 0x%x\n",
                     dinfo.name, reinterpret_cast<char const *>(&res.id),
-                    res.start, res.end, res.flags);
-      auto region = Vmm::Region::ss(Vmm::Guest_addr(res.start), size,
+                    res.start, res.end, map_addr, map_addr + size - 1,
+                    res.flags);
+
+      auto region = Vmm::Region::ss(Vmm::Guest_addr(map_addr), size,
                                     Vmm::Region_type::Vbus);
       l4_uint32_t rights = 0;
       if (res.flags & L4VBUS_RESOURCE_F_MEM_R)
         rights |= L4_FPAGE_RO;
       if (res.flags & L4VBUS_RESOURCE_F_MEM_W)
         rights |= L4_FPAGE_W;
-      auto handler = Vdev::make_device<
-        Ds_handler>(cxx::make_ref_obj<Vmm::Ds_manager>("Pci_host_bridge: additional io mem",
-                                                       io_ds, res.start, size,
-                                                       L4Re::Rm::Region_flags(
-                                                         rights)),
-                    static_cast<L4_fpage_rights>(rights));
+      auto handler = Vdev::make_device<Ds_handler>(
+        cxx::make_ref_obj<Vmm::Ds_manager>("Pci_host_bridge: additional IO mem",
+                                           io_ds, res.start, size,
+                                           L4Re::Rm::Region_flags(rights)),
+        static_cast<L4_fpage_rights>(rights));
       vmm->add_mmio_device(region, handler);
     }
 }

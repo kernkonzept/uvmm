@@ -26,9 +26,10 @@ class Virtio_console_pci
 public:
   Virtio_console_pci(Vdev::Dt_node const &node, unsigned num_msix_entries,
                      Vmm::Vm_ram *ram, L4::Cap<L4::Vcon> con,
-                     Gic::Msix_dest const &msix_dest)
+                     Gic::Msix_dest const &msix_dest,
+                     Vdev::Pci::Pci_bridge_windows *wnds)
   : Virtio_console(ram, con),
-    Virtio_device_pci<Virtio_console_pci>(node, num_msix_entries),
+    Virtio_device_pci<Virtio_console_pci>(node, num_msix_entries, wnds),
     Virtio::Pci_connector<Virtio_console_pci>(),
     _evcon(msix_dest)
   {
@@ -92,7 +93,8 @@ struct F : Factory
     unsigned num_msix = 5;
     auto console =
       make_device<Virtio_console_pci>(node, num_msix, devs->ram().get(), cap,
-                                      pci->msix_dest(dev_id));
+                                      pci->msix_dest(dev_id),
+                                      pci->bridge_windows());
 
     console->register_obj<Virtio_console_pci>(devs->vmm()->registry());
     pci->bus()->register_device(console, dev_id);

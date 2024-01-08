@@ -24,6 +24,7 @@
 #include "virtio_dev.h"
 #include "pci_virtio_config.h"
 #include "virtio_qword.h"
+#include "device/pci_bridge_windows.h"
 
 namespace Vdev { namespace Pci {
 
@@ -49,8 +50,9 @@ public:
    * \param node              Device Tree node of this device.
    * \param num_msix_entries  Maximum number of MSI-X entries to handle.
    */
-  Virtio_device_pci(Vdev::Dt_node const &node, unsigned num_msix_entries)
-  : Virt_pci_device(node)
+  Virtio_device_pci(Vdev::Dt_node const &node, unsigned num_msix_entries,
+                    Pci_bridge_windows *wnds)
+  : Virt_pci_device(node, wnds)
   {
     // BAR[0] is the MSI-X table 32-bit BAR
     check_msix_bar_constraints();
