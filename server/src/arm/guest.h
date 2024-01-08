@@ -126,8 +126,7 @@ public:
         vcpu->r.r[0] = Smccc_device::Not_supported;
       }
 
-    if (METHOD == Smc)
-      vcpu->r.ip += 4;
+    vcpu->r.ip += 4;
   }
 
   void handle_wfx(Vcpu_ptr vcpu);
