@@ -106,11 +106,11 @@ Cpu_dev::reset()
   //
   // Initialize vcpu state
   //
-  _vcpu->saved_state = L4_VCPU_F_FPU_ENABLED
-    | L4_VCPU_F_USER_MODE
-    | L4_VCPU_F_IRQ
-    | L4_VCPU_F_PAGE_FAULTS
-    | L4_VCPU_F_EXCEPTIONS;
+  _vcpu->saved_state =   L4_VCPU_F_FPU_ENABLED
+                       | L4_VCPU_F_USER_MODE
+                       | L4_VCPU_F_IRQ
+                       | L4_VCPU_F_PAGE_FAULTS
+                       | L4_VCPU_F_EXCEPTIONS;
   _vcpu->entry_ip = (l4_umword_t) &vcpu_entry;
 
   if (!_vcpu->entry_sp)
