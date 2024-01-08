@@ -41,6 +41,7 @@ class Pci_host_generic:
   { return get_header<Pci_header::Type0>(); }
 
   void init_bridge_window(Dt_node const &node);
+  void read_ecam_area(Dt_node const &node);
 
 public:
   explicit Pci_host_generic(Device_lookup *devs, Dt_node const &node,
@@ -52,6 +53,7 @@ public:
     _subordinate_bus_num(subordinate_num)
   {
     init_bridge_window(node);
+    read_ecam_area(node);
 
     // Linux' x86 PCI_direct code sanity checks for a device with class code
     // PCI_CLASS_DISPLAY_VGA(0x0300) or PCI_CLASS_BRIDGE_HOST(0x0600) or for a
@@ -533,8 +535,7 @@ public:
 }; // Pci_bus_cfg_io
 
 /**
- * Retrieve bridge MMIO and I/O windows from ranges property, and the ECAM MCFG
- * window from the reg property.
+ * Retrieve bridge MMIO and I/O windows from ranges property.
  *
  * The actual values are irrelevant for uvmm. They are only gathered to be
  * forwarded to the guest via ACPI. See amend_dsdt() above.
@@ -580,6 +581,21 @@ Pci_host_generic::init_bridge_window(Dt_node const &node)
         }
     }
 
+  trace().printf("MMIO window at [0x%llx, 0x%llx]\n", _mmio_base,
+                 _mmio_base + _mmio_size - 1U);
+  trace().printf("MMIO64 window at [0x%llx, 0x%llx]\n", _mmio_base64,
+                 _mmio_base64 + _mmio_size64 - 1U);
+  trace().printf("I/O window at [0x%x, 0x%x]\n", _io_base,
+                 _io_base + _io_size - 1U);
+}
+
+/**
+ * Retrieve bridge ECAM MCFG area from the DT node's reg property.
+ */
+void
+Pci_host_generic::read_ecam_area(Dt_node const &node)
+{
+
   int res = node.get_reg_val(0, &_ecam_mcfg_base, &_ecam_mcfg_size);
   if (res < 0)
     {
@@ -588,12 +604,6 @@ Pci_host_generic::init_bridge_window(Dt_node const &node)
                     "thus ECAM is not going to be available to the guest.\n");
     }
 
-  trace().printf("MMIO window at [0x%llx, 0x%llx]\n", _mmio_base,
-                 _mmio_base + _mmio_size - 1U);
-  trace().printf("MMIO64 window at [0x%llx, 0x%llx]\n", _mmio_base64,
-                 _mmio_base64 + _mmio_size64 - 1U);
-  trace().printf("I/O window at [0x%x, 0x%x]\n", _io_base,
-                 _io_base + _io_size - 1U);
   if (has_ecam())
     {
       trace().printf("ECAM MCFG window at [0x%llx, 0x%llx]\n", _ecam_mcfg_base,
