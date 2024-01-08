@@ -10,6 +10,44 @@
 
 namespace Vdev { namespace Pci {
 
+Virt_pci_device::Virt_pci_device(Vdev::Dt_node const &node)
+: Virt_pci_device()
+{
+  l4_uint64_t size;
+  Dtb::Reg_flags flags;
+
+  // First reg entry shall be the config space. Note that we ignore the
+  // assigned bus/device/function numbers. This might change in the future!
+  if (node.get_reg_size_flags(0, nullptr, &flags) < 0)
+    L4Re::throw_error(-L4_EINVAL, "extract PCI dev reg[0] property");
+  if (!flags.is_cfgspace())
+    L4Re::throw_error(-L4_EINVAL,
+                      "PCI dev reg[0] property shall be the config space");
+
+  for (int i = 1; node.get_reg_size_flags(i, &size, &flags) >= 0; i++)
+    {
+      unsigned bar = (flags.pci_reg() - Pci_hdr_base_addr0_offset) / 4U;
+      if (bar >= Bar_num_max_type0)
+        L4Re::throw_error(-L4_EINVAL,
+                          "PCI dev reg property must reference valid BAR");
+      if (bars[bar].type != Pci_cfg_bar::Type::Unused_empty)
+        L4Re::throw_error(-L4_EINVAL, "BAR must be defined only once");
+      check_power_of_2(size, "BAR size must be power of 2");
+
+      if (flags.is_mmio64())
+        set_mem64_space<Pci_header::Type0>(bar, 0, size);
+      else if (flags.is_mmio32())
+        set_mem_space<Pci_header::Type0>(bar, 0, size);
+      else if (flags.is_ioport())
+        set_io_space<Pci_header::Type0>(bar, 0, size);
+      else
+        L4Re::throw_error(-L4_EINVAL,
+                          "PCI dev reg property has invalid type");
+
+      info().printf("  bar[%u] addr=0x%llx size=0x%llx type=%s\n", bar,
+                    bars[bar].io_addr, bars[bar].size, bars[bar].to_string());
+    }
+}
 void Virt_pci_device::add_decoder_resources(Vmm::Guest *vmm, l4_uint32_t access)
 {
   unsigned i = 0;
