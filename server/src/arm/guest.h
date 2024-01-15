@@ -60,13 +60,13 @@ public:
   void cpu_online(Cpu_dev *cpu);
   void cpu_offline(Cpu_dev *cpu);
 
-  void L4_NORETURN halt_vm(Vcpu_ptr current_vcpu)
+  void L4_NORETURN halt_vm(Vcpu_ptr current_vcpu) override
   {
     stop_cpus();
     Generic_guest::halt_vm(current_vcpu);
   }
 
-  void L4_NORETURN shutdown(int val)
+  void L4_NORETURN shutdown(int val) override
   {
     stop_cpus();
     Generic_guest::shutdown(val);

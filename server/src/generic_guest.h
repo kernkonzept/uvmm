@@ -95,7 +95,7 @@ public:
   Vm_mem *memmap()
   { return &_memmap; }
 
-  void L4_NORETURN halt_vm(Vcpu_ptr current_vcpu)
+  virtual void L4_NORETURN halt_vm(Vcpu_ptr current_vcpu)
   {
     Err().printf("VM entered a fatal state. Halting.\n");
 
@@ -108,7 +108,7 @@ public:
       current_vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
   }
 
-  void L4_NORETURN shutdown(int val)
+  virtual void L4_NORETURN shutdown(int val)
   {
     _pm->shutdown(val == Reboot);
     exit(val);
