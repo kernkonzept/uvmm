@@ -101,7 +101,7 @@ public:
   {
     auto r = find_region(p, 0);
     if (!r)
-      L4Re::chksys(-L4_ENOENT, "Guest address found");
+      L4Re::chksys(-L4_ENOENT, "Guest address outside RAM");
 
     return reinterpret_cast<T>(r->guest2host(p));
   }
