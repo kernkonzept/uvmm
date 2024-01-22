@@ -22,7 +22,7 @@ struct Virtio_proxy_pci: Device
     a->add_num_property("reg",
                         {0x00000000 | dev << 11, 0x0, 0x0, 0x0, 0x0000,
                          0x02000010 | dev << 11, 0x0, 0x0, 0x0, 0x2000,
-                         0x01000014 | dev << 11, 0x0, 0x0, 0x0,   0x80});
+                         0x01000014 | dev << 11, 0x0, 0x0, 0x0,  0x100});
     a->add_str_property("l4vmm,vdev", "proxy");
     a->add_str_property("l4vmm,virtiocap", _res.as<std::string>("virtiocap"));
     if (_res.has("no-notify"))
