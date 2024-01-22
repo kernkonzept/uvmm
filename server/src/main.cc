@@ -132,7 +132,7 @@ setup_kaslr_seed(Vdev::Host_dt const &dt)
 
   L4::Ipc::Array<char, unsigned long> msg(sizeof(random), random.c);
   int ret = c->get_random(sizeof(random), &msg);
-  if (ret < (int) sizeof(random))
+  if (ret < static_cast<int>(sizeof(random)))
     L4Re::throw_error(ret < 0 ? ret : -L4_EAGAIN,
                       "Getting random seed for KASLR initialisation.");
 

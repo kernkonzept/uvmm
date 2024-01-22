@@ -73,7 +73,8 @@ Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr)
     info.printf("RAM not set up for DMA.\n");
 
   l4_addr_t local_start = this->local_start();
-  info.printf("RAM: @ 0x%lx size=0x%lx\n", _vm_start.get(), (l4_addr_t)size());
+  info.printf("RAM: @ 0x%lx size=0x%lx\n", _vm_start.get(),
+              static_cast<l4_addr_t>(size()));
   info.printf("RAM: VMM local mapping @ 0x%lx\n", local_start);
 
   _offset = local_start - _vm_start.get();
@@ -119,7 +120,7 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
                                    L4Re::Rm::F::Search_addr
                                    | L4Re::Rm::F::R, file),
                    "Attach file dataspace for reading.");
-      memcpy((char *)local_start() + offset, src, sz);
+      memcpy(reinterpret_cast<char *>(local_start()) + offset, src, sz);
       L4Re::chksys(e->rm()->detach(src, 0),
                    "Detach file dataspace.");
     }

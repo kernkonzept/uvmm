@@ -291,7 +291,8 @@ public:
     if (dist_read(reg, size, cpu_id, &res))
       return res;
 
-    if (reg >= 0x6100 && (reg < (0x6100 + 8 * 32 * (unsigned)tnlines)))
+    if (reg >= 0x6100
+        && (reg < (0x6100 + 8 * 32 * static_cast<unsigned>(tnlines))))
       {
         unsigned const r = (reg - 0x6100) >> 3;
         return Vmm::Mem_access::read(_router[r], reg & 7, size);
@@ -314,7 +315,8 @@ public:
       return;
 
     // GICD_IROUTERn
-    if (reg >= 0x6100 && (reg < (0x6100 + 8 * 32 * (unsigned)tnlines)))
+    if (reg >= 0x6100
+        && (reg < (0x6100 + 8 * 32 * static_cast<unsigned>(tnlines))))
       {
         std::lock_guard<std::mutex> lock(_target_lock);
 

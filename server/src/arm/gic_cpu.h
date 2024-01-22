@@ -224,7 +224,7 @@ public:
   CXX_BITFIELD_MEMBER_RO(30, 30, group,       _state); // GICD_IGROUPRn
 
   enum : unsigned { Invalid_cpu = 0xff }; // special case for cpu field
-  static_assert(Invalid_cpu >= (unsigned)Vmm::Cpu_dev::Max_cpus,
+  static_assert(Invalid_cpu >= static_cast<unsigned>(Vmm::Cpu_dev::Max_cpus),
                 "Invalid_cpu must not collide with available CPUs");
 
 private:
@@ -539,7 +539,8 @@ public:
     // be taken there yet because the cpu field is not updated. But even then
     // it will stay on the right list.
 
-    _irq.target(reg, vcpu ? vcpu->vcpu_id() : (unsigned)Invalid_cpu);
+    _irq.target(reg,
+                vcpu ? vcpu->vcpu_id() : static_cast<unsigned>(Invalid_cpu));
 
     // If the IRQ is queued it must most likely be evicted from the old list.
     // It might also got queued during migration but waking the old vCPU does
@@ -636,8 +637,8 @@ public:
   l4_uint64_t get_typer() const
   {
     if (is_valid())
-      return (((l4_uint64_t)_vcpu.get_vcpu_id()) << 8)
-             | (((l4_uint64_t)affinity()) << 32);
+      return (static_cast<l4_uint64_t>(_vcpu.get_vcpu_id()) << 8)
+             | (static_cast<l4_uint64_t>(affinity()) << 32);
 
     return 0xffffffff00000000;
   }
@@ -1031,7 +1032,7 @@ Cpu::handle_ipis()
 
       // inject one IPI, if another CPU posted the same IPI we keep it
       // pending
-      unsigned src = __builtin_ffs((int)cpu_bits) - 1;
+      unsigned src = __builtin_ffs(static_cast<int>(cpu_bits)) - 1;
       Irq &irq = local_irq(irq_num);
 
       // set irq pending and try to inject

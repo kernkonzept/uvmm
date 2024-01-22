@@ -108,8 +108,9 @@ public:
     _queue_irqs.resize(_config->num_queues);
 
     // Flush initial config page content
-    l4_cache_clean_data((l4_addr_t)_config.get(),
-                        (l4_addr_t)_config.get() + _config_page_size);
+    l4_cache_clean_data(reinterpret_cast<l4_addr_t>(_config.get()),
+                        reinterpret_cast<l4_addr_t>(_config.get())
+                        + _config_page_size);
   }
 
 

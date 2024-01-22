@@ -589,11 +589,11 @@ struct Pci_device : public virtual Vdev::Dev_ref
         res->prefetchable = (bar & Bar_mem_prefetch_bit) != 0;
 
         cfg_read_raw(bar_offs, &bar, Vmm::Mem_access::Wd32);
-        addr64 |= (l4_uint64_t)bar << 32; // shift to upper part
+        addr64 |= static_cast<l4_uint64_t>(bar) << 32; // shift to upper part
         bar_offs = read_bar_size(bar_offs, bar, &bar_size);
 
-        size64 |= (l4_uint64_t)bar_size << 32; // shift to upper part
-        size64 &= ~((l4_uint64_t)Bar_mem_attr_mask); // clear decoding
+        size64 |= static_cast<l4_uint64_t>(bar_size) << 32; // shift to upper part
+        size64 &= ~static_cast<l4_uint64_t>(Bar_mem_attr_mask); // clear decoding
 
         res->type = Pci_cfg_bar::MMIO64;
         res->io_addr = addr64;
@@ -694,7 +694,7 @@ struct Pci_device : public virtual Vdev::Dev_ref
 
     l4_uint32_t ctrl = 0;
     cfg_read_raw(msix_cap_addr + 2, &ctrl, Vmm::Mem_access::Wd16);
-    msix_cap.ctrl.raw = (l4_uint16_t)ctrl;
+    msix_cap.ctrl.raw = static_cast<l4_uint16_t>(ctrl);
     cfg_read_raw(msix_cap_addr + 4, &msix_cap.tbl.raw, Vmm::Mem_access::Wd32);
     cfg_read_raw(msix_cap_addr + 8, &msix_cap.pba.raw, Vmm::Mem_access::Wd32);
 
@@ -980,7 +980,7 @@ public:
       }
 
     trace().printf("read config 0x%x(%d) = 0x%x\n", reg, width,
-                   (unsigned)*value);
+                   static_cast<unsigned>(*value));
   }
 
   /**
@@ -1073,7 +1073,6 @@ private:
   template <typename TYPE>
   static void assert_bar_type_size(unsigned bar)
   {
-    (void)bar;
     if (std::is_same<Pci_header::Type0, TYPE>::value)
       assert(bar < Bar_num_max_type0);
     else if (std::is_same<Pci_header::Type1, TYPE>::value)

@@ -35,7 +35,7 @@ public:
 
   void control_ext(L4::Cap<L4::Thread> thread)
   {
-    if (l4_error(thread->vcpu_control_ext((l4_addr_t)_s)))
+    if (l4_error(thread->vcpu_control_ext(reinterpret_cast<l4_addr_t>(_s))))
       {
         Err().printf("FATAL: Could not create vCPU. "
                      "Running virtualization-enabled kernel?\n");
@@ -134,18 +134,18 @@ protected:
       {
         switch (size)
           {
-          case 0: return (l4_mword_t)((l4_int8_t)value);
-          case 1: return (l4_mword_t)((l4_int16_t)value);
-          case 2: return (l4_mword_t)((l4_int32_t)value);
+          case 0: return static_cast<l4_mword_t>(static_cast<l4_int8_t>(value));
+          case 1: return static_cast<l4_mword_t>(static_cast<l4_int16_t>(value));
+          case 2: return static_cast<l4_mword_t>(static_cast<l4_int32_t>(value));
           default: return value;
           }
       }
 
     switch (size)
       {
-      case 0: return (l4_umword_t)((l4_uint8_t)value);
-      case 1: return (l4_umword_t)((l4_uint16_t)value);
-      case 2: return (l4_umword_t)((l4_uint32_t)value);
+      case 0: return static_cast<l4_umword_t>(static_cast<l4_uint8_t>(value));
+      case 1: return static_cast<l4_umword_t>(static_cast<l4_uint16_t>(value));
+      case 2: return static_cast<l4_umword_t>(static_cast<l4_uint32_t>(value));
       default: return value;
       }
   }

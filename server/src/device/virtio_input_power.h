@@ -268,7 +268,7 @@ Virtio_input_power<DEV>::inject_command(unsigned char c)
       {L4RE_EV_SYN, L4RE_SYN_REPORT, 1}
   };
 
-  auto num = (int)ARRAY_SIZE(events);
+  auto num = static_cast<int>(ARRAY_SIZE(events));
   return dev()->inject_events(events, num) == num;
 }
 

@@ -920,9 +920,9 @@ public:
     if (!prop)
       ERR(this, "could not get property '%s': %s", name, fdt_strerror(len));
 
-    if (len < (int) sizeof(T) * size)
+    if (len < static_cast<int>(sizeof(T)) * size)
       ERR(this, "property '%s' is too small (%d need %u)",
-          name, len, (unsigned) (sizeof(T) * size));
+          name, len, static_cast<unsigned>(sizeof(T) * size));
 
     return reinterpret_cast<T const *>(prop);
   }

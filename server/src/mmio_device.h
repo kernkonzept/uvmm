@@ -236,7 +236,7 @@ struct Mmio_device_t : Mmio_device
       .printf("MMIO access @ 0x%lx (0x%lx) %s, width: %u\n",
               pfa, offset,
               insn.access == Vmm::Mem_access::Load ? "LOAD" : "STORE",
-              (unsigned) insn.width);
+              static_cast<unsigned>(insn.width));
 
     if (insn.access == Vmm::Mem_access::Store)
       dev()->write(offset, insn.width, insn.value, vcpu.get_vcpu_id());
@@ -288,7 +288,7 @@ struct Ro_ds_mapper_t : Mmio_device
       .printf("MMIO access @ 0x%lx (0x%lx) %s, width: %u\n",
               pfa, offset,
               insn.access == Vmm::Mem_access::Load ? "LOAD" : "STORE",
-              (unsigned) insn.width);
+              static_cast<unsigned>(insn.width));
 
     if (insn.access == Vmm::Mem_access::Store)
       dev()->write(offset, insn.width, insn.value, vcpu.get_vcpu_id());
@@ -313,7 +313,9 @@ struct Ro_ds_mapper_t : Mmio_device
       size = dev()->mapped_mmio_size();
     map_guest_range(vm_task, start, dev()->local_addr(), size, L4_FPAGE_RX);
 #else
-  (void)vm_task; (void)start; (void)end;
+    static_cast<void>(vm_task);
+    static_cast<void>(start);
+    static_cast<void>(end);
 #endif
   }
 
@@ -329,14 +331,14 @@ struct Ro_ds_mapper_t : Mmio_device
    * \pre `offset + (1UL << width) <= mapped_mmio_size()`
    * \pre `offset <= 2GB`
    */
-  l4_uint64_t read(unsigned offset, char width, unsigned cpuid)
+  l4_uint64_t read(unsigned offset, char width, unsigned /* cpuid */)
   {
-    (void) cpuid; // must be ignored by this implementation because
-                  // we have no CPU-local mappings of our dataspace.
+    // cpuid must be ignored by this implementation because
+    // we have no CPU-local mappings of our dataspace.
     if (0)
       printf("MMIO/RO/DS read: offset=%x (%u) [0x%lx] = %x\n", offset,
-             (unsigned)width, local_addr() + offset,
-             *((l4_uint32_t*)(local_addr() + offset)));
+             static_cast<unsigned>(width), local_addr() + offset,
+             *(reinterpret_cast<l4_uint32_t*>(local_addr() + offset)));
 
     // limit MMIO regions to 2GB
     assert (offset <= 0x80000000);

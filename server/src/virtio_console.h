@@ -243,7 +243,8 @@ public:
             break;
           }
 
-        unsigned size = (unsigned)r <= p.len ? (unsigned)r : p.len;
+        unsigned size = static_cast<unsigned>(r) <= p.len
+                        ? static_cast<unsigned>(r) : p.len;
         q->consumed(req, size);
 
         if (!q->no_notify_guest())
@@ -252,7 +253,7 @@ public:
             ev->set(q->config.driver_notify_index);
           }
 
-        if ((unsigned)r <= p.len)
+        if (static_cast<unsigned>(r) <= p.len)
           break;
       }
   }

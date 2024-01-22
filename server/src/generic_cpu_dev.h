@@ -35,7 +35,7 @@ private:
 
     Dbg(Dbg::Cpu, Dbg::Info).printf("Created VCPU %u @ %lx\n", idx, vcpu_addr);
 
-    return Vcpu_ptr((l4_vcpu_state_t *)vcpu_addr);
+    return Vcpu_ptr(reinterpret_cast<l4_vcpu_state_t *>(vcpu_addr));
   }
 
 public:

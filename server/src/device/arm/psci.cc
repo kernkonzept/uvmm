@@ -135,7 +135,8 @@ public:
         psci_system_suspend(vcpu);
         break;
       default:
-        warn.printf("... Not supported PSCI function 0x%x called\n", (unsigned)func);
+        warn.printf("... Not supported PSCI function 0x%x called\n",
+                    static_cast<unsigned>(func));
         vcpu->r.r[0] = Not_supported;
         break;
       };

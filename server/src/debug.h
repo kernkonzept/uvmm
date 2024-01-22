@@ -165,11 +165,7 @@ public:
   static int set_verbosity(char const *)
   { return -L4_EINVAL; }
 
-  Dbg(Component c = Core, Verbosity v = Warn, char const *subsys = "")
-  {
-    (void)c;
-    (void)v;
-    (void)subsys;
-  }
+  Dbg(Component /* c */, Verbosity /* v */, char const * /* subsys */)
+  {}
 #endif
 };

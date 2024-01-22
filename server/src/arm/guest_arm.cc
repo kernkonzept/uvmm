@@ -68,14 +68,14 @@ struct Sys_reg_log_n : Sys_reg
   {
     Dbg(Dbg::Core, Dbg::Info)
       .printf("%08lx: msr %s%d_EL1 = %08llx (ignored)\n",
-              vcpu->r.ip, name, (unsigned)k.crm(), v);
+              vcpu->r.ip, name, static_cast<unsigned>(k.crm()), v);
   }
 
   l4_uint64_t read(Vmm::Vcpu_ptr vcpu, Key k) override
   {
     Dbg(Dbg::Core, Dbg::Info)
       .printf("%08lx: mrs %s%d_EL1 (read 0)\n",
-              vcpu->r.ip, name, (unsigned)k.crm());
+              vcpu->r.ip, name, static_cast<unsigned>(k.crm()));
     return 0;
   }
 
@@ -397,8 +397,8 @@ guest_unknown_fault(Vcpu_ptr vcpu)
   // Strip register values if the guest is executed in 32-bit mode.
   l4_umword_t mask = (vcpu->r.flags & 0x10) ? ~0U : ~0UL;
   Err().printf("unknown trap: err=%lx ec=0x%x ip=%lx lr=%lx\n",
-               vcpu->r.err, (int)vcpu.hsr().ec(), vcpu->r.ip & mask,
-               vcpu.get_lr() & mask);
+               vcpu->r.err, static_cast<int>(vcpu.hsr().ec()),
+               vcpu->r.ip & mask, vcpu.get_lr() & mask);
   if (!guest->inject_undef(vcpu))
     guest->halt_vm(vcpu);
 }
@@ -486,7 +486,8 @@ Vmm::Guest::handle_ppi(Vcpu_ptr vcpu)
         _timer->inject();
       break;
     default:
-      Err().printf("unknown virtual PPI: %d\n", (int)vcpu.hsr().svc_imm());
+      Err().printf("unknown virtual PPI: %d\n",
+                   static_cast<int>(vcpu.hsr().svc_imm()));
       break;
     }
 }
@@ -520,8 +521,9 @@ static void guest_mcrr_access_cp(Vcpu_ptr vcpu)
         }
       else
         {
-          l4_uint64_t v = (vcpu.get_gpr(hsr.mcr_rt()) & 0xffffffff)
-                          | (((l4_uint64_t)vcpu.get_gpr(hsr.mcrr_rt2())) << 32);
+          l4_uint64_t v
+            = (vcpu.get_gpr(hsr.mcr_rt()) & 0xffffffff)
+              | (static_cast<l4_uint64_t>(vcpu.get_gpr(hsr.mcrr_rt2())) << 32);
 
           r->write(vcpu, k, v);
         }
@@ -532,12 +534,12 @@ static void guest_mcrr_access_cp(Vcpu_ptr vcpu)
     {
       printf("%08lx: %s p%u, %d, r%d, c%d, c%d, %d (hsr=%08lx)\n",
              vcpu->r.ip, hsr.mcr_read() ? "MRC" : "MCR", CP,
-             (unsigned)hsr.mcr_opc1(),
-             (unsigned)hsr.mcr_rt(),
-             (unsigned)hsr.mcr_crn(),
-             (unsigned)hsr.mcr_crm(),
-             (unsigned)hsr.mcr_opc2(),
-             (l4_umword_t)hsr.raw());
+             static_cast<unsigned>(hsr.mcr_opc1()),
+             static_cast<unsigned>(hsr.mcr_rt()),
+             static_cast<unsigned>(hsr.mcr_crn()),
+             static_cast<unsigned>(hsr.mcr_crm()),
+             static_cast<unsigned>(hsr.mcr_opc2()),
+             static_cast<l4_umword_t>(hsr.raw()));
       vcpu.jump_instruction();
     }
 }
@@ -567,12 +569,12 @@ static void guest_mcr_access_cp(Vcpu_ptr vcpu)
     {
       printf("%08lx: %s p%u, %d, r%d, c%d, c%d, %d (hsr=%08lx)\n",
              vcpu->r.ip, hsr.mcr_read() ? "MRC" : "MCR", CP,
-             (unsigned)hsr.mcr_opc1(),
-             (unsigned)hsr.mcr_rt(),
-             (unsigned)hsr.mcr_crn(),
-             (unsigned)hsr.mcr_crm(),
-             (unsigned)hsr.mcr_opc2(),
-             (l4_umword_t)hsr.raw());
+             static_cast<unsigned>(hsr.mcr_opc1()),
+             static_cast<unsigned>(hsr.mcr_rt()),
+             static_cast<unsigned>(hsr.mcr_crn()),
+             static_cast<unsigned>(hsr.mcr_crm()),
+             static_cast<unsigned>(hsr.mcr_opc2()),
+             static_cast<l4_umword_t>(hsr.raw()));
       vcpu.jump_instruction();
     }
 }
@@ -603,23 +605,23 @@ static void guest_msr_access(Vcpu_ptr vcpu)
     {
       if (hsr.msr_read())
         printf("%08lx: mrs r%u, S%u_%u_C%u_C%u_%u (hsr=%08lx)\n",
-               vcpu->r.ip, (unsigned)hsr.msr_rt(),
-               (unsigned)hsr.msr_op0(),
-               (unsigned)hsr.msr_op1(),
-               (unsigned)hsr.msr_crn(),
-               (unsigned)hsr.msr_crm(),
-               (unsigned)hsr.msr_op2(),
-               (l4_umword_t)hsr.raw());
+               vcpu->r.ip, static_cast<unsigned>(hsr.msr_rt()),
+               static_cast<unsigned>(hsr.msr_op0()),
+               static_cast<unsigned>(hsr.msr_op1()),
+               static_cast<unsigned>(hsr.msr_crn()),
+               static_cast<unsigned>(hsr.msr_crm()),
+               static_cast<unsigned>(hsr.msr_op2()),
+               static_cast<l4_umword_t>(hsr.raw()));
       else
         printf("%08lx: msr S%u_%u_C%u_C%u_%u = %08lx (hsr=%08lx)\n",
                vcpu->r.ip,
-               (unsigned)hsr.msr_op0(),
-               (unsigned)hsr.msr_op1(),
-               (unsigned)hsr.msr_crn(),
-               (unsigned)hsr.msr_crm(),
-               (unsigned)hsr.msr_op2(),
+               static_cast<unsigned>(hsr.msr_op0()),
+               static_cast<unsigned>(hsr.msr_op1()),
+               static_cast<unsigned>(hsr.msr_crn()),
+               static_cast<unsigned>(hsr.msr_crm()),
+               static_cast<unsigned>(hsr.msr_op2()),
                vcpu.get_gpr(hsr.msr_rt()),
-               (l4_umword_t)hsr.raw());
+               static_cast<l4_umword_t>(hsr.raw()));
 
       vcpu.jump_instruction();
     }

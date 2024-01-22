@@ -38,9 +38,8 @@ public:
   }
 
   /// Send a single event with index `idx` to the guest.
-  void send_event(l4_uint16_t idx)
+  void send_event(l4_uint16_t /* idx */)
   {
-    (void)idx;
     _sink.inject();
   }
 
@@ -49,9 +48,8 @@ public:
    *
    * \param irq_ack_mask  Describes the config/queue events to acknowledge.
    */
-  void clear_events(unsigned irq_ack_mask)
+  void clear_events(unsigned /* irq_ack_mask */)
   {
-    (void)irq_ack_mask;
     _sink.ack();
   }
 

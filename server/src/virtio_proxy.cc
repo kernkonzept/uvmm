@@ -38,8 +38,8 @@ struct F : Factory
     if (prop && sz > 0)
       nnq_id = fdt32_to_cpu(*prop);
 
-    auto c = make_device<Virtio_proxy_mmio>(cap, (l4_size_t) cfgsz, nnq_id,
-                                            devs->ram().get());
+    auto c = make_device<Virtio_proxy_mmio>(cap, static_cast<l4_size_t>(cfgsz),
+                                            nnq_id, devs->ram().get());
     if (c->init_irqs(devs, node) < 0)
       return nullptr;
 

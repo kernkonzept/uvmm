@@ -161,7 +161,8 @@ private:
   {
     snprintf(buf, size, "%s: DS local=%lx cap=%lx offset=%lx",
              dev_name(), _ds->local_addr<unsigned long>(),
-             _ds->dataspace().cap(), (long)_ds->offset() + _offset);
+             _ds->dataspace().cap(),
+             static_cast<long>(_ds->offset()) + _offset);
     buf[size - 1] = '\0';
     return buf;
   }

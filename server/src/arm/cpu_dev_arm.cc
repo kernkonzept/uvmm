@@ -111,7 +111,7 @@ Cpu_dev::reset()
                        | L4_VCPU_F_IRQ
                        | L4_VCPU_F_PAGE_FAULTS
                        | L4_VCPU_F_EXCEPTIONS;
-  _vcpu->entry_ip = (l4_umword_t) &vcpu_entry;
+  _vcpu->entry_ip = reinterpret_cast<l4_umword_t>(&vcpu_entry);
 
   if (!_vcpu->entry_sp)
     {

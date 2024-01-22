@@ -21,9 +21,13 @@ class Atomic_fwd_list_item
   };
 
 public:
-  Atomic_fwd_list_item() : _next((Atomic_fwd_list_item*)Not_in_list) {}
+  Atomic_fwd_list_item()
+  : _next(reinterpret_cast<Atomic_fwd_list_item*>(Not_in_list)) {}
 
-  bool in_list() const { return _next != (Atomic_fwd_list_item*)Not_in_list; }
+  bool in_list() const
+  {
+    return _next != reinterpret_cast<Atomic_fwd_list_item*>(Not_in_list);
+  }
 
 private:
   explicit Atomic_fwd_list_item(Atomic_fwd_list_item *n) : _next(n) {}
@@ -126,7 +130,8 @@ public:
   void push(T *e)
   {
     Atomic_fwd_list_item *old_next = __atomic_load_n(&e->_next, __ATOMIC_ACQUIRE);
-    if (old_next != (Atomic_fwd_list_item*)Atomic_fwd_list_item::Not_in_list)
+    if (old_next !=
+        reinterpret_cast<Atomic_fwd_list_item*>(Atomic_fwd_list_item::Not_in_list))
       return;
 
     Atomic_fwd_list_item *first = __atomic_load_n(&_head._next, __ATOMIC_ACQUIRE);
@@ -173,7 +178,7 @@ public:
     Iterator ret(e._prev_next_ptr, e._elem->_next);
     *e._prev_next_ptr = e._elem->_next;
     __atomic_store_n(&e._elem->_next,
-                     (Atomic_fwd_list_item*)Atomic_fwd_list_item::Not_in_list,
+                     reinterpret_cast<Atomic_fwd_list_item*>(Atomic_fwd_list_item::Not_in_list),
                      __ATOMIC_RELEASE);
     return ret;
   }

@@ -71,7 +71,7 @@ void Vmm::Mmio_device::map_guest_range(L4::Cap<L4::Vm> vm_task,
           L4Re::throw_error(-L4_ENOMEM, "Mapping guest range.");
         }
 
-      offs += (l4_addr_t)1 << ps;
+      offs += static_cast<l4_addr_t>(1) << ps;
     }
 }
 
@@ -90,6 +90,6 @@ void Vmm::Mmio_device::unmap_guest_range(L4::Cap<L4::Vm> vm_task,
       auto doffs = dest.get() + offs;
       char ps = get_page_shift(doffs, dest.get(), dest_end, offs);
       b.unmap(l4_fpage(doffs, ps, L4_FPAGE_RWX));
-      offs += (l4_addr_t)1 << ps;
+      offs += static_cast<l4_addr_t>(1) << ps;
     }
 }

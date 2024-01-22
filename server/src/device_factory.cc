@@ -66,7 +66,7 @@ Factory::create_irq_parent(Device_lookup *devs, Vdev::Dt_node const &node,
     .printf("\t%s:%d: Visiting node '%s' - '%s'\n", __func__, depth,
             node.get_name(), parent.get_name());
 
-  bool res = (bool)create_dev(devs, parent);
+  bool res = static_cast<bool>(create_dev(devs, parent));
 
   Dbg(Dbg::Dev, res ? Dbg::Trace : Dbg::Info, "factory")
     .printf("%s interrupt parent %s for %s\n",

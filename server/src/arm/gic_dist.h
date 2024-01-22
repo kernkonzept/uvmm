@@ -186,7 +186,7 @@ public:
   /// read to the GICD_TYPER.
   virtual l4_uint32_t get_typer() const
   {
-    return tnlines | ((l4_uint32_t)(_cpu.size() - 1) << 5);
+    return tnlines | (static_cast<l4_uint32_t>(_cpu.size() - 1) << 5);
   }
 
   /// read to the CoreSight IIDRs.

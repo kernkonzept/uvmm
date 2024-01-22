@@ -46,7 +46,7 @@ public:
   Cell()
   {
     for (auto &v: _values)
-      v = (uint32_t)~0UL;
+      v = ~0U;
   }
 
   /**

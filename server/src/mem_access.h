@@ -95,8 +95,8 @@ struct Mem_access
       {
         unsigned const szm = sizeof(STORAGE) - 1;
         unsigned const sh = (offs & (szm << width) & szm) * 8;
-        STORAGE const m = ~((~(STORAGE)0) << (8 << width)) << sh;
-        *s = (*s & ~m) | ((STORAGE)v & m);
+        STORAGE const m = ~((~static_cast<STORAGE>(0)) << (8 << width)) << sh;
+        *s = (*s & ~m) | (static_cast<STORAGE>(v) & m);
       }
   }
 };

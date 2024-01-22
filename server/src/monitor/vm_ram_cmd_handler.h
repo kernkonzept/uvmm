@@ -64,10 +64,10 @@ private:
     for (auto const &r : vm_ram()->_regions)
       fprintf(f, "%9lu  0x%08llx-0x%08llx  0x%08llx  0x%08llx     %s\n",
               r->dataspace().cap() >> L4_CAP_SHIFT,
-              (l4_uint64_t)r->vm_start().get(),
-              (l4_uint64_t)(r->vm_start().get() + r->size()),
-              (l4_uint64_t)r->size(),
-              (l4_uint64_t)r->local_start(),
+              static_cast<l4_uint64_t>(r->vm_start().get()),
+              static_cast<l4_uint64_t>(r->vm_start().get() + r->size()),
+              static_cast<l4_uint64_t>(r->size()),
+              static_cast<l4_uint64_t>(r->local_start()),
               r->has_phys_addr() ? "Y" : "N");
   }
 

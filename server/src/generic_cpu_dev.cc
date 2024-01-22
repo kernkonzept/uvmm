@@ -54,7 +54,7 @@ Generic_cpu_dev::powerup_cpu()
       pattr.create_flags |= PTHREAD_L4_ATTR_NO_START;
       err = pthread_create(&_thread, &pattr, [](void *cpu) {
           reinterpret_cast<Generic_cpu_dev *>(cpu)->startup();
-          return (void *)nullptr;
+          return static_cast<void *>(nullptr);
         }, this);
 
       if (L4_UNLIKELY(pthread_attr_destroy(&pattr)))

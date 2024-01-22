@@ -64,7 +64,7 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
          * The calculation rounds down and delivers a timeout that
          * triggers up to 1 microsecond early.
          */
-        l4_uint64_t tmp = (l4_uint32_t)ticks;
+        l4_uint64_t tmp = static_cast<l4_uint32_t>(ticks);
         return ((tmp * _cyc2ms_scale) >> _shift);
       }
 
@@ -118,7 +118,7 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
         if (scale >= (1ULL << 32))
           return;
 
-        _cyc2ms_scale = (l4_uint32_t)scale;
+        _cyc2ms_scale = static_cast<l4_uint32_t>(scale);
         _shift = i;
       }
   }

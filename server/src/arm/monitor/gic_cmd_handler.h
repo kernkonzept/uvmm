@@ -49,11 +49,11 @@ private:
             irq.enabled() ? 'y' : 'n',
             irq.pending() ? 'y' : 'n',
             irq.active()  ? 'y' : 'n',
-            (int)irq.prio(),
-            (int)irq.config(),
-            (int)irq.group(),
-            (int)irq.target(),
-            (int)irq.cpu()
+            static_cast<int>(irq.prio()),
+            static_cast<int>(irq.config()),
+            static_cast<int>(irq.group()),
+            static_cast<int>(irq.target()),
+            static_cast<int>(irq.cpu())
             );
   }
 
