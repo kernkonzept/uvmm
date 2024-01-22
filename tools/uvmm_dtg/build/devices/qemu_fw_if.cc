@@ -20,10 +20,16 @@ struct Qemu_fw_if: Device
     a->add_num_property("reg", {0x1, 0x510, 0xc});
     if (_res.has("kernel"))
       a->add_str_property("l4vmm,kernel", _res.as<std::string>("kernel"));
+    else
+      a->add_str_property("l4vmm,kernel", "");
     if (_res.has("ramdisk"))
       a->add_str_property("l4vmm,ramdisk", _res.as<std::string>("ramdisk"));
+    else
+      a->add_str_property("l4vmm,ramdisk", "");
     if (_res.has("cmdline"))
       a->add_str_property("l4vmm,cmdline", _res.as<std::string>("cmdline"));
+    else
+      a->add_str_property("l4vmm,cmdline", "");
   }
 };
 
