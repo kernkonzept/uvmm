@@ -17,7 +17,7 @@ struct Acpi_platform: Device
   {
     auto a = dt->root()->add_section("acpi_platform");
     a->add_compatible("virt-acpi");
-    a->add_num_property("interrupts", Ic::default_ic(_trg_arch)->next_irq());
+    a->add_num_property("interrupts", 9);
   }
 };
 
