@@ -14,11 +14,24 @@ struct Cfi: Device
 
   void add(Tree *dt) override
   {
+    if (!_res.has("dscap") && !_res.has("virtiocap"))
+      {
+        printf("Error, device cfi requires either dscap or virtiocap\n");
+        return;
+      }
+    if (_res.has("dscap") && _res.has("virtiocap"))
+      {
+        printf("Error, device cfi cannot cope with both dscap and virtiocap. Choose one.\n");
+        return;
+      }
     auto a = dt->l4vmm()->add_section(name("cfi"));
     a->add_compatible("cfi-flash");
     a->add_reg_property(Addr_type(_res.as<uint64_t>("addr"),
                                   _res.as<uint64_t>("size"), dt->rm()));
-    a->add_str_property("l4vmm,dscap", _res.as<std::string>("dscap"));
+    if (_res.has("dscap"))
+      a->add_str_property("l4vmm,dscap", _res.as<std::string>("dscap"));
+    if (_res.has("virtiocap"))
+      a->add_str_property("l4vmm,virtiocap", _res.as<std::string>("virtiocap"));
     if (_res.has("erase-size"))
       a->add_num_property("erase-size", _res.as<uint64_t>("erase-size"));
     if (_res.has("bank-width"))
@@ -41,8 +54,9 @@ struct F: Device_factory<Cfi>
                      make_parser<Addr_parser>(_trg_arch.is64bit),
                      make_auto<Addr_default>()),
               Option("dscap", "name of the dataspace capability",
-                     make_parser<String_parser>(),
-                     Option::Required),
+                     make_parser<String_parser>()),
+              Option("virtiocap", "name of the virtio capability",
+                     make_parser<String_parser>()),
               Option("size", "size of the dataspace",
                      make_parser<Addr_parser>(_trg_arch.is64bit),
                      Option::Required),
