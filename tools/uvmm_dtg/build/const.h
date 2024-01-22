@@ -67,10 +67,10 @@ inline std::ostream &operator<<(std::ostream &os, const Arch &arch)
 }
 
 struct X86_32: Arch
-{ constexpr X86_32() : Arch(Arch::X86_32, false, 1, 1, "pic") {} };
+{ constexpr X86_32() : Arch(Arch::X86_32, false, 1, 1, "ioapic") {} };
 
 struct X86_64: Arch
-{ constexpr X86_64() : Arch(Arch::X86_64, true, 2, 2, "pic") {} };
+{ constexpr X86_64() : Arch(Arch::X86_64, true, 2, 2, "ioapic") {} };
 
 struct Arm32: Arch
 { constexpr Arm32() : Arch(Arch::Arm32, false, 1, 1, "gic") {} };
