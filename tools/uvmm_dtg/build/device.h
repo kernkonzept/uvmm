@@ -211,8 +211,20 @@ struct Device_parser: Parser
       r.set_error(std::string(key + " is only allowed once"));
     else
       {
-        auto w = s != vec->end() ? split(*s, ",=") : std::vector<std::string>();
-        Results e = _opts.parse(&w, w.begin(), true);
+        // Find all device options
+        // e.g. 'num=2', or 'cmdline=earlyprintk=ttyS0 root=/dev/ram rw,kernel=rom/kernel'
+        // we split at ',' to receive a vector of Options e.g. "cmdline"
+        // "earlyprintk=ttyS0 root=/dev/ram rw", "kernel", "rom/kernel"
+        auto w = s != vec->end() ? split(*s, ",") : std::vector<std::string>();
+        std::vector<std::string> o;
+        for (unsigned i = 0; i < w.size(); ++i)
+          {
+            // everything until first '=' is the key
+            o.push_back(w[i].substr(0, w[i].find_first_of('=')));
+            // everything else is the value
+            o.push_back(w[i].substr(w[i].find_first_of('=') + 1));
+          }
+        Results e = _opts.parse(&o, o.begin(), true);
         if (e.is_error())
           r.set_error(e);
         else
