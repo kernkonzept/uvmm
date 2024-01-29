@@ -178,7 +178,7 @@ public:
                         "PCI bridge: Missing ranges property in DT node");
 
     auto parent = node.parent_node();
-    auto parent_addr_cells = node.get_address_cells(parent);
+    size_t parent_addr_cells = node.get_address_cells(parent);
     size_t child_addr_cells = node.get_address_cells(node);
     size_t child_size_cells = node.get_size_cells(node);
 
@@ -187,7 +187,7 @@ public:
     if (prop_size % range_size != 0)
       {
         Err().printf("Ranges property size: %i, Range entry size %u, "
-                     "#child cells %zu, #parent cells %lu, #size cells %zu\n",
+                     "#child cells %zu, #parent cells %zu, #size cells %zu\n",
                      prop_size, range_size, child_addr_cells, parent_addr_cells,
                      child_size_cells);
         L4Re::throw_error(-L4_EINVAL,
