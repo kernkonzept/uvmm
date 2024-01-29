@@ -81,6 +81,8 @@ public:
     _align(align)
   {}
 
+  virtual ~Ds_manager() = default;
+
   /**
    * Get the capability for the managed dataspace.
    */
