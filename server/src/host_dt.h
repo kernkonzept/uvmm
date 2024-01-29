@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include <l4/cxx/unique_ptr>
 #include <l4/l4virtio/virtqueue>
 
 #include "device.h"
@@ -32,27 +33,18 @@ public:
   Host_dt &operator=(Host_dt const &) = delete;
 
   // Move is allowed
-  Host_dt(Host_dt &&other)
-  {
-    _fdt = other._fdt;
-    other._fdt = nullptr;
-  }
-
-  Host_dt &operator=(Host_dt &&other)
-  {
-    _fdt = other._fdt;
-    other._fdt = nullptr;
-    return *this;
-  }
-
-  ~Host_dt()
-  { delete(_fdt); }
+  Host_dt(Host_dt &&other) = default;
+  Host_dt &operator=(Host_dt &&other) = default;
 
   bool valid() const noexcept
   { return _fdt; }
 
+  /**
+   * \note The returned object is valid only as long as this #Host_dt object
+   *       does not delete the underlying Dtb::Fdt object.
+   */
   Device_tree get() const
-  { return Device_tree(_fdt); }
+  { return Device_tree(_fdt.get()); }
 
   void add_source(char const *fname);
 
@@ -87,16 +79,16 @@ public:
     if (Monitor::cmd_control_enabled())
       {
         // Create a copy for the monitor
-        Dtb::Fdt *new_fdt = new Dtb::Fdt(*_fdt);
+        auto new_fdt = cxx::make_unique<Dtb::Fdt>(*_fdt);
         _fdt->move(target);
-        _fdt = new_fdt;
+        _fdt = cxx::move(new_fdt);
       }
     else
         _fdt->move(target);
   }
 
 private:
-  Dtb::Fdt *_fdt = nullptr;
+  cxx::unique_ptr<Dtb::Fdt> _fdt;
 };
 
 }

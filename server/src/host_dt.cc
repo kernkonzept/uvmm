@@ -92,7 +92,7 @@ Vdev::Host_dt::add_source(char const *fname)
   dt.check_tree();
 
   // XXX would be nice to expand dynamically
-  _fdt = new Dtb::Fdt(fdt, cxx::max(dt.size(), 0x200U));
+  _fdt = cxx::make_unique<Dtb::Fdt>(fdt, cxx::max(dt.size(), 0x200U));
 }
 
 void
