@@ -1192,7 +1192,7 @@ Node<ERR>::translate_reg(Node const &parent, Cell *address, Cell const &size) co
 {
   static Cell no_reg_mask;
   static Cell pci_bus_reg_mask = Cell::make_cell({0x03000000U, 0xffffffffU, 0xffffffffU});
-  static Cell isa_bus_reg_mask = Cell::make_cell({0xffffffffU});
+  static Cell isa_bus_reg_mask = Cell::make_cell({0x0000'0001U, 0xffff'ffffU});
 
   if (parent.is_root_node())
     return true;
