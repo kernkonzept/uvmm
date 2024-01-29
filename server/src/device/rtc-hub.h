@@ -19,32 +19,20 @@ public:
 
 class L4rtc_hub
 {
-  static L4rtc_hub *_l4rtc;
-  L4rtc_adapter *_adapter = nullptr;
+  static L4rtc_adapter *_adapter;
 
 public:
-  static L4rtc_hub *get()
-  {
-    if (!_l4rtc)
-      _l4rtc = new L4rtc_hub();
-    return _l4rtc;
-  };
+  static void invalidate()
+  { _adapter = nullptr; }
 
-  static void destroy()
-  {
-    if (_l4rtc)
-      delete _l4rtc;
-    _l4rtc = nullptr;
-  }
-
-  l4_uint64_t ns_since_epoch()
+  static l4_uint64_t ns_since_epoch()
   {
     if (_adapter)
       return _adapter->ns_since_epoch();
     return time(NULL) * 1000000000;
   }
 
-  void register_adapter(L4rtc_adapter *adapter)
+  static void register_adapter(L4rtc_adapter *adapter)
   { _adapter = adapter; }
 };
 

@@ -37,12 +37,18 @@ public:
   External_rtc(L4::Cap<L4rtc::Rtc> cap)
   : _rtc(cap)
   {
-    L4rtc_hub::get()->register_adapter(this);
+    L4rtc_hub::register_adapter(this);
     if (_rtc->get_timer_offset(&_ns_offset))
       {
         warn().printf("Could not read time @rtc.\n");
         _ns_offset = 0;
       }
+  }
+
+  ~External_rtc()
+  {
+    // Remove a potential reference to this object.
+    L4rtc_hub::invalidate();
   }
 
   l4_uint64_t ns_since_epoch()

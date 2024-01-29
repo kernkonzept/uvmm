@@ -168,7 +168,7 @@ class Rtc :
   // return next timeout in seconds
   time_t calc_next_alarm()
   {
-    time_t seconds = ns_to_s(L4rtc_hub::get()->ns_since_epoch());
+    time_t seconds = ns_to_s(L4rtc_hub::ns_since_epoch());
     struct tm *alarm_time = gmtime(&seconds);
     struct tm *current_time = gmtime(&seconds);
 
@@ -342,7 +342,7 @@ class Rtc :
 
     // only update time if guest does not currently try to set a new time
     if (!_reg_b.set())
-      _seconds = ns_to_s(L4rtc_hub::get()->ns_since_epoch());
+      _seconds = ns_to_s(L4rtc_hub::ns_since_epoch());
 
     struct tm *t = gmtime(&_seconds);
     if (!t)
@@ -404,7 +404,7 @@ public:
       "source.\n");
 #endif
 
-    _seconds = ns_to_s(L4rtc_hub::get()->ns_since_epoch());
+    _seconds = ns_to_s(L4rtc_hub::ns_since_epoch());
   }
 
   char const *dev_name() const override
@@ -446,9 +446,7 @@ public:
 
   ~Rtc()
   {
-    // remove a potential reference to the local object.
     dequeue_timeout(&_alarm_timeout);
-    L4rtc_hub::destroy();
   }
 
 private:

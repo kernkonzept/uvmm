@@ -69,7 +69,7 @@ public:
       case Dr:
         {
           l4_uint64_t t =
-            Vdev::L4rtc_hub::get()->ns_since_epoch();
+            Vdev::L4rtc_hub::ns_since_epoch();
           retval = t / 1000000000;
         }
         break;
