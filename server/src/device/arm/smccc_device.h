@@ -27,7 +27,8 @@ struct Smccc_device : public virtual Vdev::Dev_ref
    * Method called by the vmm on either a SMC/HVC call.
    *
    * \param imm   Immediate value of the SMC/HVC instruction.
-   * \param vcpu  The cpu pointer when trapped.
+   * \param vcpu  The cpu pointer when trapped. vcpu->r.ip points to the
+   *              instruction after the trapped SMC/HVC instruction
    *
    * \return  True when the call was handled by the implementation and false
    *          otherwise.

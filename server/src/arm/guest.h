@@ -104,6 +104,12 @@ public:
   void handle_smccc_call(Vcpu_ptr vcpu)
   {
     bool res = false;
+
+    // Skip HVC/SMC instruction here. Some vm_call() methods like
+    // Psci_device::vm_call() might set it to a completly different value, which
+    // we can not change without breaking things.
+    vcpu->r.ip += 4;
+
     // Check if this is a valid/supported SMCCC call
     if (Smccc_device::is_valid_call(vcpu->r.r[0]))
       {
@@ -122,11 +128,9 @@ public:
                       (METHOD == Smc) ? "SMC" : "HVC",
                       static_cast<unsigned>(vcpu.hsr().svc_imm()),
                       vcpu->r.r[0] & mask, vcpu->r.r[1] & mask,
-                      vcpu->r.ip & mask, vcpu.get_lr() & mask);
+                      (vcpu->r.ip - 4) & mask, vcpu.get_lr() & mask);
         vcpu->r.r[0] = Smccc_device::Not_supported;
       }
-
-    vcpu->r.ip += 4;
   }
 
   void handle_wfx(Vcpu_ptr vcpu);
