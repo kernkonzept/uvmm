@@ -580,7 +580,7 @@ public:
   explicit Irq_array(unsigned irqs, unsigned first_irq)
   : _size(irqs)
   {
-    _irqs = cxx::unique_ptr<Irq[]>(new Irq[irqs]);
+    _irqs = cxx::make_unique<Irq[]>(irqs);
     for (unsigned i = 0; i < irqs; i++)
       _irqs.get()[i].set_id(i + first_irq);
   }

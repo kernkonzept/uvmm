@@ -156,7 +156,7 @@ Guest::Guest()
 Guest *
 Guest::create_instance()
 {
-  guest.reset(new Guest());
+  guest = cxx::make_unique<Guest>();
   return guest.get();
 }
 
