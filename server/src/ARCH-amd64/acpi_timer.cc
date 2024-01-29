@@ -49,6 +49,9 @@ public:
     _timebase = l4_rdtsc();
   }
 
+  char const *dev_name() const override
+  { return "ACPI Timer"; }
+
   void amend_fadt(ACPI_TABLE_FADT *t) const override
   {
     t->PmTimerBlock = Port;

@@ -139,6 +139,9 @@ class Legacy_pic : public Gic::Ic
       _icw4.aeoi() = 1;
     }
 
+    char const *dev_name() const override
+    { return "PIC"; }
+
     /// Check interrupt mask/in-service and return the IRQ number with offset.
     int trigger(unsigned irq)
     {

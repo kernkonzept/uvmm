@@ -443,6 +443,9 @@ public:
   : Uart_8250_base(con, 0, ic, irq)
   {}
 
+  char const *dev_name() const override
+  { return "UART 8250"; }
+
   void io_in(unsigned reg, Vmm::Mem_access::Width width, l4_uint32_t *value) override
   {
     *value = read(reg, 1 << width, 0);

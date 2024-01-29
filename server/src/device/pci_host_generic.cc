@@ -414,6 +414,9 @@ class Pci_bus_cfg_io : public Vmm::Io_device
 public:
   Pci_bus_cfg_io(cxx::Ref_ptr<Pci_host_generic> const &pci_bus) : _bus(pci_bus) {}
 
+  char const *dev_name() const override
+  { return "PCI bus cfg"; }
+
   void io_out(unsigned port, Vmm::Mem_access::Width width,
               l4_uint32_t value) override
   {

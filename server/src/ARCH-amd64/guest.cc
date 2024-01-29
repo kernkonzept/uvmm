@@ -634,6 +634,8 @@ Guest::handle_cpuid_devices(l4_vcpu_regs_t const *regs, unsigned *a,
 void
 Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
 {
+  iomap_dump(Dbg::Info);
+
   info().printf("Starting VMM @ 0x%lx\n", cpus->vcpu(0)->r.ip);
 
   // Additional vCPUs are initialized to run startup on the first reschedule.

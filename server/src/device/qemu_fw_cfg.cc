@@ -501,6 +501,9 @@ public:
   : Qemu_fw_if(devs, node)
   {}
 
+  char const *dev_name() const override
+  { return "Firmware interface"; }
+
   /* IO write from the guest to device */
   void io_out(unsigned port, Vmm::Mem_access::Width width, l4_uint32_t value) override
   {

@@ -363,6 +363,9 @@ class Pit_timer
   {
     Port61(Channel *ch2) : _ch2(ch2) {}
 
+    char const *dev_name() const override
+    { return "PIT port 61"; }
+
     void io_in(unsigned, Vmm::Mem_access::Width, l4_uint32_t *value) override
     {
       *value = val;
@@ -406,6 +409,9 @@ class Pit_timer
 public:
   Pit_timer(cxx::Ref_ptr<Gic::Ic> const &ic, int irq);
   virtual ~Pit_timer() = default;
+
+  char const *dev_name() const override
+  { return "PIT"; }
 
   cxx::Ref_ptr<Vmm::Io_device> const port61() const { return _port61; }
 

@@ -248,6 +248,17 @@ private:
   Event_recorder *recorder(unsigned num)
   { return _event_recorders.recorder(num); }
 
+  void iomap_dump(Dbg::Verbosity l) const
+  {
+    Dbg d(Dbg::Dev, l, "vmmap");
+    if (d.is_active())
+      {
+        d.printf("IOport map:\n");
+        for (auto const &r : _iomap)
+          d.printf(" [%4lx:%4lx]: %s\n", r.first.start, r.first.end,
+                   r.second->dev_name());
+      }
+  }
   std::mutex _iomap_lock;
   Io_mem _iomap;
 

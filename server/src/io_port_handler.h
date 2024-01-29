@@ -25,6 +25,9 @@ public:
   : _base(port_base)
   {}
 
+  char const *dev_name() const override
+  { return "Pass-through device"; }
+
   void io_in(unsigned p, Mem_access::Width width, l4_uint32_t *value);
   void io_out(unsigned p, Mem_access::Width width, l4_uint32_t value);
 }; // class Io_port_handler

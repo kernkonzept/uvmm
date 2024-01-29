@@ -71,6 +71,9 @@ public:
     _acpi_enabled(false)
   {}
 
+  char const *dev_name() const override
+  { return "ACPI platform"; }
+
   void amend_fadt(ACPI_TABLE_FADT *t) const override
   {
     t->SmiCommand  = Ports::Smi_command; // 32-bit port address of SMI command port

@@ -407,6 +407,9 @@ public:
     _seconds = ns_to_s(L4rtc_hub::get()->ns_since_epoch());
   }
 
+  char const *dev_name() const override
+  { return "RTC"; }
+
   /* IO write from the guest to device */
   void io_out(unsigned port, Vmm::Mem_access::Width, l4_uint32_t value) override
   {

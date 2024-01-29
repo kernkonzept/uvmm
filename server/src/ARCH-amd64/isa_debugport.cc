@@ -68,6 +68,9 @@ public:
     L4Re::chksys(con->set_attr(&attr), "console set_attr");
   }
 
+  char const *dev_name() const override
+  { return "ISA Debugport"; }
+
 private:
   /* IO write from the guest to device */
   void io_out(unsigned, Vmm::Mem_access::Width, l4_uint32_t value) override

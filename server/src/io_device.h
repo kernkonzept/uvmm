@@ -23,6 +23,18 @@ struct Io_device : virtual Vdev::Dev_ref
                      l4_uint32_t *value) = 0;
   virtual void io_out(unsigned port, Mem_access::Width width,
                       l4_uint32_t value) = 0;
+
+  virtual char const *dev_name() const = 0;
+
+  virtual char const *dev_info(char *buf, size_t size) const
+  {
+    if (size > 0)
+      {
+        strncpy(buf, dev_name(), size);
+        buf[size - 1] = '\0';
+      }
+    return buf;
+  };
 };
 
 inline Io_device::~Io_device() = default;

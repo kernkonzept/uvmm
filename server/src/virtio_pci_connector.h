@@ -36,6 +36,9 @@ class Pci_connector : public Vmm::Io_device
   }
 
 public:
+  char const *dev_name() const override
+  { return "Virtio PCI Device"; }
+
   void io_in(unsigned port, Vmm::Mem_access::Width wd, l4_uint32_t *value) override
   {
     auto vcfg = dev()->virtio_cfg();
