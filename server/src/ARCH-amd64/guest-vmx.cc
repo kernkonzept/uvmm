@@ -25,9 +25,10 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
   unsigned vcpu_id = vcpu.get_vcpu_id();
 
   if (reason != Vmx_state::Exit::Exec_vmcall)
-    trace().printf("[%3u]: Exit at guest IP 0x%lx SP 0x%lx with 0x%llx (Qual: 0x%llx)\n",
+    trace().printf("[%3u]: Exit at guest IP 0x%lx SP 0x%lx with %llu ('%s') (Qual: 0x%llx)\n",
                    vcpu_id, vms->ip(), vms->sp(),
                    vms->vmx_read(VMCS_EXIT_REASON),
+                   exit_reason_to_str(vms->vmx_read(VMCS_EXIT_REASON)),
                    vms->vmx_read(VMCS_EXIT_QUALIFICATION));
 
   switch (reason)

@@ -82,4 +82,12 @@ static const char *str_exit_reason[] =
   /* 69 */ "LOADIWKEY instruction"
 };
 
+// Returns a human readable string for any given exit reason.
+inline char const *exit_reason_to_str(l4_uint64_t exit_reason)
+{
+  if (exit_reason < (sizeof(str_exit_reason) / sizeof(char const *)))
+    return str_exit_reason[exit_reason];
+  return "Unknown";
+}
+
 } // namespace Vmm
