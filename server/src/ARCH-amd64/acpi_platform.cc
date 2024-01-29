@@ -60,7 +60,7 @@ public:
     Pm1a_en         = Pm1a_event_block + 2,
     Pm1_event_length= 4,
     Reset_register  = Pm1a_event_block + Pm1_event_length, // 0x1808
-    Ports_end       = Reset_register + 1,
+    Ports_last       = Reset_register, // inclusive end
   };
 
   Acpi_platform(Vmm::Guest *vmm, cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
@@ -326,7 +326,7 @@ struct F : Vdev::Factory
 
     auto *vmm = devs->vmm();
     auto start = Acpi::Acpi_platform::Ports::Ports_start;
-    auto end   = Acpi::Acpi_platform::Ports::Ports_end;
+    auto end   = Acpi::Acpi_platform::Ports::Ports_last;
     vmm->add_io_device(Vmm::Io_region(start, end, Vmm::Region_type::Virtual),
                        dev);
     return dev;

@@ -487,7 +487,7 @@ struct F : Vdev::Factory
 
     if (Vmm::Guest::Has_io_space) // Differentiate node types (MMIO or port-IO) here
       {
-        auto region = Vmm::Io_region(0x3f8, 0x400, Vmm::Region_type::Virtual);
+        auto region = Vmm::Io_region(0x3f8, 0x3ff, Vmm::Region_type::Virtual);
         auto c = Vdev::make_device<Uart_8250_io>(cap, it.ic(), it.irq());
         c->register_obj<Uart_8250_io>(devs->vmm()->registry());
         devs->vmm()->add_io_device(region, c);
