@@ -396,7 +396,8 @@ guest_unknown_fault(Vcpu_ptr vcpu)
 {
   // Strip register values if the guest is executed in 32-bit mode.
   l4_umword_t mask = (vcpu->r.flags & 0x10) ? ~0U : ~0UL;
-  Err().printf("unknown trap: err=%lx ec=0x%x ip=%lx lr=%lx\n",
+  Err().printf("[%3u] unknown trap: err=%lx ec=0x%x ip=%lx lr=%lx\n",
+               vcpu.get_vcpu_id(),
                vcpu->r.err, static_cast<int>(vcpu.hsr().ec()),
                vcpu->r.ip & mask, vcpu.get_lr() & mask);
   if (!guest->inject_undef(vcpu))
