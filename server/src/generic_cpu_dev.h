@@ -38,10 +38,85 @@ private:
     return Vcpu_ptr(reinterpret_cast<l4_vcpu_state_t *>(vcpu_addr));
   }
 
+protected:
+  /**
+   * Stop execution of the vCPU device on IRQ event.
+   */
+  struct Stop_event
+  {
+    Stop_event(Generic_cpu_dev *c) : cpu(c) {}
+    void act()
+    { cpu->stop(); }
+
+    void registration_failure()
+    {
+      Dbg().printf("Failed to register IRQ to stop vCPU; Shutdown "
+                   "synchronization not enforcable.\n");
+    }
+
+    void trigger_failure(long ipc_err)
+    {
+      Dbg().printf("IPI to vCPU %u failed with error %li\n",
+                   cpu->vcpu().get_vcpu_id(), ipc_err);
+    }
+
+    Generic_cpu_dev *cpu;
+  };
+
+protected:
+  /**
+   * Management wrapper for vCPU device specific actions to execute on IRQ event.
+   *
+   * \tparam EVENT  Action to execute when the IRQ is received.
+   */
+  template <typename EVENT>
+  class Cpu_irq : public L4::Irqep_t<Cpu_irq<EVENT>>
+  {
+  public:
+    Cpu_irq(EVENT const &a) : _event(a) {}
+
+    void handle_irq() { _event.act(); }
+
+    void arm(Vcpu_obj_registry *registry)
+    {
+      if (_irq.is_valid())
+        {
+          Dbg().printf("Rearming already armed CPU IRQ. Ignored.\n");
+          return;
+        }
+
+      _irq = registry->register_irq_obj(this);
+      if (!_irq.is_valid())
+        _event.registration_failure();
+    }
+
+    void disarm(Vcpu_obj_registry *registry)
+    {
+      registry->unregister_obj(this);
+      _irq.invalidate();
+    }
+
+    /**
+     * \pre `_irq` capability is registered.
+     */
+    void trigger()
+    {
+      assert(_irq.is_valid());
+
+      l4_msgtag_t tag = _irq->trigger();
+      if (tag.has_error())
+        _event.trigger_failure(l4_ipc_error(tag, l4_utcb()));
+    }
+
+  private:
+    L4::Cap<L4::Irq> _irq;
+    EVENT _event;
+  };
+
 public:
   Generic_cpu_dev(unsigned idx, unsigned phys_id)
   : _vcpu(nullptr), _phys_cpu_id(phys_id), _thread(nullptr),
-    _registry(&_bm)
+    _registry(&_bm), _stop_irq(Stop_event(this))
   {
     // The CPU 0 (boot CPU) vCPU is allocated in main
     if (_main_vcpu_used || (idx != 0))
@@ -62,13 +137,20 @@ public:
     _vcpu->entry_sp = 0;
   }
 
+  virtual ~Generic_cpu_dev()
+  { _stop_irq.disarm(_vcpu.get_ipc_registry()); }
+
   Vcpu_ptr vcpu() const
   { return _vcpu; }
 
   virtual void powerup_cpu();
   void reschedule();
 
+  void send_stop_event()
+  { _stop_irq.trigger(); }
+
   virtual void reset() = 0;
+  virtual void stop() = 0;
 
   /**
    * Start CPU, run through reset and resume to the VM.
@@ -99,6 +181,7 @@ protected:
   L4Re::Util::Br_manager _bm;
   Vcpu_obj_registry _registry;
   bool _attached = false;
+  Cpu_irq<Stop_event> _stop_irq;
 
 private:
   static Vcpu_ptr _main_vcpu;

@@ -36,6 +36,8 @@ public:
   {
     Dbg().printf("Reset called\n");
 
+    _stop_irq.arm(_vcpu.get_ipc_registry());
+
     _vcpu->state = L4_VCPU_F_FPU_ENABLED;
     _vcpu->saved_state = L4_VCPU_F_FPU_ENABLED | L4_VCPU_F_USER_MODE;
 
@@ -65,6 +67,14 @@ public:
 
   void set_protected_mode()
   { _protected_mode = true; }
+
+  virtual void stop() override
+  {
+    set_cpu_state(Sleeping);
+    _stop_irq.disarm(_vcpu.get_ipc_registry());
+    // Do not do anything blocking here, we need to finish the execution of the
+    // IPC dispatching that brought us here.
+  }
 
 private:
   Cpu_state _cpu_state;

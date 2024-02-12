@@ -694,6 +694,14 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
             }
         }
 
+      // Stop IRQ received - sleep until INIT-IPI and ignore everyhting else.
+      if (cpu->get_cpu_state() == Vmm::Cpu_dev::Cpu_state::Sleeping)
+        {
+          while (cpu->get_cpu_state() != Vmm::Cpu_dev::Cpu_state::Init)
+            vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+        }
+
+
       // Handle stopped CPUs.
       // In the case of Halt, the CPU has to be stopped until a device
       // interrupt happens.
