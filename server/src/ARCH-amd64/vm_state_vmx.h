@@ -665,8 +665,8 @@ public:
 
   void additional_failure_info()
   {
-    warn().printf("VM instruction error: 0x%llx\n",
-                  vmx_read(VMCS_VM_INSN_ERROR));
+    Err().printf("VM instruction error: 0x%llx\n",
+                 vmx_read(VMCS_VM_INSN_ERROR));
   }
 
 private:

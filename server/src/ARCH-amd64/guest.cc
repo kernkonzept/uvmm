@@ -680,11 +680,11 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
           int ret = handle_exit(vcpu, vm);
           if (ret < 0)
             {
-              trace().printf("[%3u]: Failure in VMM %i\n", vcpu_id, ret);
-              trace().printf("[%3u]: regs: AX 0x%lx, BX 0x%lx, CX 0x%lx, "
-                             "DX 0x%lx, SI 0x%lx, DI 0x%lx, IP 0x%lx\n",
-                             vcpu_id, vcpu->r.ax, vcpu->r.bx, vcpu->r.cx,
-                             vcpu->r.dx, vcpu->r.si, vcpu->r.di, vm->ip());
+              Err().printf("[%3u]: Failure in VMM %i\n", vcpu_id, ret);
+              Err().printf("[%3u]: regs: AX 0x%lx, BX 0x%lx, CX 0x%lx, "
+                           "DX 0x%lx, SI 0x%lx, DI 0x%lx, IP 0x%lx\n",
+                           vcpu_id, vcpu->r.ax, vcpu->r.bx, vcpu->r.cx,
+                           vcpu->r.dx, vcpu->r.si, vcpu->r.di, vm->ip());
               halt_vm(vcpu);
             }
           else if (ret == Jump_instr)
