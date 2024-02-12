@@ -84,9 +84,9 @@ Vcpu_ptr::decode_mmio() const
     }
   catch (L4::Runtime_error &e)
     {
-      warn().printf("Could not determine opcode for MMIO access. Page table "
+      warn().printf("[%3u] Could not determine opcode for MMIO access. Page table "
                     "walking failed for IP 0x%lx and reports: %s\n",
-                    vms->ip(), e.extra_str());
+                    get_vcpu_id(), vms->ip(), e.extra_str());
       return m;
     }
 
@@ -117,8 +117,9 @@ Vcpu_ptr::decode_mmio() const
   if (!decoded)
     {
       unsigned char const *text = reinterpret_cast<unsigned char *>(opcode);
-      Dbg().printf("Decoding failed at 0x%lx: %02x %02x %02x %02x %02x %02x %02x <%02x> %02x %02x %02x %02x %02x %02x %02x %02x\n",
-                   vms->ip(),
+      Dbg().printf("[%3u] Decoding failed at 0x%lx: %02x %02x %02x %02x %02x "
+                   "%02x %02x <%02x> %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                   get_vcpu_id(), vms->ip(),
                    text[-7], text[-6], text[-5], text[-4], text[-3],
                    text[-2], text[-1], text[0], text[1], text[2], text[3],
                    text[4], text[5], text[6], text[7], text[8]);
@@ -132,7 +133,7 @@ Vcpu_ptr::decode_mmio() const
 
   if (tgt.dtype != L4mad::Desc_reg && tgt.dtype != L4mad::Desc_mem)
     {
-      Dbg().printf("tgt type invalid %i\n", tgt.dtype);
+      Dbg().printf("[%3u] tgt type invalid %i\n", get_vcpu_id(), tgt.dtype);
       return m;
     }
 
