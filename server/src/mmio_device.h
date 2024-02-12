@@ -9,6 +9,7 @@
 #pragma once
 #include <typeinfo>
 
+#include <l4/bid_config.h>
 #include <l4/cxx/ref_ptr>
 #include <l4/cxx/unique_ptr>
 #include <l4/re/util/cap_alloc>
@@ -307,6 +308,13 @@ struct Ro_ds_mapper_t : Mmio_device
   void map_eager(L4::Cap<L4::Vm> vm_task, Vmm::Guest_addr start,
                  Vmm::Guest_addr end) override
   {
+#ifndef CONFIG_MMU
+    // Cannot map if guest address is different. Transparently fall back to
+    // emulation.
+    if (start.get() != dev()->local_addr())
+      return;
+#endif
+
 #ifndef MAP_OTHER
     l4_size_t size = end - start + 1;
     if (size > dev()->mapped_mmio_size())
@@ -355,6 +363,13 @@ struct Ro_ds_mapper_t : Mmio_device
                                      min, max, vm_task);
 #else
     auto local_start = local_addr();
+
+#ifndef CONFIG_MMU
+    // Cannot map if guest address is different. Transparently fall back to
+    // emulation.
+    if (local_start + offset != pfa)
+      return;
+#endif
 
     // Make sure that the page is currently mapped.
     auto res = page_in(local_start + offset, false);
