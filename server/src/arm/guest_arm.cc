@@ -365,7 +365,7 @@ void Guest::stop_cpus()
     {
       if (   cpu && cpu->online()
           && cpu->vcpu().get_vcpu_id() != vmm_current_cpu_id)
-        cpu->thread_cap()->ex_regs(~0, ~0, L4_THREAD_EX_REGS_TRIGGER_EXCEPTION);
+        cpu->send_stop_event();
     }
 }
 
@@ -628,15 +628,10 @@ static void guest_msr_access(Vcpu_ptr vcpu)
     }
 }
 
-void Vmm::Guest::handle_ex_regs_exception(Vcpu_ptr vcpu)
+static void ex_regs_exception(Vcpu_ptr)
 {
-  // stop this vcpu
-  _cpus->cpu(vcpu.get_vcpu_id())->stop();
-}
-
-static void ex_regs_exception(Vcpu_ptr vcpu)
-{
-  guest->handle_ex_regs_exception(vcpu);
+  Dbg warn(Dbg::Cpu, Dbg::Warn, "CPU");
+  warn.printf("Ex_regs exception exit received. Nothing to do!\n");
 }
 
 extern "C" l4_msgtag_t prepare_guest_entry(Vcpu_ptr vcpu);
