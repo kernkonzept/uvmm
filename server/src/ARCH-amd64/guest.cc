@@ -27,6 +27,7 @@
 static cxx::Static_container<Vmm::Guest> guest;
 Acpi::Acpi_device_hub *Acpi::Acpi_device_hub::_hub;
 Acpi::Facs_storage *Acpi::Facs_storage::_facs_storage;
+__thread unsigned vmm_current_cpu_id;
 
 namespace {
 
@@ -610,6 +611,38 @@ Guest::handle_cpuid_devices(l4_vcpu_regs_t const *regs, unsigned *a,
         return true;
     }
   return false;
+}
+
+void
+Guest::sync_all_other_cores_off() const
+{
+  // send IPI to all cores to power off
+  for (auto cpu : *_cpus.get())
+    {
+      if (cpu && cpu->cpu_online()
+          && cpu->vcpu().get_vcpu_id() != vmm_current_cpu_id)
+        {
+          cpu->send_stop_event();
+        }
+    }
+
+  // busy-wait until all other cores are off.
+  bool all_stop = true;
+  do
+    {
+      all_stop = true;
+      for (auto cpu : *_cpus.get())
+        {
+          if (cpu && cpu->vcpu().get_vcpu_id() == vmm_current_cpu_id)
+            continue;
+
+          if (cpu && cpu->cpu_online())
+            {
+              all_stop = false;
+              break;
+            }
+        }
+    } while (!all_stop);
 }
 
 void

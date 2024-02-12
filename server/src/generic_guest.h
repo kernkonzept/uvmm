@@ -111,8 +111,11 @@ public:
   virtual void L4_NORETURN shutdown(int val)
   {
     _pm->shutdown(val == Reboot);
+    sync_all_other_cores_off();
     exit(val);
   }
+
+  virtual void sync_all_other_cores_off() const {};
 
   int handle_mmio(l4_addr_t pfa, Vcpu_ptr vcpu)
   {

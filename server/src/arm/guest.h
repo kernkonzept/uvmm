@@ -59,10 +59,12 @@ public:
 
   void cpu_online(Cpu_dev *cpu);
   void cpu_offline(Cpu_dev *cpu);
+  virtual void sync_all_other_cores_off() const override;
 
   void L4_NORETURN halt_vm(Vcpu_ptr current_vcpu) override
   {
     stop_cpus();
+    sync_all_other_cores_off();
     Generic_guest::halt_vm(current_vcpu);
   }
 

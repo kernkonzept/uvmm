@@ -5,10 +5,14 @@
  */
 #pragma once
 
+#include <atomic>
+
 #include "debug.h"
 #include "generic_cpu_dev.h"
 #include "vcpu_ptr.h"
 #include "monitor/cpu_dev_cmd_handler.h"
+
+extern __thread unsigned vmm_current_cpu_id;
 
 namespace Vmm {
 
@@ -36,6 +40,7 @@ public:
   {
     Dbg().printf("Reset called\n");
 
+    vmm_current_cpu_id = _vcpu.get_vcpu_id();
     _stop_irq.arm(_vcpu.get_ipc_registry());
 
     _vcpu->state = L4_VCPU_F_FPU_ENABLED;
@@ -59,8 +64,11 @@ public:
   unsigned get_phys_cpu_id() const noexcept
   { return _phys_cpu_id; }
 
-  Cpu_state get_cpu_state()
+  Cpu_state get_cpu_state() const
   { return _cpu_state; }
+
+  bool cpu_online() const
+  { return get_cpu_state() == Cpu_state::Running; }
 
   void set_cpu_state(Cpu_state state)
   { _cpu_state = state; }
@@ -77,7 +85,7 @@ public:
   }
 
 private:
-  Cpu_state _cpu_state;
+  std::atomic<Cpu_state> _cpu_state;
   bool _protected_mode = false;
 
 }; // class Cpu_dev

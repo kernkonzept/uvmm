@@ -141,6 +141,8 @@ public:
     info().printf("Waking CPU %u on EIP 0x%lx\n", 0, wake_vector);
   }
 
+  virtual void sync_all_other_cores_off() const override;
+
   void handle_entry(Vcpu_ptr vcpu);
 
   Gic::Virt_lapic *lapic(Vcpu_ptr vcpu)

@@ -214,6 +214,28 @@ static Vdev::Device_type tt2 = { "arm,armv8-timer", nullptr, &ftimer };
 
 } // namespace
 
+
+void
+Guest::sync_all_other_cores_off() const
+{
+  bool all_stop = true;
+  do
+    {
+      all_stop = true;
+      for (auto cpu : *_cpus.get())
+        {
+          if (cpu && cpu->vcpu().get_vcpu_id() == vmm_current_cpu_id)
+            continue;
+
+          if (cpu && cpu->online())
+            {
+              all_stop = false;
+              break;
+            }
+        }
+    } while (!all_stop);
+};
+
 void
 Guest::check_guest_constraints(l4_addr_t base) const
 {
