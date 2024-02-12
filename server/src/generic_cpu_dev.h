@@ -108,6 +108,11 @@ protected:
         _event.trigger_failure(l4_ipc_error(tag, l4_utcb()));
     }
 
+    l4_msgtag_t receive(l4_timeout_t to = L4_IPC_NEVER)
+    {
+      return _irq->receive(to);
+    }
+
   private:
     L4::Cap<L4::Irq> _irq;
     EVENT _event;

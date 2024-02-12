@@ -16,10 +16,11 @@ namespace Vmm {
 
 template <>
 int
-Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
+Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
 {
   using Exit = Vmx_state::Exit;
   auto reason = vms->exit_reason();
+  Vmm::Vcpu_ptr vcpu = cpu->vcpu();
   auto *regs = &vcpu->r;
   auto *ev_rec = recorder(vcpu.get_vcpu_id());
   unsigned vcpu_id = vcpu.get_vcpu_id();
@@ -135,7 +136,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
                       vms->vmx_read(VMCS_GUEST_ACTIVITY_STATE));
 
       vms->halt();
-
+      cpu->halt_cpu();
       return Jump_instr;
 
     case Exit::Exec_rdpmc:

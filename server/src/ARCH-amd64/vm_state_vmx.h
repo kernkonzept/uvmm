@@ -397,6 +397,16 @@ public:
       return Injection_event(vinfo.field, 0U);
   }
 
+  void invalidate_pending_event()
+  {
+    Vmx_state::Idt_vectoring_info vinfo = idt_vectoring_info();
+    if (vinfo.valid())
+      {
+        vinfo.valid().set(0);
+        vmx_write(VMCS_IDT_VECTORING_INFO, vinfo.field);
+      }
+  }
+
   Exit exit_reason() const
   {
     return Exit(vmx_read(VMCS_EXIT_REASON) & 0xffffU);

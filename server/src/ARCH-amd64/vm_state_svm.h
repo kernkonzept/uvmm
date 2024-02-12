@@ -252,6 +252,12 @@ public:
     return Injection_event(_vmcb->control_area.exitintinfo);
   }
 
+  void invalidate_pending_event()
+  {
+    _vmcb->control_area.exitintinfo &=
+      ~(1 << Injection_event::valid_bfm_t::Lsb);
+  }
+
   bool pf_write() const override
   { return Npf_info(_vmcb->control_area.exitinfo1).write(); }
 

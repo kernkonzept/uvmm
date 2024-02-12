@@ -677,6 +677,85 @@ Guest::run_vm(Vcpu_ptr vcpu)
     }
 }
 
+template <typename VMS>
+bool
+Guest::state_transition_effects(Cpu_dev::Cpu_state const current,
+                                Cpu_dev::Cpu_state const new_state,
+                                Gic::Virt_lapic *lapic, VMS *vm)
+{
+  if (current == new_state && current != Cpu_dev::Halted)
+    return false;
+
+  if (current == Cpu_dev::Init && new_state == Cpu_dev::Running)
+    {
+      lapic->clear_irq_state();
+      vm->invalidate_pending_event();
+      // vCPU state setup is done in lapic path
+    }
+  else if (   (current == Cpu_dev::Running && new_state == Cpu_dev::Halted)
+           || (current == Cpu_dev::Halted && new_state == Cpu_dev::Halted))
+    {
+      if (lapic->is_irq_pending() || lapic->is_nmi_pending())
+        return true;
+    }
+
+  return false;
+}
+
+/// returns false if we continue with VMentry
+template <typename VMS>
+bool
+Guest::new_state_action(Cpu_dev::Cpu_state state, bool halt_req,
+                        Cpu_dev *cpu, VMS *vm)
+{
+  // state behavior
+  //  Sleeping -- does not happen here
+  //  Stopped -- wait for INIT-IPI
+  //  Init -- wait for SIPI
+  //  Halt -- wait for IPC
+  //  Running -- do event injection & vmentry.
+
+  if (halt_req) // includes state check for halted -> halted; running -> halted
+    {
+      if (event_injection_t(cpu->vcpu(), vm))
+        {
+          cpu->set_cpu_state(Cpu_dev::Running);
+          vm->resume();
+          return false;
+        }
+      else
+        {
+          assert(state == Cpu_dev::Halted);
+          assert(cpu->get_cpu_state() == Cpu_dev::Halted);
+        }
+    }
+
+  switch(state)
+    {
+    case Cpu_dev::Stopped:
+    case Cpu_dev::Init:
+      cpu->wait_for_ipi();
+      break;
+    case Cpu_dev::Halted:
+      cpu->vcpu().wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+      break;
+    case Cpu_dev::Running:
+      event_injection_t(cpu->vcpu(), vm);
+      return false;
+    default:
+      // Sleeping is never entered once left, thus cannot happen.
+      // Other states don't exist.
+      // Print the error for debugging and stop vCPU.
+      Err().printf("[%3u] CPU device state %i unknown or invalid. "
+                   "Unrecoverable - stopping core.\n",
+                   cpu->vcpu().get_vcpu_id(), state);
+      vm->additional_failure_info();
+      l4_sleep_forever();
+    }
+
+  return true;
+}
+
 template<typename VMS>
 void L4_NORETURN
 Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
@@ -711,7 +790,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
         }
       else
         {
-          int ret = handle_exit(vcpu, vm);
+          int ret = handle_exit(cpu.get(), vm);
           if (ret < 0)
             {
               Err().printf("[%3u]: Failure in VMM %i\n", vcpu_id, ret);
@@ -728,60 +807,17 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
             }
         }
 
-      // Stop IRQ received - sleep until INIT-IPI and ignore everyhting else.
-      if (cpu->get_cpu_state() == Vmm::Cpu_dev::Cpu_state::Sleeping)
+      Cpu_dev::Cpu_state new_state = Cpu_dev::Running;
+      bool halt_req = false;
+      do
         {
-          while (cpu->get_cpu_state() != Vmm::Cpu_dev::Cpu_state::Init)
-            vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+          new_state = cpu->next_state();
+          halt_req = state_transition_effects(cpu->get_cpu_state(), new_state,
+                                              vapic, vm);
+
+          cpu->set_cpu_state(new_state);
         }
-
-
-      // Handle stopped CPUs.
-      // In the case of Halt, the CPU has to be stopped until a device
-      // interrupt happens.
-      // In the case of the INIT state, the CPU has to be stopped until a
-      // startup IPI happens. INIT state is entered when an INIT IPI happens.
-      // - An INIT IPI can occur any time (e.g. when the CPU is already in
-      //   Halt).
-      // - A device interrupt can happen anytime. We must make sure that none
-      //   happened before we enter wait_for_ipc().
-      // - Therefore order is important!
-      if (cpu->get_cpu_state() == Vmm::Cpu_dev::Cpu_state::Init
-          || vm->is_halted())
-        {
-          do
-            {
-              // if we are in INIT state we must wait until a startup ipi
-              // starts us up again
-              if (cpu->get_cpu_state() == Vmm::Cpu_dev::Cpu_state::Init)
-                {
-                  while (cpu->get_cpu_state() != Vmm::Cpu_dev::Cpu_state::Running)
-                    vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
-
-                  // The CPU is not supposed to accept interrupts while in
-                  // INIT mode. We emulate that by clearing all interrupts
-                  // that happened while CPU was stopped.
-                  vapic->clear_irq_state();
-                  break;
-                }
-
-              // if an interrupt happened, the CPU must return from Halt state
-              // We cannot be sure that the pending interrupt is also
-              // injectable, thus we set the activity state unconditionally.
-              if (vm->is_halted()
-                  && (vapic->is_irq_pending() || vapic->is_nmi_pending()))
-                {
-                  vm->resume();
-                  break;
-                }
-
-              // give up CPU for other tasks
-              vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
-            }
-          while (1);
-        }
-
-      event_injection_t(vcpu, vm);
+      while (new_state_action(new_state, halt_req, cpu.get(), vm));
     }
 }
 

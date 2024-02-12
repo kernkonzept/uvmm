@@ -215,7 +215,7 @@ private:
   bool event_injection_t(Vcpu_ptr vcpu, VMS *vm);
 
   template <typename VMS>
-  int handle_exit(Vcpu_ptr vcpu, VMS *vm);
+  int handle_exit(Cpu_dev *cpu, VMS *vm);
 
   unsigned get_max_physical_address_bit() const
   {
@@ -258,6 +258,14 @@ private:
 
   Event_recorder *recorder(unsigned num)
   { return _event_recorders.recorder(num); }
+
+  template <typename VMS>
+  bool state_transition_effects(Cpu_dev::Cpu_state const cs,
+                                Cpu_dev::Cpu_state const ns,
+                                Gic::Virt_lapic *lapic, VMS *vm);
+  template <typename VMS>
+  bool new_state_action(Cpu_dev::Cpu_state ns, bool halt_req, Cpu_dev *cpu,
+                        VMS *vm);
 
   void iomap_dump(Dbg::Verbosity l) const
   {

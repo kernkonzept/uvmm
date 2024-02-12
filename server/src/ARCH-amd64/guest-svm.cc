@@ -32,8 +32,9 @@ private:
 
 template <>
 int
-Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
+Guest::handle_exit<Svm_state>(Vmm::Cpu_dev *cpu, Svm_state *vms)
 {
+  Vmm::Vcpu_ptr vcpu = cpu->vcpu();
   l4_vcpu_regs_t *regs = &vcpu->r;
   unsigned vcpu_id = vcpu.get_vcpu_id();
 
@@ -180,6 +181,7 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
     case Exit::Hlt:
       trace().printf("[%3u]: HALT 0x%lx!\n", vcpu_id, vms->ip());
       vms->halt();
+      cpu->halt_cpu();
       return Jump_instr;
 
     case Exit::Cr0_sel_write:

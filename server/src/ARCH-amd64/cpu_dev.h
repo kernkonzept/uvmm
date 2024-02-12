@@ -28,8 +28,11 @@ public:
 
   enum Cpu_state
   {
-    Sleeping,
-    Init,
+    Sleeping = 1, // Startup state, Thread created but not running,
+                  // needs rescheduling.
+    Stopped,      // Waits for INIT signal, no need for rescheduling.
+    Init,         // Wait for SIPI to transition to Running.
+    Halted,       // Idle state, VMentry only on event.
     Running
   };
 
@@ -45,21 +48,7 @@ private:
     Ipi_event(Cpu_dev *c) : cpu(c) {}
     void act()
     {
-      bool q_empty = false;
-      {
-        std::lock_guard<std::mutex> lock(cpu->_message_q_lock);
-        State_change sc = cpu->_message_q.front();
-        cpu->set_cpu_state(sc.target_state);
-        cpu->_message_q.pop_front();
-
-        q_empty = cpu->_message_q.empty();
-      }
-
-      // We do state processing in guest.cc's run_vm_t. We currently
-      // expect only one state change per handled IRQ. Trigger this again, to
-      // not miss any message.
-      if (!q_empty)
-        cpu->_ipi.trigger();
+      cpu->_check_msgq = true;
     }
 
     void registration_failure()
@@ -107,9 +96,17 @@ public:
     _vcpu->state = L4_VCPU_F_FPU_ENABLED;
     _vcpu->saved_state = L4_VCPU_F_FPU_ENABLED | L4_VCPU_F_USER_MODE;
 
+    while (has_message())
+      set_cpu_state(next_state());
+
     // wait for the SIPI to set the `Running` state
     while (!cpu_online())
-      _vcpu.wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+      {
+        wait_for_ipi();
+
+        while(has_message())
+          set_cpu_state(next_state());
+      }
 
     Dbg().printf("[%3u] Reset vCPU\n", vcpu().get_vcpu_id());
     _vcpu.reset(_protected_mode);
@@ -134,7 +131,10 @@ public:
   { return _cpu_state; }
 
   bool cpu_online() const
-  { return get_cpu_state() == Cpu_state::Running; }
+  {
+    Cpu_state s = get_cpu_state();
+    return (s == Cpu_state::Running) || (s == Cpu_state::Halted);
+  }
 
   void set_cpu_state(Cpu_state state)
   { _cpu_state = state; }
@@ -142,12 +142,31 @@ public:
   void set_protected_mode()
   { _protected_mode = true; }
 
+  /// cross-core stop event handling
   void stop() override
   {
-    set_cpu_state(Sleeping);
     _stop_irq.disarm(_vcpu.get_ipc_registry());
+
+    {
+      std::lock_guard<std::mutex> lock(_message_q_lock);
+      // Clear all pending state changes to ensure the core is stopped ASAP.
+      _message_q.clear();
+      _message_q.emplace_back(Cpu_state::Stopped);
+    }
+    _check_msgq = true;
     // Do not do anything blocking here, we need to finish the execution of the
     // IPC dispatching that brought us here.
+  }
+
+  /// core local request to halt the CPU.
+  void halt_cpu()
+  {
+    {
+      std::lock_guard<std::mutex> lock(_message_q_lock);
+      _message_q.emplace_back(Cpu_state::Halted);
+    }
+    _check_msgq = true;
+    // No IRQ trigger, we are already in VMexit handling
   }
 
   /// Send cross-core INIT signal
@@ -170,11 +189,44 @@ public:
     _ipi.trigger();
   }
 
+  bool has_message() const { return _check_msgq; }
+
+  Cpu_state next_state()
+  {
+    if (!has_message())
+      return get_cpu_state();
+
+    std::lock_guard<std::mutex> lock(_message_q_lock);
+    if (_message_q.empty())
+      {
+        _check_msgq = false;
+        return get_cpu_state();
+      }
+    Cpu_state new_state = _message_q.front().target_state;
+    _message_q.pop_front();
+    _check_msgq = !_message_q.empty();
+
+    return new_state;
+  }
+
+  l4_msgtag_t wait_for_ipi()
+  {
+    l4_msgtag_t tag = _ipi.receive();
+    _check_msgq = true;
+
+    return tag;
+  }
+
 private:
   std::atomic<Cpu_state> _cpu_state; // core-local writes; cross-core reads;
   bool _protected_mode = false;
+  bool _check_msgq = false; // use only in local vCPU thread.
 
-  Cpu_irq<Ipi_event> _ipi; // handles core-local CPU state change
+  Cpu_irq<Ipi_event> _ipi;
+  // The mutex is used in IPI cases (INIT, SIPI, STOP) and for the local HALT
+  // event. The IPIs do not happen during normal operation, HALT happens when
+  // the core has nothing to do and reacts only to IRQs. In all other VMexits,
+  // this mutex is unused.
   std::mutex _message_q_lock;
   std::deque<State_change> _message_q;
 }; // class Cpu_dev
