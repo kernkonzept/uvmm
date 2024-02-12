@@ -314,10 +314,25 @@ public:
    */
   void setup_real_mode(l4_addr_t entry) override
   {
-    l4_addr_t base_addr = entry & 0xffff0000U;
-    vmx_write(VMCS_GUEST_CS_SELECTOR, (base_addr >> 4) & 0xffffU);
-    vmx_write(VMCS_GUEST_CS_BASE, base_addr);
-    vmx_write(VMCS_GUEST_RIP, entry & 0xffffU);
+    if (entry == 0xfffffff0U)
+      {
+        // Bootstrap Processor (BSP) boot
+        vmx_write(VMCS_GUEST_CS_SELECTOR, 0xf000U);
+        vmx_write(VMCS_GUEST_CS_BASE, 0xffff0000U);
+        vmx_write(VMCS_GUEST_RIP, 0xfff0U);
+      }
+    else
+      {
+        // Application Processor (AP) boot via Startup IPI (SIPI) or resume
+        // from suspend.
+        // CS_BASE contains the cached address computed from CS_SELECTOR. After
+        // reset CS_BASE contains what we set until the first CS SELECTOR is
+      // loaded. We use the waking vector or SIPI vector directly, because
+      // tianocore cannot handle the CS_BASE + IP split.
+        vmx_write(VMCS_GUEST_CS_SELECTOR, entry >> 4);
+        vmx_write(VMCS_GUEST_CS_BASE, entry);
+        vmx_write(VMCS_GUEST_RIP, 0);
+      }
 
     vmx_write(VMCS_GUEST_CS_ACCESS_RIGHTS, 0x9b);
     vmx_write(VMCS_GUEST_CS_LIMIT, 0xffff);

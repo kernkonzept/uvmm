@@ -119,10 +119,25 @@ Svm_state::setup_linux_protected_mode(l4_addr_t entry)
 void
 Svm_state::setup_real_mode(l4_addr_t entry)
 {
-  l4_addr_t base_addr = entry & 0xffff0000U;
-  _vmcb->state_save_area.cs.selector = (base_addr >> 4) & 0xffffU;
-  _vmcb->state_save_area.cs.base = base_addr;
-  _vmcb->state_save_area.rip = entry & 0xffffU;
+  if (entry == 0xfffffff0U)
+    {
+      // Bootstrap Processor (BSP) boot
+      _vmcb->state_save_area.cs.selector = 0xf000U;
+      _vmcb->state_save_area.cs.base = 0xffff0000U;
+      _vmcb->state_save_area.rip = 0xfff0U;
+    }
+  else
+    {
+      // Application Processor (AP) boot via Startup IPI (SIPI) or resume
+      // from suspend.
+      // cs_base contains the cached address computed from cs_selector. After
+      // reset cs_base contains what we set until the first cs selector is
+      // loaded. We use the waking vector or SIPI vector directly, because
+      // tianocore cannot handle the CS_BASE + IP split.
+      _vmcb->state_save_area.cs.selector = entry >> 4;
+      _vmcb->state_save_area.cs.base = entry;
+      _vmcb->state_save_area.rip = 0;
+    }
 
   _vmcb->state_save_area.cs.attrib = 0x9b; // TYPE=11, S, P
   _vmcb->state_save_area.cs.limit = 0xffff;

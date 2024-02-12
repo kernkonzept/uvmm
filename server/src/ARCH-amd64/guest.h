@@ -138,7 +138,7 @@ public:
 
     vcpu.vm_state()->init_state();
     vcpu.vm_state()->setup_real_mode(wake_vector);
-    Dbg().printf("Waking CPU %u on EIP 0x%lx\n", 0, wake_vector);
+    info().printf("Waking CPU %u on EIP 0x%lx\n", 0, wake_vector);
   }
 
   void handle_entry(Vcpu_ptr vcpu);
