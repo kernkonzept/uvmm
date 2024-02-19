@@ -77,11 +77,6 @@ public:
 
   void handle_ipc(l4_msgtag_t tag, l4_umword_t label, l4_utcb_t *utcb)
   {
-    // IPIs between CPUs have IRQs with zero label and are currently
-    // not handled by the registery. Return immediately on these IPCs.
-    if ((label & ~3UL) == 0)
-      return;
-
     l4_msgtag_t r = l4_msgtag(-L4_ENOREPLY, 0, 0, 0);
 
     try

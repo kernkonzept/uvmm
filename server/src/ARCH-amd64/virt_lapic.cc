@@ -24,9 +24,7 @@ using L4Re::chkcap;
 using L4Re::chksys;
 
 Virt_lapic::Virt_lapic(unsigned id, cxx::Ref_ptr<Vmm::Cpu_dev> cpu)
-: _lapic_irq(chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
-                    "Allocate local APIC notification IRQ.")),
-  _lapic_x2_id(id),
+: _lapic_x2_id(id),
   _lapic_version(Lapic_version),
   _x2apic_enabled(false),
   _nmi_pending(false),
@@ -35,8 +33,8 @@ Virt_lapic::Virt_lapic(unsigned id, cxx::Ref_ptr<Vmm::Cpu_dev> cpu)
 {
   trace().printf("Virt_lapic ctor; ID 0x%x\n", id);
 
-  chksys(L4Re::Env::env()->factory()->create(_lapic_irq.get()),
-         "Create APIC IRQ.");
+  L4Re::chkcap(registry()->register_irq_obj(&_lapic_irq),
+               "Allocate local APIC notification IRQ failed");
 
   // Set reset values of the LAPIC registers
   memset(&_regs, 0, sizeof(_regs));
@@ -146,7 +144,7 @@ void
 Virt_lapic::nmi()
 {
   _nmi_pending.store(true, std::memory_order_release);
-  _lapic_irq->trigger();
+  _lapic_irq.trigger();
 }
 
 /**
@@ -179,7 +177,7 @@ Virt_lapic::irq_trigger(l4_uint32_t irq, bool level, bool irr)
   }
 
   if (trigger)
-    _lapic_irq->trigger();
+    _lapic_irq.trigger();
 }
 
 bool

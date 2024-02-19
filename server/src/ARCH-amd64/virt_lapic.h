@@ -192,14 +192,16 @@ class Virt_lapic : public Ic
     X2apic_ldr_logical_cluster_id_shift = 16,
   };
 
+  class Lapic_event : public L4::Irqep_t<Lapic_event>
+  {
+  public:
+    void handle_irq() {}
+
+    l4_msgtag_t trigger() { return obj_cap()->trigger(); }
+  };
+
 public:
   Virt_lapic(unsigned id, cxx::Ref_ptr<Vmm::Cpu_dev> cpu);
-
-  void attach_cpu_thread(L4::Cap<L4::Thread> vthread)
-  {
-    L4Re::chksys(_lapic_irq->bind_thread(vthread, 0),
-                 "Attaching local APIC IRQ to vCPU thread");
-  }
 
   /**
    * Clear all APIC irqs. This shall be used when entering INIT state.
@@ -321,7 +323,7 @@ private:
   void start_cpu(l4_addr_t entry);
 
   cxx::Ref_ptr<Apic_timer> _apic_timer;
-  L4Re::Util::Unique_cap<L4::Irq> _lapic_irq; /// IRQ to notify VCPU
+  Lapic_event _lapic_irq; /// IRQ to notify VCPU
   l4_uint32_t _lapic_x2_id;
   unsigned _lapic_version;
   std::mutex _int_mutex;

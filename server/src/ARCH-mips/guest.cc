@@ -97,11 +97,12 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
       if (!cpu)
         continue;
 
-      cpu->vcpu()->user_task = _task.cap();
+      Vcpu_ptr vcpu = cpu->vcpu();
+      vcpu->user_task = _task.cap();
       cpu->powerup_cpu();
 
       // attach the core IC
-      _core_ic->create_ic(cpu->vcpu().get_vcpu_id(), cpu->thread_cap());
+      _core_ic->create_ic(vcpu.get_vcpu_id(), vcpu.get_ipc_registry());
     }
 
   cpus->cpu(0)->set_coherent();

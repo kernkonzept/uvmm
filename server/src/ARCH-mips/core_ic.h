@@ -35,22 +35,26 @@ class Vcpu_ic : public Ic
     Max_irq = 7
   };
 
+  class Cpu_event : public L4::Irqep_t<Cpu_event>
+  {
+  public:
+    void handle_irq() {}
+
+    l4_msgtag_t trigger() { return obj_cap()->trigger(); }
+  };
+
 public:
   Vcpu_ic()
-  : _cpu_irq(L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
-                          "allocate vcpu notification interrupt")),
-    _irqvec(0)
+  : _irqvec(0)
   {
     for (size_t i = Min_irq; i <= Max_irq; ++i)
       _pending[i - Min_irq] = 0;
-
-    L4Re::Env::env()->factory()->create(_cpu_irq.get());
   }
 
-  void attach_cpu_thread(L4::Cap<L4::Thread> thread)
+  void register_cpu_ipi(Vcpu_obj_registry *registry)
   {
-    L4Re::chksys(_cpu_irq->bind_thread(thread, 0),
-                 "Bind vCPU IRQ-notification IRQ.");
+    L4Re::chkcap(registry->register_irq_obj(&_cpu_irq),
+                 "Register vCPU IRQ-notification IRQ failed.");
   }
 
   void set(unsigned irq) override
@@ -60,7 +64,7 @@ public:
     if (++_pending[irq - Min_irq] == 1)
       {
         _irqvec |= 1UL << (irq - Min_irq);
-        _cpu_irq->trigger();
+        _cpu_irq.trigger();
       }
   }
 
@@ -71,7 +75,7 @@ public:
     if (--_pending[irq - Min_irq] == 0)
       {
         _irqvec &= ~(1UL << (irq - Min_irq));
-        _cpu_irq->trigger();
+        _cpu_irq.trigger();
       }
   }
 
@@ -118,7 +122,7 @@ public:
   }
 
 private:
-  L4Re::Util::Unique_cap<L4::Irq> _cpu_irq;
+  Cpu_event _cpu_irq;
   /// Cached output pending array.
   l4_uint32_t _irqvec;
   /// Count for each interrupt the number of incomming sources.
@@ -153,13 +157,13 @@ public:
 
   virtual ~Mips_core_ic() = default;
 
-  void create_ic(unsigned i, L4::Cap<L4::Thread> thread)
+  void create_ic(unsigned i, Vcpu_obj_registry *vcpu_registry)
   {
     assert(i <= Max_ics);
     // start up one core IC per vcpu
     if (!_core_ics[i])
       _core_ics[i] = Vdev::make_device<Vcpu_ic>();
-    _core_ics[i]->attach_cpu_thread(thread);
+    _core_ics[i]->register_cpu_ipi(vcpu_registry);
   }
 
   cxx::Ref_ptr<Vcpu_ic> get_ic(unsigned cpuid) const
