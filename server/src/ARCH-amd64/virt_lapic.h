@@ -957,11 +957,11 @@ class Apic_timer: public Vdev::Timer,
 
     void print()
     {
-      Dbg().printf("timer: %s %s %s vector: %u\n",
-                   mode_string(),
-                   masked() ? "masked" : "unmasked",
-                   pending() ? "pending" : "",
-                   vector().get());
+      warn().printf("timer: %s %s %s vector: %u\n",
+                    mode_string(),
+                    masked() ? "masked" : "unmasked",
+                    pending() ? "pending" : "",
+                    vector().get());
     }
   };
 
@@ -1168,15 +1168,22 @@ public:
     dequeue_timeout(this);
 
     bool tsc_deadline_mode;
+    bool masked = false;
     {
       std::lock_guard<std::mutex> lock(_tmr_mutex);
       tsc_deadline_mode = _lvt_reg.tsc_deadline();
+      masked = _lvt_reg.masked();
       _tsc_deadline = target_tsc;
+
     }
 
     if (!tsc_deadline_mode)
       {
-        Dbg().printf("guest programmed tsc deadline but tsc deadline mode not set\n");
+        if (!masked)
+          warn()
+            .printf("guest programmed tsc deadline, but tsc deadline mode not "
+                    "set. new_tsc 0x%llx, LVT: %s\n",
+                    target_tsc, _lvt_reg.mode_string());
         return;
       }
 
@@ -1202,6 +1209,8 @@ public:
   }
 
 private:
+  static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "LAPIC-Timer"); }
+
   void irq_trigger(l4_uint32_t irq)
   { _virt_lapic->irq_trigger(irq); }
 
