@@ -58,7 +58,7 @@ static Dbg warn(Dbg::Dev, Dbg::Warn, "qemu_fw_cfg");
 static Dbg info(Dbg::Dev, Dbg::Info, "qemu_fw_cfg");
 static Dbg trace(Dbg::Dev, Dbg::Trace, "qemu_fw_cfg");
 
-enum Fw_cfg_item_slectors
+enum Fw_cfg_item_selectors
 {
   // Item selectors defined by Qemu
   Fw_cfg_signature     = 0x00,

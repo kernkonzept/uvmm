@@ -31,7 +31,7 @@ namespace {
  */
 class Qemu_fw_cfg_boot : public Qemu_fw_cfg::Provider
 {
-  enum Fw_cfg_item_slectors
+  enum Fw_cfg_item_selectors
   {
     // Item selectors defined by Qemu
     Fw_cfg_cpu_count          = 0x05,
