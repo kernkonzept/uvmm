@@ -202,11 +202,11 @@ public:
    */
   void init_ipi()
   {
-    _cpu->set_cpu_state(Vmm::Cpu_dev::Cpu_state::Init);
+    // Only sleeping vCPUs must be rescheduled
+    if (_cpu->get_cpu_state() == Vmm::Cpu_dev::Sleeping)
+      _cpu->reschedule();
 
-    // If the CPU is already running, we must force execution from the guest
-    // to Uvmm and place the thread in an open wait.
-    _lapic_irq->trigger();
+    _cpu->send_init_ipi();
   }
 
   /**
@@ -238,11 +238,7 @@ public:
 
     l4_addr_t start_eip = data.vector() << Icr_startup_page_shift;
     start_cpu(start_eip);
-    _cpu->set_cpu_state(Vmm::Cpu_dev::Cpu_state::Running);
-
-    // the target CPU is likely to be blocked in wait_for_ipc()
-    // the IRQ will release it
-    _lapic_irq->trigger();
+    _cpu->send_sipi();
   }
 
   /**
@@ -344,7 +340,6 @@ public:
 
     info().printf("Starting CPU %u on EIP 0x%lx\n",
                   _lapic_x2_id, entry);
-    _cpu->reschedule();
   }
 
   cxx::Ref_ptr<Apic_timer> timer()
