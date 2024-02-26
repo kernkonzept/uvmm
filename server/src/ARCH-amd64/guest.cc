@@ -786,7 +786,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
 }
 
 template<typename VMS>
-void
+bool
 Guest::event_injection_t(Vcpu_ptr vcpu, VMS *vm)
 {
   Event_recorder *rec = recorder(vcpu.get_vcpu_id());
@@ -809,10 +809,11 @@ Guest::event_injection_t(Vcpu_ptr vcpu, VMS *vm)
   if (pending_event.valid())
     {
       vm->inject_event(pending_event);
+      return true;
     }
   else
     {
-      rec->inject(static_cast<Vm_state *>(vm));
+      return rec->inject(static_cast<Vm_state *>(vm));
     }
 }
 

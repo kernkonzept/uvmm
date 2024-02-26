@@ -212,7 +212,7 @@ private:
   void run_vm_t(Vcpu_ptr vcpu, VMS *vm) L4_NORETURN;
 
   template <typename VMS>
-  void event_injection_t(Vcpu_ptr vcpu, VMS *vm);
+  bool event_injection_t(Vcpu_ptr vcpu, VMS *vm);
 
   template <typename VMS>
   int handle_exit(Vcpu_ptr vcpu, VMS *vm);

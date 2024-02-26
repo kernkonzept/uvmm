@@ -23,9 +23,10 @@ public:
   /**
    * Inject highest priority event.
    *
-   * \returns TBD
+   * \retval true   Event injected.
+   * \retval false  No event to inject or can't inject pending event.
    */
-  void inject(Vm_state *vms);
+  bool inject(Vm_state *vms);
 
   /**
    * Record an event.

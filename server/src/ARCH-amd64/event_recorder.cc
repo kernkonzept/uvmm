@@ -8,10 +8,10 @@
 
 namespace Vmm {
 
-void Event_recorder::inject(Vm_state *vms)
+bool Event_recorder::inject(Vm_state *vms)
 {
   if (empty())
-    return;
+    return false;
 
   auto top = _queue.top();
   if (top->inject(vms))
@@ -29,7 +29,10 @@ void Event_recorder::inject(Vm_state *vms)
 
       // We have ownership. We have to free the memory!
       delete top;
+      return true;
     }
+
+  return false;
 }
 
 void Event_recorder::add(Event_record *event)
