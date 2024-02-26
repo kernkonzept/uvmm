@@ -175,6 +175,10 @@ Svm_state::setup_real_mode(l4_addr_t entry)
   _vmcb->state_save_area.rsp = 0;
   _vmcb->state_save_area.cr0 = 0x10030;
   _vmcb->state_save_area.cr4 = 0x680;
+
+  // clear in SW state to prevent injection of pending events from before
+  // INIT/STARTUP IPI.
+  _vmcb->control_area.exitintinfo = 0ULL;
 }
 
 bool

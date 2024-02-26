@@ -375,6 +375,10 @@ public:
     vmx_write(VMCS_GUEST_CR4, 0x2680);
     vmx_write(VMCS_CR4_READ_SHADOW, 0x0680);
     vmx_write(VMCS_CR4_GUEST_HOST_MASK, ~0ULL);
+
+    // clear in SW state to prevent injection of pending events from before
+    // INIT/STARTUP IPI.
+    vmx_write(VMCS_IDT_VECTORING_ERROR, 0ULL);
   }
 
   Injection_event pending_event_injection() override
