@@ -14,7 +14,7 @@
 namespace Vdev
 {
 
-class Pm_device;
+struct Pm_device;
 
 /**
  * Registry for all devices requesting notification for power management events.
@@ -89,6 +89,6 @@ struct Pm_device
    * Actions a device needs to perform during the process to resume the guest.
    */
   virtual void pm_resume() = 0;
-}; // class Pm_device
+}; // struct Pm_device
 
 } // namespace Vdev
