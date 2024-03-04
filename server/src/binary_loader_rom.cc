@@ -10,7 +10,7 @@
 namespace Boot {
 
 /**
- * Binary loader which starts binary out of an guest memory location.
+ * Binary loader which starts binary out of a guest memory location.
  *
  * Use rom:addr=0xXXXXXX as uvmm's --kernel parameter.
  */
