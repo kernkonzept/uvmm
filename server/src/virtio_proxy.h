@@ -177,7 +177,8 @@ public:
   {
     if (l4virtio_get_feature(_config->dev_features_map,
                              L4VIRTIO_FEATURE_CMD_CONFIG))
-      _host_irq->trigger();
+      // Do busy waiting, because the irq could arrive on any CPU
+      _config->notify_queue(num, _host_irq.get(), L4::Cap<L4::Triggerable>());
     else if (num < _queue_irqs.size())
       _queue_irqs[num]->trigger();
   }
