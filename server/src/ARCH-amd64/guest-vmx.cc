@@ -249,6 +249,25 @@ Guest::handle_exit<Vmx_state>(Vmm::Vcpu_ptr vcpu, Vmx_state *vms)
       ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6); // #UD
       return Retry;
 
+    case Exit::Entry_fail_invalid_guest:
+      {
+        auto qual = vms->vmx_read(VMCS_EXIT_QUALIFICATION);
+        auto reason_raw = vms->vmx_read(VMCS_EXIT_REASON);
+        auto ip = vms->ip();
+        auto insn_err = vms->vmx_read(VMCS_VM_INSN_ERROR);
+        auto entry_exc_err = vms->vmx_read(VMCS_VM_ENTRY_EXCEPTION_ERROR);
+
+        Dbg().printf("VM-entry failure due to invalid guest state:\n"
+                     "Exit reason raw: 0x%llx\n"
+                     "Exit qualification: 0x%llx\n"
+                     "IP: 0x%lx\n"
+                     "Instruction error: 0x%llx\n"
+                     "Entry exception error: 0x%llx\n",
+                     reason_raw, qual, ip, insn_err, entry_exc_err
+                     );
+      }
+      /* fall-through */
+
     case Exit::Task_switch:
     case Exit::Apic_access:
     case Exit::Ept_misconfig:
