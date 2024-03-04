@@ -164,6 +164,9 @@ public:
 
   void run_vm(Vcpu_ptr vcpu) L4_NORETURN;
 
+  Boot::Binary_type guest_type() const
+  { return _guest_t; }
+
 private:
   enum : unsigned
   {

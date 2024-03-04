@@ -200,7 +200,15 @@ public:
         else if ((value & Slp_type_mask) == Slp_type_suspend)
           {
             trace().printf("System suspend requested\n");
-            _vmm->suspend(Facs_storage::get()->waking_vector());
+            // If Uvmm loaded a guest Linux kernel itself, it emulates
+            // firmware behaviour by resuming the guest directly at the
+            // address the guest specified in the FACS.
+            // Otherwise the VM resumes at the reset vector where firmware
+            // shall take care of guest resume.
+            if (_vmm->guest_type() == Boot::Binary_type::Linux)
+              _vmm->suspend(Facs_storage::get()->waking_vector());
+            else
+              _vmm->suspend(0xffff'fff0);
           }
       }
   }

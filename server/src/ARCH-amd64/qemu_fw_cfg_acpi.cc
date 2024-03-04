@@ -84,8 +84,10 @@ public:
   static char const constexpr *Rsdp_file_name = "etc/acpi/rsdp";
   static char const constexpr *Tables_file_name = "etc/acpi/tables";
   static char const constexpr *Loader_commands_file_name = "etc/table-loader";
+  static char const constexpr *System_states_file_name = "etc/system-states";
 
   Acpi_tables(Vdev::Device_lookup *devs)
+  : _system_states_file(6)
   {
     info.printf("Initialize Qemu IF ACPI tables.\n");
     _tables.resize(Tables_reservation);
@@ -102,6 +104,12 @@ public:
     Writer rdsp_wr(reinterpret_cast<l4_addr_t>(_rsdp.data()), _rsdp.size());
     write_rsdp(rdsp_wr);
     resolve_table_refs_and_checksums(Rsdp_file_name, rdsp_wr, table_wr);
+
+    // This is a qemu <-> EFI Interface. It is "documented" in
+    // edk2/Ovmf/Library/QemuFwCfgS3Lib/QemuFwCfgS3PeiDxe.c
+    // QemuFwCfgS3Enabled()
+    // We only implement the bit needed for EFI to signal S3 support.
+    _system_states_file[3] = (1 << 7); // S3 supported
   }
 
   std::vector<char> const &rsdp() const
@@ -110,6 +118,8 @@ public:
   { return _tables; }
   std::string const & loader_cmds() const
   { return _loader_cmds; }
+  std::vector<char> const &system_states_file() const
+  { return _system_states_file; }
 
 private:
   void resolve_table_refs_and_checksums(char const *fn, Writer &wr,
@@ -182,6 +192,7 @@ private:
 
   std::vector<char> _rsdp;
   std::vector<char> _tables;
+  std::vector<char> _system_states_file;
   std::string _loader_cmds;
 };
 
@@ -193,6 +204,8 @@ struct Qemu_fw_cfg_tables : public Qemu_fw_cfg::Provider
     Qemu_fw_cfg::put_file(Acpi_tables::Rsdp_file_name, tables.rsdp());
     Qemu_fw_cfg::put_file(Acpi_tables::Tables_file_name, tables.tables());
     Qemu_fw_cfg::put_file(Acpi_tables::Loader_commands_file_name, tables.loader_cmds());
+    Qemu_fw_cfg::put_file(Acpi_tables::System_states_file_name,
+                          tables.system_states_file());
   }
 };
 

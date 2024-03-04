@@ -10,7 +10,6 @@
 /**
  * Minimal viable implementation of a CMOS RTC (Motorola MC146818A).
  *
- * We do not support CMOS memory.
  * We do not support setting new time values.
  * We only support 24h mode (it is hard-wired).
  * We do not support the century byte.
@@ -47,6 +46,7 @@ namespace Vdev {
 
 class Rtc :
   public Vdev::Timer,
+  public Vdev::Pm_device,
   public Vmm::Io_device,
   public Vdev::Device
 {
@@ -70,6 +70,7 @@ class Rtc :
     // Cmos_ram
     Ram_start = 0xe,
     Ram_end = 0x80,
+    Ram_size = Ram_end - Ram_start,
   };
 
   enum Status_reg_c : l4_uint8_t
@@ -304,7 +305,9 @@ class Rtc :
       default:
         if (_reg_sel <= Year)
           _shadow_registers[_reg_sel] = convert_from_guest(val);
-        else if (Ram_start > _reg_sel || _reg_sel > Ram_end)
+        else if (_reg_sel >= Ram_start && _reg_sel < Ram_end)
+          cmos_write(_reg_sel - Ram_start, val);
+        else
           warn().printf("Register write not handled (%u)\n", _reg_sel);
         break;
       }
@@ -387,6 +390,8 @@ class Rtc :
       default:
         if (Ram_start > _reg_sel || _reg_sel > Ram_end)
           warn().printf("Unknown register read (%d)\n", _reg_sel);
+        else
+          ret = cmos_read(_reg_sel - Ram_start);
         break;
       }
     return ret;
@@ -394,7 +399,7 @@ class Rtc :
 
 public:
  Rtc(cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
- : _alarm_timeout(this), _sink(ic, irq), _previous_alarm_second(0)
+ : Pm_device(), _alarm_timeout(this), _sink(ic, irq), _previous_alarm_second(0)
   {
     info().printf("Hello from RTC. Irq=%d\n", irq);
 #if !defined(CONFIG_UVMM_EXTERNAL_RTC) and !(CONFIG_RELEASE_MODE)
@@ -405,6 +410,16 @@ public:
 #endif
 
     _seconds = ns_to_s(L4rtc_hub::ns_since_epoch());
+  }
+
+  virtual void pm_suspend() override
+  {}
+
+  virtual void pm_resume() override
+  {
+    // tell the guest that the machine has resumed from suspend
+    // use the PS/2 shutdown status byte as expected by firmware
+    cmos_write(1, 0xfe);
   }
 
   char const *dev_name() const override
@@ -464,7 +479,21 @@ private:
     return (reg & Dont_care_bits) != Dont_care_bits;
   }
 
-  unsigned _reg_sel = 0;
+  void cmos_write(l4_uint8_t regsel, l4_uint16_t value)
+  {
+    assert(regsel < Ram_size);
+    trace().printf("cmos write(%u, 0x%x)\n", regsel, value);
+    _cmos[regsel] = value;
+  }
+
+  l4_uint16_t cmos_read(l4_uint8_t regsel)
+  {
+    assert(regsel < Ram_size);
+    trace().printf("cmos read(%u) = 0x%x\n", regsel, _cmos[regsel]);
+    return _cmos[regsel];
+  }
+
+  l4_uint8_t _reg_sel = 0;
   Status_reg_a _reg_a;
   Status_reg_b _reg_b;
   l4_uint8_t _reg_c = 0;
@@ -480,6 +509,8 @@ private:
 
   // seconds since epoch as determined by external clock source
   time_t _seconds;
+
+  l4_uint16_t _cmos[Ram_size];
 
   Vmm::Irq_sink _sink;
   l4_cpu_time_t _previous_alarm_second;
