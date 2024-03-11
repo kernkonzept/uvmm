@@ -4,8 +4,12 @@ config UVMM_SUPPORTED
 comment "uvmm is not supported on this architecture"
 	depends on !UVMM_SUPPORTED
 
+comment "uvmm requires L4Re libgcc instead of toolchain version"
+	depends on UVMM_SUPPORTED && COMPILER_RT_USE_TOOLCHAIN_LIBGCC
+
 menu "uvmm virtual machine monitor"
 	depends on UVMM_SUPPORTED
+	depends on !COMPILER_RT_USE_TOOLCHAIN_LIBGCC
 
 config UVMM_MONITOR
 	bool "Monitor interface"
