@@ -67,6 +67,9 @@ public:
     c->handle_ipis<GIC_IMPL>();
     c->handle_migrations();
 
+    if (!(this->ctlr & 3U))
+      return false;
+
     unsigned pmask = this->_prio_mask;
 
     for (;;)
