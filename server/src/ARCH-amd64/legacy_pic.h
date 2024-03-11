@@ -167,6 +167,7 @@ class Legacy_pic : public Gic::Ic
   public:
     /// Handle read accesses on the PICs command and data ports.
     void io_in(unsigned port, Vmm::Mem_access::Width width, l4_uint32_t *value)
+      override
     {
       *value = -1U;
 
@@ -193,6 +194,7 @@ class Legacy_pic : public Gic::Ic
 
     /// Handle write accesses on the PICs command and data ports.
     void io_out(unsigned port, Vmm::Mem_access::Width width, l4_uint32_t value)
+      override
     {
       if (width != Vmm::Mem_access::Width::Wd8)
         return;
