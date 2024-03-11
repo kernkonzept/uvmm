@@ -162,15 +162,19 @@ Guest::handle_exit<Svm_state>(Vmm::Vcpu_ptr vcpu, Svm_state *vms)
     case Exit::Msr:
       {
         bool write = vms->exit_info1() == 1;
-        if (msr_devices_rwmsr(regs, write, vcpu.get_vcpu_id()))
-          return Jump_instr;
-        else
+        bool has_already_exception = ev_rec->has_exception();
+        if (!msr_devices_rwmsr(regs, write, vcpu.get_vcpu_id()))
           {
             info().printf("[%3u]: %s unsupported MSR 0x%lx\n", vcpu_id,
                           write ? "Writing" : "Reading", regs->cx);
             ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
-            return L4_EOK;
+            return Retry;
           }
+
+        if (!has_already_exception && ev_rec->has_exception())
+          return Retry;
+        else
+          return Jump_instr;
       }
 
     case Exit::Hlt:
