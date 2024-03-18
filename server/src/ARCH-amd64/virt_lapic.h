@@ -624,6 +624,7 @@ public:
 
 private:
   static Dbg info() { return Dbg(Dbg::Irq, Dbg::Info, "IPI"); }
+  static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "IPI"); }
 
   enum : l4_uint32_t { Data_register_format_mask = 0x0000c7ffU };
 
@@ -658,8 +659,8 @@ private:
         if (data.delivery_mode() == Vdev::Msix::Delivery_mode::Dm_init
             && icr.trigger_mode() == 1 && icr.trigger_level() == 0)
           {
-            info().printf("{INIT,STARTUP} IPI: INIT deassert filtered. ICR: "
-                          "0x%llx\n", icr.raw);
+            trace().printf("{INIT,STARTUP} IPI: INIT deassert filtered. ICR: "
+                           "0x%llx\n", icr.raw);
             return;
           }
 
