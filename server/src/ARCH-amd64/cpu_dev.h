@@ -12,6 +12,9 @@
 #include "vcpu_ptr.h"
 #include "monitor/cpu_dev_cmd_handler.h"
 
+#include <deque>
+#include <mutex>
+
 extern __thread unsigned vmm_current_cpu_id;
 
 namespace Vmm {
@@ -20,48 +23,6 @@ class Cpu_dev
 : public Generic_cpu_dev,
   public Monitor::Cpu_dev_cmd_handler<Monitor::Enabled, Cpu_dev>
 {
-  struct Init_event
-  {
-    Init_event(Cpu_dev *c) : cpu(c) {}
-    void act()
-    { cpu->set_cpu_state(Cpu_state::Init); }
-
-    void registration_failure()
-    {
-      Dbg().printf("Failed to register IRQ to for INIT IPI; "
-                   "vCPU %u cannot be started.\n", cpu->vcpu().get_vcpu_id());
-    }
-
-    void trigger_failure(long ipc_err)
-    {
-      Dbg().printf("INIT IPI to vCPU %u failed with error %li\n",
-                   cpu->vcpu().get_vcpu_id(), ipc_err);
-    }
-
-    Cpu_dev *cpu;
-  };
-
-  struct Sipi_event
-  {
-    Sipi_event(Cpu_dev *c) : cpu(c) {}
-    void act()
-    { cpu->set_cpu_state(Cpu_state::Running); }
-
-    void registration_failure()
-    {
-      Dbg().printf("Failed to register IRQ to for SIPI; "
-                   "vCPU %u cannot be started.\n", cpu->vcpu().get_vcpu_id());
-    }
-
-    void trigger_failure(long ipc_err)
-    {
-      Dbg().printf("SIPI to vCPU %u failed with error %li\n",
-                   cpu->vcpu().get_vcpu_id(), ipc_err);
-    }
-
-    Cpu_dev *cpu;
-  };
-
 public:
   enum { Max_cpus = 128 };
 
@@ -72,10 +33,54 @@ public:
     Running
   };
 
+private:
+  struct State_change
+  {
+    State_change(Cpu_state s) : target_state(s) {}
+    Cpu_state target_state;
+  };
+
+  struct Ipi_event
+  {
+    Ipi_event(Cpu_dev *c) : cpu(c) {}
+    void act()
+    {
+      bool q_empty = false;
+      {
+        std::lock_guard<std::mutex> lock(cpu->_message_q_lock);
+        State_change sc = cpu->_message_q.front();
+        cpu->set_cpu_state(sc.target_state);
+        cpu->_message_q.pop_front();
+
+        q_empty = cpu->_message_q.empty();
+      }
+
+      // We do state processing in guest.cc's run_vm_t. We currently
+      // expect only one state change per handled IRQ. Trigger this again, to
+      // not miss any message.
+      if (!q_empty)
+        cpu->_ipi.trigger();
+    }
+
+    void registration_failure()
+    {
+      Dbg().printf("Failed to register IRQ to for IPI; "
+                   "vCPU %u cannot be started.\n", cpu->vcpu().get_vcpu_id());
+    }
+
+    void trigger_failure(long ipc_err)
+    {
+      Dbg().printf("IPI to vCPU %u failed with error %li\n",
+                   cpu->vcpu().get_vcpu_id(), ipc_err);
+    }
+
+    Cpu_dev *cpu;
+  };
+
+public:
   Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *)
   : Generic_cpu_dev(idx, phys_id),
-    _init(Init_event(this)),
-    _sipi(Sipi_event(this))
+    _ipi(Ipi_event(this))
   {
     _cpu_state = (idx == 0) ? Running : Sleeping;
   }
@@ -83,16 +88,14 @@ public:
   ~Cpu_dev()
   {
     Vcpu_obj_registry *reg = _vcpu.get_ipc_registry();
-    _sipi.disarm(reg);
-    _init.disarm(reg);
+    _ipi.disarm(reg);
   }
 
   void powerup_cpu() override
   {
     Generic_cpu_dev::powerup_cpu();
     _stop_irq.arm(_vcpu.get_ipc_registry());
-    _init.arm(_vcpu.get_ipc_registry());
-    _sipi.arm(_vcpu.get_ipc_registry());
+    _ipi.arm(_vcpu.get_ipc_registry());
   }
 
   void reset() override
@@ -149,19 +152,31 @@ public:
 
   /// Send cross-core INIT signal
   void send_init_ipi()
-  { _init.trigger(); }
+  {
+    {
+      std::lock_guard<std::mutex> lock(_message_q_lock);
+      _message_q.emplace_back(Cpu_state::Init);
+    }
+    _ipi.trigger();
+  }
 
   /// Send cross-core SIPI signal
   void send_sipi()
-  { _sipi.trigger(); }
+  {
+    {
+      std::lock_guard<std::mutex> lock(_message_q_lock);
+      _message_q.emplace_back(Cpu_state::Running);
+    }
+    _ipi.trigger();
+  }
 
 private:
   std::atomic<Cpu_state> _cpu_state; // core-local writes; cross-core reads;
   bool _protected_mode = false;
-  Cpu_irq<Init_event> _init; // handles core-local CPU state change
-  Cpu_irq<Sipi_event> _sipi; // handles core-local CPU state change
 
-
+  Cpu_irq<Ipi_event> _ipi; // handles core-local CPU state change
+  std::mutex _message_q_lock;
+  std::deque<State_change> _message_q;
 }; // class Cpu_dev
 
 } // namespace Vmm
