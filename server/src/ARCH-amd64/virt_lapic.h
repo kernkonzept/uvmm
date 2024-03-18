@@ -217,12 +217,6 @@ public:
    */
   void startup_ipi(Vdev::Msix::Data_register_format data)
   {
-    // a startup ipi without an init ipi shall be ignored
-    if (_cpu->get_cpu_state() != Vmm::Cpu_dev::Cpu_state::Init)
-      {
-        warn().printf("STARTUP IPI without INIT IPI. Ignoring.\n");
-        return;
-      }
     // only act on the second SIPI
     if (!_sipi_cnt)
       {
