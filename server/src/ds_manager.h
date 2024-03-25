@@ -81,6 +81,8 @@ public:
     _align(align)
   {}
 
+  Ds_manager(Ds_manager const &) = delete;
+  Ds_manager(Ds_manager &&) = default;
   virtual ~Ds_manager() = default;
 
   /**
