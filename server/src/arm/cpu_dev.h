@@ -102,7 +102,7 @@ public:
   /**
    * Stop a CPU
    */
-  virtual void L4_NORETURN stop() override;
+  void L4_NORETURN stop() override;
 
   /**
    * Get the online state of a CPU.

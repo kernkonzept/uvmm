@@ -141,7 +141,7 @@ public:
   void stop_vcpu();
 
   void reset() override;
-  virtual void stop() override { stop_vcpu(); }
+  void stop() override { stop_vcpu(); }
 
 private:
   /// CPC state: local status register

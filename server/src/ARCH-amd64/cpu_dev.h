@@ -87,7 +87,7 @@ public:
     _init.disarm(reg);
   }
 
-  virtual void powerup_cpu() override
+  void powerup_cpu() override
   {
     Generic_cpu_dev::powerup_cpu();
     _stop_irq.arm(_vcpu.get_ipc_registry());
@@ -139,7 +139,7 @@ public:
   void set_protected_mode()
   { _protected_mode = true; }
 
-  virtual void stop() override
+  void stop() override
   {
     set_cpu_state(Sleeping);
     _stop_irq.disarm(_vcpu.get_ipc_registry());

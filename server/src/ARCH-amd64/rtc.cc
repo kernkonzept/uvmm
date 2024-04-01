@@ -412,10 +412,10 @@ public:
     _seconds = ns_to_s(L4rtc_hub::ns_since_epoch());
   }
 
-  virtual void pm_suspend() override
+  void pm_suspend() override
   {}
 
-  virtual void pm_resume() override
+  void pm_resume() override
   {
     // tell the guest that the machine has resumed from suspend
     // use the PS/2 shutdown status byte as expected by firmware

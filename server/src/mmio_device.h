@@ -450,7 +450,7 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
   { return _mgr->local_addr<T *>(); }
 
 private:
-  virtual char const *dev_name() const override { return _mgr->dev_name(); }
+  char const *dev_name() const override { return _mgr->dev_name(); }
 
   cxx::unique_ptr<Ds_manager> _mgr;
 };
