@@ -138,8 +138,6 @@ public:
   void handle_wfx(Vcpu_ptr vcpu);
   void handle_ppi(Vcpu_ptr vcpu);
 
-  void handle_ex_regs_exception(Vcpu_ptr vcpu);
-
   bool inject_abort(Vcpu_ptr vcpu, bool inst, l4_addr_t addr);
   bool inject_undef(Vcpu_ptr vcpu);
 
