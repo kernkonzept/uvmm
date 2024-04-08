@@ -16,6 +16,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+
+// Must come before terminate_handler-l4 so that L4_CXX_EXCEPTION_BACKTRACE is
+// already defined here. Otherwise this header is dragged in later and the
+// wrong terminate handler is installed.
+#include <l4/cxx/exceptions>
 #include <terminate_handler-l4>
 
 #include <sys/mman.h>
