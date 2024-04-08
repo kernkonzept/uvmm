@@ -452,5 +452,5 @@ public:
   {
     Pci_layout<DEV>::out(port, wd, value);
   }
-}; // Pci_connector_io
+}; // Pci_connector
 } // namespace Virtio
