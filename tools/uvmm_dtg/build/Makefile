@@ -21,6 +21,7 @@ SRC_CC = uvmm_dtg.cc device.cc tree.cc ic.cc \
 	devices/acpi_timer.cc \
 	devices/pl031.cc \
 	devices/rtc.cc \
+	devices/stats.cc \
 	devices/kvm_clock.cc \
 	devices/virtio_console.cc \
 	devices/virtio_input_power.cc \
