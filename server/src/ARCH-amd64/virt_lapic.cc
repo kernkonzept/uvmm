@@ -81,6 +81,51 @@ Virt_lapic::set(Vdev::Msix::Data_register_format data)
 }
 
 void
+Virt_lapic::init_ipi()
+{
+  // Only sleeping vCPUs must be rescheduled
+  if (_cpu->get_cpu_state() == Vmm::Cpu_dev::Sleeping)
+    _cpu->reschedule();
+
+  _cpu->send_init_ipi();
+}
+
+void
+Virt_lapic::startup_ipi(Vdev::Msix::Data_register_format data)
+{
+  // only act on the second SIPI
+  if (!_sipi_cnt)
+    {
+      ++_sipi_cnt;
+      return;
+    }
+  _sipi_cnt = 0;
+
+  enum : l4_uint32_t
+  {
+    Icr_startup_page_shift = 12
+  };
+
+  l4_addr_t start_eip = data.vector() << Icr_startup_page_shift;
+  start_cpu(start_eip);
+  _cpu->send_sipi();
+}
+
+void
+Virt_lapic::start_cpu(l4_addr_t entry)
+{
+  Vmm::Vcpu_ptr vcpu = _cpu->vcpu();
+  vcpu->r.sp = 0;
+  vcpu->r.ip = entry; // r.ip used to communicate entry to Vcpu_ptr.reset()
+
+  // reset CPU
+  vcpu.vm_state()->init_state();
+  vcpu.vm_state()->setup_real_mode(vcpu->r.ip);
+
+  info().printf("Starting CPU %u on EIP 0x%lx\n", _lapic_x2_id, entry);
+}
+
+void
 Virt_lapic::bind_irq_src_handler(unsigned irq, Irq_src_handler *handler)
 {
   assert (irq < 256); // sources array length

@@ -198,44 +198,6 @@ public:
   }
 
   /**
-   * An incoming INIT IPI will place the CPU in INIT mode.
-   */
-  void init_ipi()
-  {
-    // Only sleeping vCPUs must be rescheduled
-    if (_cpu->get_cpu_state() == Vmm::Cpu_dev::Sleeping)
-      _cpu->reschedule();
-
-    _cpu->send_init_ipi();
-  }
-
-  /**
-   * Handle STARTUP IPIs
-   *
-   * Intel specifies that the correct sequence is INIT, STARTUP, STARTUP.
-   * So we make sure to only act on the second STARTUP IPI.
-   */
-  void startup_ipi(Vdev::Msix::Data_register_format data)
-  {
-    // only act on the second SIPI
-    if (!_sipi_cnt)
-      {
-        ++_sipi_cnt;
-        return;
-      }
-    _sipi_cnt = 0;
-
-    enum : l4_uint32_t
-    {
-      Icr_startup_page_shift = 12
-    };
-
-    l4_addr_t start_eip = data.vector() << Icr_startup_page_shift;
-    start_cpu(start_eip);
-    _cpu->send_sipi();
-  }
-
-  /**
    * Clear all APIC irqs. This shall be used when entering INIT state.
    */
   void clear_irq_state()
@@ -317,25 +279,6 @@ public:
   l4_uint32_t id() const { return _lapic_x2_id; }
   l4_uint32_t task_prio_class() const { return _regs.tpr & 0xf0; }
 
-  /**
-   * Start an Application Processor.
-   *
-   * \param entry  Real Mode entry address.
-   */
-  void start_cpu(l4_addr_t entry)
-  {
-    Vmm::Vcpu_ptr vcpu = _cpu->vcpu();
-    vcpu->r.sp = 0;
-    vcpu->r.ip = entry;
-
-    // reset CPU
-    vcpu.vm_state()->init_state();
-    vcpu.vm_state()->setup_real_mode(vcpu->r.ip);
-
-    info().printf("Starting CPU %u on EIP 0x%lx\n",
-                  _lapic_x2_id, entry);
-  }
-
   cxx::Ref_ptr<Apic_timer> timer()
   { return _apic_timer; }
 
@@ -347,6 +290,24 @@ private:
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "LAPIC"); }
   static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "LAPIC"); }
   static Dbg info() { return Dbg(Dbg::Irq, Dbg::Info, "LAPIC"); }
+
+  /// An incoming INIT IPI will place the CPU in INIT mode.
+  void init_ipi();
+
+  /**
+   * Handle STARTUP IPIs
+   *
+   * Intel specifies that the correct sequence is INIT, STARTUP, STARTUP.
+   * So we make sure to only act on the second STARTUP IPI.
+   */
+  void startup_ipi(Vdev::Msix::Data_register_format data);
+
+  /**
+   * Start an Application Processor.
+   *
+   * \param entry  Real Mode entry address.
+   */
+  void start_cpu(l4_addr_t entry);
 
   cxx::Ref_ptr<Apic_timer> _apic_timer;
   L4Re::Util::Unique_cap<L4::Irq> _lapic_irq; /// IRQ to notify VCPU
