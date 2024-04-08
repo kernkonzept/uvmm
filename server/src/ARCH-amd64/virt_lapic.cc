@@ -115,10 +115,6 @@ Virt_lapic::start_cpu(l4_addr_t entry)
   vcpu->r.sp = 0;
   vcpu->r.ip = entry; // r.ip used to communicate entry to Vcpu_ptr.reset()
 
-  // reset CPU
-  vcpu.vm_state()->init_state();
-  vcpu.vm_state()->setup_real_mode(vcpu->r.ip);
-
   info().printf("Starting CPU %u on EIP 0x%lx\n", _lapic_x2_id, entry);
 }
 

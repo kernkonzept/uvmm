@@ -194,4 +194,15 @@ Vcpu_ptr::reset(bool protected_mode)
 
   Guest::get_instance()->run_vm(*this);
 }
+
+void
+Vcpu_ptr::hot_reset()
+{
+  // assumption: reset while we already went through the normal reset once.
+  // intention: Do not call Guest::run_vm() again.
+
+  vm_state()->init_state();
+  vm_state()->setup_real_mode(_s->r.ip);
+}
+
 } // namespace Vmm

@@ -693,7 +693,8 @@ template <typename VMS>
 bool
 Guest::state_transition_effects(Cpu_dev::Cpu_state const current,
                                 Cpu_dev::Cpu_state const new_state,
-                                Gic::Virt_lapic *lapic, VMS *vm)
+                                Gic::Virt_lapic *lapic, VMS *vm,
+                                Cpu_dev *cpu)
 {
   if (current == new_state && current != Cpu_dev::Halted)
     return false;
@@ -702,7 +703,7 @@ Guest::state_transition_effects(Cpu_dev::Cpu_state const current,
     {
       lapic->clear_irq_state();
       vm->invalidate_pending_event();
-      // vCPU state setup is done in lapic path
+      cpu->hot_reset();
     }
   else if (   (current == Cpu_dev::Running && new_state == Cpu_dev::Halted)
            || (current == Cpu_dev::Halted && new_state == Cpu_dev::Halted))
@@ -763,14 +764,14 @@ Guest::new_state_action(Cpu_dev::Cpu_state state, bool halt_req,
       event_injection_t(cpu->vcpu(), vm);
       return false;
     default:
-      // Sleeping is never entered once left, thus cannot happen.
-      // Other states don't exist.
-      // Print the error for debugging and stop vCPU.
+      // Sleeping is never entered once left and other states don't exist, thus
+      // this should not happen. Print the error for debugging and stop vCPU.
+      // The guest can reset the CPU with an INIT IPI.
       Err().printf("[%3u] CPU device state %i unknown or invalid. "
-                   "Unrecoverable - stopping core.\n",
+                   "Stopping core.\n",
                    cpu->vcpu().get_vcpu_id(), state);
       vm->additional_failure_info(cpu->vcpu().get_vcpu_id());
-      l4_sleep_forever();
+      cpu->stop();
     }
 
   return true;
@@ -831,7 +832,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
         {
           new_state = cpu->next_state();
           halt_req = state_transition_effects(cpu->get_cpu_state(), new_state,
-                                              vapic, vm);
+                                              vapic, vm, cpu.get());
 
           cpu->set_cpu_state(new_state);
         }

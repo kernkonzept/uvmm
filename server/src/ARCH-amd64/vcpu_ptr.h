@@ -56,6 +56,7 @@ public:
   }
 
   void reset(bool protected_mode);
+  void hot_reset();
 
   l4_umword_t ucode_revision() const
   { return _s->user_data[Reg_ucode_rev]; }

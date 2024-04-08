@@ -264,7 +264,7 @@ private:
   template <typename VMS>
   bool state_transition_effects(Cpu_dev::Cpu_state const cs,
                                 Cpu_dev::Cpu_state const ns,
-                                Gic::Virt_lapic *lapic, VMS *vm);
+                                Gic::Virt_lapic *lapic, VMS *vm, Cpu_dev *cpu);
   template <typename VMS>
   bool new_state_action(Cpu_dev::Cpu_state ns, bool halt_req, Cpu_dev *cpu,
                         VMS *vm);

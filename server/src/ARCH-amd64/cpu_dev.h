@@ -83,33 +83,31 @@ public:
   void powerup_cpu() override
   {
     Generic_cpu_dev::powerup_cpu();
-    _stop_irq.arm(_vcpu.get_ipc_registry());
     _ipi.arm(_vcpu.get_ipc_registry());
   }
 
+  /// Reset the Cpu_dev including vCPU does not return to the caller.
   void reset() override
   {
     vmm_current_cpu_id = _vcpu.get_vcpu_id();
+    info().printf("[%3u] Reset called\n", vmm_current_cpu_id);
 
-    Dbg().printf("[%3u] Reset called\n", vmm_current_cpu_id);
+    reset_common();
+    wait_until_online();
 
-    _vcpu->state = L4_VCPU_F_FPU_ENABLED;
-    _vcpu->saved_state = L4_VCPU_F_FPU_ENABLED | L4_VCPU_F_USER_MODE;
-
-    while (has_message())
-      set_cpu_state(next_state());
-
-    // wait for the SIPI to set the `Running` state
-    while (!cpu_online())
-      {
-        wait_for_ipi();
-
-        while(has_message())
-          set_cpu_state(next_state());
-      }
-
-    Dbg().printf("[%3u] Reset vCPU\n", vcpu().get_vcpu_id());
+    info().printf("[%3u] Resetting vCPU.\n", vmm_current_cpu_id);
     _vcpu.reset(_protected_mode);
+  }
+
+  void hot_reset()
+  {
+    // assumption: Guest::run_vm() already called once.
+    // intention: Do not add leak stack memory.
+    reset_common();
+
+    info().printf("[%3u] Hot resetting vCPU.\n", vmm_current_cpu_id);
+    _vcpu.hot_reset();
+
   }
 
   /**
@@ -142,7 +140,12 @@ public:
   void set_protected_mode()
   { _protected_mode = true; }
 
-  /// local or cross-core stop event handling
+  /**
+   * Handle the stop event.
+   *
+   * The event is usually emitted cross core, but also used in CPU local
+   * error cases.
+   */
   void stop() override
   {
     _stop_irq.disarm(_vcpu.get_ipc_registry());
@@ -155,7 +158,7 @@ public:
     }
     _check_msgq = true;
     // Do not do anything blocking here, we need to finish the execution of the
-    // IPC dispatching that brought us here.
+    // IPC dispatching that brought us here or return to our local caller.
   }
 
   /// core local request to halt the CPU.
@@ -218,6 +221,33 @@ public:
   }
 
 private:
+  static Dbg info() { return Dbg(Dbg::Cpu, Dbg::Info, "Cpu_dev"); }
+
+  /// Wait until an IPI puts the CPU in online state.
+  void wait_until_online()
+  {
+    while (has_message())
+      set_cpu_state(next_state());
+
+    // wait for the SIPI to sets the `Running` state
+    while (!cpu_online())
+      {
+        wait_for_ipi();
+
+        while (has_message())
+          set_cpu_state(next_state());
+      }
+  }
+
+  /// Functionality performed to reset a vCPU.
+  void reset_common()
+  {
+    _stop_irq.arm(_vcpu.get_ipc_registry());
+
+    _vcpu->state = L4_VCPU_F_FPU_ENABLED;
+    _vcpu->saved_state = L4_VCPU_F_FPU_ENABLED | L4_VCPU_F_USER_MODE;
+  }
+
   std::atomic<Cpu_state> _cpu_state; // core-local writes; cross-core reads;
   bool _protected_mode = false;
   bool _check_msgq = false; // use only in local vCPU thread.
