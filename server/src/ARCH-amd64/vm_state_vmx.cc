@@ -45,6 +45,10 @@ Vmx_state::Vmx_state(void *vmcs)
   if (l4_error(ret) < 0)
     L4Re::chksys(ret, "Cannot create guest VM hardware VMCS. Virtualization "
                       "support may be missing.");
+
+  if (l4_vm_vmx_get_caps(vmcs, L4_VM_VMX_NESTED_REVISION) != 0)
+    info().printf("vCPU interface supports nested virtualization. However, "
+                  "uvmm does not implement nested virtualization.\n");
 }
 
 /**
