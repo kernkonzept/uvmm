@@ -4,9 +4,11 @@
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *            Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  */
+
 #pragma once
 
 #include <l4/re/error_helper>
+#include <l4/re/util/unique_cap>
 #include <l4/sys/vm>
 
 #include <l4/cxx/bitfield>
@@ -164,7 +166,7 @@ public:
     Host_address_space_size = (1UL << 9),
   };
 
-  Vmx_state(void *vmcs) : _vmcs(vmcs) {}
+  Vmx_state(void *vmcs);
   ~Vmx_state() = default;
 
   Type type() const override
@@ -178,7 +180,7 @@ public:
 
   void init_state() override
   {
-    vmx_write(VMCS_LINK_POINTER, 0xffffffffffffffffULL);
+    set_hw_vmcs();
     set_activity_state(Active);
     // reflect all guest exceptions back to the guest.
     vmx_write(VMCS_EXCEPTION_BITMAP, 0xffff0000);
@@ -669,6 +671,11 @@ public:
   void vmx_write(unsigned field, l4_uint64_t val)
   { l4_vm_vmx_write(_vmcs, field, val); }
 
+  void set_hw_vmcs()
+  {
+    l4_vm_vmx_set_hw_vmcs(_vmcs, _hw_vmcs.cap());
+  }
+
   int handle_cr_access(l4_vcpu_regs_t *regs, Event_recorder *ev_rec);
   int handle_exception_nmi_ext_int(Event_recorder *ev_rec);
 
@@ -688,6 +695,8 @@ public:
   }
 
 private:
+  using Hw_vmcs = L4Re::Util::Unique_cap<L4::Vcpu_context>;
+
   static Dbg warn()
   { return Dbg(Dbg::Cpu, Dbg::Warn, "VMX"); }
 
@@ -698,6 +707,7 @@ private:
   { return Dbg(Dbg::Cpu, Dbg::Trace, "VMX"); }
 
   void *_vmcs;
+  Hw_vmcs _hw_vmcs;
 };
 
 } // namespace Vmm

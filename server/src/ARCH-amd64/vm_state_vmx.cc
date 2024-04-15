@@ -5,6 +5,7 @@
  *            Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  */
 
+#include <l4/re/env>
 #include "vm_state_vmx.h"
 #include "consts.h"
 #include "event_recorder.h"
@@ -32,6 +33,19 @@ enum : unsigned long
 
   Entry_ctrl_ia32e_bit = 1UL << 9,
 };
+
+Vmx_state::Vmx_state(void *vmcs)
+  :  _vmcs(vmcs),
+    _hw_vmcs(L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Vcpu_context>(),
+                          "Failed to allocate hardware VMCS capability."))
+{
+  // Create the hardware VMCS
+  auto *env = L4Re::Env::env();
+  auto ret = env->factory()->create(_hw_vmcs.get(), L4_PROTO_VCPU_CONTEXT);
+  if (l4_error(ret) < 0)
+    L4Re::chksys(ret, "Cannot create guest VM hardware VMCS. Virtualization "
+                      "support may be missing.");
+}
 
 /**
  * Handle exits due to HW/SW exceptions, NMIs, and external interrupts.
