@@ -40,6 +40,8 @@ public:
 
   virtual ~Virtual_timer() = default;
 
+  static void init_frequency();
+
   /**
    * Start a new thread to run the timer loop.
    *
@@ -56,8 +58,19 @@ public:
    */
   void set_next_event(l4_uint64_t next_event);
 
+  /**
+   * Setup receive timeout in UTCB for given time.
+   *
+   * \param event_time  Event time in real-time clock cycles.
+   *
+   * \retval true  if event successfully programmed.
+   * \retval false if event time already expired.
+   */
+  static bool setup_event_rcv_timeout(l4_utcb_t *utcb, l4_timeout_t *wait_timeout,
+                                      l4_uint64_t event_time);
+
 private:
-  l4_cpu_time_t get_cur_time();
+  static l4_cpu_time_t get_cur_time();
 
   /**
    * Migrate a vCPU's timer thread to its physical core and run the timer loop.
@@ -87,11 +100,12 @@ private:
    */
   l4_uint64_t next_event_exchange(l4_uint64_t next_event);
 
+  static l4_uint32_t _us_to_ticks;
+
   Vmm::Vcpu_ptr _vcpu;
   L4::Cap<L4::Thread> _vcpu_thread;
   cxx::Ref_ptr<Gic::Vcpu_ic> _vcpu_ic;
 
-  l4_uint32_t _us_to_ticks;
 
   // The timer thread
   std::thread _thread;

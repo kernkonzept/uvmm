@@ -80,6 +80,8 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
        L4Re::throw_error(-L4_ENODEV, "No PLIC found.");
     }
 
+  Vdev::Virtual_timer::init_frequency();
+
   for (auto cpu: *cpus.get())
     {
       if (!cpu)

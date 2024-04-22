@@ -30,6 +30,20 @@ namespace
   };
 }
 
+l4_uint32_t Virtual_timer::_us_to_ticks;
+
+void Virtual_timer::init_frequency()
+{
+  // TODO: Rework frequency conversion and get_cur_time(), maybe use kernel
+  // provided time accessor functions like on other architectures? Or scaling
+  // math similar to arm/core_timer.h?
+  l4_uint32_t frequency = l4re_kip()->platform_info.arch.timebase_frequency;
+  assert(Microsec_per_sec <= frequency);
+  assert(frequency % Microsec_per_sec == 0);
+  _us_to_ticks = frequency / Microsec_per_sec;
+  info.printf("Virtual_timer: us_to_ticks = %u\n", _us_to_ticks);
+}
+
 void Virtual_timer::run_timer(unsigned vcpu_no, unsigned phys_cpu_id)
 {
   // Assign a higher priority to the timer thread so that it can interrupt the
@@ -65,15 +79,9 @@ void Virtual_timer::run_timer(unsigned vcpu_no, unsigned phys_cpu_id)
       else
         {
           // vCPU updated _next_event while we were sleeping.
-          l4_cpu_time_t cur_time_us = get_cur_time();
-          l4_uint64_t next_event_us = next_event / _us_to_ticks;
-          if (L4_LIKELY(next_event_us > cur_time_us))
+          if (!setup_event_rcv_timeout(l4_utcb(), &wait_timeout, next_event))
             {
-              // Program next timeout
-              l4_rcv_timeout(l4_timeout_abs(next_event_us, 8), &wait_timeout);
-            }
-          else
-            {
+              // Next event already expired.
               _vcpu_ic->notify_timer();
             }
         }
@@ -84,15 +92,6 @@ void Virtual_timer::run_timer(unsigned vcpu_no, unsigned phys_cpu_id)
 
 void Virtual_timer::start_timer_thread(unsigned phys_cpu_id)
 {
-  // TODO: Rework frequency conversion and get_cur_time(), maybe use kernel
-  // provided time accessor functions like on other architectures? Or scaling
-  // math similar to arm/core_timer.h?
-  l4_uint32_t frequency = l4re_kip()->platform_info.arch.timebase_frequency;
-  assert(Microsec_per_sec <= frequency);
-  assert(frequency % Microsec_per_sec == 0);
-  _us_to_ticks = frequency / Microsec_per_sec;
-  info.printf("Virtual_timer: us_to_ticks = %u\n", _us_to_ticks);
-
   _wakeup_irq = L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Irq>(),
                              "Allocate timer wakeup irq.");
   L4Re::chksys(L4Re::Env::env()->factory()->create(_wakeup_irq.get()),
@@ -116,6 +115,22 @@ void Virtual_timer::set_next_event(l4_uint64_t next_event)
 
   // Notify timer thread that next_event was changed.
   _wakeup_irq->trigger();
+}
+
+bool Virtual_timer::setup_event_rcv_timeout(l4_utcb_t *utcb,
+                                            l4_timeout_t *wait_timeout,
+                                            l4_uint64_t event_time)
+{
+  l4_cpu_time_t cur_time_us = get_cur_time();
+  l4_uint64_t next_event_us = event_time / _us_to_ticks;
+  if (L4_LIKELY(next_event_us > cur_time_us))
+    {
+      // Program next timeout
+      l4_rcv_timeout(l4_timeout_abs_u(next_event_us, 8, utcb), wait_timeout);
+      return true;
+    }
+  else
+    return false;
 }
 
 l4_cpu_time_t Virtual_timer::get_cur_time()
