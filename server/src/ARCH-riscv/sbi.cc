@@ -195,11 +195,18 @@ Sbi_ret Sbi_base::handle(l4_int32_t, l4_int32_t func_id, Vcpu_ptr vcpu)
 
 Sbi_ret Sbi_time::set_timer(Vcpu_ptr vcpu, l4_uint64_t stime_value)
 {
-  // Clear pending timer interrupt
-  sbi->guest()->get_vcpu_ic(vcpu)->clear_timer();
+  if (sbi->guest()->has_vstimecmp())
+    {
+      vcpu.vm_state()->vstimecmp = stime_value;
+    }
+  else
+    {
+      // Clear pending timer interrupt
+      sbi->guest()->get_vcpu_ic(vcpu)->clear_timer();
 
-  // Set next timer interrup
-  sbi->guest()->get_timer(vcpu)->set_next_event(stime_value);
+      // Set next timer interrup
+      sbi->guest()->get_timer(vcpu)->set_next_event(stime_value);
+    }
 
   return sbi_void();
 }

@@ -18,9 +18,22 @@
 namespace Vmm
 {
 
-Cpu_dev::Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *)
+Cpu_dev::Cpu_dev(unsigned idx, unsigned phys_id, Vdev::Dt_node const *node)
 : Generic_cpu_dev(idx, phys_id)
 {
+  char const *prop_isa_str = node ? node->get_prop<char>("riscv,isa", nullptr)
+                                  : nullptr;
+  if (!prop_isa_str)
+    return;
+
+  std::string isa_str = prop_isa_str;
+  bool has_ext_sstc = l4_kip_has_isa_ext(l4re_kip(), L4_riscv_isa_ext_sstc);
+  if (has_ext_sstc && isa_str.find("_sstc") == std::string::npos)
+    {
+      // Indicate in the device tree that the SSTC extension is available.
+      isa_str += "_sstc";
+      node->setprop_string("riscv,isa", isa_str.c_str());
+    }
 }
 
 bool

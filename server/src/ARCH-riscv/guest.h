@@ -67,6 +67,9 @@ public:
   cxx::Ref_ptr<Gic::Vcpu_ic> get_vcpu_ic(Vcpu_ptr vcpu)
   { return _vcpu_ics[vcpu.get_vcpu_id()]; }
 
+  bool has_vstimecmp() const
+  { return _has_vstimecmp; }
+
   cxx::Ref_ptr<Vdev::Virtual_timer> get_timer(Vcpu_ptr vcpu)
   { return _timers[vcpu.get_vcpu_id()]; }
 
@@ -82,6 +85,8 @@ private:
   static l4_uint16_t read_guest_mem_inst(l4_addr_t guest_virt_addr,
                                          l4_vm_state_t *vm_state,
                                          bool *failed);
+
+  bool _has_vstimecmp;
 
   cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
   std::vector<cxx::Ref_ptr<Gic::Vcpu_ic>> _vcpu_ics;
