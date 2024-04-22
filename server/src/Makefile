@@ -73,7 +73,8 @@ SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_VIRTIO_POWER) += device/virtio_input_power_p
 SRC_CC-$(CONFIG_UVMM_VDEV_VIRQ) += device/virq.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_MMIO_PROXY) += device/mmio_proxy.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_SYSCTL) += device/sysctl.cc
-SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_PROXY) += device/virtio_device_proxy.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_PROXY) += device/virtio_device_mem_pool.cc \
+                                           device/virtio_device_proxy.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
                                                            device/pci_host_ecam_generic.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_CFI_FLASH) +=  device/cfi.cc
