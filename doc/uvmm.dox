@@ -25,6 +25,10 @@
  * * `-d, --dtb=<DTB overlay>`
  *
  *    The name of the device tree file present in the ROM namespace.
+ *    The device tree will be placed in the upmost region of guest memory.
+ *    Optionally, a user may use an additional parameter in the form of
+ *    "<DTB overlay>:limit=0xffffffff" to set an upper limit for the device tree
+ *    location.
  *
  * * `-r, --ramdisk=<RAM disk name>`
  *

@@ -76,13 +76,32 @@ namespace {
 void
 Vdev::Host_dt::add_source(char const *fname)
 {
-  Mapped_file mem(fname);
+  std::string filename(fname);
+  std::size_t pos = filename.find(":limit=");
+  if (pos != std::string::npos)
+    {
+      char const *r = filename.substr(pos + 7, std::string::npos).c_str();
+
+      _upper_limit = strtoull(r, NULL, 0);
+      if (!_upper_limit)
+        {
+          Err().printf("Failed to parse a valid upper limit for DT placement. "
+                       "Found: '%s'. Configuration error. Exit.\n", r);
+          L4Re::chksys(-L4_EINVAL, "Unable to parse configuration for upper "
+                                   "limit for DT placement");
+        }
+
+      warn.printf("DT location configured to be below 0x%llx\n",
+                  _upper_limit);
+    }
+
+  Mapped_file mem(filename.substr(0, pos).c_str());
   if (!mem.valid())
     L4Re::chksys(-L4_EINVAL, "Unable to access overlay");
 
   if (valid())
     {
-      get().apply_overlay(mem.get(), fname);
+      get().apply_overlay(mem.get(), filename.substr(0, pos).c_str());
       return;
     }
 

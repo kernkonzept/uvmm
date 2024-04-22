@@ -87,8 +87,17 @@ public:
         _fdt->move(target);
   }
 
+  /**
+   * Return upper limit of guest memory area where the DT can be copied to.
+   *
+   * \returns Upper limit of DT address in guest memory.
+   */
+  l4_uint64_t upper_limit()
+  { return _upper_limit; }
+
 private:
   cxx::unique_ptr<Dtb::Fdt> _fdt;
+  l4_uint64_t _upper_limit = ~0ULL;
 };
 
 }

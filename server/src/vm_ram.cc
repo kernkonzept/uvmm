@@ -72,18 +72,36 @@ Vmm::Ram_free_list::reserve_fixed(Vmm::Guest_addr start, l4_size_t size)
 
 bool
 Vmm::Ram_free_list::reserve_back(l4_size_t size, Vmm::Guest_addr *start,
-                                 unsigned char page_shift)
+                                 unsigned char page_shift,
+                                 Vmm::Guest_addr upper_limit)
 {
   for (auto rit = _freelist.rbegin(); rit != _freelist.rend(); ++rit)
     {
+      l4_uint64_t end = rit->end.get();
       if (rit->end - rit->start + 1 < size)
         continue;
 
-      auto s = l4_trunc_size(rit->end.get() - size + 1, page_shift);
+      // region resides above upper_limit completely
+      if (rit->start >= upper_limit)
+        continue;
+
+      // region is at or spans upper limit
+      if (rit->end >= upper_limit)
+        {
+          // and the area below upper_limit is too small
+          if ((rit->start + size) >= upper_limit)
+            continue;
+
+          // use the area below upper limit
+          end = upper_limit.get();
+        }
+
+      auto s = l4_trunc_size(end - size + 1, page_shift);
 
       if (s < rit->start.get())
         continue;
 
+      assert(*start + size < upper_limit);
       *start = Vmm::Guest_addr(s);
 
       return reserve_fixed(*start, size);
@@ -225,8 +243,10 @@ Vmm::Vm_ram::move_in_device_tree(Ram_free_list *free_list, Vdev::Host_dt &&dt)
   l4_size_t new_size = dt.get().size();
   Guest_addr addr;
 
-  if (!free_list->reserve_back(new_size, &addr))
-    L4Re::chksys(-L4_ENOMEM, "Copy device tree into guest memory.");
+  if (!free_list->reserve_back(new_size, &addr, L4_PAGESHIFT,
+                               Guest_addr(dt.upper_limit())))
+    L4Re::chksys(-L4_ENOMEM, "Copy device tree into guest memory. "
+                             "Failed to find a memory area.");
 
   void *target = guest2host<void *>(addr);
 

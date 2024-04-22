@@ -49,7 +49,8 @@ public:
 
   bool reserve_fixed(Vmm::Guest_addr start, l4_size_t size);
   bool reserve_back(l4_size_t size, Vmm::Guest_addr *start,
-                    unsigned char page_shift = L4_PAGESHIFT);
+                    unsigned char page_shift = L4_PAGESHIFT,
+                    Vmm::Guest_addr upper_limit = Vmm::Guest_addr(~0ULL));
 
   long load_file_to_back(Vm_ram *ram, char const *name,
                          Vmm::Guest_addr *start, l4_size_t *size);
