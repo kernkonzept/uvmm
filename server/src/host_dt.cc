@@ -80,13 +80,13 @@ Vdev::Host_dt::add_source(char const *fname)
   std::size_t pos = filename.find(":limit=");
   if (pos != std::string::npos)
     {
-      char const *r = filename.substr(pos + 7, std::string::npos).c_str();
+      std::string r = filename.substr(pos + 7, std::string::npos);
 
-      _upper_limit = strtoull(r, NULL, 0);
+      _upper_limit = strtoull(r.c_str(), NULL, 0);
       if (!_upper_limit)
         {
           Err().printf("Failed to parse a valid upper limit for DT placement. "
-                       "Found: '%s'. Configuration error. Exit.\n", r);
+                       "Found: '%s'. Configuration error. Exit.\n", r.c_str());
           L4Re::chksys(-L4_EINVAL, "Unable to parse configuration for upper "
                                    "limit for DT placement");
         }
