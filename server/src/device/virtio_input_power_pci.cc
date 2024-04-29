@@ -41,7 +41,7 @@ struct Virtio_input_power_pci
   int inject_events(l4virtio_input_event_t *events, size_t num)
   { return Virtio_input<Virtio_input_power_pci>::inject_events(events, num); }
 
-  void virtio_pci_device_config_written()
+  void virtio_device_config_written(unsigned /*reg*/)
   {
     l4virtio_input_config_t *dev_cfg = virtio_device_config<l4virtio_input_config_t>();
     virtio_input_cfg_written(dev_cfg);

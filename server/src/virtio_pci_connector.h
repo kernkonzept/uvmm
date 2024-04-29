@@ -377,7 +377,10 @@ private:
       + port;
 
     if (Vmm::Mem_access::write_width(dev_cfg, val, wd) == L4_EOK)
-      dev()->virtio_pci_device_config_written();
+      {
+        Vmm::Mem_access::cache_clean_data_width(dev_cfg, wd);
+        dev()->virtio_device_config_written(port);
+      }
   }
 
   unsigned _msi_table_idx_config = ::Vdev::Virtio_msix_no_vector;
