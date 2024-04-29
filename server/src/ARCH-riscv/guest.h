@@ -50,6 +50,8 @@ public:
   void L4_NORETURN halt_vm(Vcpu_ptr current_vcpu) override;
   void L4_NORETURN shutdown(int val) override;
 
+  void wfi(Vcpu_ptr vcpu);
+
   void handle_entry(Vcpu_ptr vcpu);
   void handle_ipc_upcall(Vcpu_ptr vcpu);
   void handle_exregs_exception(Vcpu_ptr vcpu);

@@ -168,6 +168,22 @@ Guest::stop_cpus()
 }
 
 void
+Guest::wfi(Vcpu_ptr vcpu)
+{
+  bool pending_irq = vcpu.has_pending_irq();
+  // If Sstc extension is used there is no timer-thread to wake us up, so we
+  // have to set up a receive timeout according to the next timer event the
+  // guest configured in vstimecmp.
+  l4_timeout_t wait_timeout = L4_IPC_NEVER;
+  if (!pending_irq && _has_vstimecmp && (vcpu.vm_state()->hie & L4_vm_hvip_vstip))
+    pending_irq = !Vdev::Virtual_timer::setup_event_rcv_timeout(
+                    l4_utcb(), &wait_timeout, vcpu.vm_state()->vstimecmp);
+
+  if (!pending_irq)
+    vcpu.wait_for_ipc(l4_utcb(), wait_timeout);
+}
+
+void
 Guest::handle_entry(Vcpu_ptr vcpu)
 {
   switch (vcpu->r.cause)
@@ -284,26 +300,13 @@ Guest::handle_page_fault(Vcpu_ptr vcpu)
 void
 Guest::handle_virtual_inst(Vcpu_ptr vcpu)
 {
-  auto vm_state = vcpu.vm_state();
-
   fetch_guest_inst(vcpu);
-  Riscv::Instruction inst(vm_state->htinst);
+  Riscv::Instruction inst(vcpu.vm_state()->htinst);
   if (inst.is_wfi())
     {
       // Resume with instruction following wfi
       vcpu.jump_system_instruction();
-
-      bool pending_irq = vcpu.has_pending_irq();
-      // If Sstc extension is used there is no timer-thread to wake us up, so we
-      // have to set up an receive timeout according to the next timer event the
-      // guest configured in vstimecmp.
-      l4_timeout_t wait_timeout = L4_IPC_NEVER;
-      if (!pending_irq && _has_vstimecmp && (vm_state->hie & L4_vm_hvip_vstip))
-        pending_irq = !Vdev::Virtual_timer::setup_event_rcv_timeout(
-                        l4_utcb(), &wait_timeout, vcpu.vm_state()->vstimecmp);
-
-      if (!pending_irq)
-        vcpu.wait_for_ipc(l4_utcb(), wait_timeout);
+      wfi(vcpu);
     }
   else
     {

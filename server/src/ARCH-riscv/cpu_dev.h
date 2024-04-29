@@ -36,7 +36,8 @@ public:
     Off,
     On_pending,
     On_prepared,
-    On
+    On,
+    Suspended,
   };
 
   /**
@@ -85,6 +86,8 @@ public:
    * * On_pending  -> On_prepared: CPU local, no concurrency (restart)
    * * On_prepared -> On:          CPU local, no concurrency (restart)
    * * On* -> Off:                 CPU local, no concurrency
+   * * On -> Suspended:            CPU local, no concurrency
+   * * Suspended -> On:            CPU local, no concurrency
    *
    * The only state change that requires protection against concurrent access
    * is the change from Off to On_pending. Therefore mark_pending() uses
@@ -140,8 +143,20 @@ public:
   void mark_on()
   {
     assert(online_state() == Cpu_state::On_pending ||
-           online_state() == Cpu_state::On_prepared);
+           online_state() == Cpu_state::On_prepared ||
+           online_state() == Cpu_state::Suspended);
     std::atomic_store(&_cpu_state, Cpu_state::On);
+  }
+
+  /**
+   * Mark CPU as Suspended.
+   *
+   * Marks the CPU as Suspended. The current state has to be On.
+   */
+  void mark_suspended()
+  {
+    assert(online_state() == Cpu_state::On);
+    std::atomic_store(&_cpu_state, Cpu_state::Suspended);
   }
 
   void set_vcpu_ic(cxx::Ref_ptr<Gic::Vcpu_ic> vcpu_ic)

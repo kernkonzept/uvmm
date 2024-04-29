@@ -134,8 +134,8 @@ Sbi::find_ext(l4_int32_t ext_id) const
 
 Sbi_ret Sbi_base::get_spec_version()
 {
-  // SBI specification v0.2
-  return sbi_value(2);
+  // SBI specification v0.3
+  return sbi_value(3);
 }
 
 Sbi_ret Sbi_base::get_impl_id()
@@ -390,9 +390,30 @@ Sbi_ret Sbi_hsm::hart_status(l4_umword_t hartid)
         return sbi_value(Hart_start_request_pending);
       case Cpu_dev::Cpu_state::On:
         return sbi_value(Hart_started);
+      case Cpu_dev::Cpu_state::Suspended:
+        return sbi_value(Hart_suspended);
     }
 
   __builtin_unreachable();
+}
+
+Sbi_ret Sbi_hsm::hart_suspend(Vcpu_ptr vcpu, l4_uint32_t suspend_type,
+                              l4_umword_t, l4_umword_t)
+{
+  if (suspend_type == 0) // Default retentive suspend
+    {
+      auto guest = sbi.get()->guest();
+      Cpu_dev *hart = guest->lookup_cpu(vcpu.get_vcpu_id());
+      hart->mark_suspended();
+      guest->wfi(vcpu);
+      hart->mark_on();
+      return sbi_void();
+    }
+
+  if (suspend_type == 0x80000000) // Default non-retentive suspend
+    return sbi_error(Sbi_err_not_supported);
+
+  return sbi_error(Sbi_err_invalid_param);
 }
 
 Sbi_ret Sbi_hsm::handle(l4_int32_t, l4_int32_t func_id, Vcpu_ptr vcpu)
@@ -405,6 +426,8 @@ Sbi_ret Sbi_hsm::handle(l4_int32_t, l4_int32_t func_id, Vcpu_ptr vcpu)
         return call(vcpu, &Sbi_hsm::hart_stop);
       case Sbi_fid_hart_get_status:
         return call(vcpu, &Sbi_hsm::hart_status);
+      case Sbi_fid_hart_suspend:
+        return call(vcpu, &Sbi_hsm::hart_suspend);
       default:
         return sbi_error(Sbi_err_unsupported_func);
     }

@@ -251,6 +251,7 @@ private:
     Sbi_fid_hart_start      = 0,
     Sbi_fid_hart_stop       = 1,
     Sbi_fid_hart_get_status = 2,
+    Sbi_fid_hart_suspend    = 3,
   };
 
   Sbi_ret hart_start(l4_umword_t hartid, l4_umword_t start_addr,
@@ -264,9 +265,13 @@ private:
     Hart_stopped               = 1,
     Hart_start_request_pending = 2,
     Hart_stop_request_pending  = 3,
+    Hart_suspended             = 4,
   };
 
   Sbi_ret hart_status(l4_umword_t hartid);
+
+  Sbi_ret hart_suspend(Vcpu_ptr vcpu, l4_uint32_t suspend_type,
+                       l4_umword_t resume_addr, l4_umword_t opaque);
 };
 
 class Sbi_legacy : public Sbi_ext
