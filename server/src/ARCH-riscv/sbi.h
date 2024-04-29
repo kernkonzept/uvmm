@@ -274,6 +274,31 @@ private:
                        l4_umword_t resume_addr, l4_umword_t opaque);
 };
 
+class Sbi_dbcn : public Sbi_ext
+{
+public:
+  Sbi_dbcn();
+  Sbi_ret handle(l4_int32_t, l4_int32_t func_id, Vcpu_ptr vcpu) override;
+
+private:
+  enum : long
+  {
+    Sbi_fid_debug_console_write      = 0,
+    Sbi_fid_debug_console_read       = 1,
+    Sbi_fid_debug_console_write_byte = 2,
+  };
+
+  Sbi_ret debug_console_write(l4_umword_t num_bytes, l4_umword_t base_addr_lo,
+                              l4_umword_t base_addr_hi);
+
+  Sbi_ret debug_console_read(l4_umword_t num_bytes, l4_umword_t base_addr_lo,
+                             l4_umword_t base_addr_hi);
+
+  Sbi_ret debug_console_write_byte(l4_uint8_t byte);
+
+  L4::Cap<L4::Vcon> _con;
+};
+
 class Sbi_legacy : public Sbi_ext
 {
 public:

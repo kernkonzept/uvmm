@@ -64,6 +64,9 @@ public:
   cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus() const
   { return _cpus; }
 
+  cxx::Ref_ptr<Vmm::Vm_ram> ram() const
+  { return _ram; }
+
   Cpu_dev *lookup_cpu(l4_umword_t vcpu_id) const;
 
   cxx::Ref_ptr<Gic::Vcpu_ic> get_vcpu_ic(Vcpu_ptr vcpu)
@@ -91,6 +94,7 @@ private:
   bool _has_vstimecmp;
 
   cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
+  cxx::Ref_ptr<Vmm::Vm_ram> _ram;
   std::vector<cxx::Ref_ptr<Gic::Vcpu_ic>> _vcpu_ics;
   std::vector<cxx::Ref_ptr<Vdev::Virtual_timer>> _timers;
   cxx::Ref_ptr<Gic::Plic> _plic;

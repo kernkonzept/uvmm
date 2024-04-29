@@ -55,6 +55,7 @@ void
 Guest::prepare_platform(Vdev::Device_lookup *devs)
 {
   _cpus = devs->cpus();
+  _ram = devs->ram();
 }
 
 void

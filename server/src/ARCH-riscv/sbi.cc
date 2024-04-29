@@ -39,6 +39,7 @@ enum : l4_int32_t
   Sbi_ext_ipi     = 0x735049,
   Sbi_ext_rfnc    = 0x52464E43,
   Sbi_ext_hsm     = 0x48534D,
+  Sbi_ext_dbcn    = 0x4442434E,
 };
 
 }
@@ -63,6 +64,7 @@ Sbi::Sbi(Guest *guest)
   register_ext(Sbi_ext_ipi, Vdev::make_device<Sbi_ipi>());
   register_ext(Sbi_ext_rfnc, Vdev::make_device<Sbi_rfnc>());
   register_ext(Sbi_ext_hsm, Vdev::make_device<Sbi_hsm>());
+  register_ext(Sbi_ext_dbcn, Vdev::make_device<Sbi_dbcn>());
 }
 
 void
@@ -134,8 +136,8 @@ Sbi::find_ext(l4_int32_t ext_id) const
 
 Sbi_ret Sbi_base::get_spec_version()
 {
-  // SBI specification v0.3
-  return sbi_value(3);
+  // SBI specification v2.0
+  return sbi_value(2 << 24 | 0);
 }
 
 Sbi_ret Sbi_base::get_impl_id()
@@ -428,6 +430,126 @@ Sbi_ret Sbi_hsm::handle(l4_int32_t, l4_int32_t func_id, Vcpu_ptr vcpu)
         return call(vcpu, &Sbi_hsm::hart_status);
       case Sbi_fid_hart_suspend:
         return call(vcpu, &Sbi_hsm::hart_suspend);
+      default:
+        return sbi_error(Sbi_err_unsupported_func);
+    }
+}
+
+Sbi_dbcn::Sbi_dbcn()
+: _con(L4Re::Env::env()->log())
+{
+}
+
+Sbi_ret
+Sbi_dbcn::debug_console_write(l4_umword_t num_bytes, l4_umword_t base_addr_lo,
+                              l4_umword_t base_addr_hi)
+{
+  // Although in theory the RISC-V hypervisor extension allows to provide up to
+  // 34-bit of guest physical memory, we never provide more than 32-bit.
+  if (base_addr_hi != 0)
+    return sbi_error(Sbi_err_invalid_param);
+
+  auto phys_region = Region::ss(Vmm::Guest_addr(base_addr_lo), num_bytes,
+                                Region_type::Ram);
+  char const *data;
+  try
+    {
+      data = sbi->guest()->ram()->guest2host<char const *>(phys_region);
+    }
+  catch (L4::Runtime_error &)
+    {
+      warn.printf("dbcn: Invalid write buffer address.\n");
+      return sbi_error(Sbi_err_invalid_param);
+    }
+
+  // No need for cache maintenance before reading the data, because handling of
+  // an SBI call always happens on the same vCPU that made the call.
+
+  l4_umword_t num_written = 0;
+  while (num_written < num_bytes)
+    {
+      unsigned write_size = cxx::min<unsigned>(num_bytes - num_written,
+                                               L4_VCON_WRITE_SIZE);
+      long res = _con->write(data + num_written, write_size);
+      if (res < 0)
+        return sbi_error(Sbi_err_failed);
+
+      num_written += res;
+      if (res < static_cast<long>(write_size))
+        // The SBI call is non-blocking, if the console is saturated only do a
+        // partial write.
+        break;
+    }
+
+  return sbi_value(num_written);
+}
+
+Sbi_ret
+Sbi_dbcn::debug_console_read(l4_umword_t num_bytes, l4_umword_t base_addr_lo,
+                             l4_umword_t base_addr_hi)
+{
+  // Although in theory the RISC-V hypervisor extension allows to provide up to
+  // 34-bit of guest physical memory, we never provide more than 32-bit.
+  if (base_addr_hi != 0)
+    return sbi_error(Sbi_err_invalid_param);
+
+  auto phys_region = Region::ss(Vmm::Guest_addr(base_addr_lo), num_bytes,
+                                Region_type::Ram);
+  char *data;
+  try
+    {
+      // Note: We assume RAM is always writable.
+      data = sbi->guest()->ram()->guest2host<char *>(phys_region);
+    }
+  catch (L4::Runtime_error &)
+    {
+      warn.printf("dbcn: Invalid read buffer address.\n");
+      return sbi_error(Sbi_err_invalid_param);
+    }
+
+  l4_umword_t num_read = 0;
+  while (num_read < num_bytes)
+    {
+      unsigned read_size = cxx::min<unsigned>(num_bytes - num_read,
+                                              L4_VCON_READ_SIZE);
+      long res = _con->read(data + num_read, read_size);
+      if (res < 0)
+        return sbi_error(Sbi_err_failed);
+
+      num_read += res;
+      if (res < static_cast<long>(read_size))
+        // The SBI call is non-blocking, if the console currently has no more
+        // data to read only do a partial read.
+        break;
+    }
+
+  // No need for cache maintenance after writing the data, because handling of
+  // an SBI call always happens on the same vCPU that made the call.
+
+  return sbi_value(num_read);
+}
+
+Sbi_ret Sbi_dbcn::debug_console_write_byte(l4_uint8_t byte)
+{
+  char const c = byte;
+  long res = _con->write(&c, 1);
+  if (res < 0)
+    return sbi_error(Sbi_err_failed);
+
+  // Char was written successfully.
+  return sbi_void();
+}
+
+Sbi_ret Sbi_dbcn::handle(l4_int32_t, l4_int32_t func_id, Vcpu_ptr vcpu)
+{
+  switch(func_id)
+    {
+      case Sbi_fid_debug_console_write:
+        return call(vcpu, &Sbi_dbcn::debug_console_write);
+      case Sbi_fid_debug_console_read:
+        return call(vcpu, &Sbi_dbcn::debug_console_read);
+      case Sbi_fid_debug_console_write_byte:
+        return call(vcpu, &Sbi_dbcn::debug_console_write_byte);
       default:
         return sbi_error(Sbi_err_unsupported_func);
     }
