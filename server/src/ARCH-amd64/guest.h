@@ -261,12 +261,32 @@ private:
   Event_recorder *recorder(unsigned num)
   { return _event_recorders.recorder(num); }
 
+  /**
+   * Perform actions necessary when changing from one Cpu_dev state to another.
+   *
+   * \tparam VMS       SVM or VMX state type
+   * \param current    Current CPU state
+   * \param new_state  CPU state to transition into
+   * \param lapic      local APIC of the current vCPU
+   * \param vm         SVM or VMX state
+   * \param cpu        current CPU device
+   */
   template <typename VMS>
-  bool state_transition_effects(Cpu_dev::Cpu_state const cs,
-                                Cpu_dev::Cpu_state const ns,
+  bool state_transition_effects(Cpu_dev::Cpu_state const current,
+                                Cpu_dev::Cpu_state const new_state,
                                 Gic::Virt_lapic *lapic, VMS *vm, Cpu_dev *cpu);
+
+  /**
+   * Perform actions of the state the Cpu_dev just transitioned into.
+   *
+   * \tparam VMS      SVM or VMX state type
+   * \param state     New CPU state after state transition
+   * \param halt_req  true, if `state` is the halt state and events are pending
+   * \param cpu       current CPU device
+   * \param vm        SVM or VMX state
+   */
   template <typename VMS>
-  bool new_state_action(Cpu_dev::Cpu_state ns, bool halt_req, Cpu_dev *cpu,
+  bool new_state_action(Cpu_dev::Cpu_state state, bool halt_req, Cpu_dev *cpu,
                         VMS *vm);
 
   void iomap_dump(Dbg::Verbosity l) const
