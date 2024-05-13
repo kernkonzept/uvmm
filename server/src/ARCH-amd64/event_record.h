@@ -83,6 +83,17 @@ struct Event_exc : Event_record
   unsigned error_val = 0;       ///< Error value to push on the stack
 };
 
+struct Real_mode_exc : Event_record
+{
+  explicit Real_mode_exc(Event_prio p, unsigned ev_num)
+  : Event_record(p), ev_num(ev_num)
+  {}
+
+  bool inject(Vm_state *vm) override;
+
+  unsigned ev_num;              ///< Event number to inject
+};
+
 /**
  * Generic software exception/interrupt event to inject into the guest.
  *

@@ -418,6 +418,13 @@ int
 Vmx_state::handle_hardware_exception(Event_recorder *ev_rec, unsigned num,
                                      l4_uint32_t err_code)
 {
+  if (in_real_mode())
+    {
+      // In real mode, exceptions do not push an error code.
+      ev_rec->make_add_event<Real_mode_exc>(Event_prio::Exception, num);
+      return Retry;
+    }
+
   // Reflect all hardware exceptions to the guest. Exceptions pushing an error
   // code are handled specially.
   switch (num)

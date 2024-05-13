@@ -14,6 +14,12 @@ bool Event_exc::inject(Vm_state *vm)
   return true;
 }
 
+bool Real_mode_exc::inject(Vm_state *vm)
+{
+  vm->inject_event(Injection_event(ev_num, 3, false));
+  return true;
+}
+
 bool Event_nmi::inject(Vm_state *vms)
 {
   if (vms->can_inject_nmi())
