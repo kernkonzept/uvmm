@@ -113,18 +113,6 @@ config UVMM_VDEV_OPTEE
 	
 	  For details on the configuration see device/optee.cc.
 
-config UVMM_VDEV_VIRTIO_POWER
-	bool "Virtio-input based power events"
-	default y
-	help
-	  Support sending power events via Virtio-input.
-
-config UVMM_VDEV_VIRTIO_INPUT
-	bool "Forward L4Re::Events via Virtio-input"
-	default y
-	help
-	  Support forwarding input device events via Virtio-input.
-
 config UVMM_VDEV_VIRQ
 	bool "Forward L4 interrupts"
 	default y
@@ -150,15 +138,6 @@ config UVMM_VDEV_SYSCTL
 	  The device can be used with the generic syscon device from Linux.
 	
 	  For details on the configuration see device/sysctl.cc
-
-config UVMM_VDEV_DEVICE_PROXY
-	bool "Virtio device proxy"
-	default y
-	help
-	  Proxy for virtio devices implemented in the guest. Can be used to export
-	  devices driven by a guest using the virtio protocol.
-	
-	  For details on the configuration see device/virtio_device_proxy.cc
 
 config UVMM_VDEV_ROM
 	bool "Read-only dataspace based devices"
@@ -267,5 +246,48 @@ config UVMM_VDEV_GIC_ITS
 	bool "Emulate ITS in GICv3 to support MSIs"
 	depends on UVMM_VDEV_GIC_V3
 	default y
+
+menuconfig UVMM_VDEV_VIRTIO
+	bool "Virtio driver/device support"
+	default y
+
+if UVMM_VDEV_VIRTIO
+
+config UVMM_VDEV_VIRTIO_CONSOLE
+	bool "Support forwarding vcon as virtio-console to the guest"
+	default y
+
+config UVMM_VDEV_VIRTIO_POWER
+	bool "Virtio-input based power events"
+	default y
+	help
+	  Support sending power events via Virtio-input.
+
+config UVMM_VDEV_VIRTIO_INPUT
+	bool "Forward L4Re::Events via Virtio-input"
+	default y
+	help
+	  Support forwarding input device events via Virtio-input.
+
+config UVMM_VDEV_VIRTIO_PROXY
+	bool "Support forwarding L4virtio devices to the guest"
+	default y
+	help
+	  Support forwarding L4Re virtio devices to the guest. This enables
+	  guests to use L4Re drivers e.g., block devices or virtual network
+	  bridges.
+
+	  If unsure, say Y.
+
+config UVMM_VDEV_DEVICE_PROXY
+	bool "Virtio device proxy"
+	default y
+	help
+	  Proxy for virtio devices implemented in the guest. Can be used to export
+	  devices driven by a guest using the virtio protocol.
+
+	  For details on the configuration see device/virtio_device_proxy.cc
+
+endif
 
 endmenu
