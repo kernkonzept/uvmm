@@ -121,23 +121,23 @@ public:
     switch (dev_cfg->device)
       {
       case L4VIRTIO_ID_NET:
-        hdr->classcode[2] = 0x02;
+        hdr->classcode[2] = Pci_class_code_network_device;
         break;
       case L4VIRTIO_ID_BLOCK:
       case L4VIRTIO_ID_SCSI:
-        hdr->classcode[2] = 0x01;
+        hdr->classcode[2] = Pci_class_code_mass_storage_device;
         break;
       case L4VIRTIO_ID_CONSOLE:
         // same as used by qemu (communication controller, other)
-        hdr->classcode[2] = 0x07;
-        hdr->classcode[1] = 0x80;
+        hdr->classcode[2] = Pci_class_code_communication_device;
+        hdr->classcode[1] = Pci_class_code_other_device;
         break;
       case L4VIRTIO_ID_INPUT:
-        hdr->classcode[2] = 0x09; // Input devices
-        hdr->classcode[1] = 0x80; // Other input controller
+        hdr->classcode[2] = Pci_class_code_input_device; // Input devices
+        hdr->classcode[1] = Pci_class_code_other_device; // Other input controller
         break;
       default:
-        hdr->classcode[2] = 0xff;
+        hdr->classcode[2] = Pci_class_code_unknown_device;
         break;
       }
   }

@@ -211,7 +211,31 @@ enum
 
 enum : l4_uint8_t
 {
+  Pci_class_code_mass_storage_device = 0x01,
+  Pci_class_code_network_device = 0x02,
+  Pci_class_code_display_device = 0x03,
+  Pci_class_code_multimedia_device = 0x04,
+  Pci_class_code_memory_device = 0x05,
   Pci_class_code_bridge_device = 0x06,
+  Pci_class_code_communication_device = 0x07,
+  Pci_class_code_system_peripheralls_device = 0x08,
+  Pci_class_code_input_device = 0x09,
+  Pci_class_code_docking_station_device = 0x0a,
+  Pci_class_code_processors_device = 0x0b,
+  Pci_class_code_serial_bus_device = 0x0c,
+  Pci_class_code_wireless_device = 0x0d,
+  Pci_class_code_io_device = 0x0e,
+  Pci_class_code_satellite_device = 0x0f,
+  Pci_class_code_crypt_device = 0x10,
+  Pci_class_code_signal_device = 0x11,
+  Pci_class_code_accelerator_device = 0x12,
+  Pci_class_code_instrument_device = 0x13,
+  Pci_class_code_other_device = 0x80,
+  Pci_class_code_unknown_device = 0xff,
+};
+
+enum : l4_uint8_t
+{
   Pci_subclass_code_host = 0x00,
 };
 
