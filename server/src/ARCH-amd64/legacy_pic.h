@@ -127,8 +127,8 @@ class Legacy_pic : public Gic::Ic
     l4_uint8_t _offset = 0;
     l4_uint8_t _slave_at = 0;
 
-    struct ICW1 _icw1; // store to keep track of single mode and icw4
-    struct ICW4 _icw4; // store to keep track of aeoi mode
+    struct ICW1 _icw1 {0}; // store to keep track of single mode and icw4
+    struct ICW4 _icw4 {0}; // store to keep track of aeoi mode
 
     bool _is_master;
     Legacy_pic *_pic;
