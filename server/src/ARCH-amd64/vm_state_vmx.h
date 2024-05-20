@@ -268,7 +268,7 @@ public:
                 + vmx_read(VMCS_VM_EXIT_INSN_LENGTH));
   }
 
-  void setup_linux_protected_mode(l4_addr_t entry) override
+  void setup_linux_protected_mode(l4_addr_t entry, l4_addr_t stack_addr) override
   {
     vmx_write(VMCS_GUEST_CS_SELECTOR, 0x10);
     vmx_write(VMCS_GUEST_CS_ACCESS_RIGHTS, 0xd09b);
@@ -306,7 +306,7 @@ public:
     vmx_write(VMCS_GUEST_TR_BASE, 0);
 
     vmx_write(VMCS_GUEST_RIP, entry);
-    vmx_write(VMCS_GUEST_RSP, 0);
+    vmx_write(VMCS_GUEST_RSP, stack_addr);
     vmx_write(VMCS_GUEST_CR0, 0x10031);
     vmx_write(VMCS_CR0_READ_SHADOW, 0x10031);
     vmx_write(VMCS_CR0_GUEST_HOST_MASK, ~0ULL);

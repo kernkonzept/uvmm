@@ -68,7 +68,7 @@ Svm_state::init_state()
 }
 
 void
-Svm_state::setup_linux_protected_mode(l4_addr_t entry)
+Svm_state::setup_linux_protected_mode(l4_addr_t entry, l4_addr_t stack_addr)
 {
   _vmcb->state_save_area.cs.selector = 0x10;
   _vmcb->state_save_area.cs.attrib = 0xc9a; // TYPE=10=Read/Execute, S, P, DB, G
@@ -106,7 +106,7 @@ Svm_state::setup_linux_protected_mode(l4_addr_t entry)
   _vmcb->state_save_area.tr.base = 0;
 
   _vmcb->state_save_area.rip = entry;
-  _vmcb->state_save_area.rsp = 0;
+  _vmcb->state_save_area.rsp = stack_addr;
   _vmcb->state_save_area.cr0 = 0x10031;
   _vmcb->state_save_area.cr4 = 0x690;
 }

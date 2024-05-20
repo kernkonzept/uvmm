@@ -219,6 +219,13 @@ private:
     Size_off feat[Num_fields];
   };
 
+  void prepare_openbsd_binary_run(Vdev::Device_lookup *devs, l4_addr_t entry,
+                                  char const *binary, char const *cmd_line,
+                                  l4_addr_t dt_boot_addr);
+  void prepare_linux_binary_run(Vdev::Device_lookup *devs, l4_addr_t entry,
+                                char const *binary, char const *cmd_line,
+                                l4_addr_t dt_boot_addr);
+
   template<typename VMS>
   void run_vm_t(Vcpu_ptr vcpu, VMS *vm) L4_NORETURN;
 
@@ -349,6 +356,7 @@ private:
   cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
   Vmm::Event_recorder_array _event_recorders;
   Xsave_state_area _xsave_layout;
+  l4_addr_t _guest_size;
 };
 
 /**

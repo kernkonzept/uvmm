@@ -246,7 +246,8 @@ public:
   { _vmcb->control_area.clean_bits &= ~bits; }
 
   void init_state() override;
-  void setup_linux_protected_mode(l4_addr_t entry) override;
+  void setup_linux_protected_mode(l4_addr_t entry,
+                                  l4_addr_t stack_addr) override;
   void setup_real_mode(l4_addr_t entry) override;
 
   Injection_event pending_event_injection() override

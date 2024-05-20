@@ -25,6 +25,7 @@
 #include "event_record.h"
 #include "event_record_lapic.h"
 #include "cpuid.h"
+#include "openbsd_bootparams.h"
 
 static cxx::Static_container<Vmm::Guest> guest;
 Acpi::Acpi_device_hub *Acpi::Acpi_device_hub::_hub;
@@ -138,6 +139,7 @@ Guest::load_binary(Vm_ram *ram, char const *binary, Ram_free_list *free_list)
   Boot::Binary_loader_factory bf;
   bf.load(binary, ram, free_list, &entry);
 
+  _guest_size = bf.get_size();
   _guest_t = bf.type();
 
   // Reserve Zero-page and cmdline space: One page and 4k for the cmdline.
@@ -180,24 +182,75 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
 
 void
 Guest::prepare_binary_run(Vdev::Device_lookup *devs, l4_addr_t entry,
-                          char const * /*binary*/, char const *cmd_line,
+                          char const * binary, char const *cmd_line,
                           l4_addr_t dt_boot_addr)
 {
+  switch(guest_type())
+    {
+    case Boot::Binary_type::Rom:
+      {
+        auto cpus = devs->cpus();
+        Vcpu_ptr vcpu = cpus->vcpu(0);
+
+        vcpu->r.ip = entry;
+        break;
+      }
+    case Boot::Binary_type::Linux:
+    case Boot::Binary_type::Elf:
+      prepare_linux_binary_run(devs, entry, binary, cmd_line, dt_boot_addr);
+      break;
+    case Boot::Binary_type::OpenBSD:
+      prepare_openbsd_binary_run(devs, entry, binary, cmd_line, dt_boot_addr);
+      break;
+    default:
+      Err().printf("Unsupported guest binary type %i\n", _guest_t);
+      L4Re::throw_error(-L4_ENOSYS, "Unsupported binray type");
+    }
+}
+
+void
+Guest::prepare_openbsd_binary_run(Vdev::Device_lookup *devs, l4_addr_t entry,
+                                  char const * /*binary*/,
+                                  char const * /*cmd_line*/,
+                                  l4_addr_t /*dt_boot_addr*/)
+{
+  Acpi::Bios_tables acpi_tables(devs);
+  acpi_tables.write_to_guest();
+
+  // Legacy kernels have entry set to 0xffff'ffff'8100'1000. Mask off the
+  // high bits to get the expected 0x100'1000 for the
+  // legacy kernel entry point
+  // Cloned from OpenBSD's sys/arch/amd64/stand/libsa/exec_i386.c
+  l4_addr_t masked_entry = entry & 0xfff'ffff;
+
+  // Prepare stack for the kernel parameters
+  Vmm::Openbsd::Boot_params params(Vmm::Guest_addr(
+                                     Vmm::Openbsd::Boot_params::Phys_mem_addr),
+                                   masked_entry, _guest_size);
+
+  // Write params
+  params.write(devs->ram().get());
+
   auto cpus = devs->cpus();
   Vcpu_ptr vcpu = cpus->vcpu(0);
 
-  if (_guest_t == Boot::Rom)
-    {
-      vcpu->r.ip = entry;
-      return;
-    }
+  vcpu->r.ip = masked_entry;
+  vcpu->r.sp = Vmm::Openbsd::Boot_params::Phys_mem_addr;
+  cpus->cpu(0)->set_protected_mode();
+}
 
+void
+Guest::prepare_linux_binary_run(Vdev::Device_lookup *devs, l4_addr_t entry,
+                                char const * /*binary*/, char const *cmd_line,
+                                l4_addr_t dt_boot_addr)
+{
+  auto cpus = devs->cpus();
+  Vcpu_ptr vcpu = cpus->vcpu(0);
   Vm_ram *ram = devs->ram().get();
 
   Acpi::Bios_tables acpi_tables(devs);
   acpi_tables.write_to_guest();
 
-  // use second memory page as zeropage location
   Zeropage zpage(Vmm::Guest_addr(L4_PAGESIZE), entry);
 
   if (dt_boot_addr)
@@ -231,6 +284,7 @@ Guest::prepare_binary_run(Vdev::Device_lookup *devs, l4_addr_t entry,
   zpage.write(ram, _guest_t);
 
   vcpu->r.ip = zpage.entry(ram);
+  vcpu->r.sp = 0UL;
   vcpu->r.si = zpage.addr().get();
   cpus->cpu(0)->set_protected_mode();
 

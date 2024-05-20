@@ -56,6 +56,9 @@ public:
     _elf(this, _ds.get())
   {}
 
+  Ldr::Elf_binary<Binary_ds> *get_elf()
+  { return &_elf; }
+
   bool is_valid()
   { return _ds.is_valid(); }
 
@@ -68,6 +71,9 @@ public:
   {
     return _elf.is_64();
   }
+
+  size_t loaded_size()
+  { return _loaded_range_end - _loaded_range_start; }
 
   l4_addr_t load_as_elf(Vmm::Vm_ram *ram, Vmm::Ram_free_list *free_list)
   {
@@ -184,6 +190,7 @@ enum Binary_type
   Linux,
   LinuxGzip,
   Elf,
+  OpenBSD, // Must be checked before ELF, since an OpenBSD image is also an ELF
 };
 
 class Binary_loader : public cxx::H_list_item_t<Binary_loader>
@@ -203,6 +210,9 @@ public:
   Binary_type type() const
   { return _type; }
 
+  size_t size() const
+  { return _binsize; }
+
   static Dbg warn()
   { return Dbg(Dbg::Core, Dbg::Warn, "loader"); }
 
@@ -217,6 +227,7 @@ public:
 protected:
   bool _64bit = false;
   Binary_type _type = Invalid;
+  size_t _binsize = 0;
 };
 
 struct Binary_loader_factory
@@ -252,6 +263,9 @@ struct Binary_loader_factory
 
   Binary_type type() const
   { return _loader ? _loader->type() : Invalid; }
+
+  size_t get_size() const
+  { return _loader ? _loader->size() : 0UL; }
 
 private:
   Binary_loader *_loader = nullptr;

@@ -48,6 +48,7 @@ SRC_CC_amd64-l4f = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                    ARCH-amd64/kvm_clock.cc \
                    ARCH-amd64/legacy_pic.cc ARCH-amd64/acpi_platform.cc \
                    ARCH-amd64/acpi_timer.cc ARCH-amd64/zeropage.cc \
+                   ARCH-amd64/openbsd_bootparams.cc \
                    ARCH-amd64/io_port_handler_l4util.cc \
                    ARCH-amd64/vm_state_vmx.cc ARCH-amd64/vm_state_svm.cc \
                    ARCH-amd64/guest-vmx.cc ARCH-amd64/guest-svm.cc \
@@ -104,6 +105,7 @@ SRC_CC-$(CONFIG_UVMM_LOADER_ELF) += binary_loader_elf.cc
 SRC_CC-$(CONFIG_UVMM_LOADER_PE)  += binary_loader_pe.cc
 SRC_CC-$(CONFIG_UVMM_LOADER_ROM) += binary_loader_rom.cc
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_LOADER_LINUX)  += ARCH-amd64/binary_loader_linux.cc
+SRC_CC_amd64-l4f-$(CONFIG_UVMM_LOADER_OPENBSD)  += ARCH-amd64/binary_loader_openbsd.cc
 SRC_CC_arm-common-$(CONFIG_UVMM_LOADER_LINUX) += arm/binary_loader_linux.cc
 SRC_CC_riscv-$(CONFIG_UVMM_LOADER_LINUX) += ARCH-riscv/binary_loader_linux.cc
 SRC_CC-$(CONFIG_UVMM_LOADER_GZIP) += binary_loader_linux_compressed.cc

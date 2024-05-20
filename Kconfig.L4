@@ -61,6 +61,13 @@ config UVMM_LOADER_LINUX
 	help
 	  Loads a Linux image.
 
+config UVMM_LOADER_OPENBSD
+	bool "OpenBSD images"
+	depends on BUILD_ARCH_amd64
+	default y
+	help
+	  Loads an OpenBSD image.
+
 config UVMM_LOADER_GZIP
 	bool "GZIP/ZLIB loading for Linux images"
 	depends on (BUILD_ARCH_arm64 || BUILD_ARCH_arm || BUILD_ARCH_riscv) && HAVE_BIDPC_ZLIB && UVMM_LOADER_LINUX
