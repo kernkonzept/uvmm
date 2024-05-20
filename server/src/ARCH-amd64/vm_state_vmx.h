@@ -181,6 +181,10 @@ public:
   void init_state() override
   {
     set_hw_vmcs();
+
+    // The reset values are taken from Intel SDM Vol.3 10.1.1;
+
+    vmx_write(VMCS_LINK_POINTER, 0xffffffffffffffffULL);
     set_activity_state(Active);
     // reflect all guest exceptions back to the guest.
     vmx_write(VMCS_EXCEPTION_BITMAP, 0xffff0000);
@@ -224,18 +228,13 @@ public:
                 | Unrestricted_guest_bit
               );
 
+    // System descriptor described in Intel SDM Vol.3 Chapter 3.5
     vmx_write(VMCS_GUEST_LDTR_SELECTOR, 0x0);
-    vmx_write(VMCS_GUEST_LDTR_ACCESS_RIGHTS, 0x10000);
-    vmx_write(VMCS_GUEST_LDTR_LIMIT, 0);
+    vmx_write(VMCS_GUEST_LDTR_ACCESS_RIGHTS, 0x82);
+    vmx_write(VMCS_GUEST_LDTR_LIMIT, 0xffff);
     vmx_write(VMCS_GUEST_LDTR_BASE, 0);
 
-    l4_umword_t eflags;
-    asm volatile("pushf     \n"
-                 "pop %0   \n"
-                 : "=r" (eflags));
-    eflags &= ~Interrupt_enabled_bit;
-    eflags &= ~Virtual_8086_mode_bit;
-    vmx_write(VMCS_GUEST_RFLAGS, eflags);
+    vmx_write(VMCS_GUEST_RFLAGS, 0x02);
 
     vmx_write(VMCS_GUEST_CR3, 0);
     vmx_write(VMCS_GUEST_DR7, 0x300);
@@ -374,8 +373,8 @@ public:
     vmx_write(VMCS_GUEST_TR_BASE, 0);
 
     vmx_write(VMCS_GUEST_RSP, 0);
-    vmx_write(VMCS_GUEST_CR0, 0x10030);
-    vmx_write(VMCS_CR0_READ_SHADOW, 0x10030);
+    vmx_write(VMCS_GUEST_CR0, 0x60000010UL);
+    vmx_write(VMCS_CR0_READ_SHADOW, 0x60000010UL);
     vmx_write(VMCS_CR0_GUEST_HOST_MASK, ~0ULL);
 
     vmx_write(VMCS_GUEST_CR4, 0x2680);
