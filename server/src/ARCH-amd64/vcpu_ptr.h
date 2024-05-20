@@ -60,6 +60,22 @@ public:
   l4_umword_t ucode_revision() const
   { return _s->user_data[Reg_ucode_rev]; }
 
+  template <typename ERR_DBG>
+  void dump_regs_t(l4_addr_t vm_ip, ERR_DBG out) const
+  {
+    unsigned vcpu_id = get_vcpu_id();
+    l4_vcpu_regs_t *regs = &_s->r;
+
+    out.printf("[%3u] RAX 0x%lx\nRBX 0x%lx\nRCX 0x%lx\nRDX 0x%lx\nRSI 0x%lx\n"
+               "RDI 0x%lx\nRSP 0x%lx\nRBP 0x%lx\nR8 0x%lx\nR9 0x%lx\n"
+               "R10 0x%lx\nR11 0x%lx\nR12 0x%lx\nR13 0x%lx\nR14 0x%lx\n"
+               "R15 0x%lx\nRIP 0x%lx\nvCPU RIP 0x%lx\n",
+               vcpu_id, regs->ax, regs->bx, regs->cx, regs->dx, regs->si,
+               regs->di, regs->sp, regs->bp, regs->r8, regs->r9, regs->r10,
+               regs->r11, regs->r12, regs->r13, regs->r14, regs->r15, vm_ip,
+               regs->ip);
+  }
+
 private:
   void *extended_state() const
   {

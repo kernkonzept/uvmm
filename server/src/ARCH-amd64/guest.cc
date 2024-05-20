@@ -794,10 +794,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
           if (ret < 0)
             {
               Err().printf("[%3u]: Failure in VMM %i\n", vcpu_id, ret);
-              Err().printf("[%3u]: regs: AX 0x%lx, BX 0x%lx, CX 0x%lx, "
-                           "DX 0x%lx, SI 0x%lx, DI 0x%lx, IP 0x%lx\n",
-                           vcpu_id, vcpu->r.ax, vcpu->r.bx, vcpu->r.cx,
-                           vcpu->r.dx, vcpu->r.si, vcpu->r.di, vm->ip());
+              vcpu.dump_regs_t(vm->ip(), Err());
               vm->additional_failure_info(vcpu_id);
               halt_vm(vcpu);
             }
