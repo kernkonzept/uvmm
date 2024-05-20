@@ -89,9 +89,9 @@ public:
 
   void reset() override
   {
-    Dbg().printf("Reset called\n");
-
     vmm_current_cpu_id = _vcpu.get_vcpu_id();
+
+    Dbg().printf("[%3u] Reset called\n", vmm_current_cpu_id);
 
     _vcpu->state = L4_VCPU_F_FPU_ENABLED;
     _vcpu->saved_state = L4_VCPU_F_FPU_ENABLED | L4_VCPU_F_USER_MODE;

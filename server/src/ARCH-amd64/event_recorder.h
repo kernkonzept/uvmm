@@ -51,7 +51,7 @@ public:
   bool has_irq() const { return _has_irq; }
 
   /// debugging aid
-  void dump() const;
+  void dump(unsigned vcpu_id) const;
 
   /// Create an Event instance and record it.
   template <typename T, typename... ARGS>

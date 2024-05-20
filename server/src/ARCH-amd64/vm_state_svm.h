@@ -447,7 +447,7 @@ public:
   void advance_entry_ip(unsigned bytes) override
   { _vmcb->control_area.n_rip += bytes; }
 
-  void additional_failure_info() {}
+  void additional_failure_info(unsigned /* vcpu_id */) {}
 
 private:
   static Dbg warn()

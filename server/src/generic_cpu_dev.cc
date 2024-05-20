@@ -77,8 +77,8 @@ void
 Generic_cpu_dev::reschedule()
 {
   Dbg(Dbg::Cpu, Dbg::Info)
-    .printf("reschedule(): Initiating cpu startup for %lx\n",
-            Pthread::L4::cap(_thread).cap());
+    .printf("reschedule(): Initiating cpu startup for cap 0x%lx/core %u\n",
+            Pthread::L4::cap(_thread).cap(), _vcpu.get_vcpu_id());
 
   l4_sched_param_t sp = l4_sched_param(2);
   sp.affinity = l4_sched_cpu_set(_phys_cpu_id, 0);

@@ -749,7 +749,7 @@ Guest::new_state_action(Cpu_dev::Cpu_state state, bool halt_req,
       Err().printf("[%3u] CPU device state %i unknown or invalid. "
                    "Unrecoverable - stopping core.\n",
                    cpu->vcpu().get_vcpu_id(), state);
-      vm->additional_failure_info();
+      vm->additional_failure_info(cpu->vcpu().get_vcpu_id());
       l4_sleep_forever();
     }
 
@@ -785,7 +785,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
         {
           Err().printf("[%3u]: Entering VM failed with error %ld\n",
                        vcpu_id, e);
-          vm->additional_failure_info();
+          vm->additional_failure_info(vcpu_id);
           halt_vm(vcpu);
         }
       else
@@ -798,6 +798,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
                            "DX 0x%lx, SI 0x%lx, DI 0x%lx, IP 0x%lx\n",
                            vcpu_id, vcpu->r.ax, vcpu->r.bx, vcpu->r.cx,
                            vcpu->r.dx, vcpu->r.si, vcpu->r.di, vm->ip());
+              vm->additional_failure_info(vcpu_id);
               halt_vm(vcpu);
             }
           else if (ret == Jump_instr)

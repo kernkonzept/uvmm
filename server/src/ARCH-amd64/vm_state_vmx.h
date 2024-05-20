@@ -688,9 +688,9 @@ public:
   void advance_entry_ip(unsigned bytes) override
   { vmx_write(VMCS_VM_ENTRY_INSN_LEN, bytes); }
 
-  void additional_failure_info()
+  void additional_failure_info(unsigned vcpu_id)
   {
-    Err().printf("VM instruction error: 0x%llx\n",
+    Err().printf("[%3u] VM instruction error: 0x%llx\n", vcpu_id,
                  vmx_read(VMCS_VM_INSN_ERROR));
   }
 
