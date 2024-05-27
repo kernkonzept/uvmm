@@ -88,18 +88,15 @@ Virt_lapic::init_ipi()
     _cpu->reschedule();
 
   _cpu->send_init_ipi();
+  _sipi_cnt = 0;
 }
 
 void
 Virt_lapic::startup_ipi(Vdev::Msix::Data_register_format data)
 {
-  // only act on the second SIPI
-  if (!_sipi_cnt)
-    {
-      ++_sipi_cnt;
-      return;
-    }
-  _sipi_cnt = 0;
+  // only act on the first SIPI
+  if (_sipi_cnt++)
+    return;
 
   enum : l4_uint32_t
   {
