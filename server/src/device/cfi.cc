@@ -95,9 +95,10 @@ class Cfi_flash
   };
 
 public:
-  Cfi_flash(L4::Cap<L4Re::Dataspace> ds, size_t size, size_t erase_size, bool ro,
-            unsigned int bank_width, unsigned int device_width)
-  : _size(size), _erase_size(erase_size), _ro(ro),
+  Cfi_flash(L4::Cap<L4Re::Dataspace> ds, l4_addr_t base, size_t size,
+            size_t erase_size, bool ro, unsigned int bank_width,
+            unsigned int device_width)
+  : _base(base), _size(size), _erase_size(erase_size), _ro(ro),
     _bank_width(bank_width), _device_width(device_width)
   {
     unsigned int chip_shift = 8 * sizeof(unsigned int)
@@ -200,6 +201,10 @@ private:
         _guest_mapped_min = -1;
         _guest_mapped_max = 0;
       }
+
+    // Proactively map the flash memory, to avoid instruction decoding on reads.
+    if (cmd == Cmd_read_array && _guest_mapped_min >= _guest_mapped_max)
+      map_page_ro(_base, 0, vm_task, _base, _base + _size - 1U);
   }
 
   long map_page_ro(l4_addr_t pfa, l4_addr_t offset, L4::Cap<L4::Vm> vm_task,
@@ -481,6 +486,7 @@ private:
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "CFI"); }
 
   cxx::unique_ptr<Vmm::Ds_manager> _mgr;
+  l4_addr_t _base;
   size_t _size, _erase_size;
   bool _ro;
   unsigned int _bank_width, _device_width;
@@ -574,7 +580,7 @@ struct F : Vdev::Factory
         return nullptr;
       }
 
-    auto c = Vdev::make_device<Cfi_flash>(dscap, size, erase_size, ro,
+    auto c = Vdev::make_device<Cfi_flash>(dscap, base, size, erase_size, ro,
                                           bank_width, device_width);
     devs->vmm()->register_mmio_device(c, Vmm::Region_type::Virtual, node);
 
