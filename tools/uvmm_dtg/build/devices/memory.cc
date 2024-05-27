@@ -22,6 +22,10 @@ struct Memory: Device
                                   _res.as<uint32_t>("align"),
                                   dt->rm()));
     a->add_str_property("l4vmm,dscap", _res.as<std::string>("dscap"));
+    if (_trg_arch.is(Arch::X86_64))
+      // allow for additional memory to be placed in 64bit space
+      a->add_reg_property(Addr_type(0x1'0000'0000ULL, 0xffff'fff0'0000'0000, 12ULL, dt->rm()));
+
   }
 };
 
