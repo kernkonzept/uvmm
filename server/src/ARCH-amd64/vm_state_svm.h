@@ -77,6 +77,7 @@ public:
     Hlt = 0x78, // Exec_halt
     Ioio = 0x7b, // Io_access
     Msr = 0x7c, // Exec_rdmsr and Exec_wrmsr
+    Shutdown = 0x7f, // Shutdown event
     Vmrun = 0x80,   // VMRUN instruction
     Vmmcall = 0x81, // Exec_vmcall
     Vmload = 0x82,  // VMLOAD instruction
@@ -92,7 +93,7 @@ public:
 
     Nested_page_fault = 0x400, // Ept_violation
 
-    // TODO: intercept FERR_FREEZE and shutdown events
+    // TODO: intercept FERR_FREEZE event
     // TODO: intercept INTR/NMI/SMI/INIT
     // TODO: intercept INVD
     // TODO: intercept task switch

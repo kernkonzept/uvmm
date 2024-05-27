@@ -299,6 +299,18 @@ Guest::handle_exit<Svm_state>(Vmm::Cpu_dev *cpu, Svm_state *vms)
 
       return Retry;
 
+    case Exit::Shutdown:
+      // Any event that triggeres a shutdown, e.g. triple fault, lands here.
+      info().printf("[%3u]: Shutdown intercept triggered at IP 0x%lx. Core in "
+                   "shutdown mode.\n",
+                   vcpu_id, vms->ip());
+      vcpu.dump_regs_t(vms->ip(), info());
+
+      // move CPU into stop state
+      cpu->stop();
+
+      return Retry;
+
     default:
       if (reason >= Exit::Excp_0 && reason <= Exit::Excp_31)
       {

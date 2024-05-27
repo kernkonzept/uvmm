@@ -250,6 +250,17 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
       ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6); // #UD
       return Retry;
 
+    case Exit::Triple_fault:
+      // Double-fault experienced exception. Set core into shutdown mode.
+      info().printf("[%3u]: Triple fault exit at IP 0x%lx. Core is in shutdown "
+                    "mode.\n",
+                    vcpu_id, vms->ip());
+      vcpu.dump_regs_t(vms->ip(), info());
+
+      // move CPU into stop state
+      cpu->stop();
+      return Retry;
+
     case Exit::Entry_fail_invalid_guest:
       {
         auto qual = vms->vmx_read(VMCS_EXIT_QUALIFICATION);

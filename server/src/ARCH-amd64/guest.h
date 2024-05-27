@@ -148,6 +148,8 @@ public:
   }
 
   void sync_all_other_cores_off() const override;
+  // returns the number of running cores
+  unsigned cores_running() const;
 
   void handle_entry(Vcpu_ptr vcpu);
 

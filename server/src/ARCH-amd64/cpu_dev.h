@@ -142,7 +142,7 @@ public:
   void set_protected_mode()
   { _protected_mode = true; }
 
-  /// cross-core stop event handling
+  /// local or cross-core stop event handling
   void stop() override
   {
     _stop_irq.disarm(_vcpu.get_ipc_registry());

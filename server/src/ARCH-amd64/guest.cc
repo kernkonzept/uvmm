@@ -646,6 +646,18 @@ Guest::sync_all_other_cores_off() const
     } while (!all_stop);
 }
 
+unsigned
+Guest::cores_running() const
+{
+  unsigned online = 0;
+
+  for (auto cpu : *_cpus.get())
+    if (cpu && cpu->cpu_online())
+      ++online;
+
+  return online;
+}
+
 void
 Guest::run(cxx::Ref_ptr<Cpu_dev_array> const &cpus)
 {
@@ -733,6 +745,14 @@ Guest::new_state_action(Cpu_dev::Cpu_state state, bool halt_req,
   switch(state)
     {
     case Cpu_dev::Stopped:
+      // we cannot recover here, when we stopped the last core.
+      if (cores_running() == 0)
+        {
+          Err().printf("[%3u] Last core stopped. Shutting down\n",
+                       cpu->vcpu().get_vcpu_id());
+          shutdown(Shutdown);
+        }
+      // fall-through
     case Cpu_dev::Init:
       cpu->wait_for_ipi();
       break;
