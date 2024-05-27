@@ -75,6 +75,7 @@ comment "GZIP/ZLIB compression not available due to missing zlib package"
 
 config UVMM_QEMU_FW_IF
 	bool "Qemu firmware configuration device"
+        default y
 	help
 	  The device allows guests to gain access to the configuration of the
 	  hypervisor or any kind of data like boot/kernel images in a defined way.
