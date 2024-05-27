@@ -16,6 +16,10 @@
 #include "ds_manager.h"
 #include "guest.h"
 
+#ifdef CONFIG_UVMM_QEMU_FW_IF
+#include "qemu_fw_cfg.h"
+#endif
+
 namespace Vdev {
 class Framebuffer : public Vmm::Ds_manager
 {
@@ -150,6 +154,44 @@ struct F : Vdev::Factory
     devs->vmm()->add_mmio_device(
                    Vmm::Region::ss(Vmm::Guest_addr(fb_addr), fb_size,
                                    Vmm::Region_type::Vbus), handler);
+#ifdef CONFIG_UVMM_QEMU_FW_IF
+    struct
+    {
+      l4_uint64_t    address;
+      l4_uint32_t    width;
+      l4_uint32_t    height;
+      l4_uint32_t    bytes_per_line;
+      l4_uint32_t    bytes_per_pixel;
+      l4_uint8_t     red_size;
+      l4_uint8_t     red_shift;
+      l4_uint8_t     green_size;
+      l4_uint8_t     green_shift;
+      l4_uint8_t     blue_size;
+      l4_uint8_t     blue_shift;
+      l4_uint8_t     reserved_size;
+      l4_uint8_t     reserved_shift;
+    } ramfb_config =
+      {
+        Vmm::Guest_addr(fb_addr).get(),
+        (l4_uint32_t)fb_viewinfo.width,
+        (l4_uint32_t)fb_viewinfo.height,
+        (l4_uint32_t)fb_viewinfo.bytes_per_line,
+        fb_viewinfo.pixel_info.bytes_per_pixel(),
+        fb_viewinfo.pixel_info.r().size(),
+        fb_viewinfo.pixel_info.r().shift(),
+        fb_viewinfo.pixel_info.g().size(),
+        fb_viewinfo.pixel_info.g().shift(),
+        fb_viewinfo.pixel_info.b().size(),
+        fb_viewinfo.pixel_info.b().shift(),
+        fb_viewinfo.pixel_info.padding().size(),
+        fb_viewinfo.pixel_info.padding().shift(),
+      };
+
+    static_assert(sizeof(ramfb_config) == 8 * 4,
+                  "Size mismatch in e2dk_ramfb_config");
+    Qemu_fw_cfg::put_file("etc/ramfb", (const char *)&ramfb_config,
+                          sizeof(ramfb_config));
+#endif // CONFIG_UVMM_QEMU_FW_IF
 
     return Vdev::make_device<Vdev::Fb_dev>();
   }
