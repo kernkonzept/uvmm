@@ -84,7 +84,31 @@ public:
     if ((label & ~3UL) == 0)
       return;
 
-    l4_msgtag_t r = get_ipc_registry()->dispatch(tag, label, utcb);
+    l4_msgtag_t r = l4_msgtag(-L4_ENOREPLY, 0, 0, 0);
+
+    try
+      {
+        r = get_ipc_registry()->dispatch(tag, label, utcb);
+      }
+    catch (L4::Runtime_error &e)
+      {
+        warn().printf("Runtime exception in ipc path: %s(%ld)",
+                      e.str(), e.err_no());
+        r = l4_msgtag(e.err_no(), 0, 0, 0);
+      }
+    catch (int err)
+      {
+        warn().printf("Runtime exception in ipc path: %d",
+                      err);
+        r = l4_msgtag(err, 0, 0, 0);
+      }
+    catch (long err)
+      {
+        warn().printf("Runtime exception in ipc path: %ld",
+                      err);
+        r = l4_msgtag(err, 0, 0, 0);
+      }
+
     if (r.label() != -L4_ENOREPLY)
       l4_ipc_send(L4_INVALID_CAP | L4_SYSF_REPLY, utcb, r,
                   L4_IPC_SEND_TIMEOUT_0);
