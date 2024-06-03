@@ -78,7 +78,7 @@ public:
         }
 
       case 16: // config msix vec
-        result = _msi_table_idx_config;
+        result = vcfg->cfg_driver_notify_index;
         break;
 
       case 18: // RO num queues (max)
@@ -108,10 +108,10 @@ public:
 
       case 26: // queue_msix_vector
         {
-          auto sel = vcfg->queue_sel;
-          if (sel < (sizeof(_virtqueue_msix_index)
-                     / sizeof(_virtqueue_msix_index[0])))
-            result = dev()->msix_enabled() ? _virtqueue_msix_index[sel] : 0;
+          auto *qc = dev()->current_virtqueue_config();
+          if (qc)
+            result = qc->driver_notify_index;
+
           break;
         }
 
@@ -215,9 +215,11 @@ public:
         }
 
       case 16: // config msix vec
-        _msi_table_idx_config = value;
-        dbg().printf("config_msix_vec set %i\n", value);
-        break;
+        {
+          vcfg->cfg_driver_notify_index = value;
+          dbg().printf("config_msix_vec set %i\n", value);
+          break;
+        }
 
       case 20: // device status
         dev()->virtio_set_status(value);
@@ -239,30 +241,17 @@ public:
 
       case 26: // queue_msix_vector
         {
-          dbg().printf("\tqueue_msix_vector set %i\n", value);
-          auto sel = vcfg->queue_sel;
-          if (sel < (sizeof(_virtqueue_msix_index)
-                     / sizeof(_virtqueue_msix_index[0])))
-            _virtqueue_msix_index[sel] = value;
+          dbg().printf("\t[q.%u] queue_msix_vector set %i\n", vcfg->queue_sel,
+                       value);
+
+          auto *qc = dev()->current_virtqueue_config();
+          if (qc)
+            qc->driver_notify_index = value;
           break;
         }
 
       case 28: // queue_enable
-        {
-          auto *qc = dev()->current_virtqueue_config();
-          if (value && qc)
-            {
-              if (dev()->msix_enabled())
-                {
-                  auto sel = vcfg->queue_sel;
-                  if (sel < (sizeof(_virtqueue_msix_index)
-                             / sizeof(_virtqueue_msix_index[0])))
-                    qc->driver_notify_index = _virtqueue_msix_index[sel];
-                }
-            }
-
-          dev()->virtio_queue_ready(value);
-        }
+        dev()->virtio_queue_ready(value);
         break;
 
       case 32: // queue_desc[31:0]
@@ -381,9 +370,6 @@ private:
         dev()->virtio_device_config_written(port);
       }
   }
-
-  unsigned _msi_table_idx_config = ::Vdev::Virtio_msix_no_vector;
-  l4_uint16_t _virtqueue_msix_index[sizeof(Virtio::Event_set) * 8];
 }; // Pci_layout
 
 template <typename DEV>
