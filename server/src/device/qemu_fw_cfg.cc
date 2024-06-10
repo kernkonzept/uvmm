@@ -628,4 +628,9 @@ Qemu_fw_cfg::put_file(char const *fn, char const *blob, size_t size)
 {
   if (auto *d = Qemu_fw_if::get())
     d->put_file(fn, blob, size);
+  else
+    warn.printf("Warning: Did not add '%s' because the Qemu_fw_if device does "
+                "not exist yet. Please ensure the device node of Qemu_fw_if "
+                "comes before the device serving '%s' in the device tree.\n",
+                fn, fn);
 }
