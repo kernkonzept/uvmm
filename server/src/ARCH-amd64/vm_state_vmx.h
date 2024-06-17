@@ -183,8 +183,6 @@ public:
     set_hw_vmcs();
 
     // The reset values are taken from Intel SDM Vol.3 10.1.1;
-
-    vmx_write(VMCS_LINK_POINTER, 0xffffffffffffffffULL);
     set_activity_state(Active);
     // reflect all guest exceptions back to the guest.
     vmx_write(VMCS_EXCEPTION_BITMAP, 0xffff0000);
