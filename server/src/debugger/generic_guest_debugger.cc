@@ -39,7 +39,7 @@ Generic_guest_debugger::vcpu_ptr(unsigned vcpu) const
 
 bool
 Generic_guest_debugger::vcpu_valid(unsigned vcpu) const
-{ return vcpu < Vmm::Cpu_dev::Max_cpus && _devs->cpus()->vcpu_exists(vcpu); }
+{ return vcpu < _devs->cpus()->size() && _devs->cpus()->vcpu_exists(vcpu); }
 
 bool
 Generic_guest_debugger::vcpu_smp_active() const

@@ -9,6 +9,7 @@
 
 #include <l4/re/env>
 #include <l4/sys/scheduler>
+#include <vector>
 
 #include "debug.h"
 #include "device.h"
@@ -25,6 +26,7 @@ class Cpu_dev_array
   public Monitor::Cpu_dev_array_cmd_handler<Monitor::Enabled, Cpu_dev_array>
 {
   friend Cpu_dev_array_cmd_handler<Monitor::Enabled, Cpu_dev_array>;
+  typedef std::vector<cxx::Ref_ptr<Cpu_dev>> Cpu_dev_vector;
 
   /**
    * Helper class that distributes threads evenly to all available
@@ -88,8 +90,7 @@ public:
 
   bool vcpu_exists(unsigned cpuid) const
   {
-    assert(cpuid < Cpu_dev::Max_cpus);
-    return !!_cpus[cpuid];
+    return cpuid < _cpus.size() && !!_cpus[cpuid];
   }
 
   Vcpu_ptr vcpu(unsigned cpuid) const
@@ -106,13 +107,7 @@ public:
 
   /// Return the maximum CPU id in use.
   unsigned max_cpuid() const
-  {
-    for (unsigned i = Cpu_dev::Max_cpus - 1; i > 0; --i)
-      if (_cpus[i])
-        return i;
-
-    return 0;
-  }
+  { return _cpus.size() - 1; }
 
   /**
    * Add a CPU to the array.
@@ -120,16 +115,17 @@ public:
   cxx::Ref_ptr<Vdev::Device>
   create_vcpu(Vdev::Dt_node const *node);
 
-  cxx::Ref_ptr<Cpu_dev> *begin() { return _cpus; }
-  cxx::Ref_ptr<Cpu_dev> *end() { return _cpus + _ncpus; }
+  Cpu_dev_vector::iterator begin() { return _cpus.begin(); }
+  Cpu_dev_vector::const_iterator begin() const { return _cpus.begin(); }
 
-  unsigned capacity() const { return Cpu_dev::Max_cpus; }
-  unsigned size() const { return _ncpus; }
+  Cpu_dev_vector::iterator end() { return _cpus.end(); }
+  Cpu_dev_vector::const_iterator end() const { return _cpus.end(); }
+
+  unsigned size() const { return _cpus.size(); }
 
 protected:
   Vcpu_placement _placement;
-  cxx::Ref_ptr<Cpu_dev> _cpus[Cpu_dev::Max_cpus];
-  unsigned _ncpus = 0;
+  Cpu_dev_vector _cpus;
 };
 
 } // namespace

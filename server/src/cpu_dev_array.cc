@@ -32,32 +32,33 @@ unsigned get_dt_cpuid(Vdev::Dt_node const *node)
 cxx::Ref_ptr<Vdev::Device>
 Cpu_dev_array::create_vcpu(Vdev::Dt_node const *node)
 {
-  unsigned id = ~0u;
+  unsigned id;
   if (Cpu_dev::has_fixed_dt_mapping())
-    id = get_dt_cpuid(node);
-  else if (_ncpus < capacity())
-    id = _ncpus++;
+    {
+      id = get_dt_cpuid(node);
+      if (id < _cpus.size() && _cpus[id])
+        {
+          Dbg(Dbg::Cpu, Dbg::Warn)
+            .printf("Duplicate definitions for Cpu%d\n", id);
 
-  if (id >= capacity())
+          return _cpus[id];
+        }
+    }
+  else
+    id = _cpus.size();
+
+  if (id >= Cpu_dev::Max_cpus)
     {
       Err().printf("Too many virtual CPUs. Ignored.\n");
       return nullptr;
     }
 
-  if (_cpus[id])
-    {
-      Dbg(Dbg::Cpu, Dbg::Warn)
-        .printf("Duplicate definitions for Cpu%d\n", id);
-
-      return _cpus[id];
-    }
-
-  if (id >= _ncpus)
-    _ncpus = id + 1;
-
   unsigned cpu_mask = _placement.next_free();
   if (cpu_mask == Vcpu_placement::Invalid_id)
     return nullptr;
+
+  if (id >= _cpus.size())
+    _cpus.resize(id + 1);
 
   _cpus[id] = Vdev::make_device<Cpu_dev>(id, cpu_mask, node);
 

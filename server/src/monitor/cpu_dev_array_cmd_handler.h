@@ -25,8 +25,6 @@ class Cpu_dev_array_cmd_handler {};
 template<typename T>
 class Cpu_dev_array_cmd_handler<true, T> : public Cmd
 {
-  enum { Max_cpus = Vmm::Cpu_dev::Max_cpus };
-
 public:
   Cpu_dev_array_cmd_handler()
   { register_toplevel("cpu"); }
@@ -52,7 +50,7 @@ public:
         {
           compl_req->complete(f, "list");
 
-          for (int cpu = 0; cpu < Max_cpus; ++cpu)
+          for (unsigned cpu = 0; cpu < max_cpus(); ++cpu)
             {
               if (!cpu_valid(cpu))
                 continue;
@@ -100,15 +98,15 @@ public:
 
 private:
   bool cpu_valid(unsigned i) const
-  { return i < Max_cpus && get_cpu(i); }
+  { return i < max_cpus() && get_cpu(i); }
 
   void list_cpus(FILE *f) const
   {
     fprintf(f, "Available CPUs:\n");
-    for (int i = 0; i < Max_cpus; ++i)
+    for (unsigned i = 0; i < max_cpus(); ++i)
       {
         if (cpu_valid(i))
-          fprintf(f, "CPU %d\n", i);
+          fprintf(f, "CPU %u\n", i);
       }
   }
 
@@ -127,6 +125,9 @@ private:
 
   Vmm::Cpu_dev const *get_cpu(unsigned i) const
   { return static_cast<T const *>(this)->_cpus[i].get(); }
+
+  unsigned max_cpus() const
+  { return static_cast<T const *>(this)->_cpus.size(); }
 };
 
 }
