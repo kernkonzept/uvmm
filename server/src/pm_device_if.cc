@@ -21,8 +21,13 @@ void
 Pm_device_registry::remove(Pm_device *dev)
 {
   for (auto it = _devices.begin(); it != _devices.end(); ++it)
-    if (*it == dev)
-      _devices.erase(it);
+    {
+      if (*it == dev)
+        {
+          _devices.erase(it);
+          break;
+        }
+    }
 }
 
 void
