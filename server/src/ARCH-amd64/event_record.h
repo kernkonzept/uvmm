@@ -68,19 +68,20 @@ struct Event_record
  */
 struct Event_exc : Event_record
 {
+  enum : unsigned { Invalid_error = ~0U };
+
   explicit Event_exc(Event_prio p, unsigned ev_num)
   : Event_record(p), ev_num(ev_num)
   {}
 
   Event_exc(Event_prio p, unsigned ev_num, unsigned e_val)
-  : Event_record(p), ev_num(ev_num), error_valid(true), error_val(e_val)
+  : Event_record(p), ev_num(ev_num), error_val(e_val)
   {}
 
   bool inject(Vm_state *vm) override;
 
-  unsigned ev_num;              ///< Event number to inject
-  bool error_valid = false;     ///< Validity indicator for `error_val`
-  unsigned error_val = 0;       ///< Error value to push on the stack
+  unsigned ev_num;                     ///< Event number to inject
+  unsigned error_val = Invalid_error;  ///< Error value to push on the stack
 };
 
 struct Real_mode_exc : Event_record
