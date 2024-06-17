@@ -24,7 +24,7 @@ Mips_cpc::read(unsigned reg, char, unsigned cpuid)
 
   if (reg >= Core_other_base && reg < Core_other_base + Control_block_size)
     {
-      if ((cpuid >= Max_cpus) || !_cpus->vcpu_exists(cpuid))
+      if ((cpuid >= _cpus->size()) || !_cpus->vcpu_exists(cpuid))
         {
           info.printf("read on unknown other core %d. Ignored.\n", cpuid);
           return 0;
@@ -46,7 +46,7 @@ Mips_cpc::write(unsigned reg, char, l4_umword_t value, unsigned cpuid)
     cpc_write_core(reg - Core_local_base, value, cpuid);
   else if (reg >= Core_other_base && reg < Core_other_base + Control_block_size)
     {
-      if ((cpuid < Max_cpus) && _cpus->vcpu_exists(cpuid))
+      if ((cpuid < _cpus->size()) && _cpus->vcpu_exists(cpuid))
         cpc_write_core(reg - Core_other_base, value, _cpus->cpu(cpuid)->core_other());
       else
         info.printf("read on unknown other core %d. Ignored.\n", cpuid);
@@ -58,7 +58,7 @@ Mips_cpc::write(unsigned reg, char, l4_umword_t value, unsigned cpuid)
 l4_umword_t
 Mips_cpc::cpc_read_core(unsigned reg, unsigned cpuid)
 {
-  if (cpuid >= Max_cpus || !_cpus->vcpu_exists(cpuid))
+  if (cpuid >= _cpus->size() || !_cpus->vcpu_exists(cpuid))
     {
       info.printf("CPC reading from uninitialised core %d ignored.\n", cpuid);
       return 0;
@@ -80,7 +80,7 @@ Mips_cpc::cpc_read_core(unsigned reg, unsigned cpuid)
 void
 Mips_cpc::cpc_write_core(unsigned reg, l4_umword_t value, unsigned cpuid)
 {
-  if (cpuid >= Max_cpus || !_cpus->vcpu_exists(cpuid))
+  if (cpuid >= _cpus->size() || !_cpus->vcpu_exists(cpuid))
     {
       info.printf("CPC writing to uninitialised core %d ignored.\n", cpuid);
       return;

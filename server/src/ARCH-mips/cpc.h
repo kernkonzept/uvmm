@@ -18,7 +18,6 @@ namespace Vdev {
 class Mips_cpc :  public Vmm::Mmio_device_t<Mips_cpc>
 {
 private:
-  enum { Max_cpus = Vmm::Cpu_dev::Max_cpus };
   enum Cpc_local_registers
   {
     Cpc_cl_cmd_reg = 0x0,
@@ -56,13 +55,13 @@ public:
 
   l4_umword_t cm_read_core(unsigned reg, unsigned cpuid, bool other)
   {
-    if (cpuid >= Max_cpus || !_cpus->vcpu_exists(cpuid))
+    if (cpuid >= _cpus->size() || !_cpus->vcpu_exists(cpuid))
       return 0;
 
     if (other)
       {
         cpuid = _cpus->cpu(cpuid)->core_other();
-        if (cpuid >= Max_cpus || !_cpus->vcpu_exists(cpuid))
+        if (cpuid >= _cpus->size() || !_cpus->vcpu_exists(cpuid))
           {
             Dbg(Dbg::Cpu, Dbg::Info, "CMloc").printf(
                 "CM reading from uninitialised core %d ignored.\n", cpuid);
@@ -79,13 +78,13 @@ public:
   void cm_write_core(unsigned reg, l4_umword_t value, unsigned cpuid,
                      bool other)
   {
-    if (cpuid >= Max_cpus || !_cpus->vcpu_exists(cpuid))
+    if (cpuid >= _cpus->size()|| !_cpus->vcpu_exists(cpuid))
       return;
 
     if (other)
       {
         cpuid = _cpus->cpu(cpuid)->core_other();
-        if (cpuid >= Max_cpus || !_cpus->vcpu_exists(cpuid))
+        if (cpuid >= _cpus->size() || !_cpus->vcpu_exists(cpuid))
           {
             Dbg(Dbg::Cpu, Dbg::Info, "CMloc").printf(
                 "CM writing to uninitialised core %d ignored.\n", cpuid);
