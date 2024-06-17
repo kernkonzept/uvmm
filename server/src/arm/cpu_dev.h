@@ -32,7 +32,8 @@ class Cpu_dev
   };
 
 public:
-  enum { Max_cpus = 8 };
+  // CPU 255 is used as "invalid CPU" by the GIC code...
+  enum { Max_cpus = 254 };
 
   enum
   {
