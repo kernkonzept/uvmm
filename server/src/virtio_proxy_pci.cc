@@ -108,7 +108,7 @@ struct F : Factory
 
     proxy->register_irq(vmm->registry());
     proxy->init_virtio_pci_device();
-    pci->bus()->register_device(proxy);
+    pci->bus()->register_device(proxy, dev_id);
 
     return proxy;
   }
