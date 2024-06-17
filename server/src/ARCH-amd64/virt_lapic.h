@@ -9,6 +9,7 @@
 #include <atomic>
 #include <mutex>
 #include <tuple>
+#include <vector>
 #include <queue>
 
 #include <l4/re/dataspace>
@@ -329,8 +330,6 @@ class Lapic_array
 : public Vdev::Device,
   public Monitor::Lapic_cmd_handler<Monitor::Enabled, Lapic_array>
 {
-  enum { Max_lapics = Vmm::Cpu_dev::Max_cpus };
-
 public:
   /**
    * Process MSI data and destination ID in physical addressing mode.
@@ -397,16 +396,19 @@ public:
 
   cxx::Ref_ptr<Virt_lapic> get(unsigned core_no) const
   {
-    return (core_no < Max_lapics) ? _lapics[core_no] : nullptr;
+    return (core_no < _lapics.size()) ? _lapics[core_no] : nullptr;
   }
 
   void register_core(unsigned core_no, cxx::Ref_ptr<Vmm::Cpu_dev> cpu)
   {
-    if (_lapics[core_no])
+    if (core_no < _lapics.size() && _lapics[core_no])
       {
         Dbg().printf("Local APIC for core %u already registered\n", core_no);
         return;
       }
+
+    if (core_no >= _lapics.size())
+      _lapics.resize(core_no + 1);
 
     _lapics[core_no] = Vdev::make_device<Virt_lapic>(core_no, cpu);
   }
@@ -472,7 +474,7 @@ private:
     return nullptr;
   }
 
-  cxx::Ref_ptr<Virt_lapic> _lapics[Vmm::Cpu_dev::Max_cpus];
+  std::vector<cxx::Ref_ptr<Virt_lapic>> _lapics;
 }; // class Lapic_array
 
 /**
@@ -526,7 +528,7 @@ public:
 
   bool read(unsigned msr, l4_uint64_t *value, unsigned vcpu_no) const
   {
-    assert(vcpu_no < Vmm::Cpu_dev::Max_cpus);
+    assert(vcpu_no < _icr.size());
 
     switch (msr)
       {
@@ -543,7 +545,7 @@ public:
 
   bool write(unsigned msr, l4_uint64_t value, unsigned vcpu_no, bool mmio)
   {
-    assert(vcpu_no < Vmm::Cpu_dev::Max_cpus);
+    assert(vcpu_no < _icr.size());
 
     switch (msr)
       {
@@ -571,9 +573,14 @@ public:
    * Register the CPU device array with the IPI handler.
    *
    * \param cpus  Pointer to the CPU container.
+   *
+   * \pre The `cpus` array has already been populated.
    */
   void register_cpus(cxx::Ref_ptr<Vmm::Cpu_dev_array> const &cpus)
-  { _cpus = cpus; }
+  {
+    _cpus = cpus;
+    _icr.resize(cpus->size());
+  }
 
   /**
    * Register the MSI-X Controller with the IPI handler.
@@ -680,7 +687,7 @@ private:
       }
   }
 
-  l4_uint64_t _icr[Vmm::Cpu_dev::Max_cpus] = { 0, };
+  std::vector<l4_uint64_t> _icr;
   cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
   cxx::Ref_ptr<Msix_controller> _msix_ctrl;
 }; // class Icr_handler
