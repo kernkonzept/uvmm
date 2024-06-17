@@ -34,8 +34,6 @@ namespace Vmm {
 
 class Guest : public Generic_guest
 {
-  enum : unsigned { Max_cpus = Cpu_dev::Max_cpus };
-
 public:
   enum { Default_rambase = 0, Boot_offset = 0 };
 
