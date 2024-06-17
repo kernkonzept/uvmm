@@ -82,19 +82,22 @@ struct Event_recorders
 /**
  * Management entity for one `Event_recorder` per core.
  */
-template <unsigned SIZE>
 class Event_recorder_array : public Event_recorders
 {
 public:
   virtual ~Event_recorder_array() = default;
+
+  void init(unsigned size)
+  { _recorders.resize(size); }
+
   Event_recorder *recorder(unsigned num) override
   {
-    assert(num < SIZE);
+    assert(num < _recorders.size());
     return &_recorders[num];
   }
 
 private:
-  Event_recorder _recorders[SIZE];
+  std::vector<Event_recorder> _recorders;
 };
 
 } // namespace Vmm

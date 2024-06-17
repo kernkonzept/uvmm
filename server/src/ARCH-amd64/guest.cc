@@ -152,6 +152,7 @@ Guest::prepare_platform(Vdev::Device_lookup *devs)
 {
   _cpus = devs->cpus();
   _icr_handler->register_cpus(_cpus);
+  _event_recorders.init(_cpus->size());
   unsigned const max_cpuid = _cpus->max_cpuid();
   _ptw = cxx::make_ref_obj<Pt_walker>(devs->ram(), get_max_physical_address_bit());
   for (unsigned id = 0; id <= max_cpuid; ++id)

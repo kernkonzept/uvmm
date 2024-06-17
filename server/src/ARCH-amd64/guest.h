@@ -315,7 +315,7 @@ private:
   cxx::Ref_ptr<Gic::Lapic_access_handler> _lapic_access_handler;
   Boot::Binary_type _guest_t;
   cxx::Ref_ptr<Vmm::Cpu_dev_array> _cpus;
-  Vmm::Event_recorder_array<Max_cpus> _event_recorders;
+  Vmm::Event_recorder_array _event_recorders;
   Xsave_state_area _xsave_layout;
 };
 
