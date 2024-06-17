@@ -113,7 +113,6 @@ Guest::Guest()
 : _gic(Gic::Dist_if::create_dist(l4_vcpu_e_info(*Cpu_dev::main_vcpu())->gic_version,
                                  31))
 {
-  register_vm_handler(Hvc, Vdev::make_device<Vm_print_device>());
   cxx::Ref_ptr<Sys_reg> r = cxx::make_ref_obj<DCCSR>();
   add_sys_reg_aarch32(14, 0, 0, 1, 0, r); // DBGDSCRint
   add_sys_reg_aarch64( 2, 3, 0, 1, 0, r);
@@ -353,6 +352,8 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
 {
   if (!_timer)
     warn().printf("WARNING: No timer found. Your guest will likely not work properly!\n");
+
+  register_vm_handler(Hvc, Vdev::make_device<Vm_print_device>(cpus->size()));
 
   for (auto cpu: *cpus.get())
     {

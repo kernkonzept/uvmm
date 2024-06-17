@@ -6,6 +6,8 @@
  */
 #pragma once
 
+#include <vector>
+
 #include "smccc_device.h"
 #include "vmprint.h"
 
@@ -22,6 +24,10 @@ class Vm_print_device : public Vdev::Device, public Vmm::Smccc_device
   };
 
 public:
+  explicit Vm_print_device(unsigned max_cpus)
+  : _guest_print(max_cpus)
+  {}
+
   bool vm_call(unsigned imm, Vmm::Vcpu_ptr vcpu) override
   {
     if (imm != 1)
@@ -30,7 +36,7 @@ public:
     if (!is_valid_func_id(vcpu->r.r[0]))
       return false;
 
-    assert(vmm_current_cpu_id < Vmm::Cpu_dev::Max_cpus);
+    assert(vmm_current_cpu_id < _guest_print.size());
 
     _guest_print[vmm_current_cpu_id].print_char(vcpu->r.r[1]);
     vcpu->r.r[0] = Success;
@@ -48,7 +54,7 @@ private:
     return (reg & 0xbfffffff) == 0x86000000;
   }
 
-  Vmm::Guest_print_buffer _guest_print[Vmm::Cpu_dev::Max_cpus];
+  std::vector<Vmm::Guest_print_buffer> _guest_print;
 };
 
 }
