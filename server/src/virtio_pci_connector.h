@@ -173,7 +173,7 @@ public:
         }
 
       default:
-        dbg().printf("unknown port number accessed: %i\n", port);
+        dbg().printf("unknown port number read: %i\n", port);
       }
 
     *value = Vmm::Mem_access::read(result, 0, wd);
@@ -323,7 +323,7 @@ public:
           dbg().printf("ISR status access for legacy IRQ -- NOT implemented\n");
         break;
 
-      default: dbg().printf("unknown port number accessed: %i\n", port);
+      default: dbg().printf("unknown port number written: %i\n", port);
       }
   }
 
