@@ -39,4 +39,11 @@ struct Event_irq : Event_record
   Gic::Virt_lapic *lapic;
 };
 
+// These are necessary to correctly compute Event_memory::max_event_size().
+// The asserts ensure that these event objects don't influence the computation.
+static_assert(sizeof(Event_irq) <= sizeof(Event_exc),
+              "IRQ event objects are not the largest event object.");
+static_assert(sizeof(Event_nmi) <= sizeof(Event_exc),
+              "NMI event objects are not the largest event object.");
+
 } // namespace Vmm

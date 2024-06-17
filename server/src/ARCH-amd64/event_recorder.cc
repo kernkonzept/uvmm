@@ -28,7 +28,7 @@ bool Event_recorder::inject(Vm_state *vms)
         _has_irq = false;
 
       // We have ownership. We have to free the memory!
-      delete top;
+      free_event(top);
       return true;
     }
 
@@ -64,7 +64,7 @@ void Event_recorder::clear()
       auto top = _queue.top();
       _queue.pop();
       // We have ownership. We have to free the memory!
-      delete top;
+      free_event(top);
     }
 
   _has_exception = false;
