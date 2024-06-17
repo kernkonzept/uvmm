@@ -107,8 +107,6 @@ public:
   void register_timer_device(cxx::Ref_ptr<Vdev::Timer> const &dev,
                              unsigned vcpu_no = 0)
   {
-    assert(vcpu_no < Max_cpus);
-
     _clocks[vcpu_no].add_timer(dev);
   }
 
@@ -307,7 +305,7 @@ private:
   std::vector<cxx::Ref_ptr<Cpuid_device>> _cpuid_devices;
 
   // devices
-  Vdev::Clock_source _clocks[Max_cpus];
+  std::map<unsigned, Vdev::Clock_source> _clocks;
   Guest_print_buffer _hypcall_print;
   cxx::Ref_ptr<Pt_walker> _ptw;
   cxx::Ref_ptr<Gic::Lapic_array> _apics;
