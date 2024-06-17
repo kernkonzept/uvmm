@@ -10,6 +10,7 @@
 #include <l4/sys/types.h>
 #include <l4/util/rdtsc.h>
 #include <l4/cxx/ref_ptr>
+#include <vector>
 
 #include "debug.h"
 #include "mem_types.h"
@@ -189,8 +190,6 @@ public:
   }
 
 private:
-  enum : unsigned { Max_cpus = Vmm::Cpu_dev::Max_cpus };
-
   void set_wall_clock(Wall_clock *cs) const
   {
     trace().printf("Set wall clock address: %p \n", cs);
@@ -205,7 +204,8 @@ private:
     trace().printf("set system time address: %p: enable: %i, scaler 0x%x\n",
                    vti, enable, l4_scaler_tsc_to_ns);
 
-    assert(core_no < Max_cpus);
+    if (core_no >= _clocks.size())
+      _clocks.resize(core_no + 1);
 
     if (_clocks[core_no])
       _clocks[core_no]->configure(vti, enable);
@@ -226,7 +226,7 @@ private:
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "KVMclock"); }
 
   l4_cpu_time_t _boottime;
-  cxx::Ref_ptr<Kvm_clock> _clocks[Max_cpus];
+  std::vector<cxx::Ref_ptr<Kvm_clock>> _clocks;
   cxx::Ref_ptr<Vmm::Vm_ram> _memmap;
   Vmm::Guest *_vmm;
 };
