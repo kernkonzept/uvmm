@@ -193,9 +193,9 @@ private:
   }
 
 protected:
-  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI dev"); }
-  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI dev"); }
-  static Dbg dbg() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI dev"); }
+  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "Virt PCI dev"); }
+  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "Virt PCI dev"); }
+  static Dbg dbg() { return Dbg(Dbg::Dev, Dbg::Warn, "Virt PCI dev"); }
 
   virtual cxx::Ref_ptr<Vmm::Mmio_device> get_mmio_bar_handler(unsigned bar) = 0;
   virtual cxx::Ref_ptr<Vmm::Io_device> get_io_bar_handler(unsigned bar) = 0;
