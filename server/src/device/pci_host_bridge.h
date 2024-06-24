@@ -224,6 +224,9 @@ public:
       if (has_msi && msi_cap_read(reg, value, width))
         return;
 
+      if (has_sriov && sriov_cap_read(reg, value, width))
+        return;
+
       L4Re::chksys(dev.cfg_read(reg, value, mem_access_to_bits(width)),
                    "PCI config space access: read\n");
     }
@@ -264,6 +267,15 @@ public:
 
     /// Setup virtual MSI-X table and map vbus resources as needed.
     void setup_msix_table();
+
+    /**
+     * Check if the read access is in the range of the SR-IOV cap and needs to
+     * be emulated.
+     *
+     * \return true, iff read was to the SR-IOV cap and is emulated.
+     */
+    bool sriov_cap_read(unsigned reg, l4_uint32_t *value,
+                        Vmm::Mem_access::Width width);
 
     /**
      * Allocate BAR memory from the bridge windows.
@@ -430,6 +442,7 @@ protected:
         h->parse_msix_cap();
         h->parse_msi_cap();
         h->setup_msix_table();
+        h->parse_sriov_cap();
         h->map_additional_iomem_resources(_vmm, _vbus->io_ds());
         init_dev_resources(h);
 

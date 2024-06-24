@@ -139,6 +139,7 @@ enum Cap_ident : l4_uint8_t
 
 enum Ext_cap_ident : l4_uint16_t
 {
+  Sr_iov = 0x0010,
 };
 
 enum Pci_cap_mask : l4_uint8_t
@@ -388,6 +389,15 @@ struct Pcie_cap_header
   CXX_BITFIELD_MEMBER(20, 31, next_cap, raw);
   CXX_BITFIELD_MEMBER(15, 19, version, raw);
   CXX_BITFIELD_MEMBER(0, 15, id, raw);
+};
+
+/// SR-IOV capability for PCIe
+struct Pcie_sriov_cap
+{
+  unsigned offset = 0; // the offset into the device's config space
+
+  unsigned cap_end() const
+  { return offset + 0x40; }
 };
 
 union alignas(sizeof(l4_uint64_t)) Pci_header
@@ -761,6 +771,16 @@ struct Pci_device : public virtual Vdev::Dev_ref
     has_msi = true;
   }
 
+  void parse_sriov_cap()
+  {
+    unsigned sriov_cap_addr = get_ext_capability(Ext_cap_ident::Sr_iov);
+    if (!sriov_cap_addr)
+      return;
+
+    sriov_cap.offset = sriov_cap_addr;
+    has_sriov = true;
+  }
+
   /*
    * Walk capabilities list and return the first capability of cap_type (see
    * PCI Spec. Version 3, Chapter 6.7). If none is found return 0.
@@ -969,9 +989,11 @@ struct Pci_device : public virtual Vdev::Dev_ref
   Pci_expansion_rom_bar exp_rom;
   Pci_msix_cap msix_cap;               /// MSI-X capability
   Pci_msi_cap msi_cap;                 /// MSI capability
+  Pcie_sriov_cap sriov_cap;            /// SR-IOV capability
   l4_uint8_t enabled_decoders = 0;     /// Currently registered resources
   bool has_msix = false;               /// indicates MSI-X support
   bool has_msi = false;                /// indicates MSI support
+  bool has_sriov = false;              /// indicates SR-IOV support
 
 private:
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI dev"); }

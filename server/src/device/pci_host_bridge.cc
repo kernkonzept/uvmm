@@ -565,6 +565,37 @@ void Pci_host_bridge::Hw_pci_device::setup_msix_table()
                   dinfo.name, dev_id, bir);
 }
 
+bool Pci_host_bridge::Hw_pci_device::sriov_cap_read(unsigned reg,
+                                                    l4_uint32_t *value,
+                                                    Vmm::Mem_access::Width width)
+{
+  if (reg < sriov_cap.offset || reg >= sriov_cap.cap_end())
+    return false;
+
+  unsigned offset = reg - sriov_cap.offset;
+  trace().printf("sriov_cap_read: devid = 0x%x offset = 0x%x width = %d\n",
+                 dev_id, offset, width);
+
+  switch (offset)
+    {
+    case 0x12: // Fcn Dep Link
+      // If a PF is independent from other PFs of a Device, this field shall
+      // contain its own Function Number. The function number on hardware
+      // differs from the one we assigned to the device on our virtual PCI bus,
+      // so we have to emulate the register.
+      // We do not support device function, therefore the following shift
+      // accounts for the 3 bits allocated for the function number.
+      *value = dev_id << 3;
+      return true;
+
+    default:
+      // Forward to hardware. No register that we emulate.
+      break;
+    }
+
+  return false;
+}
+
 void Pci_host_bridge::Hw_pci_device::map_additional_iomem_resources(
   Vmm::Guest *vmm, L4::Cap<L4Re::Dataspace> io_ds)
 {
