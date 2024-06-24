@@ -242,10 +242,10 @@ public:
                                         L4::Cap<L4Re::Dataspace> io_ds);
 
     /**
-     * Check if the read access in in the range of the MSI cap and needs to be
+     * Check if the read access is in the range of the MSI cap and needs to be
      * emulated.
      *
-     * \return true, iff read was to the MSI cap and is served.
+     * \return true, iff read was to the MSI cap and is emulated.
      */
     bool msi_cap_read(unsigned reg, l4_uint32_t *value,
                        Vmm::Mem_access::Width width);

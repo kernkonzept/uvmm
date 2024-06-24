@@ -317,7 +317,7 @@ bool Pci_host_bridge::Hw_pci_device::msi_cap_read(unsigned reg,
     return false;
 
   unsigned offset = reg - msi_cap.offset;
-  trace().printf("read: devid = 0x%x offset = 0x%x width = %d\n",
+  trace().printf("msi_cap_read: devid = 0x%x offset = 0x%x width = %d\n",
                  dev_id, offset, width);
 
   // guard against multiple threads accessing the device
@@ -415,7 +415,7 @@ bool Pci_host_bridge::Hw_pci_device::msi_cap_write(unsigned reg,
     return false;
 
   unsigned offset = reg - msi_cap.offset;
-  trace().printf("write: devid = 0x%x offset = 0x%x width = %d value = 0x%x\n",
+  trace().printf("msi_cap_write: devid = 0x%x offset = 0x%x width = %d value = 0x%x\n",
                  dev_id, offset, width, value);
   if (   (width == Vmm::Mem_access::Width::Wd8 && offset != 0)
       || (offset % (mem_access_to_bits(width) / 8) != 0))
