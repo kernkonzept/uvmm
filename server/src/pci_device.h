@@ -137,6 +137,10 @@ enum Cap_ident : l4_uint8_t
   Msi_x = 0x11,
 };
 
+enum Ext_cap_ident : l4_uint16_t
+{
+};
+
 enum Pci_cap_mask : l4_uint8_t
 {
   Next_cap = 0xfc, // Lowest two bits of the pointer to the
@@ -370,6 +374,20 @@ struct Pci_msi_cap : Pci_cap
       return offset + 0x14;
     return offset + 0xa;
   }
+};
+
+struct Pcie_cap_header
+{
+  enum : l4_uint32_t
+  {
+    Next_cap_mask = 0xffc, // Lowest two bits of the pointer to the
+                           // next capability are reserved
+  };
+
+  l4_uint32_t raw;
+  CXX_BITFIELD_MEMBER(20, 31, next_cap, raw);
+  CXX_BITFIELD_MEMBER(15, 19, version, raw);
+  CXX_BITFIELD_MEMBER(0, 15, id, raw);
 };
 
 union alignas(sizeof(l4_uint64_t)) Pci_header
@@ -790,6 +808,42 @@ struct Pci_device : public virtual Vdev::Dev_ref
     trace().printf("get_capability: Did not find capability of type 0x%x\n",
                    cap_type);
 
+    return 0;
+  }
+
+  /**
+   * Walk PCIe extended capabilities list and return the first capability of
+   * `cap_type` (see PCI Express Spec. Version 5, Chapter 7.6). If none is found
+   * return 0.
+   *
+   * \param cap_type     Capability type to retrieve
+   * \param min_version  Minimum required version of the capability
+   *
+   * \returns 0          If no capability was found.
+   *          >0         Pointer to the capability.
+   */
+  unsigned get_ext_capability(Ext_cap_ident cap_type, l4_uint8_t min_version = 0)
+  {
+    if (!get_capability(Cap_ident::Pcie))
+      // Not a PCIe device.
+      return 0;
+
+    l4_uint16_t next_cap = 0x100;
+    // Extended capability list is terminated by zero next pointer.
+    while (next_cap)
+      {
+        l4_uint32_t val = 0;
+        cfg_read_raw(next_cap, &val, Vmm::Mem_access::Wd32);
+
+        Pcie_cap_header cap{val};
+        if (cap.id() == cap_type && cap.version() >= min_version)
+          // Found matching capability.
+          return next_cap;
+
+        next_cap = cap.next_cap() & Pcie_cap_header::Next_cap_mask;
+      }
+
+    // No matching capability found.
     return 0;
   }
 
