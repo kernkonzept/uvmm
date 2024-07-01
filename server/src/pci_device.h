@@ -781,8 +781,8 @@ struct Pci_device : public virtual Vdev::Dev_ref
     has_sriov = true;
   }
 
-  /*
-   * Walk capabilities list and return the first capability of cap_type (see
+  /**
+   * Walk capabilities list and return the first capability of `cap_type` (see
    * PCI Spec. Version 3, Chapter 6.7). If none is found return 0.
    *
    * \param cap_type  Capability type to retrieve
@@ -810,7 +810,8 @@ struct Pci_device : public virtual Vdev::Dev_ref
         return 0;
       }
 
-    while (true)
+    // Capability list is terminated by zero next pointer.
+    while (next_cap)
       {
         cfg_read_raw(next_cap, &val, Vmm::Mem_access::Wd16);
         l4_uint8_t cap_id = val & Pci_cap_mask::Cap_id;
@@ -821,8 +822,6 @@ struct Pci_device : public virtual Vdev::Dev_ref
           return next_cap;
 
         next_cap = (val >> 8) & Pci_cap_mask::Next_cap;
-        if (!next_cap) // next pointer is zero -> end of list
-          break;
       }
 
     trace().printf("get_capability: Did not find capability of type 0x%x\n",
