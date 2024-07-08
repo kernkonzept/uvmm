@@ -149,7 +149,7 @@ public:
    * Mark CPU as On_prepared.
    *
    * The vCPU entry has been setup and the guest is about to be entered
-   * again. This state is only used when restarting a CPU that was prevously
+   * again. This state is only used when restarting a CPU that was previously
    * powered off.
    */
   void mark_on_prepared()
