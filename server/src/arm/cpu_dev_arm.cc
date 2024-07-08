@@ -61,7 +61,7 @@ Cpu_dev::powerup_cpu()
   L4Re::chkcap(registry->register_irq_obj(&_restart_event),
                "Cannot register CPU restart event");
 
-  _stop_irq.arm(_vcpu.get_ipc_registry());
+  _stop_irq.arm(registry);
 }
 
 void
