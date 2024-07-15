@@ -452,4 +452,10 @@ Vmx_state::handle_hardware_exception(Event_recorder *ev_rec, unsigned num,
   return Retry;
 }
 
+bool
+Vmx_state::in_real_mode() const
+{
+  return (vmx_read(VMCS_GUEST_CR0) & Cr0_pe_bit) == 0;
+}
+
 } //namespace Vmm

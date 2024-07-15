@@ -703,9 +703,13 @@ private:
   static Dbg trace()
   { return Dbg(Dbg::Cpu, Dbg::Trace, "VMX"); }
 
-  /// vCPU is in real mode, when the CR0.PE bit is not set.
-  bool in_real_mode()
-  { return vmx_read(VMCS_GUEST_CR0) & 0x1ULL; }
+  /**
+   * Check that the guest is running in real mode.
+   *
+   * \retval true   Guest is running in real mode.
+   * \retval false  Guest is not running in real mode.
+   */
+  bool in_real_mode() const;
 
   void *_vmcs;
   Hw_vmcs _hw_vmcs;
