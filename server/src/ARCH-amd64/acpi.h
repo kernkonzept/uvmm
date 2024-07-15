@@ -97,7 +97,23 @@ public:
 
   virtual void amend_fadt(ACPI_TABLE_FADT *) const {};
   virtual l4_size_t amend_mcfg(ACPI_MCFG_ALLOCATION *, l4_size_t) const { return 0; };
+
+  /**
+   * Amend the DSDT ACPI table (highest priority).
+   *
+   * This method is executed before all the #amend_dsdt_late methods of all
+   * ACPI devices.
+   */
   virtual l4_size_t amend_dsdt(void *, l4_size_t) const { return 0; };
+
+  /**
+   * Amend the DSDT ACPI table (lowest priority).
+   *
+   * This method is executed after all the #amend_dsdt methods of all ACPI
+   * devices. This is especially useful if the amendment refers to a scope
+   * that needs to be already defined before.
+   */
+  virtual l4_size_t amend_dsdt_late(void *, l4_size_t) const { return 0; };
 };
 
 /**
@@ -603,10 +619,19 @@ private:
   {
     auto *t = wr.start_table<ACPI_TABLE_HEADER>(Table::Dsdt);
 
+    // Collect the highest priority DSDT fragments of ACPI devices.
     for (auto const &d : Acpi_device_hub::get()->devices())
       {
         void *ptr = wr.as_ptr(wr.pos());
         auto amend_size = d->amend_dsdt(ptr, wr.remaining_size());
+        wr.reserve(amend_size);
+      }
+
+    // Collect the lowest priority DSDT fragments of ACPI devices.
+    for (auto const &d : Acpi_device_hub::get()->devices())
+      {
+        void *ptr = wr.as_ptr(wr.pos());
+        auto amend_size = d->amend_dsdt_late(ptr, wr.remaining_size());
         wr.reserve(amend_size);
       }
 
