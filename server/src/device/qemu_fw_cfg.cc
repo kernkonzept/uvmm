@@ -26,6 +26,10 @@
 #include "mmio_device.h"
 #include "qemu_fw_cfg.h"
 
+#ifdef CONFIG_BUILD_ARCH_amd64
+#include "acpi.h"
+#endif
+
 namespace {
 
 /**
@@ -494,12 +498,19 @@ public:
 
 class Qemu_fw_if_io
 : public Qemu_fw_if,
+#ifdef CONFIG_BUILD_ARCH_amd64
+  public Acpi::Acpi_device,
+#endif
   public Vmm::Io_device
 {
 public:
   Qemu_fw_if_io(Vdev::Device_lookup *devs, Vdev::Dt_node const &node)
   : Qemu_fw_if(devs, node)
-  {}
+  {
+    int res = node.get_reg_io(0, &_base, &_size);
+    if (res < 0)
+      L4Re::throw_error(-L4_EINVAL, "Reg value is valid.");
+  }
 
   char const *dev_name() const override
   { return "Firmware interface"; }
@@ -555,6 +566,69 @@ public:
         *value= -1U;
       }
   }
+
+#ifdef CONFIG_BUILD_ARCH_amd64
+  /**
+   * Expose the device via DSDT to be discoverable via ACPI. Generated from the
+   * following ASL:
+   *
+   * DefinitionBlock ("qemu0002.aml", "DSDT", 1, "UVMM  ", "KERNKONZ", 4) {
+   *   Scope (\_SB.PCI0) {
+   *     Device (FWCF) {
+   *       Name (_HID, "QEMU0002")
+   *       Name (_STA, 0x0B)
+   *       Name (_CRS, ResourceTemplate () {
+   *         IO (Decode16, 0x510, 0x510, 0x01, 0x0c)
+   *       })
+   *     }
+   *   }
+   * }
+   *
+   * Conversion (save above as qemu0002.asl):
+   *   $ iasl qemu0002.aml
+   *   $ xxd -i -s 0x24 -c 8 qemu0002.aml
+   *
+   * \note Because of the (\_SB.PCI0) scope, this needs to be a late amendment.
+   *       The PCI0 device is defined in device/pci_host_generic.cc.
+   */
+  l4_size_t amend_dsdt_late(void *buf, l4_size_t max_size) const override
+  {
+    unsigned char dsdt_fwcf[] = {
+      /* 0x00 */ 0x10, 0x3a, 0x2e, 0x5f, 0x53, 0x42, 0x5f, 0x50,
+      /* 0x08 */ 0x43, 0x49, 0x30, 0x5b, 0x82, 0x2e, 0x46, 0x57,
+      /* 0x10 */ 0x43, 0x46, 0x08, 0x5f, 0x48, 0x49, 0x44, 0x0d,
+      /* 0x18 */ 0x51, 0x45, 0x4d, 0x55, 0x30, 0x30, 0x30, 0x32,
+      /* 0x20 */ 0x00, 0x08, 0x5f, 0x53, 0x54, 0x41, 0x0a, 0x0b,
+      /* 0x28 */ 0x08, 0x5f, 0x43, 0x52, 0x53, 0x11, 0x0d, 0x0a,
+      /* 0x30 */ 0x0a, 0x47, 0x01,
+
+      // I/O resource
+      /* 0x33 */ 0x10, 0x05, // AddressMin
+      /* 0x35 */ 0x10, 0x05, // AddressMax
+      /* 0x37 */ 0x01,       // AddressAlignment
+      /* 0x38 */ 0x0c,       // RangeLength
+
+      /* 0x39 */ 0x79, 0x00
+    };
+
+    // Update the I/O resource
+    *reinterpret_cast<l4_uint16_t *>(&dsdt_fwcf[0x33]) = _base;
+    *reinterpret_cast<l4_uint16_t *>(&dsdt_fwcf[0x35]) = _base;
+    dsdt_fwcf[0x38] = _size;
+
+    l4_size_t size = sizeof(dsdt_fwcf);
+    if (max_size < size)
+      L4Re::throw_error(-L4_ENOMEM,
+        "Not enough space in DSDT ACPI table for firmware configuration device.");
+
+    std::memcpy(buf, &dsdt_fwcf, size);
+    return size;
+  }
+#endif
+
+private:
+  l4_uint64_t _base;
+  l4_uint64_t _size;
 };
 
 struct F : Vdev::Factory
