@@ -157,8 +157,40 @@ public:
 
   int handle_cpuid(Vcpu_ptr vcpu);
   int handle_vm_call(l4_vcpu_regs_t *regs);
+
+  /**
+   * Access IO port and load/store the value to RAX.
+   *
+   * In case the given IO port is not handled by any device on read, the value
+   * of all ones is stored to RAX. Write errors are silently ignored.
+   *
+   * \param[in]     port      IO port to access.
+   * \param[in]     is_in     True if this is the IN (read) access.
+   * \param[in]     op_width  Width of the access (1/2/4 bytes).
+   * \param[in,out] regs      Register file. The value read/written is
+   *                          stored/loaded into RAX.
+   *
+   * \retval Jump_instr  Success, all errors are silently ignored.
+   */
   int handle_io_access(unsigned port, bool is_in, Mem_access::Width op_width,
                        l4_vcpu_regs_t *regs);
+
+  /**
+   * Access IO port (core implementation).
+   *
+   * Core implementation of accessing an IO port. The method looks up the
+   * device that handles the IO port and does the access.
+   *
+   * \param[in]     port      IO port to access.
+   * \param[in]     is_in     True if this is the IN (read) access.
+   * \param[in]     op_width  Width of the access (1/2/4 bytes).
+   * \param[in,out] value     Value to read/write.
+   *
+   * \retval true   The IO access was successful.
+   * \retval false  No device handles the given IO port.
+   */
+  bool handle_io_access_ptr(unsigned port, bool is_in,
+                            Mem_access::Width op_width, l4_uint32_t *value);
 
   void run_vm(Vcpu_ptr vcpu) L4_NORETURN;
 
@@ -252,7 +284,6 @@ private:
    */
   bool handle_cpuid_devices(l4_vcpu_regs_t const *regs, unsigned *a,
                             unsigned *b, unsigned *c, unsigned *d);
-
 
   Event_recorder *recorder(unsigned num)
   { return _event_recorders.recorder(num); }

@@ -241,35 +241,56 @@ int
 Guest::handle_io_access(unsigned port, bool is_in, Mem_access::Width op_width,
                         l4_vcpu_regs_t *regs)
 {
-  l4_umword_t op_mask = (1ULL << ((1 << op_width) * 8)) - 1;
+  l4_umword_t op_mask = (1ULL << ((1U << op_width) * 8)) - 1;
 
+  if (is_in)
+    {
+      l4_uint32_t value = ~0U;
+      bool ret = handle_io_access_ptr(port, true, op_width, &value);
+      if (!ret)
+        {
+          trace().printf("WARNING: Unhandled IO read port 0x%x/%u\n",
+                     port, (1U << op_width) * 8);
+          regs->ax = ~0ULL & op_mask;
+          return Jump_instr;
+        }
+
+      regs->ax = (regs->ax & ~op_mask) | (value & op_mask);
+    }
+  else
+    {
+      l4_uint32_t value = regs->ax & op_mask;
+      bool ret = handle_io_access_ptr(port, false, op_width, &value);
+      if (!ret)
+        {
+          trace().printf("WARNING: Unhandled IO write port 0x%x/%u <- 0x%x\n",
+                         port, (1U << op_width) * 8, value);
+          return Jump_instr;
+        }
+    }
+
+  return Jump_instr;
+}
+
+bool
+Guest::handle_io_access_ptr(unsigned port, bool is_in,
+                            Mem_access::Width op_width, l4_uint32_t *value)
+{
   std::unique_lock<std::mutex> lock(_iomap_lock);
   auto f = _iomap.find(Io_region(port));
   if (f == _iomap.end())
-    {
-      if (is_in)
-        regs->ax = -1 & op_mask;
-
-      trace().printf("WARNING: Unhandled IO access %s@0x%x/%d => 0x%lx\n",
-                     is_in ? "IN" : "OUT", port, (op_width + 1) * 8, regs->ax);
-      return Jump_instr;
-    }
+    return false;
 
   port -= f->first.start;
   cxx::Ref_ptr<Io_device> device = f->second;
   lock.unlock();
 
   if (is_in)
-    {
-      l4_uint32_t out = -1;
-      device->io_in(port, op_width, &out);
-
-      regs->ax = (regs->ax & ~op_mask) | (out & op_mask);
-    }
+    device->io_in(port, op_width, value);
   else
-    device->io_out(port, op_width, regs->ax & op_mask);
+    device->io_out(port, op_width, *value);
 
-  return Jump_instr;
+  return true;
 }
 
 int

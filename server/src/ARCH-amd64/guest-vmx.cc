@@ -64,7 +64,8 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
 
         if (port == 0xcfb)
           Dbg(Dbg::Dev, Dbg::Trace)
-            .printf("[%3u]:  0xcfb access from ip: %lx\n", vcpu_id, vms->ip());
+            .printf("[%3u]: 0xcfb IO port access @ 0x%lx\n", vcpu_id,
+                    vms->ip());
 
         Mem_access::Width wd = Mem_access::Wd32;
         switch(qwidth)
