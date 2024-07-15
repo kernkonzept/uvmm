@@ -805,6 +805,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
 {
   unsigned vcpu_id = vcpu.get_vcpu_id();
   auto cpu = _cpus->cpu(vcpu_id);
+  auto *ev_rec = recorder(vcpu_id);
   Gic::Virt_lapic *vapic = lapic(vcpu);
 
   _clocks[vcpu_id].start_clock_source_thread(vcpu_id, cpu->get_phys_cpu_id());
@@ -841,10 +842,21 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
               vm->additional_failure_info(vcpu_id);
               halt_vm(vcpu);
             }
-          else if (ret == Jump_instr)
+          else switch (ret)
             {
+            case Jump_instr:
               vm->jump_instruction();
               vm->clear_sti_shadow();
+              break;
+            case Invalid_opcode:
+              ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6);
+              break;
+            case Stack_fault:
+              ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 12, 0);
+              break;
+            case General_protection:
+              ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
+              break;
             }
         }
 

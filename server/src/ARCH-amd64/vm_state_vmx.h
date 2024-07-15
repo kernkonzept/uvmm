@@ -673,7 +673,7 @@ public:
     l4_vm_vmx_set_hw_vmcs(_vmcs, _hw_vmcs.cap());
   }
 
-  int handle_cr_access(l4_vcpu_regs_t *regs, Event_recorder *ev_rec);
+  int handle_cr_access(l4_vcpu_regs_t *regs);
   int handle_exception_nmi_ext_int(Event_recorder *ev_rec);
 
   bool read_msr(unsigned msr, l4_uint64_t *value) const override;

@@ -257,12 +257,11 @@ Vmx_state::write_msr(unsigned msr, l4_uint64_t value, Event_recorder *ev_rec)
 }
 
 int
-Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs, Event_recorder *ev_rec)
+Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs)
 {
   auto qual = vmx_read(VMCS_EXIT_QUALIFICATION);
   int crnum;
   l4_umword_t newval;
-  long retval = Jump_instr;
 
   switch ((qual >> 4) & 3)
     {
@@ -317,10 +316,7 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs, Event_recorder *ev_rec)
                 || (!(efer & Efer_lme_bit) && (cr4 & Cr4_la57_bit)))
               {
                 // inject GPF and do not write CR0
-                ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
-
-                retval = Retry;
-                break;
+                return General_protection;
               }
 
             // LA57:   Cr4.PAE,  EFER.LME,  Cr4.LA57
@@ -373,20 +369,14 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs, Event_recorder *ev_rec)
             if ((newval & Cr4_la57_bit) != (old_cr4 & Cr4_la57_bit))
               {
                 // inject GPF and do not write CR4
-                ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
-
-                retval = Retry;
-                break;
+                return General_protection;
               }
 
             l4_uint64_t efer = vmx_read(VMCS_GUEST_IA32_EFER);
             if (!(newval & Cr4_pae_bit) && (efer & Efer_lme_bit))
               {
                 // inject GPF and do not write CR4
-                ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
-
-                retval = Retry;
-                break;
+                return General_protection;
               }
             // !EFER.LME means either PAE or 32-bit paging. Transitioning
             // between these two while Cr0.PG is set is allowed.
@@ -409,9 +399,10 @@ Vmx_state::handle_cr_access(l4_vcpu_regs_t *regs, Event_recorder *ev_rec)
 
     default:
       warn().printf("Unknown CR access.\n");
-      retval = -L4_EINVAL;
+      return -L4_EINVAL;
     }
-  return retval;
+
+  return Jump_instr;
 }
 
 int

@@ -141,11 +141,10 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
       return Jump_instr;
 
     case Exit::Exec_rdpmc:
-      ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
-      return Retry;
+      return General_protection;
 
     case Exit::Cr_access:
-      return vms->handle_cr_access(regs, ev_rec);
+      return vms->handle_cr_access(regs);
 
     case Exit::Exec_rdmsr:
       if (!msr_devices_rwmsr(regs, false, vcpu_id))
@@ -154,8 +153,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
                         regs->cx);
           regs->ax = 0;
           regs->dx = 0;
-          ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
-          return Retry;
+          return General_protection;
         }
 
       return Jump_instr;
@@ -167,9 +165,9 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
           {
             warn().printf("[%3u]: Writing unsupported MSR 0x%lx\n", vcpu_id,
                           regs->cx);
-            ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 13, 0);
-            return Retry;
+            return General_protection;
           }
+
         // Writing an MSR e.g. IA32_EFER can lead to injection of a HW exception.
         // In this case the instruction wasn't emulated, thus don't jump it.
         if (!has_already_exception && ev_rec->has_exception())
@@ -211,10 +209,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
         if (dbg_reg == 4 || dbg_reg == 5)
           {
             if (vms->vmx_read(VMCS_GUEST_CR4) & (1U << 3)) // CR4.DE set?
-              {
-                ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6);
-                return Retry;
-              }
+              return Invalid_opcode;
             // else: alias to DR6 & DR7
           }
 
@@ -248,8 +243,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
     case Exit::Exec_invvpid:
     case Exit::Exec_rdtscp:
       // Unsupported instructions, inject undefined opcode exception
-      ev_rec->make_add_event<Event_exc>(Event_prio::Exception, 6); // #UD
-      return Retry;
+      return Invalid_opcode;
 
     case Exit::Triple_fault:
       // Double-fault experienced exception. Set core into shutdown mode.

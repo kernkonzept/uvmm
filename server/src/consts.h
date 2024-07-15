@@ -13,6 +13,9 @@ enum Handler_return_codes
 {
   Retry = 0,
   Jump_instr = 1,
+  Invalid_opcode = 2,     // Handled on amd64 only.
+  Stack_fault = 3,        // Handled on amd64 only.
+  General_protection = 4, // Handled on amd64 only.
 };
 
 enum
