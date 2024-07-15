@@ -594,6 +594,41 @@ public:
     }
   };
 
+  /**
+   * Structure representing the VM Exit Instruction Information.
+   *
+   * Note that the instruction information defines different valid bitfields
+   * for different instructions, but the location of those bitfields is mostly
+   * consistent.
+   */
+  struct Vmx_insn_info_field
+  {
+    l4_uint32_t field;
+    CXX_BITFIELD_MEMBER(0, 1, scaling, field);
+    // Bit 2 is undefined.
+    CXX_BITFIELD_MEMBER(3, 6, gpr, field);
+    CXX_BITFIELD_MEMBER(7, 9, address_size, field);
+    CXX_BITFIELD_MEMBER(10, 10, mem_reg, field);
+    CXX_BITFIELD_MEMBER(11, 12, operand_size, field);
+    // Bit 13 is undefined.
+    // Bit 14 is undefined.
+    CXX_BITFIELD_MEMBER(15, 17, segment, field);
+    CXX_BITFIELD_MEMBER(18, 21, index, field);
+    CXX_BITFIELD_MEMBER(22, 22, index_valid_bit, field);
+    CXX_BITFIELD_MEMBER(23, 26, base, field);
+    CXX_BITFIELD_MEMBER(27, 27, base_valid_bit, field);
+    CXX_BITFIELD_MEMBER(28, 31, gpr2, field);
+
+    Vmx_insn_info_field() = delete;
+    Vmx_insn_info_field(l4_uint32_t raw) : field(raw) {}
+
+    bool index_valid() const
+    { return index_valid_bit() == 0; }
+
+    bool base_valid() const
+    { return base_valid_bit() == 0; }
+  };
+
   /// Type alias to handle VM-exit interrupt data.
   using Vm_exit_int_info = Vmx_int_info_field;
   /// Type alias to handle VM-entry event injection data.
