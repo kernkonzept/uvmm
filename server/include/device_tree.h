@@ -267,9 +267,10 @@ public:
                                           "range" was out of range */
     ERR_RANGE,                       /**< A cell value does not fit
                                           into a 64bit value */
-    ERR_NOT_TRANSLATABLE             /**< A reg value could not be
+    ERR_NOT_TRANSLATABLE,            /**< A reg value could not be
                                           translated and is a bus
                                           local address */
+    ERR_REG_INVALID                  /**< An invalid "reg" value */
   };
 
   static char const *strerror(int errval)
@@ -279,6 +280,7 @@ public:
       case -ERR_BAD_INDEX:        return "Index out of range";
       case -ERR_RANGE:            return "Value does not fit into 64bit value";
       case -ERR_NOT_TRANSLATABLE: return "Reg entry is not translatable";
+      case -ERR_REG_INVALID:      return "Reg entry is invalid";
       default:                    return fdt_strerror(errval);
       }
   }
@@ -700,6 +702,32 @@ public:
       *flags = parent.get_flags(prop);
 
     return res ? 0 : -ERR_NOT_TRANSLATABLE;
+  }
+
+  /**
+   * Get base/size pair from IO reg property.
+   *
+   * This is a convenience method for accessing an IO reg propery.
+   *
+   * \param[in]  index  Index of pair
+   * \param[out] base   Store base in *base if base != 0
+   * \param[out] size   Store size in *size if size != 0
+   *
+   * \retval -ERR_REG_INVALID  Node is not an IO reg property
+   * \retval <0                Error from #get_reg_val
+   * \retval 0                 Success
+   */
+  int get_reg_io(int index, l4_uint64_t *base, l4_uint64_t *size) const
+  {
+    Dtb::Reg_flags flags;
+    int res = get_reg_val(index, base, size, &flags);
+    if (res < 0)
+      return res;
+
+    if (!flags.is_ioport())
+      return -ERR_REG_INVALID;
+
+    return 0;
   }
 
   /**

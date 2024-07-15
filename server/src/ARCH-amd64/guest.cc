@@ -69,20 +69,18 @@ Guest::register_io_device(cxx::Ref_ptr<Vmm::Io_device> const &dev,
                           Vdev::Dt_node const &node, size_t index)
 {
   l4_uint64_t base, size;
-  Dtb::Reg_flags flags;
-  int res = node.get_reg_val(index, &base, &size, &flags);
-  if (res < 0)
-    {
-      Err().printf("Failed to read 'reg' from node %s(%lu): %s\n",
-                   node.get_name(), index, node.strerror(res));
-      L4Re::throw_error(-L4_EINVAL, "Reg value is valid.");
-    }
-
-  if (!flags.is_ioport())
+  int res = node.get_reg_io(index, &base, &size);
+  if (res == -node.ERR_REG_INVALID)
     {
       Err().printf("Invalid 'reg' property of node %s(%lu): not an ioport\n",
                    node.get_name(), index);
       L4Re::throw_error(-L4_EINVAL, "Reg property contains an ioport.");
+    }
+  else if (res < 0)
+    {
+      Err().printf("Failed to read 'reg' from node %s(%lu): %s\n",
+                   node.get_name(), index, node.strerror(res));
+      L4Re::throw_error(-L4_EINVAL, "Reg value is valid.");
     }
 
   add_io_device(Vmm::Io_region::ss(base, size, type), dev);
