@@ -44,39 +44,45 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
         unsigned qwidth = qual & 7;
         bool is_read = qual & 8;
         bool is_string = qual & 16;
+        bool is_rep = qual & 32;
+        bool is_imm = qual & 64;
         unsigned port = (qual >> 16) & 0xFFFFU;
 
         Dbg(Dbg::Dev, Dbg::Trace)
-          .printf("[%3u]: VM exit: IO port access with exit qualification 0x%llx: "
-                  "%s port 0x%x\n",
-                  vcpu_id, qual, is_read ? "read" : "write", port);
-
-        if (is_string)
-          {
-            warn().printf("[%3u]: Unhandled string IO instruction @ 0x%lx: "
-                          "%s%s, port 0x%x! Skipped.\n",
-                          vcpu_id, vms->ip(), (qual & 0x20) ? "REP " : "",
-                          is_read ? "INS" : "OUTS", port);
-            // This is not entirely correct: SI/DI not incremented, REP prefix
-            // not handled.
-            return Jump_instr;
-          }
+          .printf("[%3u]: VM exit @ 0x%lx: IO access with exit qualification "
+                  "0x%llx: %s port 0x%x %s%s%s\n",
+                  vcpu_id, vms->ip(), qual, is_read ? "read" : "write", port,
+                  is_imm ? "immediate" : "in DX", is_string ? " string" : "",
+                  is_rep ? " rep" : "");
 
         if (port == 0xcfb)
           Dbg(Dbg::Dev, Dbg::Trace)
-            .printf("[%3u]: 0xcfb IO port access @ 0x%lx\n", vcpu_id,
+            .printf("[%3u]: N.B.: 0xcfb IO port access @ 0x%lx\n", vcpu_id,
                     vms->ip());
 
-        Mem_access::Width wd = Mem_access::Wd32;
-        switch(qwidth)
+        Mem_access::Width op_width;
+        switch (qwidth)
           {
-          // only 0,1,3 are valid values in the exit qualification.
-          case 0: wd = Mem_access::Wd8; break;
-          case 1: wd = Mem_access::Wd16; break;
-          case 3: wd = Mem_access::Wd32; break;
+          // Only 0, 1, 3 are valid values in the exit qualification.
+          case 0: op_width = Mem_access::Wd8; break;
+          case 1: op_width = Mem_access::Wd16; break;
+          case 3: op_width = Mem_access::Wd32; break;
+          default:
+            warn().printf("[%3u]: Invalid IO access size %u @ 0x%lx\n",
+                          vcpu_id, qwidth, vms->ip());
+            return Invalid_opcode;
           }
 
-        return handle_io_access(port, is_read, wd, regs);
+        if (!is_string)
+          return handle_io_access(port, is_read, op_width, regs);
+
+        warn().printf("[%3u]: Unhandled string IO instruction @ 0x%lx: "
+                      "%s%s, port 0x%x! Skipped.\n",
+                      vcpu_id, vms->ip(), is_rep ? "REP " : "",
+                      is_read ? "INS" : "OUTS", port);
+        // This is not entirely correct: SI/DI not incremented, REP prefix
+        // not handled.
+        return Jump_instr;
       }
 
     // Ept_violation needs to be checked here, as handle_mmio needs a vCPU ptr,
