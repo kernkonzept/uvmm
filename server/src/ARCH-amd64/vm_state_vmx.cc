@@ -443,10 +443,399 @@ Vmx_state::handle_hardware_exception(Event_recorder *ev_rec, unsigned num,
   return Retry;
 }
 
+int
+Vmx_state::store_io_value(l4_vcpu_regs_t *regs, cxx::Ref_ptr<Pt_walker> ptw,
+                          Vmx_insn_info_field info, Mem_access::Width op_width,
+                          l4_uint32_t value)
+{
+  switch (op_width)
+    {
+    case Mem_access::Wd8:
+      return store_io_value_t<l4_uint8_t>(regs, ptw, info, value);
+    case Mem_access::Wd16:
+      return store_io_value_t<l4_uint16_t>(regs, ptw, info, value);
+    case Mem_access::Wd32:
+      return store_io_value_t<l4_uint32_t>(regs, ptw, info, value);
+    default:
+      break;
+    }
+
+  return Invalid_opcode;
+}
+
+int
+Vmx_state::load_io_value(l4_vcpu_regs_t *regs, cxx::Ref_ptr<Pt_walker> ptw,
+                         Vmx_insn_info_field info, Mem_access::Width op_width,
+                         l4_uint32_t *value)
+{
+  switch (op_width)
+    {
+    case Mem_access::Wd8:
+      return load_io_value_t<l4_uint8_t>(regs, ptw, info, value);
+    case Mem_access::Wd16:
+      return load_io_value_t<l4_uint16_t>(regs, ptw, info, value);
+    case Mem_access::Wd32:
+      return load_io_value_t<l4_uint32_t>(regs, ptw, info, value);
+    default:
+      break;
+    }
+
+  return Invalid_opcode;
+}
+
+int
+Vmx_state::rep_prefix_condition(l4_vcpu_regs_t *regs, Vmx_insn_info_field info,
+                                bool *next)
+{
+  // Prepare a mask for the register size.
+  l4_uint64_t mask;
+  int ret = address_size_mask(info.address_size(), &mask);
+  if (ret != Jump_instr)
+    return ret;
+
+  // Check the condition.
+  *next = (regs->cx & mask) != 0;
+
+  // Decrement the register.
+  if (*next)
+    regs->cx = (regs->cx & ~mask) | ((regs->cx - 1) & mask);
+
+  return Jump_instr;
+}
+
+bool
+Vmx_state::is_paging_enabled() const
+{
+  return vmx_read(VMCS_GUEST_CR0) & Cr0_pg_bit;
+}
+
 bool
 Vmx_state::in_real_mode() const
 {
   return (vmx_read(VMCS_GUEST_CR0) & Cr0_pe_bit) == 0;
+}
+
+bool
+Vmx_state::in_long_mode() const
+{
+  return vmx_read(VMCS_GUEST_IA32_EFER) & Efer_lma_bit;
+}
+
+template <typename TYPE>
+int
+Vmx_state::store_io_value_t(l4_vcpu_regs_t *regs, cxx::Ref_ptr<Pt_walker> ptw,
+                            Vmx_insn_info_field info, l4_uint32_t value)
+{
+  // Get the INS instruction argument and the offset register.
+  unsigned offset_reg;
+  TYPE *ptr;
+  int ret = get_io_argument(regs, ptw, info, true, &offset_reg, &ptr);
+  if (ret != Jump_instr)
+    return ret;
+
+  // Store the IO value to memory.
+  *ptr = value;
+
+  // Update the instruction argument (i.e. advance the offset register).
+  return advance_gpr(regs, offset_reg, info.address_size(), sizeof(TYPE));
+}
+
+template <typename TYPE>
+int
+Vmx_state::load_io_value_t(l4_vcpu_regs_t *regs, cxx::Ref_ptr<Pt_walker> ptw,
+                           Vmx_insn_info_field info, l4_uint32_t *value)
+{
+  // Get the INS instruction argument and the offset register.
+  unsigned offset_reg;
+  TYPE *ptr;
+  int ret = get_io_argument(regs, ptw, info, false, &offset_reg, &ptr);
+  if (ret != Jump_instr)
+    return ret;
+
+  // Load the IO value from memory.
+  *value = *ptr;
+
+  // Update the instruction argument (i.e. advance the offset register).
+  return advance_gpr(regs, offset_reg, info.address_size(), sizeof(TYPE));
+}
+
+template <typename TYPE>
+int
+Vmx_state::get_io_argument(l4_vcpu_regs_t *regs, cxx::Ref_ptr<Pt_walker> ptw,
+                           Vmx_insn_info_field info, bool store,
+                           unsigned *offset_reg, TYPE **ptr)
+{
+  // Non-paged modes are not supported.
+  if (!is_paging_enabled())
+    return Invalid_opcode;
+
+  unsigned segment_reg;
+
+  if (store)
+    {
+      // For INS, the address is always determined by ES:DI, ES:EDI or
+      // RDI.
+      segment_reg = 0;
+      *offset_reg = 7;
+    }
+  else
+    {
+      // For OUTS, the address offset is determined by SI, ESI or RSI. The
+      // segment register can be overriden by a segment prefix.
+      segment_reg = info.segment();
+      *offset_reg = 6;
+    }
+
+  l4_uint64_t offset;
+  int ret = read_gpr(regs, *offset_reg, &offset);
+  if (ret != Jump_instr)
+    return ret;
+
+  // Truncate the effective address according to the operand size.
+  switch (info.address_size())
+    {
+    case 0:
+      offset &= 0xffffU;
+      break;
+    case 1:
+      offset &= 0xffffffffU;
+      break;
+    case 2:
+      /* No op */
+      break;
+    default:
+      return Invalid_opcode;
+    }
+
+  // Compute the linear (guest-virtual) address (taking segmentation into
+  // account).
+  l4_uint64_t addr;
+  ret = compute_linear_addr<TYPE>(segment_reg, offset, true, &addr);
+  if (ret != Jump_instr)
+    return ret;
+
+  // Walk the page tables to convert the guest-virtual address to the
+  // host-virtual address.
+  *ptr = reinterpret_cast<TYPE *>(ptw->walk(cr3(), addr));
+  return Jump_instr;
+}
+
+int
+Vmx_state::read_gpr(l4_vcpu_regs_t *regs, unsigned reg, l4_uint64_t *value)
+{
+  if (reg > 15)
+    return Invalid_opcode;
+
+  if (reg == 4)
+    *value = vmx_read(VMCS_GUEST_RSP);
+  else
+    *value = *(&(regs->ax) - reg);
+
+  return Jump_instr;
+}
+
+int
+Vmx_state::write_gpr(l4_vcpu_regs_t *regs, unsigned reg, l4_uint64_t value)
+{
+  if (reg > 15)
+    return Invalid_opcode;
+
+  if (reg == 4)
+    vmx_write(VMCS_GUEST_RSP, value);
+  else
+    *(&(regs->ax) - reg) = value;
+
+  return Jump_instr;
+}
+
+int
+Vmx_state::advance_gpr(l4_vcpu_regs_t *regs, unsigned reg,
+                       unsigned address_size, size_t advancement)
+{
+  // Determine the direction of the advancement.
+  bool decrement = vmx_read(VMCS_GUEST_RFLAGS) & Direction_bit;
+
+  // Prepare a mask for the register size.
+  l4_uint64_t mask;
+  int ret = address_size_mask(address_size, &mask);
+  if (ret != Jump_instr)
+    return ret;
+
+  // Advance the register value.
+  l4_uint64_t value;
+  ret = read_gpr(regs, reg, &value);
+  if (ret != Jump_instr)
+    return ret;
+
+  if (decrement)
+    value = (value & ~mask) | ((value - advancement) & mask);
+  else
+    value = (value & ~mask) | ((value + advancement) & mask);
+
+  return write_gpr(regs, reg, value);
+}
+
+template <typename TYPE>
+int
+Vmx_state::compute_linear_addr(unsigned segment, l4_uint64_t offset,
+                               bool store, l4_uint64_t *linear)
+{
+  if (in_real_mode())
+    return Invalid_opcode;
+
+  bool valid;
+
+  if (in_long_mode())
+    {
+      // In long mode, segmentation is essentially non-existent except for the
+      // potentially non-zero base of the FS and GS segments.
+
+      l4_uint64_t sgbase;
+
+      switch (segment)
+        {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+          sgbase = 0;
+          break;
+        case 4:
+          sgbase = vmx_read(VMCS_GUEST_FS_BASE);
+          break;
+        case 5:
+          sgbase = vmx_read(VMCS_GUEST_GS_BASE);
+          break;
+        default:
+          return Invalid_opcode;
+        }
+
+        *linear = sgbase + offset;
+
+        // Guard against non-canonical addresses.
+        valid = is_cannonical_addr(*linear);
+    }
+  else
+    {
+      // In compatibility mode and protected mode, standard segmentation
+      // rules apply.
+
+      l4_uint64_t sgbase;
+      l4_uint32_t access;
+      l4_uint32_t slimit;
+
+      switch (segment)
+        {
+        case 0:
+          sgbase = vmx_read(VMCS_GUEST_ES_BASE);
+          access = vmx_read(VMCS_GUEST_ES_ACCESS_RIGHTS);
+          slimit = vmx_read(VMCS_GUEST_ES_LIMIT);
+          break;
+        case 1:
+          sgbase = vmx_read(VMCS_GUEST_CS_BASE);
+          access = vmx_read(VMCS_GUEST_CS_ACCESS_RIGHTS);
+          slimit = vmx_read(VMCS_GUEST_CS_LIMIT);
+          break;
+        case 2:
+          sgbase = vmx_read(VMCS_GUEST_SS_BASE);
+          access = vmx_read(VMCS_GUEST_SS_ACCESS_RIGHTS);
+          slimit = vmx_read(VMCS_GUEST_SS_LIMIT);
+          break;
+        case 3:
+          sgbase = vmx_read(VMCS_GUEST_DS_BASE);
+          access = vmx_read(VMCS_GUEST_DS_ACCESS_RIGHTS);
+          slimit = vmx_read(VMCS_GUEST_DS_LIMIT);
+          break;
+        case 4:
+          sgbase = vmx_read(VMCS_GUEST_FS_BASE);
+          access = vmx_read(VMCS_GUEST_FS_ACCESS_RIGHTS);
+          slimit = vmx_read(VMCS_GUEST_FS_LIMIT);
+          break;
+        case 5:
+          sgbase = vmx_read(VMCS_GUEST_GS_BASE);
+          access = vmx_read(VMCS_GUEST_GS_ACCESS_RIGHTS);
+          slimit = vmx_read(VMCS_GUEST_GS_LIMIT);
+          break;
+        default:
+          return Invalid_opcode;
+        }
+
+        // Linear addresses are truncated to 32 bits.
+        *linear = (sgbase + offset) & 0xffffffffU;
+
+        if (store)
+          {
+            // Guard against read-only data segments and code segments.
+            if (((access & 0x0a) == 0) || (access & 0x08))
+              return General_protection;
+          }
+        else
+          {
+            // Guard against execute-only code segments.
+            if ((access & 0x0a) == 0x08)
+              return General_protection;
+          }
+
+        // Guard against unusable segments.
+        valid = ((access & 0x10000U) == 0);
+
+        // Unless the segment is flat (i.e. having base 0 with maximal limit,
+        // being any code segment or a non-expand-down data segment), guard
+        // against memory operands outside the segment limit.
+        if ((valid) && ((sgbase != 0) || (slimit != 0xffffffffU)
+                        || (!(access & 0x08) && (access & 0x04))))
+          valid = (*linear + sizeof(TYPE) - 1 <= slimit);
+    }
+
+  if (!valid)
+    {
+      if (segment == 2) // SS
+        return Stack_fault;
+      else
+        return General_protection;
+    }
+
+  return Jump_instr;
+}
+
+l4_uint64_t
+Vmx_state::extend_cannonical_addr(l4_uint64_t addr) const
+{
+  unsigned int bits = (vmx_read(VMCS_GUEST_CR4) & Cr4_la57_bit) ? 7 : 16;
+  return extend_sign64(addr, bits);
+}
+
+bool
+Vmx_state::is_cannonical_addr(l4_uint64_t addr) const
+{
+  return extend_cannonical_addr(addr) == addr;
+}
+
+int
+Vmx_state::address_size_mask(unsigned address_size, l4_uint64_t *mask)
+{
+  switch (address_size)
+    {
+    case 0:
+      *mask = 0xffffU;
+      break;
+    case 1:
+      *mask = 0xffffffffU;
+      break;
+    case 2:
+      *mask = ~0UL;
+      break;
+    default:
+      return Invalid_opcode;
+    }
+
+  return Jump_instr;
+}
+
+l4_uint64_t
+Vmx_state::extend_sign64(l4_uint64_t value, unsigned extension)
+{
+  return static_cast<l4_int64_t>(value << extension) >> extension;
 }
 
 } //namespace Vmm

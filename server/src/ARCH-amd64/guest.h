@@ -247,6 +247,30 @@ private:
   template <typename VMS>
   int handle_exit(Cpu_dev *cpu, VMS *vm);
 
+  /**
+   * Handle IO access VM exit in case of a [REP] INS/OUTS.
+   *
+   * \tparam VMS  VM state type.
+   *
+   * \param[in]     port      IO port to access.
+   * \param[in]     is_in     True if this is the INS (read) access.
+   * \param[in]     op_width  Width of the IO access (1/2/4 bytes).
+   * \param[in]     is_rep    True if there is the REP prefix.
+   * \param[in,out] regs      Register file.
+   * \param[in,out] vms       VM state.
+   *
+   * \retval Jump_instr          [REP] INS/OUTS instruction handled
+   *                             successfully.
+   * \retval Invalid_opcode      Instruction decoding failure or unsupported
+   *                             CPU mode.
+   * \retval General_protection  Segmentation fault.
+   * \retval Stack_fault         Segmentation fault in the SS segment.
+   */
+  template <typename VMS>
+  int handle_io_access_string(unsigned port, bool is_in,
+                              Mem_access::Width op_width, bool is_rep,
+                              l4_vcpu_regs_t *regs, VMS *vm);
+
   unsigned get_max_physical_address_bit() const
   {
     l4_umword_t ax, bx, cx, dx;

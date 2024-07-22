@@ -11,15 +11,16 @@
 #include <l4/re/util/unique_cap>
 #include <l4/sys/vm>
 
+#include <l4/cxx/ref_ptr>
 #include <l4/cxx/bitfield>
 
 #include "vmcs.h"
 #include "vm_state.h"
 #include "debug.h"
+#include "pt_walker.h"
 #include "event_recorder.h"
 
 #include <cstdio>
-
 #include <cassert>
 
 namespace Vmm {
@@ -147,6 +148,7 @@ public:
   enum Flags_bits : unsigned long
   {
     Interrupt_enabled_bit = (1UL << 9),
+    Direction_bit = (1UL << 10),
     Virtual_8086_mode_bit = (1UL << 17),
   };
 
@@ -726,6 +728,71 @@ public:
                  vmx_read(VMCS_VM_INSN_ERROR));
   }
 
+  /**
+   * Store an IO value to memory.
+   *
+   * This is part of the INS instruction emulation. The IO value is stored to
+   * the memory location defined by the INS instruction operand (i.e. RDI,
+   * ES:EDI or ES:DI) and the memory location is advanced to the next record
+   * according to the instruction information.
+   *
+   * \param[in,out] regs      Register file.
+   * \param[in]     ptw       Page table walker.
+   * \param[in]     info      Instruction information.
+   * \param[in]     op_width  Width of the IO access (1/2/4 bytes).
+   * \param[in]     value     Value to store to memory.
+   *
+   * \retval Jump_instr          INS instruction handled successfully.
+   * \retval Invalid_opcode      Instruction decoding failure or unsupported
+   *                             CPU mode.
+   * \retval General_protection  Segmentation fault.
+   * \retval Stack_fault         Segmentation fault in the SS segment.
+   */
+  int store_io_value(l4_vcpu_regs_t *regs, cxx::Ref_ptr<Pt_walker> ptw,
+                     Vmx_insn_info_field info, Mem_access::Width op_width,
+                     l4_uint32_t value);
+
+  /**
+   * Load an IO value from memory.
+   *
+   * This is part of the OUTS instruction emulation. The IO value is loaded
+   * from the memory location defined by the OUTS instruction operand (i.e.
+   * RSI, DS:ESI or DS:SI, with possible segment override using a segment
+   * prefix) and the memory location is advanced to the next record according
+   * to the instruction information.
+   *
+   * \param[in,out] regs      Register file.
+   * \param[in]     ptw       Page table walker.
+   * \param[in]     info      Instruction information.
+   * \param[in]     op_width  Width of the IO access (1/2/4 bytes).
+   * \param[out]    value     Value to load from memory.
+   *
+   * \retval Jump_instr          OUTS instruction handled successfully.
+   * \retval Invalid_opcode      Instruction decoding failure or unsupported
+   *                             CPU mode.
+   * \retval General_protection  Segmentation fault.
+   * \retval Stack_fault         Segmentation fault in the SS segment.
+   */
+  int load_io_value(l4_vcpu_regs_t *regs, cxx::Ref_ptr<Pt_walker> ptw,
+                    Vmx_insn_info_field info, Mem_access::Width op_width,
+                    l4_uint32_t *value);
+
+  /**
+   * Evalutate the condition of the REP prefix.
+   *
+   * This evaluates the REP prefix condition (i.e. CX/ECX/RCX != 0) and if the
+   * condition is satisfied, it decrements the CX/ECX/RCX register.
+   *
+   * \param[in,out] regs  Register file.
+   * \param[in]     info  Instruction information.
+   * \param[out]    next  True if the REP prefix condition is satisfied.
+   *
+   * \retval Jump_instr      Evaluation successful.
+   * \retval Invalid_opcode  Unsupported register size.
+   */
+  int rep_prefix_condition(l4_vcpu_regs_t *regs, Vmx_insn_info_field info,
+                           bool *next);
+
 private:
   using Hw_vmcs = L4Re::Util::Unique_cap<L4::Vcpu_context>;
 
@@ -739,12 +806,213 @@ private:
   { return Dbg(Dbg::Cpu, Dbg::Trace, "VMX"); }
 
   /**
+   * Check that the guest has paging enabled.
+   *
+   * \retval true   Guest has paging enabled.
+   * \retval false  Guest does not have paging enabled.
+   */
+  bool is_paging_enabled() const;
+
+  /**
    * Check that the guest is running in real mode.
    *
    * \retval true   Guest is running in real mode.
    * \retval false  Guest is not running in real mode.
    */
   bool in_real_mode() const;
+
+  /**
+   * Check that the guest is running in long mode.
+   *
+   * \retval true   Guest is running in long mode.
+   * \retval false  Guest is not running in long mode.
+   */
+  bool in_long_mode() const;
+
+  /**
+   * Store an IO value to memory (core implementation).
+   *
+   * \tparam TYPE  Memory record type.
+   *
+   * \param[in,out] regs   Register file.
+   * \param[in]     ptw    Page table walker.
+   * \param[in]     info   Instruction information.
+   * \param[in]     value  Value to store to memory.
+   *
+   * \retval Jump_instr          INS instruction handled successfully.
+   * \retval Invalid_opcode      Instruction decoding failure or unsupported
+   *                             CPU mode.
+   * \retval General_protection  Segmentation fault.
+   * \retval Stack_fault         Segmentation fault in the SS segment.
+   */
+  template <typename TYPE>
+  int store_io_value_t(l4_vcpu_regs_t *regs, cxx::Ref_ptr<Pt_walker> ptw,
+                       Vmx_insn_info_field info, l4_uint32_t value);
+
+  /**
+   * Load an IO value from memory (core implementation).
+   *
+   * \tparam TYPE  Memory record type.
+   *
+   * \param[in,out] regs   Register file.
+   * \param[in]     ptw    Page table walker.
+   * \param[in]     info   Instruction information.
+   * \param[out]    value  Value to load from memory.
+   *
+   * \retval Jump_instr          OUTS instruction handled successfully.
+   * \retval Invalid_opcode      Instruction decoding failure or unsupported
+   *                             CPU mode.
+   * \retval General_protection  Segmentation fault.
+   * \retval Stack_fault         Segmentation fault in the SS segment.
+   */
+  template <typename TYPE>
+  int load_io_value_t(l4_vcpu_regs_t *regs, cxx::Ref_ptr<Pt_walker> ptw,
+                      Vmx_insn_info_field info, l4_uint32_t *value);
+
+  /**
+   * Get the INS/OUTS instruction argument address.
+   *
+   * Get the address of the INS/OUTS instruction argument based on the VM Exit
+   * Instruction Information.
+   *
+   * The address is encoded in the ES:DI, ES:EDI or RDI registers (in case of
+   * the INS instruction); in the DS:SI, DS:ESI or RSI registers with potential
+   * segment override (in case of the OUTS instruction).
+   *
+   * \note We only support the guest running in paged protected mode. Non-paged
+   *       modes are not implemented.
+   *
+   * \tparam TYPE  Type of the argument.
+   *
+   * \param[in]  regs        Guest general-purpose registers.
+   * \param[in]  ptw         Page table walker.
+   * \param[in]  info        Instruction information.
+   * \param[in]  store       True if we perform a write access.
+   * \param[out] offset_reg  Decoded offset register. The value is later used
+   *                         for advancing the offset.
+   * \param[out] ptr         Address of the instruction argument (of type
+   *                         #TYPE).
+   *
+   * \retval Jump_instr          Argument address decoded successfully.
+   * \retval Invalid_opcode      Instruction decoding failure.
+   * \retval General_protection  Segmentation fault.
+   * \retval Stack_fault         Segmentation fault in the SS segment.
+   */
+  template <typename TYPE>
+  int get_io_argument(l4_vcpu_regs_t *regs, cxx::Ref_ptr<Pt_walker> ptw,
+                      Vmx_insn_info_field info, bool store,
+                      unsigned *offset_reg, TYPE **ptr);
+
+  /**
+   * Get the value of a guest register.
+   *
+   * \param[in]  regs   Guest registers.
+   * \param[in]  reg    Guest register index to access (as defined by the Intel
+   *                    specification of the VM exit instruction information).
+   * \param[out] value  Register value.
+   *
+   * \retval Jump_instr      Register index decoded successfully.
+   * \retval Invalid_opcode  Unknown register index.
+   */
+  int read_gpr(l4_vcpu_regs_t *regs, unsigned reg, l4_uint64_t *value);
+
+  /**
+   * Set the value of a guest register.
+   *
+   * \param regs   Guest registers.
+   * \param reg    Guest register index to access (as defined by the Intel
+   *               specification of the VM exit instruction information).
+   * \param value  Register value to set.
+   *
+   * \retval Jump_instr      Register index decoded successfully.
+   * \retval Invalid_opcode  Unknown register index.
+   */
+  int write_gpr(l4_vcpu_regs_t *regs, unsigned reg, l4_uint64_t value);
+
+  /**
+   * Advance an offset register while handling an INS/OUTS instruction.
+   *
+   * \param[in,out] regs          Register file.
+   * \param[in]     reg           Offset register to advance.
+   * \param[in]     address_size  Size of the register (16/32/64 bit).
+   * \param[in]     advancement   Byte size of the record (1/2/4 bytes).
+   *
+   * \retval Jump_instr      Success.
+   * \retval Invalid_opcode  Unknown register index.
+   */
+  int advance_gpr(l4_vcpu_regs_t *regs, unsigned reg, unsigned address_size,
+                  size_t advancement);
+
+  /**
+   * Compute linear (virtual) address from an offset in a guest segment.
+   *
+   * \note We only support the guest running in protected mode. Real mode
+   *       support is not implemented.
+   *
+   * \tparam TYPE  Type of the data the address represents (for the purpose of
+   *               the segment limit check).
+   *
+   * \param[in]  segment  Guest segment index (as defined by the Intel
+   *                      specification of the VM exit instruction
+   *                      information).
+   * \param[in]  offset   Offset within the segment.
+   * \param[in]  store    True if we perform a write access.
+   * \param[out] linear   Linear (virtual) address.
+   *
+   * \retval Jump_instr          Computation successful.
+   * \retval Invalid_opcode      Unknown segment index or unsupported CPU mode.
+   * \retval General_protection  Segmentation fault (non-canonical linear
+   *                             address in 64-bit mode, segmentation violation
+   *                             in 32-bit protected mode).
+   * \retval Stack_fault         Segmentation fault in the SS segment.
+   */
+  template <typename TYPE>
+  int compute_linear_addr(unsigned segment, l4_uint64_t offset, bool store,
+                          l4_uint64_t *linear);
+
+  /**
+   * Extend address to cannonical address.
+   *
+   * Sign-extend a 48-bit or 57-bit address (depending on the guest's mode of
+   * operation) to a 64-bit cannonical address.
+   *
+   * \param addr  Address to extended.
+   *
+   * \return Sign-extended cannonical address.
+   */
+  l4_uint64_t extend_cannonical_addr(l4_uint64_t addr) const;
+
+  /**
+   * Check that an address is a cannonical address.
+   *
+   * \param addr  Address to check.
+   *
+   * \retval true   Address is cannonical.
+   * \retval false  Address is not cannonical.
+   */
+  bool is_cannonical_addr(l4_uint64_t addr) const;
+
+  /**
+   * Compute a mask for the given register size.
+   *
+   * \param[in]  address_size  Register size (16/32/64 bits).
+   * \param[out] mask          Mask for the register size.
+   *
+   * \retval Jump_instr      Computation successful.
+   * \retval Invalid_opcode  Unsupported register size.
+   */
+  static int address_size_mask(unsigned address_size, l4_uint64_t *mask);
+
+  /**
+   * Sign-extend a value to 64 bits.
+   *
+   * \param value      Value to be sign-extended.
+   * \param extension  Number of sign-extended bits (i.e. a complement to 64
+   *                   of the number of significant bits).
+   *
+   * \return Sign-extended value.
+   */
+  static l4_uint64_t extend_sign64(l4_uint64_t value, unsigned bits);
 
   void *_vmcs;
   Hw_vmcs _hw_vmcs;

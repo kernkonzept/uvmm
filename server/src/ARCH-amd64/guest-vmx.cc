@@ -16,6 +16,70 @@ namespace Vmm {
 
 template <>
 int
+Guest::handle_io_access_string<Vmx_state>(unsigned port, bool is_in,
+                                          Mem_access::Width op_width,
+                                          bool is_rep, l4_vcpu_regs_t *regs,
+                                          Vmx_state *vms)
+{
+  auto info
+    = Vmx_state::Vmx_insn_info_field(vms->vmx_read(VMCS_VM_EXIT_INSN_INFO));
+
+  while (1)
+    {
+      if (is_rep)
+        {
+          // REP prefix: Handle loop condition.
+          bool next;
+          int rv = vms->rep_prefix_condition(regs, info, &next);
+          if (rv != Jump_instr)
+            return rv;
+
+          if (!next)
+            break;
+        }
+
+      if (is_in)
+        {
+          l4_uint32_t value = ~0U;
+          bool ret = handle_io_access_ptr(port, true, op_width, &value);
+          if (!ret)
+            {
+              trace().printf("WARNING: Unhandled string IO read port 0x%x/%u\n",
+                             port, (1U << op_width) * 8);
+              int rv = vms->store_io_value(regs, _ptw, info, op_width, ~0U);
+              if (rv != Jump_instr)
+                return rv;
+            }
+          else
+            {
+              int rv = vms->store_io_value(regs, _ptw, info, op_width, value);
+              if (rv != Jump_instr)
+                return rv;
+            }
+        }
+      else
+        {
+          l4_uint32_t value;
+          int rv = vms->load_io_value(regs, _ptw, info, op_width, &value);
+          if (rv != Jump_instr)
+            return rv;
+
+          bool ret = handle_io_access_ptr(port, false, op_width, &value);
+          if (!ret)
+            trace().printf("WARNING: Unhandled string IO write port 0x%x/%u <- 0x%x\n",
+                           port, (1U << op_width) * 8, value);
+        }
+
+      // No REP prefix: Terminate the loop after the first iteration.
+      if (!is_rep)
+        break;
+    }
+
+  return Jump_instr;
+}
+
+template <>
+int
 Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
 {
   using Exit = Vmx_state::Exit;
@@ -73,16 +137,11 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
             return Invalid_opcode;
           }
 
-        if (!is_string)
-          return handle_io_access(port, is_read, op_width, regs);
+        if (is_string)
+          return handle_io_access_string(port, is_read, op_width, is_rep,
+                                         regs, vms);
 
-        warn().printf("[%3u]: Unhandled string IO instruction @ 0x%lx: "
-                      "%s%s, port 0x%x! Skipped.\n",
-                      vcpu_id, vms->ip(), is_rep ? "REP " : "",
-                      is_read ? "INS" : "OUTS", port);
-        // This is not entirely correct: SI/DI not incremented, REP prefix
-        // not handled.
-        return Jump_instr;
+        return handle_io_access(port, is_read, op_width, regs);
       }
 
     // Ept_violation needs to be checked here, as handle_mmio needs a vCPU ptr,
