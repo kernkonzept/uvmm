@@ -316,12 +316,13 @@ private:
   bool new_state_action(Cpu_dev::Cpu_state state, bool halt_req, Cpu_dev *cpu,
                         VMS *vm);
 
-  void iomap_dump(Dbg::Verbosity l) const
+  void iomap_dump(Dbg::Verbosity l)
   {
     Dbg d(Dbg::Dev, l, "vmmap");
     if (d.is_active())
       {
         d.printf("IOport map:\n");
+        std::lock_guard<std::mutex> lock(_iomap_lock);
         for (auto const &r : _iomap)
           d.printf(" [%4lx:%4lx]: %s\n", r.first.start, r.first.end,
                    r.second->dev_name());
