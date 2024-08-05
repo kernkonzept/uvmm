@@ -4,9 +4,12 @@
  *
  * License: see LICENSE.spdx (in this directory or the directories above)
  */
+#include <l4/sys/vcon>
+
 #include "acpi.h"
 #include "device_factory.h"
 #include "irq_dt.h"
+#include "monitor/virtio_input_power_cmd_handler.h"
 
 namespace Acpi {
 
@@ -21,9 +24,11 @@ namespace Acpi {
  *
  * \code{.dtb}
  *   acpi_platform {
- *       compatible = "virt-acpi";
- *       interrupt-parent = <&PIC>;
- *       interrupts = <9>;
+ *     compatible = "virt-acpi";
+ *     interrupt-parent = <&PIC>;
+ *     interrupts = <9>;
+ *     // Optional: Connect vcon to trigger ACPI power events.
+ *     // l4vmm,pwrinput = "acpi_pwr_input";
  *   };
  * \endcode
  *
@@ -33,10 +38,113 @@ namespace Acpi {
  * The interrupt parent is mandatory. The SCI is currently only used during
  * Acpi probing.
  */
+
+template <typename DEV>
+class Vcon_pwr_input
+: public L4::Irqep_t<Vcon_pwr_input<DEV> >,
+  public Monitor::Virtio_input_power_cmd_handler<Monitor::Enabled,
+                                                 Vcon_pwr_input<DEV>>
+{
+  friend Monitor::Virtio_input_power_cmd_handler<Monitor::Enabled,
+                                                 Vcon_pwr_input<DEV>>;
+
+public:
+  Vcon_pwr_input(L4::Cap<L4::Vcon> con)
+  : _con(con) {}
+
+  ~Vcon_pwr_input()
+  {
+    if (_con_irq.is_valid())
+      if (long err = l4_error(_con->unbind(0, _con_irq)) < 0)
+          Dbg(Dbg::Irq, Dbg::Warn)
+            .printf("Unbind notification IRQ from Vcon: %s\n.",
+                    l4sys_errtostr(err));
+  }
+
+  void register_obj(L4::Registry_iface *registry)
+  {
+    _con_irq = L4Re::chkcap(registry->register_irq_obj(this),
+                            "Register IRQ of Vcon-pwr-input device.");
+    L4Re::chksys(_con->bind(0, _con_irq),
+                 "Binding Vcon notification irq failed.\n");
+  }
+
+  void handle_irq();
+
+  bool inject_command(char cmd);
+
+private:
+  DEV *dev() { return static_cast<DEV *>(this); }
+  L4::Cap<L4::Vcon> _con;
+  L4::Cap<L4::Irq> _con_irq;
+};
+
+template<typename DEV>
+void
+Vcon_pwr_input<DEV>::handle_irq()
+{
+  while (1)
+    {
+      int r = _con->read(NULL, 0);
+
+      if (r <= 0)
+        break; // empty
+
+      char cmd;
+      r = _con->read(&cmd, sizeof(cmd));
+
+      if (r < 0)
+        {
+          Err().printf("Vcon_pwr_input: read error: %d\n", r);
+          break;
+        }
+
+      inject_command(cmd);
+      Dbg().printf("Vcon_pwr_input::handle_irq OK\n");
+      _con->write("OK\n", 3);
+    }
+}
+
+template<typename DEV>
+bool
+Vcon_pwr_input<DEV>::inject_command(char cmd)
+{
+  bool ret = false;
+  Dbg().printf("cmd=%c\n", cmd);
+
+  switch(cmd)
+  {
+    case 'a':
+    case 's':
+    case 'l':
+      ret = dev()->inject_slpbtn();
+      break;
+    case 'p':
+    case 'q':
+      ret = dev()->inject_pwrbtn();
+      break;
+    case 'h':
+      {
+        char response[] = "a: apm suspend\ns: suspend\nl: sleep\np: power\n"
+                          "q: power2\n";
+        _con->write(response, sizeof(response) - 1);
+      }
+      break;
+    default:
+      Dbg(Dbg::Dev, Dbg::Warn, "pwr-input")
+        .printf("Unknown character '%c'\n", cmd);
+      break;
+  }
+
+  return ret;
+}
+
+
 class Acpi_platform:
   public Vmm::Io_device,
   public Vdev::Device,
-  public Acpi_device
+  public Acpi_device,
+  public Vcon_pwr_input<Acpi_platform>
 {
 private:
   enum Command_values : l4_uint16_t
@@ -49,7 +157,7 @@ private:
   };
 
 public:
-  enum Ports: l4_uint16_t
+  enum Ports : l4_uint16_t
   {
     Ports_start     = 0x1800,
     Smi_command     = Ports_start,
@@ -65,12 +173,27 @@ public:
     Ports_last       = Reset_register, // inclusive end
   };
 
-  Acpi_platform(Vmm::Guest *vmm, cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
-  : Acpi_device(),
+  enum Events : l4_uint32_t
+  {
+    Pm1a_evt_gbl    = 1U << 5,
+    Pm1a_evt_pwrbtn = 1U << 8,
+    Pm1a_evt_slpbtn = 1U << 9,
+    Pm1a_evt_rtc    = 1U << 10,
+
+    // PM1 events we implement.
+    Pm1a_evt_supported =   Pm1a_evt_gbl | Pm1a_evt_pwrbtn | Pm1a_evt_slpbtn
+                         | Pm1a_evt_rtc,
+  };
+
+  Acpi_platform(Vmm::Guest *vmm, cxx::Ref_ptr<Gic::Ic> const &ic, int irq,
+                L4::Cap<L4::Vcon> pwr_vcon)
+  : Acpi_device(), Vcon_pwr_input<Acpi_platform>(pwr_vcon),
     _vmm(vmm),
     _sci(ic, irq),
     _irq(irq),
-    _acpi_enabled(false)
+    _acpi_enabled(false),
+    _pm1a_sts(0),
+    _pm1a_en(0)
   {}
 
   char const *dev_name() const override
@@ -150,22 +273,13 @@ public:
     if (!_acpi_enabled)
       return;
 
-    int events[] = { 5 /* gbl */,
-                     8 /* pwr btn */,
-                     9 /* slp btn */,
-                     10 /* rtc */};
-
-    for (auto i : events)
+    // if sts and en bits are set we issue an SCI
+    if (_pm1a_sts & _pm1a_en & Pm1a_evt_supported)
       {
-        // if sts and en bits are set we issue an SCI
-        if (_pm1a_sts & (1 << i)
-            && _pm1a_en & (1 << i))
-          {
-            trace().printf("Injecting SCI\n");
-            _sci.inject();
-            _pm1a_sts &= ~(1 << i); // clear status
-          }
+        trace().printf("Injecting SCI\n");
+        _sci.inject();
       }
+
     trace().printf("_pm1a_sts = 0x%x _pm1a_en = 0x%x\n", _pm1a_sts, _pm1a_en);
   }
 
@@ -238,9 +352,11 @@ public:
           *value = 0;
         break;
       case Pm1a_sts:
+        trace().printf("read _pm1a_sts = 0x%x\n", _pm1a_sts);
         *value = _pm1a_sts;
         break;
       case Pm1a_en:
+        trace().printf("read _pm1a_en = 0x%x\n", _pm1a_en);
         *value = _pm1a_en;
         break;
       default:
@@ -277,9 +393,16 @@ public:
         handle_pm1a_control(value);
         break;
       case Pm1a_sts:
-        _pm1a_sts = value;
+        trace().printf("write _pm1a_sts = 0x%x\n", value);
+        _pm1a_sts &= ~(value & Pm1a_evt_supported);
+        if ((_pm1a_sts & _pm1a_en) == 0U)
+          {
+            trace().printf("SCI ack\n");
+            _sci.ack();
+          }
         break;
       case Pm1a_en:
+        trace().printf("write _pm1a_en = 0x%x\n", value);
         _pm1a_en = value;
         handle_pm1a_en();
         break;
@@ -296,12 +419,34 @@ public:
       }
   }
 
+  bool inject_slpbtn()
+  {
+    if (!_acpi_enabled || !(_pm1a_en & Pm1a_evt_slpbtn))
+      return false;
+
+    _pm1a_sts |= Pm1a_evt_slpbtn;
+    _sci.inject();
+
+    return true;
+  }
+
+  bool inject_pwrbtn()
+  {
+    if (!_acpi_enabled || !(_pm1a_en & Pm1a_evt_pwrbtn))
+      return false;
+
+    _pm1a_sts |= Pm1a_evt_pwrbtn;
+    _sci.inject();
+
+    return true;
+  }
+
 private:
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "Acpi_platform"); }
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "Acpi_platform"); }
 
   Vmm::Guest *_vmm;
-  Vmm::Irq_edge_sink _sci;
+  Vmm::Irq_sink _sci;
   unsigned const _irq;
   bool _acpi_enabled;
   l4_uint32_t _pm1a_sts, _pm1a_en;
@@ -329,8 +474,11 @@ struct F : Vdev::Factory
       L4Re::throw_error(-L4_EINVAL, "Acpi_platform requires a virtual "
                         "interrupt controller");
 
+    auto pwr_vcon = Vdev::get_cap<L4::Vcon>(node, "l4vmm,pwrinput");
     auto dev = Vdev::make_device<Acpi::Acpi_platform>(devs->vmm(), it.ic(),
-                                                      it.irq());
+                                                      it.irq(), pwr_vcon);
+    if (pwr_vcon)
+      dev->register_obj(devs->vmm()->registry());
 
     Dbg().printf("Creating Acpi_platform\n");
 

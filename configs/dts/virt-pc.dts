@@ -93,6 +93,7 @@
           compatible = "virt-acpi";
           interrupt-parent = <&IOAPIC>;
           interrupts = <9>;
+          l4vmm,pwrinput = "acpi_pwr_input";
         };
 
         acpi_timer {
