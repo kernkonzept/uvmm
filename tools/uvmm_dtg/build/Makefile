@@ -25,6 +25,7 @@ SRC_CC = uvmm_dtg.cc device.cc tree.cc ic.cc \
 	devices/kvm_clock.cc \
 	devices/virtio_console.cc \
 	devices/virtio_input_power.cc \
+	devices/virtio_input_power_pci.cc \
 	devices/virtio_proxy.cc \
 	devices/virtio_device_proxy.cc \
 	devices/pci_host_ecam.cc \
