@@ -241,6 +241,7 @@ private:
   cxx::unique_ptr<l4_uint64_t[]> _router;
   cxx::Ref_ptr<Mmio_device> _redist;
   l4_uint64_t _redist_size;
+  cxx::Ref_ptr<Vmm::Arm::Sys_reg> _sre1;
   cxx::Ref_ptr<Vmm::Arm::Sys_reg> _sgir;
 
   enum { Gicd_ctlr_must_set = 5UL << 4 }; // DS, ARE

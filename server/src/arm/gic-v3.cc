@@ -214,6 +214,19 @@ public:
   char const *dev_name() const override { return "Redist"; }
 };
 
+// ICC_SRE_EL1
+class Sre1_sysreg : public Vmm::Arm::Sys_reg
+{
+public:
+  l4_uint64_t read(Vmm::Vcpu_ptr, Key) override
+  {
+    return 0x7; // SRE (System Register Access Enable) + DIB + DFB
+  }
+
+  void write(Vmm::Vcpu_ptr, Key, l4_uint64_t) override
+  {}
+};
+
 class Sgir_sysreg : public Vmm::Arm::Sys_reg
 {
 private:
@@ -274,6 +287,7 @@ Dist_v3::Dist_v3(unsigned tnlines)
   _router(cxx::make_unique<l4_uint64_t[]>(32 * tnlines)),
   _redist(new Redist(this)),
   _redist_size(0),
+  _sre1(new Sre1_sysreg()),
   _sgir(new Sgir_sysreg(this))
 {
   ctlr = Gicd_ctlr_must_set;
@@ -362,6 +376,8 @@ Dist_v3::setup_gic(Vdev::Device_lookup *devs, Vdev::Dt_node const &node)
   devs->vmm()->register_mmio_device(_redist, Vmm::Region_type::Virtual, node,
                                     1);
   devs->vmm()->register_mmio_device(self, Vmm::Region_type::Virtual, node);
+
+  devs->vmm()->add_sys_reg_both(3, 0, 12, 12, 5, _sre1);
 
   devs->vmm()->add_sys_reg_aarch64(3, 0, 12, 11, 5, _sgir);
   devs->vmm()->add_sys_reg_aarch32_cp64(15, 0, 12, _sgir);
