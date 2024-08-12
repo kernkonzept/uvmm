@@ -31,10 +31,10 @@ asm
  "  ldr    r12, [r12]             \n"
  "  blx    r12                    \n"
  "  mov    r0, r4                 \n"
- "  bl     prepare_guest_entry    \n"
- "  movw   r2, #0xf803            \n"
- "  movt   r2, #0xffff            \n"
- "  mov    r3, #0                 \n"
+ "  bl     prepare_guest_entry    \n"  // sets MR[0] = L4_THREAD_VCPU_RESUME_OP
+ "  movw   r2, #0xf803            \n"  // and tag(L4_PROTO_THREAD, 1, 0, 0)
+ "  movt   r2, #0xffff            \n"  // dest = L4_INVALID_CAP, flags = call
+ "  mov    r3, #0                 \n"  // timeout never
  "  mcr    p15, 0, r5, c13, c0, 2 \n"  // restore TPIDRURW from r5
  "  mov    r5, #" L4_stringify(L4_SYSCALL_INVOKE) " \n"
  "  hvc    #0                     \n"

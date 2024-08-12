@@ -28,9 +28,10 @@ asm
  "  ldr    x11, [x10]               \n"
  "  blr    x11                      \n"
  "  mov    x0, x21                  \n"
- "  bl     prepare_guest_entry      \n"
- "  mov    x2, #0xfffffffffffff803  \n"
- "  mov    x3, #0                   \n"
+ "  bl     prepare_guest_entry      \n" // sets MR[0] = L4_THREAD_VCPU_RESUME_OP
+                                        // and tag(L4_PROTO_THREAD, 1, 0, 0)
+ "  mov    x2, #0xfffffffffffff803  \n" // dest = L4_INVALID_CAP, flags = call
+ "  mov    x3, #0                   \n" // timeout never
 
  "  msr    TPIDR_EL0, x20           \n"
  "  hvc    #0                       \n"
