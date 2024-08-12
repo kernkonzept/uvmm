@@ -29,9 +29,9 @@
         /* Uvmm will adapt the compatible string depending on the present gic
          * version. It expects reg entries that provide enough space for the
          * Cpu/Dist interface for gicv2 (at least 0x1000, 0x1000) or the
-         * Dist/Redist interface for gicv3 (0x10000, 0x20000 * number of cpus).
+         * Dist/Redist interface for gicv3 (0x10000, 0x20000 * number of CPUs).
          * The entries provided here support any gicv2 setup or a gicv3 setup
-         * with one Cpu.
+         * with up to 32 CPUs.
          */
         gic: interrupt-controller {
             compatible = "arm,gic-400", "arm,cortex-a15-gic", "arm,cortex-a9-gic";
@@ -39,7 +39,7 @@
             #address-cells = <0>;
             interrupt-controller;
             reg = <0 0x40000 0 0x10000>,
-                  <0 0x50000 0 0x20000>;
+                  <0 0x50000 0 0x400000>;
             };
     };
 
