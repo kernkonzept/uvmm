@@ -33,7 +33,7 @@ vmm.start_io(io_busses, "rom/io.cfg");
 vmm.start_virtio_switch(net_ports, 0xa, 0x1);
 vmm.start_vm{
   id=1,
-  mem=128,
+  mem=256,
   vbus=io_busses.vm_hw,
   net=net_ports.net0,
   rd="rom/ramdisk-arm.rd",
@@ -45,7 +45,7 @@ vmm.start_vm{
 
 vmm.start_vm{
   id=2,
-  mem=128,
+  mem=256,
   net=net_ports.net1,
   rd="rom/ramdisk-arm.rd",
   fdt="rom/virt-omap5.dtb",
