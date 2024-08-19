@@ -29,7 +29,19 @@ function start_io(busses, opts)
   }, "rom/io " .. opts .. files)
 end
 
+-- Creates a scheduler proxy and writes it into the `opts` table.
+--
+-- Four cases happen here:
+--  A) No prio and no cpus: No scheduler proxy created.
+--  B) A prio, but no cpus: Create a scheduler proxy with only a priority limit.
+--  C) No Prio, but cpus: Create a scheduler proxy with default prio and cpus
+--     limit.
+--  D) A prio and cpus: Create a scheduler proxy with given limits.
 local function set_sched(opts, prio, cpus)
+  if cpus == nil and prio == nil then
+    return
+  end
+
   if prio == nil then
     -- Default to zero to use the L4Re Default_thread_prio
     prio = 0
