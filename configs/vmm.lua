@@ -30,10 +30,13 @@ function start_io(busses, opts)
 end
 
 local function set_sched(opts, prio, cpus)
-  if prio ~= nil then
-    local sched = new_sched(prio, cpus);
-    opts["scheduler"] = sched;
+  if prio == nil then
+    -- Default to zero to use the L4Re Default_thread_prio
+    prio = 0
   end
+
+  local sched = new_sched(prio, cpus);
+  opts["scheduler"] = sched;
 end
 
 function start_virtio_switch(ports, prio, cpus, switch_type)
