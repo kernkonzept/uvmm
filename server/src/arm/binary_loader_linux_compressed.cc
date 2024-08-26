@@ -33,9 +33,17 @@ public:
         L4Re::Rm::Unique_region<Byte *> imager_dst;
         size_t compr_sz = image->size();
 
+        // The Linux kernel image is expected to be big so use a superpage
+        // alignment for mapping the compressed image and for mapping the
+        // extracted image and use contiguous superpages for the dataspace for
+        // storing the extracted image. This wastes some memory at the dataspace
+        // provider and some virtual memory regions -- but only until the Linux
+        // kernel image was loaded into the guest RAM.
+
         L4Re::chksys(e->rm()->attach(&imager_src, compr_sz,
                                      L4Re::Rm::F::Search_addr | L4Re::Rm::F::R,
-                                     L4::Ipc::make_cap_rw(image->ds())),
+                                     L4::Ipc::make_cap_rw(image->ds()),
+                                     0, L4_SUPERPAGESHIFT),
                      "Attach compressed file.");
 
         uint32_t uncompr_sz = *(uint32_t *)&imager_src.get()[compr_sz - 4];
@@ -47,12 +55,16 @@ public:
           L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>(),
                        "Allocate DS cap for uncompressed memory.");
 
-        L4Re::chksys(e->mem_alloc()->alloc(uncompr_sz, f),
+        L4Re::chksys(e->mem_alloc()->alloc(uncompr_sz, f,
+                                           L4Re::Mem_alloc::Continuous
+                                           | L4Re::Mem_alloc::Super_pages,
+                                           L4_SUPERPAGESHIFT),
                      "Allocate memory in dataspace.");
 
         L4Re::chksys(e->rm()->attach(&imager_dst, uncompr_sz,
                                      L4Re::Rm::F::Search_addr | L4Re::Rm::F::RW,
-                                     L4::Ipc::make_cap_rw(f)),
+                                     L4::Ipc::make_cap_rw(f),
+                                     0, L4_SUPERPAGESHIFT),
                      "Attach DS for uncompressed data.");
 
         z_stream strm = {};
