@@ -389,6 +389,10 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
 
     // 0x8000'0001 EDX
     Rdtscp_bit = (1UL << 27),
+
+    // 0x8000'001f EAX
+    Amd_sme_bit = (1UL << 0),           // AMD specific, Intel reserved
+    Amd_sev_bit = (1UL << 1),           // AMD specific, Intel reserved
   };
 
   switch (rax)
@@ -554,6 +558,14 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
         // Intel CPUs, for finer-grained selection of what's available."
         // Thus filter AMD bits for the case of nested virtualization.
         b &= ~(Amd_ibpb_bit | Amd_ibrs_bit | Amd_stibp_bit | Amd_ssbd_bit);
+        break;
+      }
+
+  case 0x8000001f:
+      {
+        // Memory encryption not supported.
+        // https://docs.kernel.org/arch/x86/amd-memory-encryption.html
+        a &= ~(Amd_sme_bit | Amd_sev_bit);
         break;
       }
     }
