@@ -128,12 +128,12 @@ private:
    */
   l4_addr_t alloc(l4_addr_t start, l4_size_t size)
   {
-    l4_addr_t alloc_end = start + size;
+    l4_addr_t alloc_end = start + size - 1;
     if (alloc_end > end())
       return Invalid_addr;
 
     l4_addr_t ret = start;
-    _free_addr = alloc_end;
+    _free_addr = alloc_end + 1;
     return ret;
   };
 
