@@ -57,4 +57,13 @@ Generic_guest::register_mmio_device(cxx::Ref_ptr<Vmm::Mmio_device> const &dev,
 
   info().printf("New mmio mapping: @ %llx %llx\n", base, size);
 }
+
+void
+Generic_guest::register_timer_device(cxx::Ref_ptr<Vdev::Timer> const &dev,
+                                     unsigned vcpu_no)
+{
+  _clocks[vcpu_no].add_timer(dev);
+  _timer_devices[vcpu_no].push_back(dev);
+}
+
 } // namespace

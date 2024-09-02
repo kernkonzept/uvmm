@@ -14,6 +14,8 @@
 #include <l4/re/util/unique_cap>
 #include <l4/re/video/goos>
 #include <mutex>
+#include <map>
+#include <vector>
 
 #include "debug.h"
 #include "ds_mmio_mapper.h"
@@ -24,6 +26,7 @@
 #include "consts.h"
 #include "monitor/monitor.h"
 #include "io_device.h"
+#include "timer.h"
 #include "generic_cpu_dev.h"
 #include "vcpu_obj_registry.h"
 
@@ -85,6 +88,28 @@ public:
   bool register_framebuffer(l4_uint64_t /*addr*/, l4_uint64_t /*size*/,
                             const L4Re::Video::View::Info &)
   { return true; }
+
+  /**
+   * Register a device for a timer.
+   *
+   * Uniprocessor timer devices such as the legacy PIT are registered ommiting
+   * the CPU number and run off the clock source for vCPU 0.
+   *
+   * Timers registered at run time (e.g. via KVM clock MSR) specify their
+   * core's CPU IDs.
+   *
+   * \note For the timers to actually start operating, it is necessary that the
+   *       \ref Clock_source::start_clock_source_thread() method is executed
+   *       for each item in the \ref _clocks map at the appropriate moment by
+   *       the platform-specific ancestor of the \ref Generic_guest class. This
+   *       is currently only implemented for AMD64.
+   *
+   * \param dev      Timer device to register with a clock source.
+   * \param vcpu_no  Virtual CPU that the timer should be registered for,
+   *                 default 0.
+   */
+  void register_timer_device(cxx::Ref_ptr<Vdev::Timer> const &dev,
+                             unsigned vcpu_no = 0);
 
   /**
    * Return MMIO map.
@@ -224,6 +249,8 @@ public:
   { return _task.get(); }
 
 protected:
+  using Timer_vector = std::vector<cxx::Ref_ptr<Vdev::Timer>>;
+
   static Dbg warn()
   { return Dbg(Dbg::Core, Dbg::Warn, "guest"); }
 
@@ -242,6 +269,9 @@ protected:
   cxx::Ref_ptr<Pm> _pm;
   Fault_mode _fault_mode = Fault_mode::Ignore;
   l4_addr_t _dt_addr = 0;
+
+  std::map<unsigned, Vdev::Clock_source> _clocks;
+  std::map<unsigned, Timer_vector> _timer_devices;
 };
 
 } // namespace

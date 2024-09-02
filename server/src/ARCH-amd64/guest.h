@@ -19,7 +19,6 @@
 #include "msr_device.h"
 #include "cpuid_device.h"
 #include "mem_access.h"
-#include "timer.h"
 #include "vcpu_ptr.h"
 #include "virt_lapic.h"
 #include "vmprint.h"
@@ -88,25 +87,6 @@ public:
    * \param dev   CPUID-handling device to register.
    */
   void register_cpuid_device(cxx::Ref_ptr<Cpuid_device> const &dev);
-
-  /**
-   * Register a device for a timer.
-   *
-   * Uniprocessor timer devices such as the legacy PIT are registered ommiting
-   * the CPU numbers and run off the clock source for vCPU 0.
-   *
-   * Timers registered at run time (e.g. via KVM clock MSR) specify their
-   * core's CPU IDs.
-   *
-   * \param dev      Timer device to register with a clock source.
-   * \param vcpu_no  Virtual CPU that the timer should be registered for,
-   *                 default 0.
-   */
-  void register_timer_device(cxx::Ref_ptr<Vdev::Timer> const &dev,
-                             unsigned vcpu_no = 0)
-  {
-    _clocks[vcpu_no].add_timer(dev);
-  }
 
   l4_addr_t load_binary(Vm_ram *ram, char const *binary,
                         Ram_free_list *free_list);
@@ -359,7 +339,6 @@ private:
   std::vector<cxx::Ref_ptr<Cpuid_device>> _cpuid_devices;
 
   // devices
-  std::map<unsigned, Vdev::Clock_source> _clocks;
   Guest_print_buffer _hypcall_print;
   cxx::Ref_ptr<Pt_walker> _ptw;
   cxx::Ref_ptr<Gic::Lapic_array> _apics;
