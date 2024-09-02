@@ -34,10 +34,11 @@ enum : unsigned long
   Entry_ctrl_ia32e_bit = 1UL << 9,
 };
 
-Vmx_state::Vmx_state(void *vmcs)
-  :  _vmcs(vmcs),
-    _hw_vmcs(L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Vcpu_context>(),
-                          "Failed to allocate hardware VMCS capability."))
+Vmx_state::Vmx_state(l4_vcpu_state_t *state, void *vmcs)
+: _state(state),
+  _vmcs(vmcs),
+  _hw_vmcs(L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Vcpu_context>(),
+                        "Failed to allocate hardware VMCS capability."))
 {
   // Create the hardware VMCS
   auto *env = L4Re::Env::env();
@@ -46,7 +47,7 @@ Vmx_state::Vmx_state(void *vmcs)
     L4Re::chksys(ret, "Cannot create guest VM hardware VMCS. Virtualization "
                       "support may be missing.");
 
-  if (l4_vm_vmx_get_caps(vmcs, L4_VM_VMX_NESTED_REVISION) != 0)
+  if (nested_abi_revision() != 0)
     info().printf("vCPU interface supports nested virtualization. However, "
                   "uvmm does not implement nested virtualization.\n");
 }

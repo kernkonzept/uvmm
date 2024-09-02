@@ -168,7 +168,7 @@ public:
     Host_address_space_size = (1UL << 9),
   };
 
-  Vmx_state(void *vmcs);
+  Vmx_state(l4_vcpu_state_t *state, void *vmcs);
   ~Vmx_state() = default;
 
   Type type() const override
@@ -806,6 +806,18 @@ private:
   { return Dbg(Dbg::Cpu, Dbg::Trace, "VMX"); }
 
   /**
+   * Get kernel nested virtualization ABI revision.
+   *
+   * If the revision is 0, then no nested virtualization is supported.
+   *
+   * \return Kernel nested virtualization ABI revision.
+   */
+  l4_uint32_t nested_abi_revision() const
+  {
+    return l4_vm_vmx_get_caps(_state, L4_VM_VMX_NESTED_REVISION);
+  }
+
+  /**
    * Check that the guest has paging enabled.
    *
    * \retval true   Guest has paging enabled.
@@ -1014,6 +1026,7 @@ private:
    */
   static l4_uint64_t extend_sign64(l4_uint64_t value, unsigned bits);
 
+  l4_vcpu_state_t *_state;
   void *_vmcs;
   Hw_vmcs _hw_vmcs;
 };
