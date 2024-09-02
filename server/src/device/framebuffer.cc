@@ -14,6 +14,7 @@
 
 #include "ds_mmio_mapper.h"
 #include "ds_manager.h"
+#include "timer.h"
 #include "guest.h"
 
 #ifdef CONFIG_UVMM_QEMU_FW_IF
@@ -21,22 +22,108 @@
 #endif
 
 namespace Vdev {
-class Framebuffer : public Vmm::Ds_manager
-{
-public:
-  Framebuffer(cxx::unique_ptr<L4Re::Util::Video::Goos_fb> gfb) :
-    Ds_manager("Framebuffer", gfb->buffer(), 0, gfb->buffer()->size()),
-               _gfb(cxx::move(gfb))
-  {
-  }
-private:
-  cxx::unique_ptr<L4Re::Util::Video::Goos_fb> _gfb;
-};
 
-class Fb_dev : public Vdev::Device
+/**
+ * Simple framebuffer device.
+ *
+ * A device tree entry needs to look like this:
+ *
+ *     simplefb {
+ *       compatible = "simple-framebuffer";
+ *       reg = <0x0 0xf0000000 0x0 0x1000000>;
+ *       l4vmm,fbcap = "fb";
+ *     };
+ *
+ * The `l4vmm,fbcap` property is mandatory and needs to point to a capability
+ * implementing an L4Re::Util::Video::Goos_fb interface. If there is no
+ * capability with the given name, then the device will be disabled.
+ *
+ * The `reg` property is also mandatory and defines the physical address and
+ * the size (in bytes) of the linear framebuffer. The size of the framebuffer
+ * is updated according to the actual framebuffer properties provided by the
+ * capability.
+ *
+ * Furthermore, the `width`, `height`, `stride` and `format` properties are
+ * added to the device tree entry according to the actual framebuffer
+ * properties provided by the capability.
+ *
+ * If the framebuffer capability does not implement the auto-refresh feature,
+ * the framebuffer is actively refreshed with a refresh rate of 30 Hz. This
+ * default refresh rate can be overrided by the optional `l4vmm,refresh_rate`
+ * property.
+ */
+class Framebuffer : public Vdev::Device,
+                    public Vdev::Timer,
+                    public L4::Ipc_svr::Timeout_queue::Timeout
 {
 public:
-  ~Fb_dev() {}
+  /**
+   * Framebuffer device constructor.
+   *
+   * \param[in] gfb             Goos framebuffer.
+   * \param[in] active_refresh  If true then the framebuffer requires active
+   *                            refresh (it does not have the auto-refresh)
+   *                            feature.
+   * \param[in] refresh_rate    Framebuffer refresh rate.
+   * \param[in] width           Framebuffer width in pixels.
+   * \param[in] height          Framebuffer height in pixels.
+   */
+  Framebuffer(cxx::unique_ptr<L4Re::Util::Video::Goos_fb> gfb,
+              bool active_refresh, unsigned refresh_rate, unsigned long width,
+              unsigned long height) :
+    _gfb(cxx::move(gfb)), _active_refresh(active_refresh),
+    _refresh_rate(refresh_rate), _width(width), _height(height)
+  {
+    assert(_refresh_rate > 0);
+  }
+
+  ~Framebuffer() {}
+
+  /**
+   * Start the active refresh (if necessary) by enqueuing a refresh timeout.
+   */
+  void ready() override
+  {
+    if (_active_refresh)
+      enqueue_timeout(this, next_timeout_us());
+  }
+
+  /**
+   * Actively refresh the framebuffer and enqueue the next refresh timeout
+   * (if necessary).
+   */
+  void expired() override
+  {
+    _gfb->refresh(0, 0, _width, _height);
+
+    if (_active_refresh)
+      requeue_timeout(this, next_timeout_us());
+  }
+
+private:
+  enum
+  {
+    Microseconds_per_second = 1000000ULL,
+  };
+
+  /**
+   * Next absolute timeout in microseconds.
+   */
+  inline l4_kernel_clock_t next_timeout_us() const
+  {
+    assert(_active_refresh);
+
+    l4_kernel_clock_t clock = l4_kip_clock(l4re_kip());
+    l4_kernel_clock_t period = Microseconds_per_second / _refresh_rate;
+
+    return clock + period;
+  }
+
+  cxx::unique_ptr<L4Re::Util::Video::Goos_fb> _gfb;
+  bool _active_refresh;
+  unsigned _refresh_rate;
+  unsigned long _width;
+  unsigned long _height;
 };
 } // namespace Vmm
 
@@ -119,13 +206,6 @@ struct F : Vdev::Factory
         return 0;
       }
 
-    if (!info.auto_refresh())
-      {
-        warn.printf("fbdrv currently does not support framebuffers without "
-                    "the auto-refresh feature\n");
-        return 0;
-      }
-
     L4Re::Video::View::Info fb_viewinfo = {};
     if (auto err = gfb->view_info(&fb_viewinfo))
       {
@@ -149,11 +229,40 @@ struct F : Vdev::Factory
     else
       warn.printf("Framebuffer format is unsupported by simple-framebuffer\n");
 
-    auto handler = Vdev::make_device<Ds_handler>(
-                     cxx::make_ref_obj<Vdev::Framebuffer>(cxx::move(gfb)));
+    // Default refresh rate of 30 Hz.
+    bool auto_refresh = info.auto_refresh();
+    unsigned refresh_rate = 30;
+
+    // Allow to override the refresh rate by the l4vmm,refresh_rate property.
+    int refresh_size;
+    auto *refresh_prop = node.get_prop<fdt32_t>("l4vmm,refresh_rate", &refresh_size);
+    if (refresh_prop)
+      {
+        refresh_rate = node.get_prop_val(refresh_prop, refresh_size, 0);
+        if (refresh_rate == 0)
+          {
+            refresh_rate = 1;
+            warn.printf("Forcing framebuffer refresh rate to %u Hz.\n",
+                        refresh_rate);
+          }
+      }
+    else if (!auto_refresh)
+      warn.printf("Using default framebuffer refresh rate of %u Hz.\n",
+                  refresh_rate);
+
+    auto mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Framebuffer", gfb->buffer(),
+                                                 0, gfb->buffer()->size());
+    auto handler = Vdev::make_device<Ds_handler>(mgr);
+    auto dev = Vdev::make_device<Vdev::Framebuffer>(cxx::move(gfb),
+                                                    !info.auto_refresh(),
+                                                    refresh_rate, info.width,
+                                                    info.height);
+
     devs->vmm()->add_mmio_device(
                    Vmm::Region::ss(Vmm::Guest_addr(fb_addr), fb_size,
                                    Vmm::Region_type::Vbus), handler);
+    devs->vmm()->register_timer_device(dev);
+
 #ifdef CONFIG_UVMM_QEMU_FW_IF
     struct
     {
@@ -193,7 +302,7 @@ struct F : Vdev::Factory
                           sizeof(ramfb_config));
 #endif // CONFIG_UVMM_QEMU_FW_IF
 
-    return Vdev::make_device<Vdev::Fb_dev>();
+    return dev;
   }
 }; // struct F
 
