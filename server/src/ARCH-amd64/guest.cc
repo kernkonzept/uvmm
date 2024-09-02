@@ -819,6 +819,8 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
   Gic::Virt_lapic *vapic = lapic(vcpu);
 
   _clocks[vcpu_id].start_clock_source_thread(vcpu_id, cpu->get_phys_cpu_id());
+  for (auto &dev : _timer_devices[vcpu_id])
+    dev->ready();
 
   L4::Cap<L4::Thread> myself;
   trace().printf("Starting vCPU[%3u] 0x%lx\n", vcpu_id, vcpu->r.ip);

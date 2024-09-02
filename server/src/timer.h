@@ -93,6 +93,7 @@ public:
   virtual ~Timer() = 0;
   void set_clock_source(Clock_source_adapter *source)
   { _clock_source = source; }
+  virtual void ready() {};
 
 protected:
   /**
