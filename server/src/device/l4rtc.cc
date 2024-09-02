@@ -7,7 +7,7 @@
 /**
  * This driver retrieves wallclock time from the L4Re rtc server.
  *
- * It is optional and needs to be enabled in Makefile.config.
+ * It is optional and needs to be enabled in the configuration.
  *
  * Example device tree entry:
  *
