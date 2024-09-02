@@ -142,7 +142,7 @@ setup_kaslr_seed(Vdev::Host_dt const &dt)
   node.setprop_u64("kaslr-seed", random.r);
 }
 
-static char const *const options = "+k:d:r:c:b:vqD:f:i";
+static char const *const options = "+k:d:r:c:b:vqD:f:im:";
 static struct option const loptions[] =
 {
     { "kernel",                  required_argument, NULL, 'k' },
@@ -155,6 +155,7 @@ static struct option const loptions[] =
     { "quiet",                   no_argument,       NULL, 'q' },
     { "wakeup-on-system-resume", no_argument,       NULL, 'W' },
     { "fault-mode",              required_argument, NULL, 'f' },
+    { "dt-mod",                  required_argument, NULL, 'm' },
     { 0, 0, 0, 0}
 };
 
@@ -241,6 +242,9 @@ int main(int argc, char *argv[])
               Err().printf("invalid --fault-mode: %s\n", optarg);
               return 1;
             }
+          break;
+        case 'm':
+          dt.modify(optarg);
           break;
         default:
           Err().printf("unknown command-line option\n");

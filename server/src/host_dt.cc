@@ -114,6 +114,108 @@ Vdev::Host_dt::add_source(char const *fname)
   _fdt = cxx::make_unique<Dtb::Fdt>(fdt, cxx::max(dt.size(), 0x200U));
 }
 
+/**
+ * Device tree modification.
+ *
+ * Add/modify the given property before the device tree is parsed. The
+ * syntax of the parameter is dt-path/dt-property=type:val where
+ * dt-path are the node components delimited by / and type is either
+ * str, bool, u32 or u64. The default type is str and if the "=..."
+ * part is missing, it defaults to bool.
+ *
+ * \param[in] opt  Device tree modification parameter (see above).
+ */
+void
+Vdev::Host_dt::modify(std::string const &opt)
+{
+  enum Val_type
+  {
+    String,
+    Bool,
+    UInt32,
+    UInt64
+  };
+
+  if (!valid() || opt.empty())
+    return;
+
+  Val_type vt = String;
+  std::string path = opt;
+  std::string name;
+  std::string val;
+
+  // Find the '=' delimiter between "dt-path/dt-property" and the rest.
+  std::size_t pos = opt.find("=");
+  if (pos != std::string::npos)
+    {
+      path = opt.substr(0, pos);
+      val = opt.substr(pos + 1);
+    }
+
+  // Find the '/' delimiter between "dt-path" and "dt-property".
+  pos = path.rfind("/");
+  if (pos != std::string::npos)
+    {
+      name = path.substr(pos + 1);
+      path = path.substr(0, pos + 1);
+    }
+
+  if (path.empty() || name.empty())
+    L4Re::throw_error_fmt(-L4_EINVAL, "Can't find name or path in option: %s",
+                          opt.c_str());
+
+  auto node = get().path_offset(path.c_str());
+  if (val.empty())
+    vt = Bool;
+  else
+    {
+      // Find the ':' delimiter between "type" and "val".
+      pos = val.find(":");
+      if (pos != std::string::npos)
+        {
+          std::string type = val.substr(0, pos);
+          val = val.substr(pos + 1);
+          if (type == "str")
+            vt = String;
+          else if (type == "bool")
+            vt = Bool;
+          else if (type == "u32")
+            vt = UInt32;
+          else if (type == "u64")
+            vt = UInt64;
+          else
+            L4Re::throw_error_fmt(-L4_EINVAL, "Unsupported type in option: %s",
+                                  opt.c_str());
+        }
+    }
+
+  switch(vt)
+    {
+    case Bool: node.setprop_data(name.c_str(), NULL, 0); break;
+    case String: node.setprop_string(name.c_str(), val.c_str()); break;
+    case UInt32:
+      {
+        errno = 0;
+        auto i = strtoul(val.c_str(), nullptr, 0);
+        if (errno)
+            L4Re::throw_error_fmt(-errno, "Can't convert value in option: %s",
+                                  opt.c_str());
+        node.setprop_u32(name.c_str(), i);
+        break;
+      }
+    case UInt64:
+      {
+        errno = 0;
+        auto i = strtoul(val.c_str(), nullptr, 0);
+        if (errno)
+            L4Re::throw_error_fmt(-errno, "Can't convert value in option: %s",
+                                  opt.c_str());
+        node.setprop_u64(name.c_str(), i);
+        break;
+      }
+    }
+}
+
 void
 Vdev::Host_dt::set_command_line(char const *cmd_line)
 {

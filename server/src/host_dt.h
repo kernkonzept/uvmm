@@ -46,6 +46,7 @@ public:
   { return Device_tree(_fdt.get()); }
 
   void add_source(char const *fname);
+  void modify(std::string const &opt);
 
   /**
    * Set the command line parameter in the device tree.
