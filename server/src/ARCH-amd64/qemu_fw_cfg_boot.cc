@@ -54,6 +54,30 @@ class Qemu_fw_cfg_boot : public Qemu_fw_cfg::Provider
     _kernel = node.get_prop<char>("l4vmm,kernel", nullptr);
     _ramdisk = node.get_prop<char>("l4vmm,ramdisk", nullptr);
     _cmdline = node.get_prop<char>("l4vmm,cmdline", nullptr);
+    auto c = node.stringlist_count("l4vmm,items");
+    if (c > 0)
+      for (int i = 0; i < c; i++)
+        {
+          std::string arg(node.stringlist_get("l4vmm,items", i, NULL));
+          // Find the comma delimiter between "[name=]name" and "string=string".
+          // The name component should not be empty.
+          auto pos = arg.find(',');
+          if (pos == std::string::npos || pos == 0)
+            L4Re::throw_error(-L4_EINVAL, "fw_cfg items needs name");
+
+          // Strip the optional "name=" label from the name component.
+          auto name = arg.substr(0, pos);
+          if (name.substr(0, 5) == std::string("name="))
+            name = name.substr(5);
+
+          // Strip the required "string=" label from the string component.
+          auto string = arg.substr(pos);
+          if (string.substr(0, 8) != std::string(",string="))
+            L4Re::throw_error(-L4_EINVAL, "fw_cfg items only support strings");
+
+          string = string.substr(8);
+          _items.push_back(std::make_tuple(name, string));
+        }
   };
 
   void init_late(Vdev::Device_lookup *devs) override
@@ -85,6 +109,9 @@ class Qemu_fw_cfg_boot : public Qemu_fw_cfg::Provider
 
     if (!_cmdline.empty())
         add_cmdline(_cmdline.c_str());
+
+    for (auto const &s: _items)
+      Qemu_fw_cfg::put_file(std::get<0>(s).c_str(), std::get<1>(s));
 
     add_dt_addr(devs->vmm()->dt_addr());
 
@@ -129,6 +156,7 @@ class Qemu_fw_cfg_boot : public Qemu_fw_cfg::Provider
   std::string _ramdisk;
   L4Re::Util::Unique_cap<L4Re::Dataspace> _ramdisk_ds;
   std::string _cmdline;
+  std::vector<std::tuple<std::string, std::string>> _items;
 };
 
 static Qemu_fw_cfg_boot f;
