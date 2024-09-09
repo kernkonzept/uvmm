@@ -55,7 +55,11 @@ bool Guest::fault_mode_supported(Fault_mode mode)
 bool Guest::inject_abort(Vcpu_ptr vcpu, bool inst, l4_addr_t addr)
 {
   l4_uint32_t ttbcr;
+#ifdef CONFIG_MMU
   asm volatile ("mrc p15, 0, %0, c2, c0, 2" : "=r"(ttbcr)); // TTBCR
+#else
+  ttbcr = Ttbcr_eae;
+#endif
   l4_uint32_t fsr = Aarch32::get_abort_fsr(ttbcr);
 
   Aarch32::Exc_offset off;
