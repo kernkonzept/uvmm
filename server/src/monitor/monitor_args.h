@@ -321,10 +321,7 @@ public:
    */
   Arg peek() const
   {
-    char const *delim = strchr(_args, ' ');
-
-    if (!delim)
-      return Arg(_args, strlen(_args));
+    char const *delim = strchrnul(_args, ' ');
 
     return Arg(_args, delim - _args);
   }
@@ -361,21 +358,11 @@ public:
       return Arg("", 0);
 
     char const *arg = _args;
-    size_t arglen;
 
-    char const *delim = strchr(_args, ' ');
-
-    if (delim)
-      {
-        arglen = delim - _args;
-        _args = delim + 1;
-      }
-    else
-      {
-        arglen = strlen(_args);
-        _args += arglen;
-      }
-
+    char const *delim = strchrnul(_args, ' ');
+    size_t arglen = delim - _args;
+    _args  = delim;
+    _args += strspn(_args, " ");
     --_argc;
 
     return Arg(arg, arglen);
