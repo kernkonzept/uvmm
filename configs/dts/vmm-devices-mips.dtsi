@@ -27,7 +27,6 @@
             interrupts = <0 4 4>;
             l4vmm,vdev = "proxy";
             l4vmm,virtiocap = "net";
-            l4vmm,no-notify = <1>;
         };
     };
 };

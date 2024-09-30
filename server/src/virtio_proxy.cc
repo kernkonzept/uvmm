@@ -39,14 +39,8 @@ struct F : Factory
 #endif
       }
 
-    int sz;
-    unsigned nnq_id = -1U;
-    auto const *prop = node.get_prop<fdt32_t>("l4vmm,no-notify", &sz);
-    if (prop && sz > 0)
-      nnq_id = fdt32_to_cpu(*prop);
-
     auto c = make_device<Virtio_proxy_mmio>(cap, static_cast<l4_size_t>(cfgsz),
-                                            nnq_id, devs->ram().get());
+                                            devs->ram().get());
     if (c->init_irqs(devs, node) < 0)
       return nullptr;
 

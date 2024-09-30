@@ -247,21 +247,13 @@ class Virtio_proxy
   public Monitor::Virtio_proxy_cmd_handler<Monitor::Enabled, Virtio_proxy<DEV>>
 {
 private:
-  /**
-   * Number of no-notify queue.
-   *
-   * A no-notify-queue requests no_notify_host when busy. Useful in
-   * particualar for send queues in network devices. Enable via
-   * device tree configuration l4vmm,no-notify = <queue-id>;
-   */
-  unsigned _nnq_id = -1U;
   L4virtio::Driver::Virtqueue _nnq;
   l4_uint32_t _irq_status_shadow = 0;
 
 public:
   Virtio_proxy(L4::Cap<L4virtio::Device> device, l4_size_t config_size,
-               unsigned nnq_id, Vmm::Vm_ram *ram)
-  : _nnq_id(nnq_id), _dev(device, config_size)
+               Vmm::Vm_ram *ram)
+  : _dev(device, config_size)
   {
     ram->foreach_region([this](Vmm::Ram_ds const &r)
       {
@@ -385,8 +377,8 @@ class Virtio_proxy_mmio
 {
 public:
   Virtio_proxy_mmio(L4::Cap<L4virtio::Device> device, l4_size_t config_size,
-                    unsigned nnq_id, Vmm::Vm_ram *ram)
-  : Virtio_proxy<Virtio_proxy_mmio>(device, config_size, nnq_id, ram)
+                    Vmm::Vm_ram *ram)
+  : Virtio_proxy<Virtio_proxy_mmio>(device, config_size, ram)
   {}
 
   Virtio::Event_connector_irq *event_connector() { return &_evcon; }

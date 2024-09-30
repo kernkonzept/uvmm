@@ -21,13 +21,12 @@ class Virtio_proxy_pci
 {
 public:
   Virtio_proxy_pci(Vdev::Dt_node const &node, unsigned num_msix_entries,
-                   L4::Cap<L4virtio::Device> device,
-                   unsigned nnq_id, Vmm::Vm_ram *ram,
+                   L4::Cap<L4virtio::Device> device, Vmm::Vm_ram *ram,
                    Gic::Msix_dest const &msix_dest,
                    Vdev::Pci::Pci_bridge_windows *wnds)
   : Virtio_device_pci<Virtio_proxy_pci>(node, num_msix_entries, wnds),
     // 0x100: size of the virtio config header
-    Virtio_proxy<Virtio_proxy_pci>(device, 0x100 + device_config_len(), nnq_id, ram),
+    Virtio_proxy<Virtio_proxy_pci>(device, 0x100 + device_config_len(), ram),
     Virtio::Pci_connector<Virtio_proxy_pci>(),
     _evcon(msix_dest)
   {}
@@ -87,12 +86,6 @@ struct F : Factory
         return nullptr;
       }
 
-    int sz;
-    unsigned nnq_id = -1U;
-    auto const *prop = node.get_prop<fdt32_t>("l4vmm,no-notify", &sz);
-    if (prop && sz > 0)
-      nnq_id = fdt32_to_cpu(*prop);
-
     auto vmm = devs->vmm();
 
     // Only two MSIs (config & VQ). l4virtio supports only shared IRQs for all
@@ -100,7 +93,7 @@ struct F : Factory
     auto dev_id = pci->bus()->alloc_dev_id();
     int const num_msix = 2;
     auto proxy =
-      make_device<Virtio_proxy_pci>(node, num_msix, cap, nnq_id,
+      make_device<Virtio_proxy_pci>(node, num_msix, cap,
                                     devs->ram().get(), pci->msix_dest(dev_id),
                                     pci->bridge_windows());
 
