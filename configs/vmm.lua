@@ -136,6 +136,10 @@ function start_vm(options)
   elseif type(options.mem) == "number" then
     -- User gave us a number. Using this as size for a new Dataspace.
     size_mb = options.mem
+  elseif type(options.mem) == "string" then
+    print("start_vm: mem parameter '" .. options.mem .. "' is of type string, "
+          .. "please use integer.");
+    size_mb = tonumber(options.mem)
   else
     -- User did not give us any valid value.
     size_mb = 16
