@@ -77,6 +77,10 @@ void
 Vdev::Host_dt::add_source(char const *fname)
 {
   std::string filename(fname);
+
+  // trim leading whitespaces
+  filename.erase(0, filename.find_first_not_of(" "));
+
   std::size_t pos = filename.find(":limit=");
   if (pos != std::string::npos)
     {
