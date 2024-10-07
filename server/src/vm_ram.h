@@ -208,6 +208,10 @@ public:
 private:
   cxx::Ref_ptr<Ram_ds> find_region(Vmm::Guest_addr addr, l4_size_t size) const
   {
+    // Check that search range is valid, i.e. does not wrap around.
+    if (size > std::numeric_limits<decltype(addr.get())>::max() - addr.get())
+      return nullptr;
+
     for (auto const &r : _regions)
       {
         if (addr >= r->vm_start() && addr - r->vm_start() + size <= r->size())
