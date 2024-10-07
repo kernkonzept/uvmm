@@ -150,6 +150,9 @@ public:
   Vcpu_ptr vcpu() const
   { return _vcpu; }
 
+  unsigned get_phys_cpu_id() const noexcept
+  { return _phys_cpu_id; }
+
   virtual void powerup_cpu();
   void reschedule();
 

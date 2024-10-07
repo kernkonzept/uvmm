@@ -122,9 +122,6 @@ public:
 
   static bool has_fixed_dt_mapping() { return true; }
 
-  unsigned get_phys_cpu_id() const noexcept
-  { return _phys_cpu_id; }
-
   Cpu_state get_cpu_state() const
   { return _cpu_state; }
 
