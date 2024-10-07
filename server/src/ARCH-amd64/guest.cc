@@ -398,19 +398,27 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
   switch (rax)
     {
     case 0x1:
-      // hide some CPU features
-      c &= ~(  Ecx_monitor_bit
-             | Ecx_vmx_bit
-             | Ecx_smx_bit
-             | Ecx_thermal_mon2
-             | Ecx_speed_step_tech_bit
-             | Ecx_sdbg
-             | Ecx_pcid_bit
-            );
-      c |= Ecx_hypervisor_bit;
+      {
+        unsigned id = vcpu.get_vcpu_id();
+        b &= 0x00ffffff;
+        if (id < 0x100)
+          b |= id << 24;
 
-      d &= ~(Edx_mca | Edx_acpi_bit);
-      break;
+        // hide some CPU features
+        c &= ~(  Ecx_monitor_bit
+               | Ecx_vmx_bit
+               | Ecx_smx_bit
+               | Ecx_thermal_mon2
+               | Ecx_speed_step_tech_bit
+               | Ecx_sdbg
+               | Ecx_pcid_bit
+              );
+        c |= Ecx_hypervisor_bit;
+
+        // hide some CPU features
+        d &= ~(Edx_mca | Edx_acpi_bit);
+        break;
+      }
 
     case 0x6:
       a &= ~(Digital_sensor | Power_limit_notification | Hwp_feature_mask
@@ -435,6 +443,14 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
       // We do not support any performance monitoring features. Report zero in
       // all registers.
       a = b = c = d = 0;
+      break;
+
+    case 0xb: // Extended Topology Enumeration Leaf
+    case 0x1f: // v2 Extended Topology Enumeration
+      // must be the Local APIC ID of ACPI_MADT_TYPE_LOCAL_APIC
+      d = vcpu.get_vcpu_id();
+      // TODO: Emulate the other registers according to the intended virtual CPU
+      //       topology. Also consider ECX>=0 as input.
       break;
 
     case 0xd:

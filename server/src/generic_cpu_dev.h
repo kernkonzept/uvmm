@@ -134,6 +134,8 @@ public:
       }
 
     _vcpu.set_vcpu_id(idx);
+    if (idx > _max_vcpu_id)
+      _max_vcpu_id = idx;
 
     // entry_sp signals the state the CPU is in. When it starts for the very
     // first time, entry_sp is zero and needs to be initialised based on the
@@ -178,6 +180,11 @@ public:
     _main_vcpu.set_bm(&_main_bm);
   }
 
+  static unsigned get_max_vcpu_id()
+  {
+    return _max_vcpu_id;
+  }
+
 protected:
   Vcpu_ptr _vcpu;
   /// physical CPU to run on (offset into scheduling mask)
@@ -193,6 +200,7 @@ private:
   static L4Re::Util::Br_manager _main_bm;
   static Vcpu_obj_registry _main_registry;
   static bool _main_vcpu_used;
+  static unsigned _max_vcpu_id;
 };
 
 

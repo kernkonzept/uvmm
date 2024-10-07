@@ -439,7 +439,10 @@ protected:
     memcpy(t->Signature, ACPI_SIG_RSDP, sizeof(t->Signature));
     wr.add_checksum(&t->Checksum, t, Rsdp_v1_size);
     wr.write_identifier(t->OemId, "L4RE", ACPI_OEM_ID_SIZE);
-    t->Revision = 2; // ACPI 2.0+
+    if (Vmm::Cpu_dev::get_max_vcpu_id() >= 0xff)
+      t->Revision = 4; // needs Local X2APIC MADT entries: ACPI 4.0+
+    else
+      t->Revision = 2; // ACPI 2.0+
     wr.add_table_ref(&t->RsdtPhysicalAddress, Table::Rsdt);
     t->Length = Rsdp_size;
     t->XsdtPhysicalAddress = 0; // For now we don't implement the XSDT.
@@ -453,7 +456,7 @@ protected:
   {
     write_rsdt(wr);
     write_fadt(wr);
-    write_madt(wr, devs->cpus()->max_cpuid() + 1);
+    write_madt(wr, devs->cpus()->max_cpuid() + 1, devs->cpus());
     write_mcfg(wr);
     write_facs(wr);
     write_dsdt(wr);
@@ -545,9 +548,11 @@ private:
    * The MADT lists Advanced Programmable Interrupt Controllers in the system
    * as defined in section 5.2.12 of the ACPI Specification.
    *
-   * \param cpus  The number of enabled CPUs.
+   * \param nr_cpus  The number of enabled CPUs.
+   * \param cpus     Pointer to the CPU container.
    */
-  static void write_madt(Writer &wr, unsigned cpus)
+  static void write_madt(Writer &wr, unsigned nr_cpus,
+                         cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus)
   {
     auto *t = wr.start_table<ACPI_TABLE_MADT>(Table::Madt);
 
@@ -569,13 +574,36 @@ private:
     // Processor Local APIC Structure.
     // Structure to be appended to the MADT base table for each local APIC.
     // Defined in section 5.2.12.2 of the ACPI Specification.
-    for (unsigned i = 0; i < cpus; ++i)
+    for (unsigned i = 0; i < nr_cpus; ++i)
       {
-        auto *lapic = wr.reserve_madt_subtable<ACPI_MADT_LOCAL_APIC>(
-          ACPI_MADT_TYPE_LOCAL_APIC);
-        lapic->ProcessorId = i;
-        lapic->Id = i;
-        lapic->LapicFlags = 1; // Enable CPU.
+        // ACPI spec 4.0 / 5.2.12.12: Processor Local x2APIC Structure: Logical
+        // processors with APIC ID values less than 255 must use the Processor
+        // Local APIC structure to convey their APIC information to OSPM.
+        unsigned vcpu_id = cpus->vcpu(i).get_vcpu_id();
+        if (vcpu_id < 0xff)
+          {
+            auto *lapic = wr.reserve_madt_subtable<ACPI_MADT_LOCAL_APIC>(
+              ACPI_MADT_TYPE_LOCAL_APIC);
+            lapic->ProcessorId = i;
+            lapic->Id = vcpu_id;
+            lapic->LapicFlags = 1; // Enable CPU.
+          }
+      }
+
+    // Processor Local X2APIC Structure.
+    // Structure to be appended to the MADT base table for each local X2APIC.
+    // Defined in section 5.2.12.12 of the ACPI 4.0 Specification.
+    for (unsigned i = 0; i < nr_cpus; ++i)
+      {
+        unsigned vcpu_id = cpus->vcpu(i).get_vcpu_id();
+        if (vcpu_id >= 0xff)
+          {
+            auto *lx2apic = wr.reserve_madt_subtable<ACPI_MADT_LOCAL_X2APIC>(
+              ACPI_MADT_TYPE_LOCAL_X2APIC);
+            lx2apic->LocalApicId = vcpu_id;
+            lx2apic->LapicFlags = 1; // Enable CPU.
+            lx2apic->Uid = 0;
+          }
       }
 
     // Finally fill the table header.

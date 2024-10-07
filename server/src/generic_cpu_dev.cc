@@ -19,6 +19,7 @@ Vcpu_ptr Generic_cpu_dev::_main_vcpu(nullptr);
 L4Re::Util::Br_manager Generic_cpu_dev::_main_bm;
 Vcpu_obj_registry Generic_cpu_dev::_main_registry(&Generic_cpu_dev::_main_bm);
 bool Generic_cpu_dev::_main_vcpu_used = false;
+unsigned Generic_cpu_dev::_max_vcpu_id;
 
 void
 Generic_cpu_dev::startup()
