@@ -247,7 +247,6 @@ class Virtio_proxy
   public Monitor::Virtio_proxy_cmd_handler<Monitor::Enabled, Virtio_proxy<DEV>>
 {
 private:
-  L4virtio::Driver::Virtqueue _nnq;
   l4_uint32_t _irq_status_shadow = 0;
 
 public:
