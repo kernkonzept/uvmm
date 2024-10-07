@@ -215,6 +215,13 @@ public:
     sem->down(); // wait until timer thread is alive
   }
 
+  void stop_clock_source_thread()
+  {
+    // pthread manager termination, cleans up these threads before the uvmm
+    // address space vanishes.
+    _thread.detach();
+  }
+
   // Clock_source_adapter
   L4::Cap<Clock_source_if> ipc_if() override
   { return _clock_if; }

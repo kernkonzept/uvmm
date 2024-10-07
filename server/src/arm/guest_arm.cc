@@ -370,6 +370,12 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
       _gic->setup_cpu(vcpu);
       if (_timer)
         _timer->add_cpu(vcpu);
+
+      unsigned vcpu_id = vcpu.get_vcpu_id();
+      _clocks[vcpu_id].start_clock_source_thread(vcpu_id,
+                                                 cpu->get_phys_cpu_id());
+      for (auto &dev : _timer_devices[vcpu_id])
+        dev->ready();
     }
   cpus->cpu(0)->mark_on_pending();
   cpus->cpu(0)->startup();
@@ -395,6 +401,10 @@ void Guest::stop_cpus()
       if (   cpu && cpu->online()
           && cpu->vcpu().get_vcpu_id() != vmm_current_cpu_id)
         cpu->send_stop_event();
+
+      // asumption: only called when all cores shall stop eventually,
+      // so stop all clocksource threads even the one on initiating core.
+      _clocks[cpu->vcpu().get_vcpu_id()].stop_clock_source_thread();
     }
 }
 
