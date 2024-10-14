@@ -88,16 +88,14 @@ public:
     fprintf(f, "(C) Secondary execution control: 0x%llx\n",
             vmx->vmx_read(VMCS_SEC_PROC_BASED_VM_EXEC_CTLS));
 
-    void *ext = static_cast<void *>(*get_vcpu());
-
     fprintf(f, "(c) basic capabilities: 0x%llx\n",
-            l4_vm_vmx_get_caps(ext, L4_VM_VMX_BASIC_REG));
+            vmx->cap_read(L4_VM_VMX_BASIC_REG));
     fprintf(f, "(C) Real pin-based execution control: 0x%llx\n",
-            l4_vm_vmx_get_caps(ext, L4_VM_VMX_TRUE_PINBASED_CTLS_REG));
+            vmx->cap_read(L4_VM_VMX_TRUE_PINBASED_CTLS_REG));
     fprintf(f, "(C) Real primary execution control: 0x%llx\n",
-            l4_vm_vmx_get_caps(ext, L4_VM_VMX_TRUE_PROCBASED_CTLS_REG));
+            vmx->cap_read(L4_VM_VMX_TRUE_PROCBASED_CTLS_REG));
     fprintf(f, "(C) Real secondary execution control: 0x%llx\n",
-            l4_vm_vmx_get_caps(ext, L4_VM_VMX_PROCBASED_CTLS2_REG));
+            vmx->cap_read(L4_VM_VMX_PROCBASED_CTLS2_REG));
 
     fprintf(f, "(G) ES selector: 0x%llx\n",
             vmx->vmx_read(VMCS_GUEST_ES_SELECTOR));

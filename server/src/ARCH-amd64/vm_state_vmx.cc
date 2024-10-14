@@ -35,9 +35,9 @@ enum : unsigned long
   Entry_ctrl_ia32e_bit = 1UL << 9,
 };
 
-Vmx_state::Vmx_state(l4_vcpu_state_t *state, void *vmcs)
+Vmx_state::Vmx_state(l4_vm_vmx_vcpu_state_t *state)
 : _state(state),
-  _vmcs(vmcs),
+  _vmcs(&state->vmcs),
   _hw_vmcs(L4Re::chkcap(L4Re::Util::make_unique_cap<L4::Vcpu_context>(),
                         "Failed to allocate hardware VMCS capability."))
 {

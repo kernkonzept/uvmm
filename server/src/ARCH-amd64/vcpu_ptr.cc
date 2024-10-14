@@ -21,9 +21,12 @@ void
 Vcpu_ptr::create_state(Vm_state::Type type)
 {
   if (type == Vm_state::Type::Vmx)
-    _s->user_data[Reg_vmm_type] =
-      reinterpret_cast<l4_umword_t>(new Vmx_state(_s, extended_state()));
-  else if(type == Vm_state::Type::Svm)
+    {
+      auto state = reinterpret_cast<l4_vm_vmx_vcpu_state_t *>(_s);
+      auto vmx = new Vmx_state(state);
+      _s->user_data[Reg_vmm_type] = reinterpret_cast<l4_umword_t>(vmx);
+    }
+  else if (type == Vm_state::Type::Svm)
     _s->user_data[Reg_vmm_type] =
       reinterpret_cast<l4_umword_t>(new Svm_state(extended_state()));
 

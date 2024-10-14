@@ -169,7 +169,7 @@ public:
     Host_address_space_size = (1UL << 9),
   };
 
-  Vmx_state(l4_vcpu_state_t *state, void *vmcs);
+  Vmx_state(l4_vm_vmx_vcpu_state_t *state);
   ~Vmx_state() = default;
 
   Type type() const override
@@ -708,6 +708,9 @@ public:
   void vmx_write(unsigned field, l4_uint64_t val)
   { l4_vm_vmx_write(_vmcs, field, val); }
 
+  l4_uint64_t cap_read(enum L4_vm_vmx_caps_regs caps_reg) const
+  { return l4_vm_vmx_get_caps(_state, caps_reg); }
+
   void set_hw_vmcs()
   {
     l4_vm_vmx_set_hw_vmcs(_vmcs, _hw_vmcs.cap());
@@ -817,7 +820,7 @@ private:
    */
   l4_uint32_t nested_abi_revision() const
   {
-    return l4_vm_vmx_get_caps(_state, L4_VM_VMX_NESTED_REVISION);
+    return cap_read(L4_VM_VMX_NESTED_REVISION);
   }
 
   /**
@@ -1029,8 +1032,8 @@ private:
    */
   static l4_uint64_t extend_sign64(l4_uint64_t value, unsigned bits);
 
-  l4_vcpu_state_t *_state;
-  void *_vmcs;
+  l4_vm_vmx_vcpu_state_t *_state;
+  l4_vm_vmx_vcpu_vmcs_t *_vmcs;
   Hw_vmcs _hw_vmcs;
 };
 
