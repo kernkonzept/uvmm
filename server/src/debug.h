@@ -36,6 +36,7 @@ public:
     Mmio,
     Irq,
     Dev,
+    Pci,
     Pm,
     Vbus_event,
     Max_component

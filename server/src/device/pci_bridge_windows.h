@@ -110,9 +110,9 @@ public:
   }
 
 private:
-  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "Pci_window_alloc"); }
-  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "Pci_window_alloc"); }
-  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "Pci_window_alloc"); }
+  static Dbg warn() { return Dbg(Dbg::Pci, Dbg::Warn, "Pci_window_alloc"); }
+  static Dbg info() { return Dbg(Dbg::Pci, Dbg::Info, "Pci_window_alloc"); }
+  static Dbg trace() { return Dbg(Dbg::Pci, Dbg::Trace, "Pci_window_alloc"); }
 
   /// compute the inclusive end of the area
   l4_addr_t end() const { return _base + _size - 1; }

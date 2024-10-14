@@ -361,9 +361,9 @@ protected:
   }
 
 private:
-  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI bus"); }
-  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI bus"); }
-  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI bus"); }
+  static Dbg trace() { return Dbg(Dbg::Pci, Dbg::Trace, "PCI bus"); }
+  static Dbg warn() { return Dbg(Dbg::Pci, Dbg::Warn, "PCI bus"); }
+  static Dbg info() { return Dbg(Dbg::Pci, Dbg::Info, "PCI bus"); }
 
   cxx::Ref_ptr<Gic::Ic> irq_ic() { return _ic; }
 
@@ -401,9 +401,9 @@ class Pci_bus_cfg_io : public Vmm::Io_device
   Config_address _cfg_addr;
   cxx::Ref_ptr<Pci_host_generic> _bus;
 
-  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI bus io"); }
-  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI bus io"); }
-  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI bus io"); }
+  static Dbg trace() { return Dbg(Dbg::Pci, Dbg::Trace, "PCI bus io"); }
+  static Dbg warn() { return Dbg(Dbg::Pci, Dbg::Warn, "PCI bus io"); }
+  static Dbg info() { return Dbg(Dbg::Pci, Dbg::Info, "PCI bus io"); }
 
   enum
   {

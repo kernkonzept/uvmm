@@ -63,7 +63,7 @@ bool verbosity_mask_to_string(unsigned mask, char const **str)
 }
 
 char const *const component_names[] =
-  { "core", "cpu", "mmio", "irq", "dev", "pm", "vbus_event", nullptr };
+  { "core", "cpu", "mmio", "irq", "dev", "pci", "pm", "vbus_event", nullptr };
 
 static_assert(std::extent<decltype(component_names)>::value
               == Dbg::Max_component + 1,

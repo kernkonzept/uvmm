@@ -124,9 +124,9 @@ public:
   }
 
 private:
-  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI bus"); }
-  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI bus"); }
-  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI bus"); }
+  static Dbg warn() { return Dbg(Dbg::Pci, Dbg::Warn, "PCI bus"); }
+  static Dbg info() { return Dbg(Dbg::Pci, Dbg::Info, "PCI bus"); }
+  static Dbg trace() { return Dbg(Dbg::Pci, Dbg::Trace, "PCI bus"); }
 
   unsigned char _bus_num;
   // used for device lookup on PCI config space access
@@ -487,9 +487,9 @@ public:
   }
 
 private:
-  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "PCI hbr"); }
-  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "PCI hbr"); }
-  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "PCI hbr"); }
+  static Dbg trace() { return Dbg(Dbg::Pci, Dbg::Trace, "PCI hbr"); }
+  static Dbg warn() { return Dbg(Dbg::Pci, Dbg::Warn, "PCI hbr"); }
+  static Dbg info() { return Dbg(Dbg::Pci, Dbg::Info, "PCI hbr"); }
 
 protected:
   Vmm::Guest *_vmm;
