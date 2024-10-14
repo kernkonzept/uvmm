@@ -57,22 +57,29 @@ class Framebuffer : public Vdev::Device,
                     public L4::Ipc_svr::Timeout_queue::Timeout
 {
 public:
+  /// Default refresh rate of 30 Hz.
+  static constexpr unsigned Default_refresh_rate = 30;
+
   /**
    * Framebuffer device constructor.
    *
    * \param[in] gfb             Goos framebuffer.
-   * \param[in] active_refresh  If true then the framebuffer requires active
-   *                            refresh (it does not have the auto-refresh)
-   *                            feature.
-   * \param[in] refresh_rate    Framebuffer refresh rate.
    * \param[in] width           Framebuffer width in pixels.
    * \param[in] height          Framebuffer height in pixels.
+   * \param[in] active_refresh  If true then the framebuffer requires active
+   *                            refresh (it does not have the auto-refresh
+   *                            feature).
+   * \param[in] refresh_rate    Framebuffer refresh rate (used primarily for
+   *                            the active refresh, but could be used for other
+   *                            purposes as well). Defaults to
+   *                            #Default_refresh_rate if unspecified.
    */
   Framebuffer(cxx::unique_ptr<L4Re::Util::Video::Goos_fb> gfb,
-              bool active_refresh, unsigned refresh_rate, unsigned long width,
-              unsigned long height) :
-    _gfb(cxx::move(gfb)), _active_refresh(active_refresh),
-    _refresh_rate(refresh_rate), _width(width), _height(height)
+              unsigned long width, unsigned long height,
+              bool active_refresh,
+              unsigned refresh_rate = Default_refresh_rate) :
+    _gfb(cxx::move(gfb)), _width(width), _height(height),
+    _active_refresh(active_refresh), _refresh_rate(refresh_rate)
   {
     assert(_refresh_rate > 0);
   }
@@ -120,10 +127,10 @@ private:
   }
 
   cxx::unique_ptr<L4Re::Util::Video::Goos_fb> _gfb;
-  bool _active_refresh;
-  unsigned _refresh_rate;
   unsigned long _width;
   unsigned long _height;
+  bool _active_refresh;
+  unsigned _refresh_rate;
 };
 } // namespace Vmm
 
@@ -229,9 +236,8 @@ struct F : Vdev::Factory
     else
       warn.printf("Framebuffer format is unsupported by simple-framebuffer\n");
 
-    // Default refresh rate of 30 Hz.
     bool auto_refresh = info.auto_refresh();
-    unsigned refresh_rate = 30;
+    unsigned refresh_rate = Vdev::Framebuffer::Default_refresh_rate;
 
     // Allow to override the refresh rate by the l4vmm,refresh_rate property.
     int refresh_size;
@@ -253,10 +259,10 @@ struct F : Vdev::Factory
     auto mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Framebuffer", gfb->buffer(),
                                                  0, gfb->buffer()->size());
     auto handler = Vdev::make_device<Ds_handler>(mgr);
-    auto dev = Vdev::make_device<Vdev::Framebuffer>(cxx::move(gfb),
+    auto dev = Vdev::make_device<Vdev::Framebuffer>(cxx::move(gfb), info.width,
+                                                    info.height,
                                                     !info.auto_refresh(),
-                                                    refresh_rate, info.width,
-                                                    info.height);
+                                                    refresh_rate);
 
     devs->vmm()->add_mmio_device(
                    Vmm::Region::ss(Vmm::Guest_addr(fb_addr), fb_size,
