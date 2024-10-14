@@ -154,15 +154,12 @@ public:
 
       if (subcmd == "show")
         {
-          if (!component_valid(component.c_str()))
+          if (strcmp(component.c_str(), "all") == 0)
+            show_all(f);
+          else if (component_valid(component.c_str()))
+            show_component(f, component.c_str());
+          else
             Monitor::argument_error("Invalid component specifier");
-
-          char const *v;
-          if (Dbg::get_verbosity(component.c_str(), &v) == L4_EOK)
-            {
-              fprintf(f, "%s\n", v);
-              return;
-            }
         }
       else if (subcmd == "set")
         {
@@ -239,6 +236,29 @@ public:
 
       while (*v)
         compl_req->complete(f, *v++);
+    }
+
+    /**
+     * \pre component string is a valid component within Dbg.
+     */
+    static void show_component(FILE *f, char const *component)
+    {
+      char const *v;
+      if (Dbg::get_verbosity(component, &v) == L4_EOK)
+        fprintf(f, "%s\n", v);
+      else
+        fprintf(f, "-- error getting verbosity for component %s\n", component);
+    }
+
+    static void show_all(FILE *f)
+    {
+      auto const *c = Dbg::valid_components();
+
+      while (*c)
+        {
+          fprintf(f, "%s:\t", *c);
+          show_component(f, *c++);
+        }
     }
   };
 
