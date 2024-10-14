@@ -1,0 +1,38 @@
+/dts-v1/;
+/plugin/;
+
+/**
+ * Example overlay for use of the PL031 real-time clock.
+ * It also adds a node to connect uvmm to the L4Re RTC service, make sure to
+ * provide this cap to uvmm in your ned script.
+ */
+
+/ {
+
+  fragment@0 {
+    target-path = "/";
+    __overlay__ {
+      l4vmm {
+        l4rtc {
+            compatible = "l4rtc";
+            l4vmm,rtccap = "rtc";
+        };
+
+        virt_pl031 {
+          compatible = "arm,pl031", "arm,primecell";
+          reg = <0x13000 0x1000>;
+          interrupts = <0x00 0x02 0x04>;
+          clocks = <&apb_dummy_pclk>;
+          clock-names = "apb_pclk";
+        };
+
+        apb_dummy_pclk: dummy_clk {
+          compatible = "fixed-clock";
+          #clock-cells = <0>;
+          clock-frequency = <1000000>;
+        };
+      };
+    };
+  };
+
+};
