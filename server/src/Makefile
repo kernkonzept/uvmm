@@ -42,8 +42,7 @@ SRC_CC_mips-l4f  = ARCH-mips/gic.cc ARCH-mips/cpc.cc ARCH-mips/guest.cc \
                    io_port_handler_noop.cc
 SRC_CC_riscv-l4f = ARCH-riscv/guest.cc ARCH-riscv/sbi.cc \
                    ARCH-riscv/virtual_timer.cc ARCH-riscv/vcpu_ic.cc \
-                   ARCH-riscv/plic.cc io_port_handler_noop.cc \
-                   ARCH-riscv/binary_loader_linux.cc
+                   ARCH-riscv/plic.cc io_port_handler_noop.cc
 SRC_CC_amd64-l4f = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                    ARCH-amd64/rtc.cc ARCH-amd64/virt_lapic.cc \
                    ARCH-amd64/ioapic.cc \
@@ -99,7 +98,8 @@ SRC_CC-$(CONFIG_UVMM_LOADER_PE)  += binary_loader_pe.cc
 SRC_CC-$(CONFIG_UVMM_LOADER_ROM) += binary_loader_rom.cc
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_LOADER_LINUX)  += ARCH-amd64/binary_loader_linux.cc
 SRC_CC_arm-common-$(CONFIG_UVMM_LOADER_LINUX) += arm/binary_loader_linux.cc
-SRC_CC-$(CONFIG_UVMM_LOADER_GZIP) += arm/binary_loader_linux_compressed.cc
+SRC_CC_riscv-$(CONFIG_UVMM_LOADER_LINUX) += ARCH-riscv/binary_loader_linux.cc
+SRC_CC-$(CONFIG_UVMM_LOADER_GZIP) += binary_loader_linux_compressed.cc
 REQUIRES_LIBS-$(CONFIG_UVMM_LOADER_GZIP) += zlib
 
 include $(wildcard $(PKGDIR)/server/src/Makefile.devs.*)

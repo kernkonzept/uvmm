@@ -56,14 +56,14 @@ config UVMM_LOADER_ROM
 
 config UVMM_LOADER_LINUX
 	bool "Linux images (non-elf)"
-	depends on BUILD_ARCH_arm64 || BUILD_ARCH_arm || BUILD_ARCH_amd64
+	depends on BUILD_ARCH_arm64 || BUILD_ARCH_arm || BUILD_ARCH_amd64 || BUILD_ARCH_riscv
 	default y
 	help
 	  Loads a Linux image.
 
 config UVMM_LOADER_GZIP
 	bool "GZIP/ZLIB loading for Linux images"
-	depends on (BUILD_ARCH_arm64 || BUILD_ARCH_arm) && HAVE_BIDPC_ZLIB && UVMM_LOADER_LINUX
+	depends on (BUILD_ARCH_arm64 || BUILD_ARCH_arm || BUILD_ARCH_riscv) && HAVE_BIDPC_ZLIB && UVMM_LOADER_LINUX
 	default y
 	help
 	  Allows to load gzip or zlib compressed kernel images.
