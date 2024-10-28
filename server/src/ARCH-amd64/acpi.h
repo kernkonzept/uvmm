@@ -177,6 +177,7 @@ protected:
   enum class Table : unsigned
   {
     Rsdt,
+    Xsdt,
     Fadt,
     Madt,
     Mcfg,
@@ -444,8 +445,8 @@ protected:
     else
       t->Revision = 2; // ACPI 2.0+
     wr.add_table_ref(&t->RsdtPhysicalAddress, Table::Rsdt);
+    wr.add_table_ref(&t->XsdtPhysicalAddress, Table::Xsdt);
     t->Length = Rsdp_size;
-    t->XsdtPhysicalAddress = 0; // For now we don't implement the XSDT.
     wr.add_checksum(&t->ExtendedChecksum, t, Rsdp_size);
   }
 
@@ -455,6 +456,7 @@ protected:
   static void write_all_tables(Writer &wr, Vdev::Device_lookup *devs)
   {
     write_rsdt(wr);
+    write_xsdt(wr);
     write_fadt(wr);
     write_madt(wr, devs->cpus()->max_cpuid() + 1, devs->cpus());
     write_mcfg(wr);
@@ -483,31 +485,63 @@ protected:
 
 private:
   /**
-   * Write a Root System Description Table (RSDT).
+   * Write a Root System Description Table (RSDT) or an Extended System
+   * Description Table (XSDT).
    *
    * Table holding pointers to other system description tables as defined in
-   * section 5.2.7 of the ACPI Specification.
+   * sections 5.2.7 (RSDT) and 5.2.8 (XSDT) of the ACPI 3.0 Specification.
    */
-  static void write_rsdt(Writer &wr)
+  template <typename TABLE>
+  static void write_rsdt_xsdt(Writer &wr)
   {
-    // Tables that RSDT refers to.
+    // Tables that RSDT / XSDT refers to.
     static constexpr std::array<Table, 3> ref_tables = {
       Table::Madt,
       Table::Fadt,
       Table::Mcfg,
     };
 
-    // RSDT table header plus a 32-bit word per table pointer.
-    auto rsdt_size = Header_size + ref_tables.size() * sizeof(l4_uint32_t);
-    auto *t = wr.start_table<ACPI_TABLE_RSDT>(Table::Rsdt, rsdt_size);
+    // RSDT/XSDT table header plus a 32/64-bit word per table pointer.
+    constexpr auto size =
+      Header_size + ref_tables.size() * sizeof(TABLE::TableOffsetEntry[0]);
 
-    // The acpi_table_rsdt struct defines only one entry, but we simply use the
-    // extra space allocated in the header. Do not forget to update
+    constexpr Table table
+      = (std::is_same<TABLE, ACPI_TABLE_RSDT>::value)
+      ? Table::Rsdt : Table::Xsdt;
+    auto *t = wr.start_table<TABLE>(table, size);
+
+    // The acpi_table_{rsdt/xsdt} struct defines only one entry, but we simply
+    // use the extra space allocated in the header. Do not forget to update
     // Num_table_refs when adding or removing a table reference here.
     for (l4_size_t i = 0; i < ref_tables.size(); i++)
       wr.add_table_ref(&t->TableOffsetEntry[i], ref_tables[i]);
 
-    wr.end_table(&t->Header, ACPI_SIG_RSDT, 1);
+    constexpr char const *sig
+      = (std::is_same<TABLE, ACPI_TABLE_RSDT>::value)
+      ? ACPI_SIG_RSDT : ACPI_SIG_XSDT;
+    wr.end_table(&t->Header, sig, 1);
+  }
+
+  /**
+   * Write a Root System Description Table (RSDT).
+   *
+   * Table holding pointers to other system description tables as defined in
+   * section 5.2.7 of the ACPI 3.0 Specification.
+   */
+  static void write_rsdt(Writer &wr)
+  {
+    write_rsdt_xsdt<ACPI_TABLE_RSDT>(wr);
+  }
+
+  /**
+   * Write an Extended System Description Table (XSDT).
+   *
+   * Table holding pointers to other system description tables as defined in
+   * section 5.2.8 of the ACPI 3.0 Specification.
+   */
+  static void write_xsdt(Writer &wr)
+  {
+    write_rsdt_xsdt<ACPI_TABLE_XSDT>(wr);
   }
 
   /**
@@ -718,7 +752,8 @@ public:
 
     l4_addr_t facs_off = wr.table_offset(Tables::Table::Facs);
     Facs_storage::get()->set_addr(wr.as_ptr<ACPI_TABLE_FACS>(facs_off));
-    Facs_storage::get()->set_gaddr(acpi_phys_addr(wr.as_addr(facs_off)));
+    Facs_storage::get()->set_gaddr(
+                           acpi_phys_addr<l4_uint32_t>(wr.as_addr(facs_off)));
   }
 
 private:
@@ -728,7 +763,11 @@ private:
       {
         l4_addr_t table_addr = wr.as_addr(wr.table_offset(ref.table));
         if (ref.size == sizeof(l4_uint32_t))
-          *wr.as_ptr<l4_uint32_t>(ref.offset) = acpi_phys_addr(table_addr);
+          *wr.as_ptr<l4_uint32_t>(ref.offset) =
+            acpi_phys_addr<l4_uint32_t>(table_addr);
+        else if (ref.size == sizeof(l4_uint64_t)) // XSDT
+          *wr.as_ptr<l4_uint64_t>(ref.offset) =
+            acpi_phys_addr<l4_uint64_t>(table_addr);
         else
           L4Re::throw_error(-L4_EINVAL, "Unsupported table offset size.");
       }
@@ -748,9 +787,10 @@ private:
    *
    * \return 32-bit guest-physical address of the target table.
    */
-  l4_uint32_t acpi_phys_addr(l4_addr_t virt_target_addr) const
+  template <typename T>
+  T acpi_phys_addr(l4_addr_t virt_target_addr) const
   {
-    return Phys_start_addr + static_cast<l4_uint32_t>(virt_target_addr - _dest_addr);
+    return Phys_start_addr + static_cast<T>(virt_target_addr - _dest_addr);
   }
 
   Vdev::Device_lookup *_devs;

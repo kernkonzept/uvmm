@@ -129,6 +129,8 @@ private:
       {
         if (ref.size == 4)
           *wr.as_ptr<l4_uint32_t>(ref.offset) = table_wr.table_offset(ref.table);
+        else if (ref.size == 8) // XSDT
+          *wr.as_ptr<l4_uint64_t>(ref.offset) = table_wr.table_offset(ref.table);
         else
           L4Re::throw_error(-L4_EINVAL, "Unsupported table offset size.");
         cmd_add_pointer(fn, ref.offset, ref.size, Tables_file_name);
