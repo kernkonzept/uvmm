@@ -83,9 +83,11 @@
  *
  * * `-i`
  *
- *  When set, the option forces the guest RAM to be mapped to its corresponding
- *  host-physical addresses.
+ *    When set, the option forces the guest RAM to be mapped to its
+ *    corresponding host-physical addresses.
  *
+ * \note Options `-q, --quiet`, `-v, --verbose` and `-D, --debug` cancel each
+ *       other out.
  *
  * Setting up guest memory
  * -----------------------
