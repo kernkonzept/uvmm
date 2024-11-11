@@ -27,7 +27,7 @@ local net_ports = {
   net1 = 1,
 }
 
-local common_bootargs = "console=hvc0 earlyprintk=1";
+local common_bootargs = "console=ttyAMA0 earlyprintk=1";
 
 vmm.start_io(io_busses, "rom/io.cfg");
 vmm.start_virtio_switch(net_ports, 0xa, 0x1);
