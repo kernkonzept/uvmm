@@ -423,7 +423,7 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
     case 0x6:
       a &= ~(Digital_sensor | Power_limit_notification | Hwp_feature_mask
              | Hdc_feature);
-      // filter IA32_ENERGEY_PERF_BIAS
+      // filter IA32_ENERGY_PERF_BIAS
       c &= ~(Performance_energy_bias_preference
              | Hardware_coordination_feedback_capability);
       break;
