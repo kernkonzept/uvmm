@@ -1,6 +1,11 @@
 PKGDIR		?= ..
 L4DIR		?= $(PKGDIR)/../..
 
-TARGET := dts
+SRC_ASSETS_MODLIST = modules.list
+SRC_ASSETS_NED = vmm.lua uvmm.ned
 
-include $(L4DIR)/mk/subdir.mk
+SUBDIRS += dts
+
+all:: $(SUBDIRS)
+
+include $(L4DIR)/mk/assets.mk
