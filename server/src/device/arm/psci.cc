@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
  * Copyright (C) 2015-2020 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *            Jean Wolter <jean.wolter@kernkonzept.com>
  *            Christian Pötzsch <christian.poetzsch@kernkonzept.com>
  *
+ * License: see LICENSE.spdx (in this directory or the directories above)
  */
 #include "cpu_dev_array.h"
 #include "debug.h"

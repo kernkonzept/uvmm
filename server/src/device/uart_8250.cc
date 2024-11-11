@@ -1,12 +1,10 @@
-/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
  * Copyright (C) 2017-2022 Kernkonzept GmbH.
  * Author(s): Phillip Raffeck <phillip.raffeck@kernkonzept.com>
  *            Steffen Liebergeld <steffen.liebergeld@kernkonzept.com>
  *            Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *
- * This file is distributed under the terms of the GNU General Public
- * License, version 2.  Please see the COPYING-GPL-2 file for details.
+ * License: see LICENSE.spdx (in this directory or the directories above)
  */
 
 #include <l4/cxx/bitfield>

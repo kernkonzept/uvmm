@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
  * Copyright (C) 2020-2023 Kernkonzept GmbH.
  * Author(s): Steffen Liebergeld <steffen.liebergeld@kernkonzept.com>
  *
+ * License: see LICENSE.spdx (in this directory or the directories above)
  */
 #include "acpi.h"
 #include "device_factory.h"

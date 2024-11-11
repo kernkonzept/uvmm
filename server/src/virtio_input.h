@@ -2,17 +2,7 @@
  * (c) 2013-2014 Alexander Warg <warg@os.inf.tu-dresden.de>
  *     economic rights: Technische Universität Dresden (Germany)
  *
- * This file is part of TUD:OS and distributed under the terms of the
- * GNU General Public License 2.
- * Please see the COPYING-GPL-2 file for details.
- */
-/*
- * Copyright (C) 2015-2020, 2022 Kernkonzept GmbH.
- * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
- *            Jean Wolter <jean.wolter@kernkonzept.com>
- *
- * This file is distributed under the terms of the GNU General Public
- * License, version 2.  Please see the COPYING-GPL-2 file for details.
+ * License: see LICENSE.spdx (in this directory or the directories above)
  */
 #pragma once
 

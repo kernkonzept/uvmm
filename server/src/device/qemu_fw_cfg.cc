@@ -1,9 +1,10 @@
-/* SPDX-License-Identifier: GPL-2.0-only or License-Ref-kk-custom */
 /*
  * Copyright (C) 2020-2022 Kernkonzept GmbH.
  * Author(s): Steffen Liebergeld <steffen.liebergeld@kernkonzept.com>
  *            Jan Klötzke <jan.kloetzke@kernkonzept.com>
  *            Christian Pötzsch <christian.poetzsch@kernkonzept.com>
+ *
+ * License: see LICENSE.spdx (in this directory or the directories above)
  *
  * See docs/specs/fw_cfg.txt in Qemu sources for reference.
  */

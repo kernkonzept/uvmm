@@ -2,8 +2,7 @@
  * Copyright (C) 2017-2019, 2021-2023 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *
- * This file is distributed under the terms of the GNU General Public
- * License, version 2.  Please see the COPYING-GPL-2 file for details.
+ * License: see LICENSE.spdx (in this directory or the directories above)
  */
 /**
  * Base class definition for devices using the Virtio PCI transport.
