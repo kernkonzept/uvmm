@@ -24,6 +24,7 @@
 #include "event_recorder.h"
 #include "event_record.h"
 #include "event_record_lapic.h"
+#include "cpuid.h"
 
 static cxx::Static_container<Vmm::Guest> guest;
 Acpi::Acpi_device_hub *Acpi::Acpi_device_hub::_hub;
@@ -297,160 +298,120 @@ int
 Guest::handle_cpuid(Vcpu_ptr vcpu)
 {
   l4_vcpu_regs_t *regs = &vcpu->r;
-  unsigned int a,b,c,d;
-  auto rax = regs->ax;
-  auto rcx = regs->cx;
+  unsigned id = vcpu.get_vcpu_id();
+  l4_uint32_t a,b,c,d;
+  l4_uint64_t rax = regs->ax;
+  l4_uint64_t rcx = regs->cx;
   Vm_state *vms = vcpu.vm_state();
 
-  if (rax >= 0x40000000 && rax <= 0x4fffffff)
+  auto set_regs = [regs] (l4_uint32_t a, l4_uint32_t b,
+                          l4_uint32_t c, l4_uint32_t d)
+  {
+    regs->ax = a;
+    regs->bx = b;
+    regs->cx = c;
+    regs->dx = d;
+    return Jump_instr;
+  };
+
+  // handle emulated cpuid branches
+  if (rax >= 0x4000'0000 && rax <= 0x4fff'ffff)
     {
       if (!handle_cpuid_devices(regs, &a, &b, &c, &d))
+        // if there is no handler, return 0
         a = b = c = d = 0;
+      return set_regs(a, b, c, d);
     }
-  else
-    cpuid(rax, rcx, &a, &b, &c, &d);
+
+  cpuid(rax, rcx, &a, &b, &c, &d);
 
   if (0)
-    trace().printf("CPUID as read 0x%lx/0x%lx: a: 0x%x, b: 0x%x, c: 0x%x, d: 0x%x\n",
-                   rax, rcx, a, b, c, d);
+    trace().printf("[%3u] CPUID as read 0x%llx/0x%llx: a: 0x%x, b: 0x%x, c: 0x%x, d: 0x%x\n",
+                   id, rax, rcx, a, b, c, d);
 
   enum : unsigned long
   {
-    // 0x1
-    Ecx_monitor_bit = (1UL << 3),
-    Ecx_vmx_bit = (1UL << 5),
-    Ecx_smx_bit = (1UL << 6),
-    Ecx_speed_step_tech_bit = (1UL << 7),
-    Ecx_thermal_mon2 = (1UL << 8),
-    Ecx_sdbg = (1UL << 11),
-    Ecx_pcid_bit = (1UL << 17),
-    Ecx_x2apic_bit = (1UL << 21),
-    Ecx_xsave_bit = (1UL << 26),
-    // used to indicate the hypervisor presence to linux -- no hardware bit.
-    Ecx_hypervisor_bit = (1UL << 31),
-
-    Edx_mtrr_bit = (1UL << 12),
-    Edx_mca = (1UL << 14),
-    Edx_pat = (1UL << 16),
-    Edx_acpi_bit = (1UL << 22),
-
-    // 0x6 EAX
-    Digital_sensor = (1UL << 0),
-    Power_limit_notification = (1UL << 4),
-    Hwp_feature_mask = (0x3UL << 23) | (0x3fUL << 15) | (0x1f << 7),
-    Hdc_feature = (1UL << 13), // HDC MSR support
-
-    // 0x6 ECX
-    Performance_energy_bias_preference = (1UL << 3),
-    // presence of MSRs IA32_MPERF and IA32_APERF
-    Hardware_coordination_feedback_capability = 1UL,
-
-    // 0x7 EBX
-    Tsc_adjust = (1UL << 1),
-    Invpcid_bit = (1UL << 10),
-    Intel_rdtm_bit = (1UL << 12),
-    Intel_rdta_bit = (1UL << 15),
-    Processor_trace = (1UL << 25),
-    // 0x7 ECX
-    Waitpkg_bit = (1UL << 5),
-    La57_bit = (1UL << 16),
-    Rdpid_bit = (1UL << 22),
-    // 0x7 EDX
-    Ibrs_ibpb_bit = (1UL << 26),
-    Stibp_bit = (1UL << 27),
-    Arch_capabilities_supported_bit = (1UL << 29), // IA32_ARCH_CAPABILITIES MSR
-    Ssbd_bit = (1UL << 31),
-
-    // AMD speculation control.
-    // 0x8000'0008 EBX
-    // Whitepaper AMD64 Technology: Indirect Branch Control Extension,
-    // revision 4.10.18
-    Amd_ibpb_bit = (1UL << 12),
-    Amd_ibrs_bit = (1UL << 14),
-    Amd_stibp_bit = (1UL << 15),
-    // Whitepaper AMD64 Technology: Speculative Store Bypass Disable, 5.21.18
-    Amd_ssbd_bit = (1UL << 24),
-
-
-    // 0xd
-    // fiasco limits to x87, SEE, AVX, AVX512 states
+    // Processor Extended State Enumeration Leaf, 0xd
+    // fiasco limits to x87, SSE, AVX, AVX512 states
     Xcr0_fiasco_feature_mask = 0xe7,
     Xsave_opt = 1,
     Xsave_c = (1UL << 1),
     Xget_bv = (1UL << 2),
     Xsave_s = (1UL << 3),
     Xfd_bit = (1UL << 4),
-
-    // 0x8000'0001 ECX
-    PerfCtrExtCore_bit = (1UL << 23), // AMD specific, Intel reserved
-    PerfCtrExtNB_bit = (1UL << 24),   // AMD specific, Intel reserved
-    PerfTsc_bit = (1UL << 27),        // AMD specific, Intel reserved
-    PerfCtrExtLLC_bit = (1UL << 28),  // AMD specific, Intel reserved
-    Amd_perfctr_mask = PerfCtrExtCore_bit | PerfCtrExtNB_bit | PerfTsc_bit
-                       | PerfCtrExtLLC_bit, // AMD specific, Intel reserved
-
-    // 0x8000'0001 EDX
-    Rdtscp_bit = (1UL << 27),
-
-    // 0x8000'001f EAX
-    Amd_sme_bit = (1UL << 0),           // AMD specific, Intel reserved
-    Amd_sev_bit = (1UL << 1),           // AMD specific, Intel reserved
   };
+
+  if (   (rax > Cpuid_max_basic_info_leaf && rax < 0x8000'0000)
+      || (rax > Cpuid_max_ext_info_leaf))
+    {
+      info().printf("[%3u] CPUID leaf 0x%llx not supported\n", id, rax);
+      return set_regs(0, 0, 0, 0);
+    }
 
   switch (rax)
     {
+    case 0x0:
+      a = a < Cpuid_max_basic_info_leaf ? a : Cpuid_max_basic_info_leaf;
+      break;
     case 0x1:
       {
-        unsigned id = vcpu.get_vcpu_id();
+        // Emulate Initial APIC ID
         b &= 0x00ffffff;
         if (id < 0x100)
           b |= id << 24;
 
-        // hide some CPU features
-        c &= ~(  Ecx_monitor_bit
-               | Ecx_vmx_bit
-               | Ecx_smx_bit
-               | Ecx_thermal_mon2
-               | Ecx_speed_step_tech_bit
-               | Ecx_sdbg
-               | Ecx_pcid_bit
-              );
-        c |= Ecx_hypervisor_bit;
-
-        // hide some CPU features
-        d &= ~(Edx_mca | Edx_acpi_bit);
+        cpuid_reg_apply(&c, Cpuid_1_ecx_supported, Cpuid_1_ecx_mandatory);
+        cpuid_reg_apply(&d, Cpuid_1_edx_supported);
         break;
       }
 
+    case 0x2:
+      [[fallthrough]];
+    case 0x3:
+      [[fallthrough]];
+    case 0x4:
+      break;
+
+    case 0x5:
+      // monitor/mwait. Not supported.
+      a = b = c = d = 0;
+      break;
+
     case 0x6:
-      a &= ~(Digital_sensor | Power_limit_notification | Hwp_feature_mask
-             | Hdc_feature);
-      // filter IA32_ENERGY_PERF_BIAS
-      c &= ~(Performance_energy_bias_preference
-             | Hardware_coordination_feedback_capability);
+      // thermal and power management
+      cpuid_reg_apply(&a, Cpuid_6_eax_supported);
+      b = c = d = 0;
       break;
 
     case 0x7:
       if (!rcx)
         {
-          b &= ~(Processor_trace | Invpcid_bit | Intel_rdtm_bit | Intel_rdta_bit
-                 | Tsc_adjust);
-          c &= ~(Waitpkg_bit | La57_bit | Rdpid_bit);
-          d &= ~(Ibrs_ibpb_bit | Stibp_bit | Ssbd_bit
-                 | Arch_capabilities_supported_bit);
+          a = Cpuid_7_0_eax_leafs;
+          cpuid_reg_apply(&b, Cpuid_7_0_ebx_supported);
+          cpuid_reg_apply(&c, Cpuid_7_0_ecx_supported);
+          cpuid_reg_apply(&d, Cpuid_7_0_edx_supported);
         }
+      else
+        a = b = c = d = 0;
+      break;
+
+    case 0x9:
+      // direct cache access information. Not supported.
+      a = b = c = d = 0;
       break;
 
     case 0xa:
-      // We do not support any performance monitoring features. Report zero in
-      // all registers.
+      // Performance monitoring features. Not supported.
       a = b = c = d = 0;
       break;
 
     case 0xb: // Extended Topology Enumeration Leaf
     case 0x1f: // v2 Extended Topology Enumeration
       // must be the Local APIC ID of ACPI_MADT_TYPE_LOCAL_APIC
-      d = vcpu.get_vcpu_id();
+      if (!rcx)
+        d = id;
+      else
+        a = b = c = d = 0;
       // TODO: Emulate the other registers according to the intended virtual CPU
       //       topology. Also consider ECX>=0 as input.
       break;
@@ -465,7 +426,7 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
 
             if (!_xsave_layout.valid)
               {
-                trace().printf("\n\n building xsave cache \n\n");
+                trace().printf("\n\n [%3u] building xsave cache \n\n", id);
 
                 // build cache
                 for (int i = 2; a >> i; ++i)
@@ -531,14 +492,14 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
               }
 
             if (0)
-              trace().printf("\nReturn XCR0 guest state: 0x%x:0x%x b=%x c=%x, "
+              trace().printf("\n[%3u] Return XCR0 guest state: 0x%x:0x%x b=%x c=%x, "
                              "(guest XCR0: 0x%llx) \n\n",
-                             d, a, b, c, xcr0_guest_enabled);
+                             id, d, a, b, c, xcr0_guest_enabled);
             break;
           }
 
         case 1:
-          trace().printf("Filtering out xsave capabilities\n");
+          trace().printf("[%3u] Filtering out xsave capabilities\n", id);
           a &= ~(  Xsave_opt
                    | Xsave_c
                    | Xget_bv // with ECX=1
@@ -548,7 +509,8 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
           b = 0; // Size of the state of the enabled feature bits.
           break;
 
-        default: break;
+        default:
+          break;
         }
       break;
 
@@ -562,42 +524,111 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
       a = b = c = d = 0;
       break;
 
-    case 0x80000001:
+    case 0x12:
+      // SGX information. Not supported.
+      a = b = c = d = 0;
+      break;
+
+    case 0x14:
+      // Intel Processor Trace. Not supported.
+      a = b = c = d = 0;
+      break;
+
+    case 0x15:
+      // time stamp counter and nominal core crystal clock information
+      [[fallthrough]];
+    case 0x16:
+      // processor frequency information
+      break;
+
+    case 0x17:
+      // system-on-chip vendor attribute enumeration. Not supported.
+      a = b = c = d = 0;
+      break;
+
+    case 0x18:
+      // deterministic address translation. Not supported.
+      [[fallthrough]];
+    case 0x19:
+      // key locker. Not supported.
+      [[fallthrough]];
+    case 0x1a:
+      // native model enumeration. Not supported.
+      [[fallthrough]];
+    case 0x1b:
+      // pconfig. Not supported.
+      [[fallthrough]];
+    case 0x1c:
+      // last branch records information. Not supported.
+      [[fallthrough]];
+    case 0x1d:
+      // tile information main. Not supported.
+      [[fallthrough]];
+    case 0x1e:
+      // TMUL information. Not supported.
+      a = b = c = d = 0;
+      break;
+
+    case 0x8000'0000:
       {
-        c &= ~(Amd_perfctr_mask);
-        d &= ~( Rdtscp_bit );
+        a = Cpuid_max_ext_info_leaf;
+        b = c = d = 0; // reserved
         break;
       }
 
-    case 0x80000008:
+    case 0x8000'0001:
       {
-        // According to the Linux source code at arch/x86/kernel/cpu/common.c,
-        // "[...] a hypervisor might have set the individual AMD bits even on
-        // Intel CPUs, for finer-grained selection of what's available."
-        // Thus filter AMD bits for the case of nested virtualization.
-        b &= ~(Amd_ibpb_bit | Amd_ibrs_bit | Amd_stibp_bit | Amd_ssbd_bit);
+        // a contains extended processor signature and feature bits
+        b = 0; // reserved
+        cpuid_reg_apply(&c, Cpuid_8000_0001_ecx_supported);
+        cpuid_reg_apply(&d, Cpuid_8000_0001_edx_supported);
         break;
       }
 
-  case 0x8000001f:
+    // processor brand string
+    case 0x8000'0002:
+      [[fallthrough]];
+    case 0x8000'0003:
+      [[fallthrough]];
+    case 0x8000'0004:
+      [[fallthrough]];
+    case 0x8000'0005:
+      break;
+
+    case 0x8000'0007:
+      a = b = c = 0; // reserved
+      cpuid_reg_apply(&d, Cpuid_8000_0007_edx_supported);
+      break;
+
+    case 0x8000'0008:
       {
-        // Memory encryption not supported.
-        // https://docs.kernel.org/arch/x86/amd-memory-encryption.html
-        a &= ~(Amd_sme_bit | Amd_sev_bit);
+        // a contains linear/physical address size
+        cpuid_reg_apply(&b, Cpuid_8000_0008_ebx_supported);
+        c = d = 0; // reserved
         break;
+      }
+
+      // For future reference:
+      //    case 0x8000001f:
+      //      {
+      //        // Memory encryption not supported.
+      //        // https://docs.kernel.org/arch/x86/amd-memory-encryption.html
+      //        a &= ~(Amd_sme_bit | Amd_sev_bit);
+      //        break;
+      //      }
+    default:
+      {
+        warn().printf("Unexpected CPUID leaf eax = 0x%llx, ecx = 0x%llx\n",
+                      rax, rcx);
+        a = b = c = d = 0;
       }
     }
 
   if (0)
-    trace().printf("CPUID as modified: a: 0x%x, b: 0x%x, c: 0x%x, d: 0x%x\n",
-                   a, b, c, d);
+    trace().printf("[%3u] CPUID as modified: a: 0x%x, b: 0x%x, c: 0x%x, d: 0x%x\n",
+                   id, a, b, c, d);
 
-  regs->ax = a;
-  regs->bx = b;
-  regs->cx = c;
-  regs->dx = d;
-
-  return Jump_instr;
+  return set_regs(a, b, c, d);
 }
 
 int
