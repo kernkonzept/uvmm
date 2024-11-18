@@ -120,7 +120,7 @@ struct Mmio_factory : Factory
 {
   cxx::Ref_ptr<Device> create(Device_lookup *devs, Dt_node const &node) override
   {
-    Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual input device (Mmio_factory)\n");
+    Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual input power device (Mmio_factory)\n");
     bool monitor = node.has_prop("l4vmm,monitor");
 
     /* Deprecation warning, added 2021-08 */

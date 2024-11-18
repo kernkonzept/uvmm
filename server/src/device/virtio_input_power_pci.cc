@@ -75,13 +75,13 @@ using namespace Vdev::Pci;
 
 struct Pci_factory : Factory
 {
-  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "Input-pci"); }
-  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "Input-pci"); }
+  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "Input-power-pci"); }
+  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "Input-power-pci"); }
 
   cxx::Ref_ptr<Device> create(Device_lookup *devs,
                               Dt_node const &node) override
   {
-    Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual input device (Pci factory)\n");
+    Dbg(Dbg::Dev, Dbg::Info).printf("Create virtual input power device (Pci factory)\n");
 
     auto *pci = dynamic_cast<Pci_host_bridge *>(
       devs->device_from_node(node.parent_node()).get());
