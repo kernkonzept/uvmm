@@ -293,7 +293,7 @@ int main(int argc, char *argv[])
 
   vmm->memmap()->dump(Dbg::Info);
 
-  info.printf("Populating RAM of virtual machine\n");
+  info.printf("Populating guest physical address space\n");
   vmm->map_eager();
 
   vmm->run(vm_instance.cpus());
