@@ -71,6 +71,7 @@ SRC_CC-$(CONFIG_UVMM_VDEV_PL011) += device/pl011.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_OPTEE) += device/optee.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_PL031) += device/arm/pl031.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_INPUT)   += device/virtio_input_event.cc
+SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_VIRTIO_INPUT) += device/virtio_input_event_pci.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_POWER)   += device/virtio_input_power.cc
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_VIRTIO_POWER) += device/virtio_input_power_pci.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_VIRQ) += device/virq.cc
