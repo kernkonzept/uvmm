@@ -467,7 +467,7 @@ public:
     switch (port)
       {
       case 0:
-        _reg_sel = value & 0xff;
+        _reg_sel = value & 0x7f;
         break;
       case 1:
         handle_write(value);
