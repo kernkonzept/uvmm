@@ -59,6 +59,8 @@ SRC_CC-$(CONFIG_UVMM_VDEV_ISA_DEBUG_PORT) += ARCH-amd64/isa_debugport.cc
 
 SRC_CC_arm-l4f-$(CONFIG_UVMM_VDEV_PSCI)   += device/arm/psci.cc
 SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_PSCI) += device/arm/psci.cc
+SRC_CC_arm-l4f-$(CONFIG_UVMM_VDEV_SMCCC_PROXY)   += device/arm/smccc_proxy.cc
+SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_SMCCC_PROXY) += device/arm/smccc_proxy.cc
 
 SRC_CC-$(CONFIG_UVMM_VDEV_8250)  += device/uart_8250.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_CONSOLE) += virtio_console.cc

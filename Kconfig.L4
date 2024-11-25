@@ -104,6 +104,13 @@ config UVMM_VDEV_PSCI
 	help
 	  Emulates a PSCI interface for the guest.
 
+config UVMM_VDEV_SMCCC_PROXY
+	bool "Smc device proxy"
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	default y
+	help
+	  Proxies Smccc calls.
+
 config UVMM_PCI_SUPPORT
 	bool "Support PCI emulation" if BUILD_ARCH_arm64 || BUILD_ARCH_arm
 	default y
