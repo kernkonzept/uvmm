@@ -10,6 +10,11 @@
 #include "device_factory.h"
 #include "irq_dt.h"
 #include "monitor/virtio_input_power_cmd_handler.h"
+#include "vbus_event.h"
+
+#include <l4/re/event_enums.h>
+#include <l4/vbus/vbus>
+#include <l4/vbus/vbus_inhibitor.h>
 
 namespace Acpi {
 
@@ -145,7 +150,8 @@ class Acpi_platform:
   public Vmm::Io_device,
   public Vdev::Device,
   public Acpi_device,
-  public Vcon_pwr_input<Acpi_platform>
+  public Vcon_pwr_input<Acpi_platform>,
+  public Vbus_stream_id_handler
 {
 private:
   enum Command_values : l4_uint16_t
@@ -186,16 +192,24 @@ public:
                          | Pm1a_evt_rtc,
   };
 
-  Acpi_platform(Vmm::Guest *vmm, cxx::Ref_ptr<Gic::Ic> const &ic, int irq,
+  Acpi_platform(Vdev::Device_lookup *devs, cxx::Ref_ptr<Gic::Ic> const &ic, int irq,
                 L4::Cap<L4::Vcon> pwr_vcon)
   : Acpi_device(), Vcon_pwr_input<Acpi_platform>(pwr_vcon),
-    _vmm(vmm),
+    _vmm(devs->vmm()),
     _sci(ic, irq),
     _irq(irq),
     _acpi_enabled(false),
     _pm1a_sts(0),
     _pm1a_en(0)
-  {}
+  {
+    if (!devs->vbus()->available())
+      return;
+
+    auto vbus = devs->vbus()->bus();
+    info().printf("Registering as event handler for vbus->root() = %lx\n",
+                  vbus->root().dev_handle());
+    Vbus_event::register_stream_id_handler(vbus->root().dev_handle(), this);
+  }
 
   char const *dev_name() const override
   { return "ACPI platform"; }
@@ -446,9 +460,48 @@ public:
     return true;
   }
 
+  void handle_event(L4Re::Event_buffer::Event *e) override
+  {
+    // Here we handle inhibitor signals.
+    //
+    // Iff Uvmm has a vbus, it will grab inhibitor locks for suspend and
+    // shutdown. The rationale is that IO is only allowed to shutdown and/or
+    // suspend the system once all inhibitor locks are free. To that end, IO
+    // will send out inhibitor signals to its vbus clients. The clients shall
+    // suspend/shutdown their devices and free the inhibitor lock.
+    //
+    // Management of the locks itself is done in pm.{cc,h}
+
+    if (e->payload.type != L4RE_EV_PM)
+    {
+      warn().printf("Unexpected event type (0x%x). Ignoring.\n", e->payload.type);
+      return;
+    }
+
+    switch (e->payload.code)
+    {
+      case L4VBUS_INHIBITOR_SUSPEND:
+        info().printf("SUSPEND signal\n");
+        inject_slpbtn();
+        break;
+      case L4VBUS_INHIBITOR_SHUTDOWN:
+        info().printf("SHUTDOWN signal\n");
+        inject_pwrbtn();
+        break;
+      case L4VBUS_INHIBITOR_WAKEUP:
+        // The IPC for this signal will have woken Uvmm up. Nothing to do
+        // here.
+        break;
+      default:
+        warn().printf("Unknown PM event: code 0x%x.\n", e->payload.code);
+        break;
+      }
+  }
+
 private:
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "Acpi_platform"); }
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "Acpi_platform"); }
+  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "Acpi_platform"); }
 
   Vmm::Guest *_vmm;
   Vmm::Irq_sink _sci;
@@ -480,7 +533,7 @@ struct F : Vdev::Factory
                         "interrupt controller");
 
     auto pwr_vcon = Vdev::get_cap<L4::Vcon>(node, "l4vmm,pwrinput");
-    auto dev = Vdev::make_device<Acpi::Acpi_platform>(devs->vmm(), it.ic(),
+    auto dev = Vdev::make_device<Acpi::Acpi_platform>(devs, it.ic(),
                                                       it.irq(), pwr_vcon);
     if (pwr_vcon)
       dev->register_obj(devs->vmm()->registry());
