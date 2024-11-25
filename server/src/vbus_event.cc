@@ -9,6 +9,7 @@
 #include "vbus_event.h"
 
 static Dbg warn(Dbg::Pm, Dbg::Warn, "vbus_event");
+std::map<l4_umword_t, Vbus_stream_id_handler *> Vbus_event::_stream_id_handlers;
 
 Vbus_event::Vbus_event(L4::Cap<L4Re::Event> vbus, L4::Registry_iface *registry)
 {
@@ -31,6 +32,11 @@ Vbus_event::handle_irq()
 {
   L4Re::Event_buffer::Event *e;
   while ((e = _vbus_event.buffer().next()))
-    e->free();
+    {
+      auto handler = _stream_id_handlers.find(e->payload.stream_id);
+      if (handler != _stream_id_handlers.end())
+        handler->second->handle_event(e);
+      e->free();
+    }
 }
 
