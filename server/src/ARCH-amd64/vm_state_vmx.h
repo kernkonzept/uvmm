@@ -139,6 +139,7 @@ public:
     Unrestricted_guest_bit = (1UL << 7),
     Apic_reg_virt_bit = (1UL << 8),
     Apic_virt_int_bit = (1UL << 9),
+    Enable_invpcid_bit = (1UL << 12),
   };
 
   enum Vmx_exit_execution_controls : unsigned long
@@ -229,6 +230,7 @@ public:
               vmx_read(VMCS_SEC_PROC_BASED_VM_EXEC_CTLS)
                 | Ept_enable_bit
                 | Unrestricted_guest_bit
+                | Enable_invpcid_bit
               );
 
     // System descriptor described in Intel SDM Vol.3 Chapter 3.5

@@ -270,7 +270,6 @@ enum Cpuid_configuration : l4_uint32_t
   //   Cpuid_1_ecx_thermal_monitor
   //   Cpuid_1_ecx_speed_step
   //   Cpuid_1_ecx_sdbg
-  //   Cpuid_1_ecx_pcid
   //   Cpuid_1_ecx_osxsave
   //   Cpuid_1_ecx_xtpr_update
   //   Cpuid_1_ecx_pdcm
@@ -294,6 +293,7 @@ enum Cpuid_configuration : l4_uint32_t
     | Cpuid_1_ecx_xsave \
     | Cpuid_1_ecx_avx \
     | Cpuid_1_ecx_f16c \
+    | Cpuid_1_ecx_pcid \
     | Cpuid_1_ecx_rdrand,
 
   Cpuid_1_ecx_mandatory = \
@@ -341,7 +341,6 @@ enum Cpuid_configuration : l4_uint32_t
   // Unsupported:
   //   Cpuid_7_0_ebx_mpx
   //   Cpuid_7_0_ebx_trace
-  //   Cpuid_7_0_ebx_invpcid
   Cpuid_7_0_ebx_supported = \
     Cpuid_7_0_ebx_fsgsbase \
     | Cpuid_7_0_ebx_bmi1 \
@@ -365,6 +364,7 @@ enum Cpuid_configuration : l4_uint32_t
     | Cpuid_7_0_ebx_avx_512_er \
     | Cpuid_7_0_ebx_avx_512_cd \
     | Cpuid_7_0_ebx_sha \
+    | Cpuid_7_0_ebx_invpcid \
     | Cpuid_7_0_ebx_avx_512_bw \
     | Cpuid_7_0_ebx_avx_512_vl,
 
