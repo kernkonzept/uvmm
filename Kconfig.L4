@@ -219,6 +219,13 @@ config UVMM_VDEV_ISA_DEBUG_PORT
 	
 	  For details on the configuration see ARCH-amd64/isa_debugport.cc
 
+config UVMM_VDEV_BCM2835_MBOX
+	bool "Support for external bcm2835 mailbox service"
+	default y
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	help
+	  Emulate the bcm2835 mailbox device as found on Raspberry Pi 4.
+
 config UVMM_VDEV_GIC_V2
 	def_bool UVMM_VDEV_SEL_GIC_V2 || UVMM_VDEV_SEL_GIC_BOTH
 
