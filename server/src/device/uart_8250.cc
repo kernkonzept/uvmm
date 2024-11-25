@@ -57,7 +57,7 @@ namespace {
  * "uart,8250" and "ns16550a" are the compatible string used by this
  * device. "ns8250" is one of the ones given in
  * linux/Documentation/devicetree/bindings/serial/8250.txt.
- * Instead of specyfing an actual clock, a "clock-frequency" property with an
+ * Instead of specifying an actual clock, a "clock-frequency" property with an
  * arbitrary value also suffices.
  *
  * The 'uart' cap is optional. If it is not there output will be through
