@@ -123,15 +123,10 @@ void
 Virt_lapic::bind_irq_src_handler(unsigned irq, Irq_src_handler *handler)
 {
   assert (irq < 256); // sources array length
-  // linux writes the same RTE at IOAPIC twice; allow this behavior if the
-  // handler stays the same.
   if(handler && _sources[irq] && handler != _sources[irq])
-    {
-      Err().printf("[LAPIC 0x%x] IRQ src handler for IRQ %u already set to %p, new "
-                   "%p\n",
-                   _lapic_x2_id, irq, _sources[irq], handler);
-      throw L4::Runtime_error(-L4_EEXIST, "Bind IRQ src handler at local APIC.");
-    }
+    info().printf("[LAPIC 0x%x] IRQ src handler for IRQ %u already set to "
+                  "%p, new %p\n",
+                  _lapic_x2_id, irq, _sources[irq], handler);
 
   _sources[irq] = handler;
 }
