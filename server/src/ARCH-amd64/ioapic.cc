@@ -10,6 +10,66 @@
 
 namespace Gic {
 
+  l4_uint64_t Io_apic::read_reg(unsigned reg) const
+  {
+    switch (reg)
+      {
+      case Id_reg:
+        return _id;
+      case Version_reg:
+        return Io_apic_ver | ((Io_apic_num_pins - 1) << 16);
+      case Arbitration_reg:
+        return _id;
+      default:
+        {
+          unsigned index = reg - Redir_tbl_offset_reg;
+          unsigned irq = index / 2;
+          if (irq >= Io_apic_num_pins)
+            {
+              warn().printf("Unimplemented MMIO read from ioregsel "
+                            "register 0x%x\n", reg);
+              return -1;
+            }
+
+          if (index % 2)
+            return _redirect_tbl[irq].load().upper_reg();
+          else
+            return _redirect_tbl[irq].load().lower_reg();
+        }
+      }
+  }
+
+  void Io_apic::write_reg(unsigned reg, l4_uint64_t value)
+  {
+    if (reg == Id_reg)
+      {
+        _id = value;
+        return;
+      }
+
+    unsigned index = reg - Redir_tbl_offset_reg;
+    unsigned irq = index / 2;
+    if (irq >= Io_apic_num_pins)
+      {
+        warn().printf("Unimplemented MMIO write to ioregsel register 0x%x\n",
+                      reg);
+        return;
+      }
+
+    Redir_tbl_entry e = _redirect_tbl[irq];
+    if (index % 2)
+      e.upper_reg() = value;
+    else
+      {
+        // ignore writes to RO fields
+        value = (value & ~Redir_tbl_entry::Ro_mask) | e.delivery_status()
+                | e.remote_irr();
+        e.lower_reg() = value;
+      }
+
+    _redirect_tbl[irq] = e; // atomic store
+  }
+
   l4_uint64_t Io_apic::read(unsigned reg, char, unsigned cpu_id)
   {
     switch (reg)
@@ -17,32 +77,7 @@ namespace Gic {
       case Ioregsel:
         return _ioregsel;
       case Iowin:
-        switch (_ioregsel.load())
-          {
-          case Id_reg:
-            return _id;
-          case Version_reg:
-            return Io_apic_ver | ((Io_apic_num_pins - 1) << 16);
-          case Arbitration_reg:
-            return _id;
-          default:
-            {
-              unsigned index = _ioregsel - Redir_tbl_offset_reg;
-              unsigned irq = index / 2;
-              if (irq >= Io_apic_num_pins)
-                {
-                  warn().printf("Unimplemented MMIO read from ioregsel "
-                                "register 0x%x\n", _ioregsel.load());
-                  return -1;
-                }
-
-              if (index % 2)
-                return _redirect_tbl[irq].load().upper_reg();
-              else
-                return _redirect_tbl[irq].load().lower_reg();
-            }
-          }
-        break;
+        return read_reg(_ioregsel.load());
       default:
         warn().printf("Unimplemented MMIO read from register %d by CPU %d\n",
                       reg, cpu_id);
@@ -58,37 +93,8 @@ namespace Gic {
         _ioregsel = value & 0xff;
         break;
       case Iowin:
-        {
-          if (_ioregsel == Id_reg)
-            {
-              _id = value;
-              break;
-            }
-
-          unsigned index = _ioregsel - Redir_tbl_offset_reg;
-          unsigned irq = index / 2;
-          if (irq >= Io_apic_num_pins)
-            {
-              warn()
-                .printf("Unimplemented MMIO write to ioregsel register 0x%x\n",
-                        _ioregsel.load());
-              break;
-            }
-
-          Redir_tbl_entry e = _redirect_tbl[irq];
-          if (index % 2)
-            e.upper_reg() = value;
-          else
-            {
-              // ignore writes to RO fields
-              value = (value & ~Redir_tbl_entry::Ro_mask)
-                | e.delivery_status() | e.remote_irr();
-              e.lower_reg() = value;
-            }
-
-          _redirect_tbl[irq] = e; // atomic store
-          break;
-        }
+        write_reg(_ioregsel.load(), value);
+        break;
       default:
         warn().printf("Unimplemented MMIO write to register %d by CPU %d\n",
                       reg, cpu_id);

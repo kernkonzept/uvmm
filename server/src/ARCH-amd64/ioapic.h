@@ -155,6 +155,9 @@ private:
   static Dbg info() { return Dbg(Dbg::Irq, Dbg::Info, "IOAPIC"); }
   static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "IOAPIC"); }
 
+  l4_uint64_t read_reg(unsigned reg) const;
+  void write_reg(unsigned reg, l4_uint64_t value);
+
   /// Return the redirection table entry for given `irq`.
   Redir_tbl_entry redirect(unsigned irq) const
   {
