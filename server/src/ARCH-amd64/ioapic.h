@@ -13,6 +13,7 @@
 #include "msix.h"
 #include "msi_arch.h"
 #include "legacy_pic.h"
+#include "monitor/ioapic_cmd_handler.h"
 
 namespace Gic {
 
@@ -22,7 +23,9 @@ namespace Gic {
  * The IOAPIC sends legacy IRQs onwards as MSI as programmed into the
  * redirection table by the guest.
  */
-class Io_apic : public Ic, public Vmm::Mmio_device_t<Io_apic>
+class Io_apic : public Ic,
+                public Vmm::Mmio_device_t<Io_apic>,
+                public Monitor::Ioapic_cmd_handler<Monitor::Enabled, Io_apic>
 {
   enum
   {
@@ -138,6 +141,9 @@ public:
       }
   }
 
+  // public only for monitor access
+  l4_uint64_t read_reg(unsigned reg) const;
+
   // Mmio device interface
   l4_uint64_t read(unsigned reg, char, unsigned cpu_id);
   void write(unsigned reg, char, l4_uint64_t value, unsigned cpu_id);
@@ -203,7 +209,6 @@ private:
   static Dbg info() { return Dbg(Dbg::Irq, Dbg::Info, "IOAPIC"); }
   static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "IOAPIC"); }
 
-  l4_uint64_t read_reg(unsigned reg) const;
   void write_reg(unsigned reg, l4_uint64_t value);
 
   /// Return the redirection table entry for given `irq`.
