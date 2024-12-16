@@ -472,7 +472,8 @@ public:
   void set_irq_src(Irq_src_handler *src)
   {
     _src = src;
-    src->configure(vcpu_irq_cfg());
+    if (src)
+      src->configure(vcpu_irq_cfg());
   }
 
   void set_id(uint16_t id) { _id = id; }
