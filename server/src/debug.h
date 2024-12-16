@@ -115,7 +115,7 @@ public:
     level |= (mask & Verbosity_mask) << (Verbosity_shift * c);
   }
 
-  Dbg(Component c = Core, Verbosity v = Warn, char const *subsys = "")
+  Dbg(Component c = Core, Verbosity v = Warn, char const *subsys = nullptr)
   : L4Re::Util::Dbg(v << (Verbosity_shift * c), "VMM", subsys)
   {}
 
@@ -164,7 +164,7 @@ public:
   { return -L4_EINVAL; }
 
   Dbg(Component /* c */ = Core, Verbosity /* v */ = Warn ,
-      char const * /* subsys */ = "")
+      char const * /* subsys */ = nullptr)
   {}
 #endif
 };
