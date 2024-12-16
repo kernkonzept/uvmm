@@ -90,7 +90,8 @@ Vcpu_ptr::decode_mmio() const
     {
       warn().printf("[%3u] Could not determine opcode for MMIO access. Page table "
                     "walking failed for IP 0x%lx and reports: %s\n",
-                    get_vcpu_id(), vms->ip(), e.extra_str());
+                    get_vcpu_id(), vms->ip(),
+                    e.extra_str() ? e.extra_str() : "");
       return m;
     }
 

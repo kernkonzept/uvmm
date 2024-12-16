@@ -535,7 +535,8 @@ Decoder::decode(Op *op, Desc *tgt, Desc *src)
   catch (L4::Runtime_error const &e)
     {
       warn().printf("Invalid instruction in [0x%lx, 0x%lx]: %s (%ld): %s\n",
-                    _ip, _ip + _inst_buf_len, e.str(), e.err_no(), e.extra_str());
+                    _ip, _ip + _inst_buf_len, e.str(), e.err_no(),
+                    e.extra_str() ? e.extra_str() : "");
       return Result::Invalid;
     }
 }

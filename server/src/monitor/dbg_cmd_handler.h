@@ -69,7 +69,8 @@ public:
           }
         catch (L4::Runtime_error &e)
           {
-            fprintf(f, "Page table walk failed: %s", e.extra_str());
+            fprintf(f, "Page table walk failed: %s",
+                    e.extra_str() ? e.extra_str() : "");
           }
       }
     else
