@@ -19,7 +19,7 @@ int Linux_loader::load(char const * /*bin*/, std::shared_ptr<Binary_ds> image,
     return -L4_EINVAL;
 
   Vmm::Guest_addr ram_base = free_list->first_free_address();
-  unsigned char const *h = static_cast<unsigned char const *>(image->get_header());
+  unsigned char const *h = static_cast<unsigned char const *>(image->get_data());
 
   if (   h[0x38] == 'R' && h[0x39] == 'S'
       && h[0x3A] == 'C' && h[0x3B] == 0x05) // Linux header RSC\x05

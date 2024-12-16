@@ -25,42 +25,36 @@ namespace Boot {
 
 class Binary_ds
 {
-  void init()
+  static L4Re::Rm::Unique_region<char *> attach_ds(L4::Cap<L4Re::Dataspace> ds)
   {
-    _loaded_range_start = 0;
-    _loaded_range_end = 0;
+    if (!ds.is_valid())
+      return {};
 
-    if (!_ds.is_valid())
-      return;
-
-    // return if we found an ELF binary, otherwise
-    // attach first page
-    if (_elf.is_valid())
-      return;
-
-    // Map the first page which should contain all headers necessary
-    // to interpret the binary.
+    // Map the whole dataspace. Use superpage alignment to lower TLB pressure
+    // when mapping large images, like the Linux kernel.
     auto *e = L4Re::Env::env();
-    L4Re::chksys(e->rm()->attach(&_header, L4_PAGESIZE,
+    L4Re::Rm::Unique_region<char *> ret;
+    L4Re::chksys(e->rm()->attach(&ret, ds->size(),
                                  L4Re::Rm::F::Search_addr | L4Re::Rm::F::R,
-                                 L4::Ipc::make_cap_rw(_ds.get())),
-                 "Attach memory containing the binary's headers.");
+                                 L4::Ipc::make_cap_rw(ds), 0,
+                                 L4_SUPERPAGESHIFT),
+                 "Attach binary dataspace.");
+
+    return ret;
   }
 
 public:
   Binary_ds(char const *name)
   : _ds(L4Re::Util::Env_ns().query<L4Re::Dataspace>(name)),
+    _data(attach_ds(_ds.get())),
     _elf(this, _ds.get())
-  {
-    init();
-  }
+  {}
 
   Binary_ds(L4::Cap<L4Re::Dataspace> d)
   : _ds(d),
+    _data(attach_ds(d)),
     _elf(this, _ds.get())
-  {
-    init();
-  }
+  {}
 
   bool is_valid()
   { return _ds.is_valid(); }
@@ -140,8 +134,8 @@ public:
     return ram->guest_phys2boot(start);
   }
 
-  void const *get_header() const
-  { return _header.get(); }
+  void const *get_data() const
+  { return _data.get(); }
 
   size_t size() const
   { return _ds->size(); }
@@ -157,36 +151,22 @@ public:
 
   // App_model API
   typedef L4::Cap<L4Re::Dataspace> Const_dataspace;
-  l4_addr_t local_attach_ds(Const_dataspace c,
-                            l4_size_t size, l4_addr_t offset) const
+  l4_addr_t local_attach_ds(Const_dataspace,
+                            l4_size_t, l4_addr_t offset) const
   {
-    auto *e = L4Re::Env::env();
-    l4_addr_t pg_offset = l4_trunc_page(offset);
-    l4_addr_t in_pg_offset = offset - pg_offset;
-    unsigned long pg_size = l4_round_page(size + in_pg_offset);
-    l4_addr_t adr = 0;
-
-    if (e->rm()->attach(&adr, pg_size,
-                        L4Re::Rm::F::Search_addr | L4Re::Rm::F::R,
-                        c, pg_offset) < 0)
-      return 0;
-
-    return adr + in_pg_offset;
+    return reinterpret_cast<l4_addr_t>(_data.get()) + offset;
   }
 
-  void local_detach_ds(l4_addr_t addr, l4_size_t) const
-  {
-    L4::Cap<L4Re::Dataspace> c;
-    L4Re::Env::env()->rm()->detach(addr, &c);
-  }
+  void local_detach_ds(l4_addr_t, l4_size_t) const
+  {}
   // end of App_model API
 
 private:
   L4Re::Util::Unique_cap<L4Re::Dataspace> _ds;
+  L4Re::Rm::Unique_region<char *> _data;
   Ldr::Elf_binary<Binary_ds> _elf;
-  L4Re::Rm::Unique_region<char *> _header;
-  l4_addr_t _loaded_range_start;
-  l4_addr_t _loaded_range_end;
+  l4_addr_t _loaded_range_start = 0;
+  l4_addr_t _loaded_range_end = 0;
 };
 
 /* Loader type

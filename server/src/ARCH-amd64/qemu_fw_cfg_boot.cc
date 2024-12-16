@@ -96,7 +96,7 @@ class Qemu_fw_cfg_boot : public Qemu_fw_cfg::Provider
           L4Re::throw_error(-L4_EINVAL, "Elf files not supported for qemu fw.");
 
         l4_uint8_t num_setup_sects =
-          *((char *)_kernel_binary->get_header() + Vmm::Bp_setup_sects);
+          *((char *)_kernel_binary->get_data() + Vmm::Bp_setup_sects);
 
         add_kernel(_kernel_binary->ds(), (num_setup_sects + 1) * 512);
       }

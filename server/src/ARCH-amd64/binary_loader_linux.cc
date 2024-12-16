@@ -24,7 +24,7 @@ int Linux_loader::load(char const * /*bin*/, std::shared_ptr<Binary_ds> image,
   if (!image->is_valid())
     return -L4_EINVAL;
 
-  unsigned char const *h = static_cast<unsigned char const *>(image->get_header());
+  unsigned char const *h = static_cast<unsigned char const *>(image->get_data());
   if (!(h[0x1fe] == 0x55 && h[0x1ff] == 0xaa))
     return -L4_EINVAL;
 

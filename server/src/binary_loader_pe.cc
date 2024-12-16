@@ -24,7 +24,7 @@ public:
     if (!image->is_valid())
       return -EINVAL;
 
-    unsigned char const *h = static_cast<unsigned char const *>(image->get_header());
+    unsigned char const *h = static_cast<unsigned char const *>(image->get_data());
 
     if (h[0] == 0x4d && h[1] == 0x5a /* "MZ */)
       {

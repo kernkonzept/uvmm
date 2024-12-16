@@ -25,28 +25,13 @@ public:
       return -L4_EINVAL;
 
     unsigned char const *h =
-      static_cast<unsigned char const *>(image->get_header());
+      static_cast<unsigned char const *>(image->get_data());
     if (h[0] == 0x1f && h[1] == 0x8b && h[2] == 0x08)
       {
         const L4Re::Env *e = L4Re::Env::env();
-        L4Re::Rm::Unique_region<Bytef *> imager_src;
         L4Re::Rm::Unique_region<Byte *> imager_dst;
         size_t compr_sz = image->size();
-
-        // The Linux kernel image is expected to be big so use a superpage
-        // alignment for mapping the compressed image and for mapping the
-        // extracted image and use contiguous superpages for the dataspace for
-        // storing the extracted image. This wastes some memory at the dataspace
-        // provider and some virtual memory regions -- but only until the Linux
-        // kernel image was loaded into the guest RAM.
-
-        L4Re::chksys(e->rm()->attach(&imager_src, compr_sz,
-                                     L4Re::Rm::F::Search_addr | L4Re::Rm::F::R,
-                                     L4::Ipc::make_cap_rw(image->ds()),
-                                     0, L4_SUPERPAGESHIFT),
-                     "Attach compressed file.");
-
-        uint32_t uncompr_sz = *(uint32_t *)&imager_src.get()[compr_sz - 4];
+        uint32_t uncompr_sz = *(uint32_t *)&h[compr_sz - 4];
 
         info().printf("Detected gzip compressed image: uncompressing (%zd -> %u)\n",
                       compr_sz, uncompr_sz);
@@ -54,6 +39,13 @@ public:
         L4::Cap<L4Re::Dataspace> f =
           L4Re::chkcap(L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>(),
                        "Allocate DS cap for uncompressed memory.");
+
+        // The Linux kernel image is expected to be big so use a superpage
+        // alignment for mapping the extracted image and use contiguous
+        // superpages for the dataspace for storing the extracted image. This
+        // wastes some memory at the dataspace provider and some virtual memory
+        // regions -- but only until the Linux kernel image was loaded into the
+        // guest RAM.
 
         L4Re::chksys(e->mem_alloc()->alloc(uncompr_sz, f,
                                            L4Re::Mem_alloc::Continuous
@@ -68,7 +60,7 @@ public:
                      "Attach DS for uncompressed data.");
 
         z_stream strm = {};
-        strm.next_in  = imager_src.get();
+        strm.next_in  = const_cast<Byte *>(h);
         strm.avail_in = compr_sz;
 
         int err = inflateInit2(&strm, 47);
@@ -85,7 +77,10 @@ public:
                 L4Re::throw_error(-L4_EINVAL);
               }
             else
-              image.reset(new Boot::Binary_ds(f));
+              {
+                imager_dst.reset();
+                image.reset(new Boot::Binary_ds(f));
+              }
           }
         else
           {
