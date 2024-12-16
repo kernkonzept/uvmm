@@ -19,11 +19,13 @@ namespace Acpi {
  *
  * This requires a device tree entry like this.
  *
- *      acpi_platform {
- *        compatible = "virt-acpi";
- *        interrupt-parent = <&PIC>;
- *        interrupts = <9>;
- *      };
+ * \code{.dtb}
+ *   acpi_platform {
+ *       compatible = "virt-acpi";
+ *       interrupt-parent = <&PIC>;
+ *       interrupts = <9>;
+ *   };
+ * \endcode
  *
  * You may configure a different interrupt number for the system control
  * interrupt (SCI), but make sure it does not collide.

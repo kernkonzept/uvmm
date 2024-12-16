@@ -32,29 +32,31 @@ enum
  *
  * A device tree entry needs to look like this:
  *
- * pci0: pci@aa000000 {
- *     compatible = "virt-pci-bridge";
- *     ...
- *     ranges = <0x01000000 0x0 0x00006000 0x0 0x00006000 0x0     0xa000
- *               0x02000000 0x0 0x8a000000 0x0 0x8a000000 0x0 0x20000000
- *               0x03000000 0x2 0x00000000 0x2 0x00000000 0x1 0x00000000>;
- *     ...
- *     virtio_dev_proxy@3 {
- *        compatible = "virtio,pci";
- *        // The reg property requirements are described in virtio_uart. The
- *        // third row holds the virtio config space. The forth row is for the l4
- *        // config space.
- *        reg = <0x00001800 0x0 0x0 0x0 0x0000
- *               0x02001810 0x0 0x0 0x0 0x2000
- *               0x02001814 0x0 0x0 0x0 0x1000
- *               0x02001818 0x0 0x0 0x0 0x1000>;
- *        msi-parent = <&msi_ctrl>;
- *        l4vmm,virtiocap = "viodev";
- *        l4vmm,vdev = "device-proxy";
- *        l4vmm,mempool = <&viodev_mp>;
- *     }
- *     ...
- * }
+ * \code{.dtb}
+ *   pci0: pci@aa000000 {
+ *       compatible = "virt-pci-bridge";
+ *       ...
+ *       ranges = <0x01000000 0x0 0x00006000 0x0 0x00006000 0x0     0xa000
+ *                 0x02000000 0x0 0x8a000000 0x0 0x8a000000 0x0 0x20000000
+ *                 0x03000000 0x2 0x00000000 0x2 0x00000000 0x1 0x00000000>;
+ *       ...
+ *       virtio_dev_proxy@3 {
+ *           compatible = "virtio,pci";
+ *           // The reg property requirements are described in virtio_uart.
+ *           // The third row holds the virtio config space.
+ *           // The forth row is for the l4 config space.
+ *           reg = <0x00001800 0x0 0x0 0x0 0x0000
+ *                  0x02001810 0x0 0x0 0x0 0x2000
+ *                  0x02001814 0x0 0x0 0x0 0x1000
+ *                  0x02001818 0x0 0x0 0x0 0x1000>;
+ *           msi-parent = <&msi_ctrl>;
+ *           l4vmm,virtiocap = "viodev";
+ *           l4vmm,vdev = "device-proxy";
+ *           l4vmm,mempool = <&viodev_mp>;
+ *       };
+ *       ...
+ *   };
+ * \endcode
  *
  * viodev_mp points to the node containing the memory pool for the foreign
  * guest memory. See the virtio mem pool documentation for details.

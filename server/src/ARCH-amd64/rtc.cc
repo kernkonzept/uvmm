@@ -18,12 +18,14 @@
  *
  * Example device tree entry:
  *
- *      rtc {
- *          compatible = "virt-rtc";
- *          reg = <0x0 0x0 0x0 0x0>;
- *          interrupt-parent = <&IOAPIC>;
- *          interrupts = <8>;
- *      };
+ * \code{.dtb}
+ *   rtc {
+ *       compatible = "virt-rtc";
+ *       reg = <0x0 0x0 0x0 0x0>;
+ *       interrupt-parent = <&IOAPIC>;
+ *       interrupts = <8>;
+ *   };
+ * \endcode
  *
  * Optionally this emulation can use wallclock-time from an external source.
  */

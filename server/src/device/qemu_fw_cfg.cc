@@ -41,18 +41,22 @@ namespace {
  * use of this to setup the platform and start the guest OS.
  *
  * To enable it use a device tree entry like this:
- * io:
  *
- *      qemu_fw_cfg {
- *        compatible = "l4vmm,qemu-fw-cfg";
- *        reg = <0x1 0x510 0x0c>;
- *      };
+ * io:
+ * \code{.dtb}
+ *   qemu_fw_cfg {
+ *       compatible = "l4vmm,qemu-fw-cfg";
+ *       reg = <0x1 0x510 0x0c>;
+ *   };
+ * \endcode
  *
  * mmio:
- *      qemu_fw_cfg {
- *        compatible = "qemu,fw-cfg-mmio";
- *        reg = <0x0 0xf10000 0x0 0x10>;
- *      };
+ * \code{.dtb}
+ *   qemu_fw_cfg {
+ *       compatible = "qemu,fw-cfg-mmio";
+ *       reg = <0x0 0xf10000 0x0 0x10>;
+ *   };
+ * \endcode
  *
  * The code here only implements the device serving the fw cfg data. The data
  * provider itself are implemented in separate entities. See

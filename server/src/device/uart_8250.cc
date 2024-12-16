@@ -34,25 +34,31 @@ namespace {
  *
  * On x86, to use this device e.g. under Linux add something like the
  * following to the device tree:
- * uart8250 {
+ *
+ * \code{.dtb}
+ *   uart8250 {
  *       compatible = "ns8250", "uart,8250";
  *       reg = <0x0 0x0 0x0 0x0>;
  *       interrupt-parent = <&PIC>;
  *       interrupts = <4>;
  *       l4vmm,vcon_cap = "uart";
  *   };
+ * \endcode
  *
  * This emulates COM0 (irq = 4, ioports 0x3f8-0x400).
  *
  * On non-x86, e.g., on Arm, use the following in the device tree:
+ *
+ * \code{.dtb}
  *   uart8250@30018000 {
- *     compatible = "ns8250", "uart,8250";
- *     reg = <...>;
- *     clocks = <&sysclk>;
- *     clock-names = "apb_pclk";
- *     interrupts = <0 xxx 4>;
- *     l4vmm,vcon_cap = "uart";
- *   }
+ *       compatible = "ns8250", "uart,8250";
+ *       reg = <...>;
+ *       clocks = <&sysclk>;
+ *       clock-names = "apb_pclk";
+ *       interrupts = <0 xxx 4>;
+ *       l4vmm,vcon_cap = "uart";
+ *   };
+ * \endcode
  *
  * "uart,8250" and "ns16550a" are the compatible string used by this
  * device. "ns8250" is one of the ones given in

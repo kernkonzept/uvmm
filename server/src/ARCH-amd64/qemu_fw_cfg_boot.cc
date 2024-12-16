@@ -22,13 +22,15 @@ namespace {
  * The qemu_fw_cfg node must have l4vmm,kernel, l4vmm,ramdisk and l4vmm,cmdline
  * as additional properties. Their value can be an empty string.
  *
- *      qemu_fw_if {
- *        compatible = "l4vmm,qemu-fw-cfg";
- *        reg = <0x1 0x510 0x0c>;
- *        l4vmm,kernel = "linux";
- *        l4vmm,ramdisk = "ramdisk";
- *        l4vmm,cmdline = "console=TTY0";
- *      };
+ * \code{.dtb}
+ *   qemu_fw_if {
+ *       compatible = "l4vmm,qemu-fw-cfg";
+ *       reg = <0x1 0x510 0x0c>;
+ *       l4vmm,kernel = "linux";
+ *       l4vmm,ramdisk = "ramdisk";
+ *       l4vmm,cmdline = "console=TTY0";
+ *   };
+ * \endcode
  */
 class Qemu_fw_cfg_boot : public Qemu_fw_cfg::Provider
 {

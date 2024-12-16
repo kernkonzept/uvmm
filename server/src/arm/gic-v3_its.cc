@@ -30,12 +30,14 @@ using namespace Gic;
  *
  * A device tree entry needs to look like this:
  *
- *  its: msi-controller@f10c0000 {
- *    #msi-cells = <1>;
- *    compatible = "arm,gic-v3-its";
- *    reg = <0x0 0xf10c0000 0x0 0x20000>; // GITS
- *    msi-controller;
- *  };
+ * \code{.dtb}
+ *   its: msi-controller@f10c0000 {
+ *       #msi-cells = <1>;
+ *       compatible = "arm,gic-v3-its";
+ *       reg = <0x0 0xf10c0000 0x0 0x20000>; // GITS
+ *       msi-controller;
+ *   };
+ * \endcode
  */
 class Its :
   public Msix_controller,

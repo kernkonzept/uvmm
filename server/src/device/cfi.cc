@@ -26,14 +26,16 @@ namespace {
  *
  * Example device tree:
  *
- * flash@ffc00000 {
- *     compatible = "cfi-flash";
- *     reg = <0x0 0xffc00000 0x0 0x84000>;
- *     l4vmm,dscap = "capname";
- *     erase-size = <0x10000>; // must be power of two
- *     bank-width = <4>;
- *     device-width = <2>; // optional, equal to bank-width by default
- * };
+ * \code{.dtb}
+ *   flash@ffc00000 {
+ *       compatible = "cfi-flash";
+ *       reg = <0x0 0xffc00000 0x0 0x84000>;
+ *       l4vmm,dscap = "capname";
+ *       erase-size = <0x10000>; // must be power of two
+ *       bank-width = <4>;
+ *       device-width = <2>; // optional, equal to bank-width by default
+ *   };
+ * \endcode
  *
  * 'bank-width' configures the total bus width of the flash (in bytes).
  * It is typically equal to the 'device-width', unless multiple flash chips

@@ -21,16 +21,18 @@ namespace Vdev {
  *
  * Example device tree:
  *
- * virtio@0 {
- *     compatible = "virtio,pci";
- *     reg = <0x00000800 0x0 0x0 0x0 0x0000
- *            0x02000810 0x0 0x0 0x0 0x2000
- *            0x01000814 0x0 0x0 0x0 0x100>;
- *     msi-parent = <&msi_ctrl>;
- *     l4vmm,vdev = "input-event";
- *     l4vmm,eventcap = "input";
- *     l4vmm,stream-id = <42>; // optional
- * };
+ * \code{.dtb}
+ *   virtio@0 {
+ *       compatible = "virtio,pci";
+ *       reg = <0x00000800 0x0 0x0 0x0 0x0000
+ *              0x02000810 0x0 0x0 0x0 0x2000
+ *              0x01000814 0x0 0x0 0x0 0x100>;
+ *       msi-parent = <&msi_ctrl>;
+ *       l4vmm,vdev = "input-event";
+ *       l4vmm,eventcap = "input";
+ *       l4vmm,stream-id = <42>; // optional
+ *   };
+ * \endcode
  *
  * 'l4vmm,eventcap' must point to the name of the L4Re::Event capability
  * (or L4Re::Console if it is provided by a framebuffer server). Each virtio

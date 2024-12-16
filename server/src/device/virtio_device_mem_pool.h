@@ -30,20 +30,24 @@ namespace Vdev
  *
  * A device tree entry needs to look like this:
  *
- * viodev_mp: viodev_mp@1600000000 {
- *   compatible = "l4vmm,mempool";
- *   reg = <0x16 0x0 0x20 0x0>;
- * };
+ * \code{.dtb}
+ *   viodev_mp: viodev_mp@1600000000 {
+ *       compatible = "l4vmm,mempool";
+ *       reg = <0x16 0x0 0x20 0x0>;
+ *   };
+ * \endcode
  *
  * A virtio device proxy device needs to refer to the pool it wants to use,
  * like this:
  *
- * viodev@80000000 {
- *   compatible = "virtio-dev,mmio";
- *   ...
- *   l4vmm,mempool = <&viodev_mp>;
- *   ...
- * }
+ * \code{.dtb}
+ *   viodev@80000000 {
+ *       compatible = "virtio-dev,mmio";
+ *       ...
+ *       l4vmm,mempool = <&viodev_mp>;
+ *       ...
+ *   }
+ * \endcode
  *
  * Note, the memory pool node has to be defined before any other nodes using
  * it.

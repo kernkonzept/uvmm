@@ -48,15 +48,17 @@ std::forward_list<Event_demux> Event_demux::_events;
  *
  * Example device tree:
  *
- * virtio@ff900000 {
- *     compatible = "virtio,mmio";
- *     reg = <0xff900000 0x200>;
- *     interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>;
- *     dma-coherent;
- *     l4vmm,vdev = "input-event";
- *     l4vmm,eventcap = "input";
- *     l4vmm,stream-id = <42>; // optional
- * };
+ * \code{.dtb}
+ *   virtio@ff900000 {
+ *       compatible = "virtio,mmio";
+ *       reg = <0xff900000 0x200>;
+ *       interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>;
+ *       dma-coherent;
+ *       l4vmm,vdev = "input-event";
+ *       l4vmm,eventcap = "input";
+ *       l4vmm,stream-id = <42>; // optional
+ *   };
+ * \endcode
  *
  * 'l4vmm,eventcap' must point to the name of the L4Re::Event capability
  * (or L4Re::Console if it is provided by a framebuffer server). Each virtio

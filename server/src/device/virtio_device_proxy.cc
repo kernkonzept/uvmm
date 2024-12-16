@@ -20,16 +20,18 @@ namespace Vdev {
  *
  * A device tree entry needs to look like this:
  *
- * viodev@80000000 {
- *   compatible = "virtio-dev,mmio";
- *   // The first row holds the virtio config space. The second row is for the
- *   // l4 config space.
- *   reg = <0x0 0x82000000 0x0 0x1000>,
- *         <0x0 0x82001000 0x0 0x1000>;
- *   interrupts = <0 145 4>;
- *   l4vmm,virtiocap = "viodev0";
- *   l4vmm,mempool = <&viodev_mp>;
- * };
+ * \code{.dtb}
+ *   viodev@80000000 {
+ *       compatible = "virtio-dev,mmio";
+ *       // The first row holds the virtio config space. The second row is for
+ *       // the l4 config space.
+ *       reg = <0x0 0x82000000 0x0 0x1000>,
+ *             <0x0 0x82001000 0x0 0x1000>;
+ *       interrupts = <0 145 4>;
+ *       l4vmm,virtiocap = "viodev0";
+ *       l4vmm,mempool = <&viodev_mp>;
+ *   };
+ * \endcode
  *
  * viodev_mp points to the node containing the memory pool for the foreign
  * guest memory. See the virtio mem pool documentation for details.

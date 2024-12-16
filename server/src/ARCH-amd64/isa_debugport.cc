@@ -13,32 +13,33 @@
  *
  * Example DT:
  *
- *      isa {
- *          device_type = "eisa";
- *          #address-cells = <2>;
- *          #size-cells = <1>;
- *          // The first cell of a child nodes reg property encodes the
- *          // following information. See the ISA bus device-tree binding [2]
- *          // for more details:
- *          //
- *          //  [2] 11-bit aliased (IOPORT only)
- *          //  [1] 10-bit aliased (IOPORT only)
- *          //  [0] 0=MMIO32, 1=IOPORT
- *          //
- *          // The standard ranges property defines the translation of child
- *          // reg address entries into the parent address space. Effectively
- *          // removes the upper word. For the purpose of the ISA translation,
- *          // only bit [0] is considered of the first word.
- *          ranges = <0x0 0x0 0x0 0x0 0xffffffff
- *                    0x1 0x0 0x0 0x0     0x1000>;
+ * \code{.dtb}
+ *   isa {
+ *       device_type = "eisa";
+ *       #address-cells = <2>;
+ *       #size-cells = <1>;
+ *       // The first cell of a child nodes reg property encodes the
+ *       // following information. See the ISA bus device-tree binding [2]
+ *       // for more details:
+ *       //
+ *       //  [2] 11-bit aliased (IOPORT only)
+ *       //  [1] 10-bit aliased (IOPORT only)
+ *       //  [0] 0=MMIO32, 1=IOPORT
+ *       //
+ *       // The standard ranges property defines the translation of child
+ *       // reg address entries into the parent address space. Effectively
+ *       // removes the upper word. For the purpose of the ISA translation,
+ *       // only bit [0] is considered of the first word.
+ *       ranges = <0x0 0x0 0x0 0x0 0xffffffff
+ *                 0x1 0x0 0x0 0x0     0x1000>;
 
- *          isa_debugport {
- *              compatible = "l4vmm,isa-debugport";
- *              reg = <0x1 0x402 0x1>;
- *              l4vmm,vcon_cap = "debug";
- *          };
- *      };
- s
+ *       isa_debugport {
+ *           compatible = "l4vmm,isa-debugport";
+ *           reg = <0x1 0x402 0x1>;
+ *           l4vmm,vcon_cap = "debug";
+ *       };
+ *   };
+ * \endcode
  */
 
 #include "device_factory.h"

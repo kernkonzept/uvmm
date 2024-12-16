@@ -29,11 +29,13 @@ namespace Vdev {
  *
  * A device tree entry needs to look like this:
  *
- *     simplefb {
+ * \code{.dtb}
+ *   simplefb {
  *       compatible = "simple-framebuffer";
  *       reg = <0x0 0xf0000000 0x0 0x1000000>;
  *       l4vmm,fbcap = "fb";
- *     };
+ *   };
+ * \endcode
  *
  * The `l4vmm,fbcap` property is mandatory and needs to point to a capability
  * implementing an L4Re::Util::Video::Goos_fb interface. If there is no

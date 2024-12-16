@@ -23,11 +23,13 @@ using namespace Vdev;
  *
  * A device tree entry needs to look like this:
  *
- *     virq {
+ * \code{.dtb}
+ *   virq {
  *       compatible = "l4vmm,virq-rcv";
  *       l4vmm,virqcap = "irqcap";
  *       interrupts = <0 140 4>;
- *     };
+ *   };
+ * \endcode
  *
  * `l4vmm,virqcap` is mandatory and needs to point to a capability
  * implementing an L4::Irq interface. If there is no capability with
@@ -94,11 +96,13 @@ static Device_type t_rcv = { "l4vmm,virq-rcv", nullptr, &f_rcv };
  *
  * A device tree entry needs to look like this:
  *
- *     virq@0x10000000 {
+ * \code{.dtb}
+ *   virq@0x10000000 {
  *       compatible = "l4vmm,virq-snd";
  *       reg = <0x10000000 0x4>;
  *       l4vmm,virqcap = "irqcap";
- *     };
+ *   };
+ * \endcode
  *
  * `l4vmm,virqcap` is mandatory and needs to point to a capability
  * implementing an L4::Irq interface. If there is no capability with

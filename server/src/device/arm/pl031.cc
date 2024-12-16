@@ -14,21 +14,25 @@
  * Configure this device using the following device tree node adapted to your
  * platform needs.
  *
- *    virt_pl031 {
- *      compatible = "arm,pl031", "arm,primecell";
- *      reg = <0x13000 0x1000>;
- *      interrupts = <0x00 0x02 0x04>;
- *      clocks = <&apb_dummy_pclk>;
- *      clock-names = "apb_pclk";
- *    };
+ * \code{.dtb}
+ *   virt_pl031 {
+ *       compatible = "arm,pl031", "arm,primecell";
+ *       reg = <0x13000 0x1000>;
+ *       interrupts = <0x00 0x02 0x04>;
+ *       clocks = <&apb_dummy_pclk>;
+ *       clock-names = "apb_pclk";
+ *   };
+ * \endcode
 
  * Linux also wants to have an entry for clocks like this:
  *
- * apb_dummy_pclk: dummy_clk {
- *     compatible = "fixed-clock";
- *     #clock-cells = <0>;
- *     clock-frequency = <1000000>;
- * };
+ * \code{.dtb}
+ *   apb_dummy_pclk: dummy_clk {
+ *       compatible = "fixed-clock";
+ *       #clock-cells = <0>;
+ *       clock-frequency = <1000000>;
+ *   };
+ * \endcode
  *
  */
 #include "debug.h"

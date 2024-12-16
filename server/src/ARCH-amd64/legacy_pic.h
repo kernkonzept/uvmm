@@ -21,13 +21,15 @@ namespace Vdev {
  *
  * Example of a device tree entry:
  *
+ * \code{.dtb}
  *   PIC: pic {
- *     compatible = "virt-pic";
- *     reg = <0x0 0x0 0x0 0x0>;
- *     msi-parent = <&msi_ctrl>;
- *     interrupt-controller;
- *     #interrupt-cells = <1>;
+ *       compatible = "virt-pic";
+ *       reg = <0x0 0x0 0x0 0x0>;
+ *       msi-parent = <&msi_ctrl>;
+ *       interrupt-controller;
+ *       #interrupt-cells = <1>;
  *   };
+ * \endcode
  *
  * The PIC emulation provides the guest with the ability to assign the legacy
  * interrupts of the master and slave PIC to a software defined range of two

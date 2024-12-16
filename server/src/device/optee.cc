@@ -29,15 +29,17 @@ Dbg trace(Dbg::Dev, Dbg::Warn, "optee");
  *
  * A device tree entry needs to look like this:
  *
- *     firmware {
+ * \code{.dtb}
+ *   firmware {
  *       optee {
- *         compatible = "linaro,optee-tz";
- *         method = "smc";
- *         l4vmm,cap = "smccc";
- *         l4vmm,dscap = "vbus";
- *         interrupts = <0 140 4>;
+ *           compatible = "linaro,optee-tz";
+ *           method = "smc";
+ *           l4vmm,cap = "smccc";
+ *           l4vmm,dscap = "vbus";
+ *           interrupts = <0 140 4>;
  *       };
- *     };
+ *   };
+ * \endcode
  *
  * `l4vmm,cap` is mandatory and needs to point to a capability providing
  * an L4::Arm_smccc interface. If there is no capability with the given name

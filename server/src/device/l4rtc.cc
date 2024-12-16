@@ -12,10 +12,12 @@
  *
  * Example device tree entry:
  *
- *      external_rtc {
- *          compatible = "l4rtc";
- *          l4vmm,rtccap = "rtc";
- *      };
+ * \code{.dtb}
+ *   external_rtc {
+ *       compatible = "l4rtc";
+ *       l4vmm,rtccap = "rtc";
+ *   };
+ * \endcode
  *
  * A capability with the name "rtc" needs to point to the rtc server. In the
  * event of the guest programming the rtc, the device model will also try to

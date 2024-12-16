@@ -16,11 +16,13 @@ namespace {
  *
  * A device tree entry needs to look like this:
  *
- *    rom@ffc84000 {
- *      compatible = "l4vmm,rom";
- *      reg = <0x0 0xffc84000 0x0 0x37c000>;
- *      l4vmm,dscap = "bios";
- *    };
+ * \code{.dtb}
+ *   rom@ffc84000 {
+ *       compatible = "l4vmm,rom";
+ *       reg = <0x0 0xffc84000 0x0 0x37c000>;
+ *       l4vmm,dscap = "bios";
+ *   };
+ * \endcode
  *
  * l4vmm,dscap is mandatory and points to the dataspace cap to use.
  */

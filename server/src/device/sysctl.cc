@@ -24,32 +24,34 @@ using namespace Vdev;
  * This device can be used with the generic syscon device from
  * Linux as follows:
  *
- *     vmm-syscon {
- *        #address-cells = <1>;
- *        #size-cells = <1>;
- *        compatible = "simple-bus";
- *        ranges = <0x0 0x30030000 0x4>;
+ * \code{.dtb}
+ *   vmm-syscon {
+ *       #address-cells = <1>;
+ *       #size-cells = <1>;
+ *       compatible = "simple-bus";
+ *       ranges = <0x0 0x30030000 0x4>;
  *
- *        l4syscon: syscon {
- *                compatible = "syscon", "syscon-l4vmm";
- *                reg = <0x0 0x4>;
- *                little-endian;
- *        };
+ *       l4syscon: syscon {
+ *           compatible = "syscon", "syscon-l4vmm";
+ *           reg = <0x0 0x4>;
+ *           little-endian;
+ *       };
  *
- *        reboot {
- *                compatible = "syscon-reboot";
- *                regmap = <&l4syscon>;
- *                offset = <0x0>;
- *                mask = <0x66>;
- *        };
+ *       reboot {
+ *           compatible = "syscon-reboot";
+ *           regmap = <&l4syscon>;
+ *           offset = <0x0>;
+ *           mask = <0x66>;
+ *       };
  *
- *        poweroff {
- *                compatible = "syscon-poweroff";
- *                regmap = <&l4syscon>;
- *                offset = <0x0>;
- *                mask = <0x0>;
- *        };
- *    };
+ *       poweroff {
+ *           compatible = "syscon-poweroff";
+ *           regmap = <&l4syscon>;
+ *           offset = <0x0>;
+ *           mask = <0x0>;
+ *       };
+ *   };
+ * \endcode
  *
  * The `l4syscon` entry defines this system controller device itself
  * and the additional entries the exact return code with which to exit

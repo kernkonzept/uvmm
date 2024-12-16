@@ -30,20 +30,22 @@ namespace {
  *
  * To use this device e.g. under Linux add something like the following to the
  * device tree:
+ * \code{.dtb}
  *   uart0: pl011_uart@30018000 {
- *    compatible = "arm,primecell", "arm,pl011";
- *    reg = <... 0x1000>;
- *    interrupts = <0 ... 4>;
- *    clocks = <&apb_dummy_pclk>;
- *    clock-names = "apb_pclk";
- *    l4vmm,vcon_cap = "log";
+ *       compatible = "arm,primecell", "arm,pl011";
+ *       reg = <... 0x1000>;
+ *       interrupts = <0 ... 4>;
+ *       clocks = <&apb_dummy_pclk>;
+ *       clock-names = "apb_pclk";
+ *       l4vmm,vcon_cap = "log";
  *   };
  *
- *  apb_dummy_pclk: dummy_clk {
- *   compatible = "fixed-clock";
- *   #clock-cells = <0>;
- *   clock-frequency = <1000000>;
- *  };
+ *   apb_dummy_pclk: dummy_clk {
+ *       compatible = "fixed-clock";
+ *       #clock-cells = <0>;
+ *       clock-frequency = <1000000>;
+ *   };
+ * \endcode
  *
  * "arm,pl011" is the compatible string used by this device. "arm,primecell" is
  * one of those in linux/Documentation/devicetree/bindings/serial/pl011.yaml.
@@ -66,12 +68,14 @@ namespace {
  * For earlycon (at least with arm64), add the following to the device tree
  * (typically in the very beginning of the device tree):
  *
+ * \code{.dtb}
  *   chosen {
- *     stdout-path = "serial0";
+ *       stdout-path = "serial0";
  *   };
  *   aliases {
  *     serial0 = &uart0;
  *   };
+ * \endcode
  *
  * And add "earlycon" to your Linux command line.
  */
