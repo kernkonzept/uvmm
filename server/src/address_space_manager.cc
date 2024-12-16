@@ -56,6 +56,10 @@ void Address_space_manager::add_ram_iommu(Guest_addr vm_start, l4_addr_t src_sta
 void Address_space_manager::detect_sys_info(Virt_bus *vbus,
                                             bool force_identity_mode)
 {
+#ifndef CONFIG_MMU
+  info().printf("No-MMU platform. Forcing identity mapping mode.\n");
+  force_identity_mode = true;
+#endif
   _info.force_identity() = force_identity_mode;
   if (force_identity_mode)
     {
