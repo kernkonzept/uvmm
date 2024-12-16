@@ -175,7 +175,7 @@ public:
   static void alloc_main_vcpu()
   {
     if (*_main_vcpu)
-      L4Re::throw_error(-L4_EEXIST, "cannot allocate mutiple main CPUs");
+      L4Re::throw_error(-L4_EEXIST, "cannot allocate multiple main CPUs");
 
     _main_vcpu = alloc_vcpu(0);
     _main_vcpu.thread_attach();
