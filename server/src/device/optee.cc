@@ -91,7 +91,7 @@ public:
 
   int map_optee_memory(Vmm::Guest *vmm, L4::Cap<L4Re::Dataspace> iods)
   {
-    l4_umword_t p[4];
+    l4_umword_t p[4] = {};
 
     // check for OP-TEE OS
     long ret = fast_call(Smc_call_trusted_os_uid, p);
