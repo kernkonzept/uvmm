@@ -1,0 +1,165 @@
+/*
+ * Example device tree for a virtual machine on Arm SBSA compliant systems. It
+ * provides MSIs and PCI hardware pass-though capabilities.
+ */
+
+/dts-v1/;
+/include/ "skeleton64.dtsi"
+/include/ "vmm-devices-arm.dtsi"
+
+#define CPU(x, r) cpu##x: cpu@x {                \
+                    device_type = "cpu";         \
+                    compatible = "arm,armv8";    \
+                    reg = <r>;                   \
+                    enable-method = "psci";      \
+                  }
+
+/ {
+    model = "L4 VM";
+    compatible = "l4,virt", "linux,dummy-virt";
+
+    interrupt-parent = <&gic>;
+
+    memory@0 {
+        device_type = "memory";
+        // Ram starts at 4GiB to make room for virtual devices. Currently, io
+        // will map the ITS somewhere after 0xf0000000 so there should be no
+        // RAM at this location. Size will be updated by uvmm based on ds size.
+        reg = <0x1 0x00000000 0 0x0>;
+        l4vmm,dscap = "ram";
+    };
+
+    icsoc {
+        compatible = "simple-bus";
+        #address-cells = <2>;
+        #size-cells = <2>;
+        ranges;
+
+        /* Dist/Redist interface for gicv3 (0x10000, 0x20000 * number of CPUs).
+         * The entries provided here support up to 32 CPUs.
+         */
+        gic: interrupt-controller {
+            compatible = "arm,gic-v3";
+            #interrupt-cells = <3>;
+            #address-cells = <2>;
+            #size-cells = <2>;
+            ranges;
+            interrupt-controller;
+            reg = <0 0x40000 0 0x10000>,  // GICD
+                  <0 0x50000 0 0x400000>; // GICR
+            };
+
+            its: msi-controller@500000 {
+                #msi-cells = <1>;
+                compatible = "arm,gic-v3-its";
+                reg = <0x0 0x500000 0x0 0x20000>; // GITS
+                msi-controller;
+            };
+    };
+
+    timer {
+      compatible = "arm,armv8-timer";
+      interrupts = <1 13 0xf08>,
+                   <1 14 0xf08>,
+                   <1 11 0xf08>,
+                   <1 10 0xf08>;
+      always-on;
+    };
+
+    cpus {
+      #address-cells = <1>;
+      #size-cells = <0>;
+
+      // Beware: the Aff0 field must be in the [0..15] range!
+      CPU( 0, 0x0000);
+      CPU( 1, 0x0001);
+      CPU( 2, 0x0002);
+      CPU( 3, 0x0003);
+      CPU( 4, 0x0004);
+      CPU( 5, 0x0005);
+      CPU( 6, 0x0006);
+      CPU( 7, 0x0007);
+      CPU( 8, 0x0008);
+      CPU( 9, 0x0009);
+      CPU(10, 0x000a);
+      CPU(11, 0x000b);
+      CPU(12, 0x000c);
+      CPU(13, 0x000d);
+      CPU(14, 0x000e);
+      CPU(15, 0x000f);
+      CPU(16, 0x0100);
+      CPU(17, 0x0101);
+      CPU(18, 0x0102);
+      CPU(19, 0x0103);
+      CPU(20, 0x0104);
+      CPU(21, 0x0105);
+      CPU(22, 0x0106);
+      CPU(23, 0x0107);
+      CPU(24, 0x0108);
+      CPU(25, 0x0109);
+      CPU(26, 0x010a);
+      CPU(27, 0x010b);
+      CPU(28, 0x010c);
+      CPU(29, 0x010d);
+      CPU(30, 0x010e);
+      CPU(31, 0x010f);
+    };
+
+    pcie@10000000 {
+      // Interrupt map for any number of devices. Legacy interrupts are
+      // interwoven based on the two device number LSBs. Uvmm supports only
+      // one bus...
+      interrupt-map-mask = <0x1800 0x00 0x00 0x07>;
+
+      //               Interrupt cell (SPI / line / LEVEL triggered) -+
+      //               GIC #address-cells (ignored) --+               |
+      //               GIC phandle -----------+       |               |
+      //               PCI interrupt pin -+   |       |               |
+      //                                  |   |       |               |
+      //               PCI address        |   |       |               |
+      //               ---------------- --+- -+-- ----+---- ----------+---
+      interrupt-map = <
+                       0x0000 0x00 0x00 0x01 &gic 0x00 0x00 0x00 0x83 0x04
+                       0x0000 0x00 0x00 0x02 &gic 0x00 0x00 0x00 0x84 0x04
+                       0x0000 0x00 0x00 0x03 &gic 0x00 0x00 0x00 0x85 0x04
+                       0x0000 0x00 0x00 0x04 &gic 0x00 0x00 0x00 0x86 0x04
+                       0x0800 0x00 0x00 0x01 &gic 0x00 0x00 0x00 0x84 0x04
+                       0x0800 0x00 0x00 0x02 &gic 0x00 0x00 0x00 0x85 0x04
+                       0x0800 0x00 0x00 0x03 &gic 0x00 0x00 0x00 0x86 0x04
+                       0x0800 0x00 0x00 0x04 &gic 0x00 0x00 0x00 0x83 0x04
+                       0x1000 0x00 0x00 0x01 &gic 0x00 0x00 0x00 0x85 0x04
+                       0x1000 0x00 0x00 0x02 &gic 0x00 0x00 0x00 0x86 0x04
+                       0x1000 0x00 0x00 0x03 &gic 0x00 0x00 0x00 0x83 0x04
+                       0x1000 0x00 0x00 0x04 &gic 0x00 0x00 0x00 0x84 0x04
+                       0x1800 0x00 0x00 0x01 &gic 0x00 0x00 0x00 0x86 0x04
+                       0x1800 0x00 0x00 0x02 &gic 0x00 0x00 0x00 0x83 0x04
+                       0x1800 0x00 0x00 0x03 &gic 0x00 0x00 0x00 0x84 0x04
+                       0x1800 0x00 0x00 0x04 &gic 0x00 0x00 0x00 0x85 0x04
+                      >;
+      #interrupt-cells = <0x01>;
+
+      // The bridge windows (IO, MEM32, MEM64). We still have to officially map
+      // x86 ports because real hardware provides such BARs even though they
+      // won't be used on Arm.
+      ranges = <0x01000000 0x00 0x00000000 0x00 0x00000000 0x00    0x10000
+                0x02000000 0x00 0x40000000 0x00 0x40000000 0x00 0x30000000
+                0x43000000 0xc0 0x00000000 0xc0 0x00000000 0x10 0x00000000>;
+      reg = <0x0 0x10000000 0x00 0x10000000>;
+      msi-map = <0 &its 0 0x10000>;
+      dma-coherent;
+      bus-range = <0x00 0xff>;
+      #address-cells = <0x03>;
+      #size-cells = <0x02>;
+      device_type = "pci";
+      compatible = "pci-host-ecam-generic";
+    };
+
+    l4vmm {
+        ranges = <0x0 0x0 0x10000 0x21000>;
+    };
+
+    psci {
+        compatible = "arm,psci-1.0";
+        method = "hvc";
+    };
+};
