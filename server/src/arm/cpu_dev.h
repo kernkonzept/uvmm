@@ -201,7 +201,7 @@ public:
     return ((hwid ^ _dt_affinity) & mask) == 0;
   }
 
-  l4_uint32_t affinity() const
+  l4_umword_t affinity() const
   { return _dt_affinity; }
 
 private:
