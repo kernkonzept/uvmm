@@ -160,7 +160,7 @@ public:
   /// create a GICv2 instance
   Dist_v2(unsigned tnlines) : Dist(tnlines, 8) {}
 
-  void setup_cpu(Vmm::Vcpu_ptr vcpu) override
+  void setup_cpu(Vmm::Vcpu_ptr vcpu, l4_umword_t) override
   {
     auto *c = Dist::add_cpu(vcpu);
     if (!c)

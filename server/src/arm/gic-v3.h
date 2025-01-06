@@ -255,7 +255,7 @@ public:
 
   explicit Dist_v3(unsigned tnlines);
 
-  void setup_cpu(Vmm::Vcpu_ptr vcpu) override;
+  void setup_cpu(Vmm::Vcpu_ptr vcpu, l4_umword_t mpidr) override;
 
   unsigned num_lpi_bits() const
   {

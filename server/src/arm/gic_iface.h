@@ -66,7 +66,7 @@ public:
   setup_gic(Vdev::Device_lookup *devs, Vdev::Dt_node const &node) = 0;
 
   /// Setup the CPU interface for the given `vcpu`.
-  virtual void setup_cpu(Vmm::Vcpu_ptr vcpu) = 0;
+  virtual void setup_cpu(Vmm::Vcpu_ptr vcpu, l4_umword_t mpidr) = 0;
 
   /**
    * Signal that CPU came online and is ready to receive IRQs.

@@ -367,7 +367,7 @@ Guest::run(cxx::Ref_ptr<Cpu_dev_array> cpus)
       info().printf("Powered up cpu%d [%p]\n", vcpu.get_vcpu_id(),
                     cpu.get());
 
-      _gic->setup_cpu(vcpu);
+      _gic->setup_cpu(vcpu, cpu->affinity());
       if (_timer)
         _timer->add_cpu(vcpu);
 

@@ -294,7 +294,7 @@ Dist_v3::Dist_v3(unsigned tnlines)
 }
 
 void
-Dist_v3::setup_cpu(Vmm::Vcpu_ptr vcpu)
+Dist_v3::setup_cpu(Vmm::Vcpu_ptr vcpu, l4_umword_t mpidr)
 {
   auto *c = Dist::add_cpu(vcpu);
   if (!c)
@@ -304,6 +304,13 @@ Dist_v3::setup_cpu(Vmm::Vcpu_ptr vcpu)
     {
       Err().printf("GICR mmio is too small for %u+ cpus: 0x%llx.\n",
                    _cpu.size(), _redist_size);
+      L4Re::throw_error(-L4_EINVAL, "Setup GICv3 redistributor");
+    }
+
+  if ((mpidr & 0xffU) > 0x0f)
+    {
+      Err().printf("MPIDR.Aff0 value out of range [0-15]: (%lu)."
+                   " Not addressable by GIC SGIs!.\n", mpidr & 0xffU);
       L4Re::throw_error(-L4_EINVAL, "Setup GICv3 redistributor");
     }
 
