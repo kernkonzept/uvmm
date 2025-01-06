@@ -572,15 +572,25 @@ static void guest_mcrr_access_cp(Vcpu_ptr vcpu)
     }
   catch (...)
     {
-      printf("%08lx: %s p%u, %d, r%d, c%d, c%d, %d (hsr=%08lx)\n",
-             vcpu->r.ip, hsr.mcr_read() ? "MRC" : "MCR", CP,
-             static_cast<unsigned>(hsr.mcr_opc1()),
-             static_cast<unsigned>(hsr.mcr_rt()),
-             static_cast<unsigned>(hsr.mcr_crn()),
-             static_cast<unsigned>(hsr.mcr_crm()),
-             static_cast<unsigned>(hsr.mcr_opc2()),
-             static_cast<l4_umword_t>(hsr.raw()));
-      vcpu.jump_instruction();
+      Err().printf("%08lx: %s p%u, %d, r%d, c%d, c%d, %d (hsr=%08lx)\n",
+                   vcpu->r.ip, hsr.mcr_read() ? "MRC" : "MCR", CP,
+                   static_cast<unsigned>(hsr.mcr_opc1()),
+                   static_cast<unsigned>(hsr.mcr_rt()),
+                   static_cast<unsigned>(hsr.mcr_crn()),
+                   static_cast<unsigned>(hsr.mcr_crm()),
+                   static_cast<unsigned>(hsr.mcr_opc2()),
+                   static_cast<l4_umword_t>(hsr.raw()));
+
+      if (!guest->inject_undef(vcpu))
+        {
+          if (hsr.mcr_read())
+            {
+              vcpu.set_gpr(hsr.mcr_rt(), 0);
+              vcpu.set_gpr(hsr.mcrr_rt2(), 0);
+            }
+
+          vcpu.jump_instruction();
+        }
     }
 }
 template<unsigned CP>
@@ -607,15 +617,31 @@ static void guest_mcr_access_cp(Vcpu_ptr vcpu)
     }
   catch (...)
     {
-      printf("%08lx: %s p%u, %d, r%d, c%d, c%d, %d (hsr=%08lx)\n",
-             vcpu->r.ip, hsr.mcr_read() ? "MRC" : "MCR", CP,
-             static_cast<unsigned>(hsr.mcr_opc1()),
-             static_cast<unsigned>(hsr.mcr_rt()),
-             static_cast<unsigned>(hsr.mcr_crn()),
-             static_cast<unsigned>(hsr.mcr_crm()),
-             static_cast<unsigned>(hsr.mcr_opc2()),
-             static_cast<l4_umword_t>(hsr.raw()));
-      vcpu.jump_instruction();
+      // The ID register range is RAZ. See the "AArch32 System Register
+      // Encoding" chapter in the Arm Architecture Reference Manual.
+      if (hsr.mcr_read() && hsr.mcr_crn() == 0 && hsr.mcr_opc1() == 0)
+        {
+          vcpu.set_gpr(hsr.mcr_rt(), 0);
+          vcpu.jump_instruction();
+        }
+      else
+        {
+          Err().printf("%08lx: %s p%u, %d, r%d, c%d, c%d, %d (hsr=%08lx)\n",
+                       vcpu->r.ip, hsr.mcr_read() ? "MRC" : "MCR", CP,
+                       static_cast<unsigned>(hsr.mcr_opc1()),
+                       static_cast<unsigned>(hsr.mcr_rt()),
+                       static_cast<unsigned>(hsr.mcr_crn()),
+                       static_cast<unsigned>(hsr.mcr_crm()),
+                       static_cast<unsigned>(hsr.mcr_opc2()),
+                       static_cast<l4_umword_t>(hsr.raw()));
+
+          if (!guest->inject_undef(vcpu))
+            {
+              if (hsr.mcr_read())
+                vcpu.set_gpr(hsr.mcr_rt(), 0);
+              vcpu.jump_instruction();
+            }
+        }
     }
 }
 
@@ -644,26 +670,49 @@ static void guest_msr_access(Vcpu_ptr vcpu)
   catch (...)
     {
       if (hsr.msr_read())
-        printf("%08lx: mrs r%u, S%u_%u_C%u_C%u_%u (hsr=%08lx)\n",
-               vcpu->r.ip, static_cast<unsigned>(hsr.msr_rt()),
-               static_cast<unsigned>(hsr.msr_op0()),
-               static_cast<unsigned>(hsr.msr_op1()),
-               static_cast<unsigned>(hsr.msr_crn()),
-               static_cast<unsigned>(hsr.msr_crm()),
-               static_cast<unsigned>(hsr.msr_op2()),
-               static_cast<l4_umword_t>(hsr.raw()));
+        {
+          // The ID register range is RAZ. See the "AArch64 System Register
+          // Encoding" chapter in the Arm Architecture Reference Manual.
+          // Interestingly, ARM DDI 0487K.a _excludes_ CRm == 1 but there are
+          // obviously AArch32 ID registers in this range.
+          if (hsr.msr_op0() == 3 && hsr.msr_op1() == 0 && hsr.msr_crn() == 0
+              && hsr.msr_crm() >= 1 && hsr.msr_crm() <= 7)
+            {
+              vcpu.set_gpr(hsr.msr_rt(), 0);
+              vcpu.jump_instruction();
+            }
+          else
+            {
+              Err().printf("%08lx: mrs r%u, S%u_%u_C%u_C%u_%u (hsr=%08lx)\n",
+                           vcpu->r.ip, static_cast<unsigned>(hsr.msr_rt()),
+                           static_cast<unsigned>(hsr.msr_op0()),
+                           static_cast<unsigned>(hsr.msr_op1()),
+                           static_cast<unsigned>(hsr.msr_crn()),
+                           static_cast<unsigned>(hsr.msr_crm()),
+                           static_cast<unsigned>(hsr.msr_op2()),
+                           static_cast<l4_umword_t>(hsr.raw()));
+              if (!guest->inject_undef(vcpu))
+                {
+                  vcpu.set_gpr(hsr.msr_rt(), 0);
+                  vcpu.jump_instruction();
+                }
+            }
+        }
       else
-        printf("%08lx: msr S%u_%u_C%u_C%u_%u = %08lx (hsr=%08lx)\n",
-               vcpu->r.ip,
-               static_cast<unsigned>(hsr.msr_op0()),
-               static_cast<unsigned>(hsr.msr_op1()),
-               static_cast<unsigned>(hsr.msr_crn()),
-               static_cast<unsigned>(hsr.msr_crm()),
-               static_cast<unsigned>(hsr.msr_op2()),
-               vcpu.get_gpr(hsr.msr_rt()),
-               static_cast<l4_umword_t>(hsr.raw()));
+        {
+          Err().printf("%08lx: msr S%u_%u_C%u_C%u_%u = %08lx (hsr=%08lx)\n",
+                       vcpu->r.ip,
+                       static_cast<unsigned>(hsr.msr_op0()),
+                       static_cast<unsigned>(hsr.msr_op1()),
+                       static_cast<unsigned>(hsr.msr_crn()),
+                       static_cast<unsigned>(hsr.msr_crm()),
+                       static_cast<unsigned>(hsr.msr_op2()),
+                       vcpu.get_gpr(hsr.msr_rt()),
+                       static_cast<l4_umword_t>(hsr.raw()));
 
-      vcpu.jump_instruction();
+          if (!guest->inject_undef(vcpu))
+            vcpu.jump_instruction();
+        }
     }
 }
 
