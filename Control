@@ -1,4 +1,4 @@
 requires: stdlibs libstdc++ libpthread libio-vbus libfdt l4virtio libloader
 optional: readline acpica zlib rtc libmbox-bcm2835
-variants: nofpu
+variants: nofpu[server/src]
 maintainer: alexander.warg@kernkonzept.com adam@l4re.org
