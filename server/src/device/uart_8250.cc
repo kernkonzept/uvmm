@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 Kernkonzept GmbH.
+ * Copyright (C) 2017-2024 Kernkonzept GmbH.
  * Author(s): Phillip Raffeck <phillip.raffeck@kernkonzept.com>
  *            Steffen Liebergeld <steffen.liebergeld@kernkonzept.com>
  *            Philipp Eppelt <philipp.eppelt@kernkonzept.com>

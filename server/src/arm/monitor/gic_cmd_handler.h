@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2020 Kernkonzept GmbH.
+ * Copyright (C) 2019-2020, 2023-2024 Kernkonzept GmbH.
  * Author(s): Jean Wolter <jean.wolter@kernkonzept.com>
  *            Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *            Timo Nicolai <timo.nicolai@kernkonzept.com>

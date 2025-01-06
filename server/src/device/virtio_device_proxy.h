@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020, 2022-2024 Kernkonzept GmbH.
+ * Copyright (C) 2017-2020, 2022-2024, 2023-2024 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *            Christian Pötzsch <christian.poetzsch@kernkonzept.com>
  *

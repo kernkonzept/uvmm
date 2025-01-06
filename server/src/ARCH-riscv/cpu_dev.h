@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2024 Kernkonzept GmbH.
+ * Copyright (C) 2020-2024, 2023-2024 Kernkonzept GmbH.
  * Author(s): Georg Kotheimer <georg.kotheimer@kernkonzept.com>
  *            Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *            Alexander Warg <alexander.warg@kernkonzept.com>

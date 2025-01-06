@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017, 2019, 2021-2022 Kernkonzept GmbH.
+ * Copyright (C) 2017, 2019, 2021-2024 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *            Benjamin Lamowski <benjamin.lamowski@kernkonzept.com>
  *

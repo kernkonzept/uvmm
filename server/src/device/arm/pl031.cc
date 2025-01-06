@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2022,2024 Kernkonzept GmbH.
+ * Copyright (C) 2021-2022,2024, 2023-2024 Kernkonzept GmbH.
  * Author(s): Steffen Liebergeld <steffen.liebergeld@kernkonzept.com>
  *            Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *

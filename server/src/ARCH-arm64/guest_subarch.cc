@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Kernkonzept GmbH.
+ * Copyright (C) 2022-2024 Kernkonzept GmbH.
  * Author(s): Christian Pötzsch <christian.poetzsch@kernkonzept.com>
  *
  * License: see LICENSE.spdx (in this directory or the directories above)

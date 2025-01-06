@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Kernkonzept GmbH.
+ * Copyright (C) 2022-2024 Kernkonzept GmbH.
  * Author(s): Jan Klötzke <jan.kloetzke@kernkonzept.com>
  *            Steffen Liebergeld <steffen.liebergeld@kernkonzept.com>
  *

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2022 Kernkonzept GmbH.
+ * Copyright (C) 2018-2024 Kernkonzept GmbH.
  * Author(s): Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *            Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *            Benjamin Lamowski <benjamin.lamowski@kernkonzept.com>

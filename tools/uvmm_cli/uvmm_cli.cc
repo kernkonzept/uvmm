@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2020 Kernkonzept GmbH.
+ * Copyright (C) 2019-2020, 2023-2024 Kernkonzept GmbH.
  * Author(s): Adam Lackorzynski <adam@l4re.org>
  *            Timo Nicolai <timo.nicolai@kernkonzept.com>
  *

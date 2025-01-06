@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2019 Kernkonzept GmbH.
+ * Copyright (C) 2016-2019, 2024 Kernkonzept GmbH.
  * Author(s): Alexander Warg <alexander.warg@kernkonzept.com>
  *            Sarah Hoffmann <sarah.hoffmann@kernkonzept.com>
  *

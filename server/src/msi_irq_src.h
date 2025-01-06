@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 Kernkonzept GmbH.
+ * Copyright (C) 2019-2024 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *            Jan Klötzke <jan.kloetzke@kernkonzept.com>
  *

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2020 Kernkonzept GmbH.
+ * Copyright (C) 2019-2020, 2023-2024 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt <philipp.eppelt@kernkonzept.com>
  *
  * License: see LICENSE.spdx (in this directory or the directories above)

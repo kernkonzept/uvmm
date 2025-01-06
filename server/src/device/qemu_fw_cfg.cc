@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2022 Kernkonzept GmbH.
+ * Copyright (C) 2020-2024 Kernkonzept GmbH.
  * Author(s): Steffen Liebergeld <steffen.liebergeld@kernkonzept.com>
  *            Jan Klötzke <jan.kloetzke@kernkonzept.com>
  *            Christian Pötzsch <christian.poetzsch@kernkonzept.com>
