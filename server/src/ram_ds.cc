@@ -111,8 +111,8 @@ Ram_ds::load_file(L4::Cap<L4Re::Dataspace> const &file,
     L4Re::chksys(r, "Copy file into guest RAM.");
   else
     {
-      // Failure was due to different dataspace sources. Therefor the dataspace
-      // manager cannot copy directly and we to do the copy ourselves.
+      // Failure was due to different dataspace sources. Therefore the dataspace
+      // manager cannot copy directly and we have to do the copy ourselves.
       const L4Re::Env *e = L4Re::Env::env();
       char *src = 0;
       L4Re::chksys(e->rm()->attach(&src, sz,
