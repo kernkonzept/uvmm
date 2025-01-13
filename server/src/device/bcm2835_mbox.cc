@@ -12,7 +12,7 @@
 
 #include <l4/cxx/list_alloc>
 #include <l4/drivers/hw_mmio_register_block>
-#include <l4/mbox/mbox.h>
+#include <l4/mbox-bcm2835/mbox.h>
 #include <l4/re/mmio_space>
 #include <l4/sys/cxx/consts>
 #include <l4/vbus/vbus>
