@@ -189,22 +189,9 @@ struct F : Vdev::Factory
       }
 
     auto gfb = cxx::make_unique<L4Re::Util::Video::Goos_fb>();
-    try
+    if (auto err = gfb->init(cap_name))
       {
-        gfb->setup(cap_name);
-      }
-    catch (L4::Runtime_error const &e)
-      {
-        char const *msg = e.extra_str();
-        if (msg)
-          warn.printf("fbdrv setup failed: %s: %s\n", e.str(), msg);
-        else
-          warn.printf("fbdrv setup failed: %s\n", e.str());
-        return 0;
-      }
-    catch (...)
-      {
-        warn.printf("fbdrv setup failed with unknown exception\n");
+        warn.printf("fbdrv initialization failed: %s\n", l4sys_errtostr(err));
         return 0;
       }
 
