@@ -190,7 +190,7 @@ private:
 
     enum
     {
-      // Some indices are valid in xcr0, some is xss.
+      // Some indices are valid in xcr0, some in xss.
       x87 = 0,      // XCR0
       sse,          // XCR0
       avx,          // XCR0
