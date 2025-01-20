@@ -12,6 +12,7 @@
 #include <l4/vbus/vbus>
 #include <l4/vbus/vbus_pci>
 #include <l4/vbus/vbus_interfaces.h>
+#include <atomic>
 
 #include "virt_bus.h"
 #include "irq_svr.h"
@@ -25,6 +26,188 @@
 #include "pci_bridge_windows.h"
 
 namespace Vdev { namespace Pci {
+
+/**
+ * PCI legacy interrupt to guest IRQ forwarder.
+ *
+ * Forwards L4Re interrupts to an Vmm::Irq_sink. We cannot just forward vbus
+ * interrupts directly to guest interrupts via Vdev::Irq_svr because:
+ *
+ *   - There might be multiple devices sharing the same IRQ on the vbus vicu.
+ *     We can only bind once to the vicu interrupt.
+ *   - There might be multiple devices that are mapped to the same guest IRQ
+ *     by the interrupt-map. These devices do not necessarily share the same
+ *     IRQ on the vicu!
+ *
+ * Effectively this amounts to an n:m mapping. When acknowledging interrupts we
+ * can rely on the fact that all are level triggered. If interrupt sources are
+ * acknowledged incorrectly, they will re-trigger immediately.
+ */
+class Legacy_irq_router
+{
+  class Guest_pci_irq;
+
+  class Host_pci_irq : public L4::Irqep_t<Host_pci_irq>
+  {
+    std::vector<Guest_pci_irq *> _sinks;
+    L4::Cap<L4::Irq_eoi> _eoi;
+    unsigned _irq;
+    l4_uint32_t _source_mask;
+    std::atomic<bool> _triggered = false;
+
+  public:
+    Host_pci_irq(L4Re::Util::Object_registry *registry, L4::Cap<L4::Icu> icu,
+                 unsigned host_irq, unsigned index)
+    : _irq(host_irq), _source_mask(1U << (index & 31U))
+    {
+      L4Re::chkcap(registry->register_irq_obj(this), "Cannot register IRQ");
+
+      int ret = L4Re::chksys(icu->bind(host_irq, obj_cap()),
+                             "Cannot bind to IRQ");
+      switch (ret)
+        {
+        case 0:
+          Dbg(Dbg::Dev, Dbg::Info, "irq_svr")
+            .printf("Irq 0x%x will be unmasked directly\n", host_irq);
+          _eoi = obj_cap();
+          break;
+        case 1:
+          Dbg(Dbg::Dev, Dbg::Info, "irq_svr")
+            .printf("Irq 0x%x will be unmasked at ICU\n", host_irq);
+          _eoi = icu;
+          break;
+        default:
+          L4Re::throw_error(-L4_EINVAL, "Invalid return code from bind to IRQ");
+          break;
+        }
+
+      _eoi->unmask(_irq);
+    }
+
+    void handle_irq()
+    {
+      _triggered.store(true, std::memory_order_relaxed);
+      for (auto *s : _sinks)
+        s->inject(_source_mask);
+    }
+
+    void eoi(unsigned source_mask)
+    {
+      if ((_source_mask & source_mask) == 0)
+        return;
+
+      bool has_triggered = true;
+      if (_triggered.compare_exchange_strong(has_triggered, false,
+                                             std::memory_order_relaxed))
+        _eoi->unmask(_irq);
+    }
+
+    void add_sink(Guest_pci_irq *dst)
+    {
+      for (auto *i : _sinks)
+        if (i == dst)
+          return;
+
+      _sinks.push_back(dst);
+    }
+  };
+
+  class Guest_pci_irq : public Gic::Irq_src_handler
+  {
+    std::vector<Host_pci_irq *> _sources;
+    Vmm::Irq_sink _irq;
+    std::atomic<l4_uint32_t> _triggers = 0;
+
+  public:
+    Guest_pci_irq(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned guest_irq)
+    {
+      if (ic->get_irq_src_handler(guest_irq))
+        L4Re::throw_error(-L4_EEXIST, "Bind IRQ for Guest_pci_irq object.");
+
+      _irq.rebind(ic, guest_irq);
+      _irq.set_irq_src_handler(this);
+    }
+
+    void inject(l4_uint32_t source_trigger)
+    {
+      l4_uint32_t prev_triggers =
+        _triggers.fetch_or(source_trigger, std::memory_order_relaxed);
+
+      // Inject (again) if a new source has triggered.
+      if ((prev_triggers & source_trigger) != source_trigger)
+        _irq.inject();
+    }
+
+    void eoi() override
+    {
+      _irq.ack();
+
+      l4_uint32_t triggers = _triggers.load(std::memory_order_relaxed);
+      while (!_triggers.compare_exchange_weak(triggers, 0,
+                                              std::memory_order_relaxed))
+        ;
+
+      // EOI all sources with the collected triggers. Only the affected sources
+      // will actually issue an EOI to the hardware interrupt.
+      for (auto *s : _sources)
+        s->eoi(triggers);
+    }
+
+    void add_source(Host_pci_irq *src)
+    {
+      for (auto *i : _sources)
+        if (i == src)
+          return;
+
+      _sources.push_back(src);
+    }
+  };
+
+public:
+  Legacy_irq_router(L4Re::Util::Object_registry *registry,
+                      L4::Cap<L4::Icu> icu)
+  : _registry(registry), _icu(icu)
+  {}
+
+  void add_route(unsigned host_irq,
+                 cxx::Ref_ptr<Gic::Ic> const &ic, unsigned guest_irq)
+  {
+    Host_pci_irq *src = get_source(host_irq);
+    Guest_pci_irq *dst = get_sink(ic, guest_irq);
+    src->add_sink(dst);
+    dst->add_source(src);
+  }
+
+private:
+  Host_pci_irq *get_source(unsigned host_irq)
+  {
+    auto it = _sources.find(host_irq);
+    if (it != _sources.end())
+      return it->second.get();
+
+    auto *ret = new Host_pci_irq(_registry, _icu, host_irq, _sources.size());
+    _sources[host_irq].reset(ret);
+    return ret;
+  }
+
+  Guest_pci_irq *get_sink(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned guest_irq)
+  {
+    auto idx = std::make_tuple(ic.get(), guest_irq);
+    auto it = _sinks.find(idx);
+    if (it != _sinks.end())
+      return it->second.get();
+
+    auto *ret = new Guest_pci_irq(ic, guest_irq);
+    _sinks[idx].reset(ret);
+    return ret;
+  }
+
+  L4Re::Util::Object_registry *_registry;
+  L4::Cap<L4::Icu> _icu;
+  std::map<unsigned, cxx::unique_ptr<Host_pci_irq>> _sources;
+  std::map<std::tuple<Gic::Ic *, unsigned>,
+           cxx::unique_ptr<Guest_pci_irq>>  _sinks;
+};
 
 /**
  * Parse the bus-range property of the device tree node of the PCI host bridge.
@@ -152,6 +335,7 @@ public:
                   cxx::Ref_ptr<Gic::Msix_controller> msix_ctrl)
   : _vmm(devs->vmm()),
     _vbus(devs->vbus()),
+    _irq_router(_vmm->registry(), _vbus->icu()),
     _bus(bus_num),
     _msix_ctrl(msix_ctrl),
     _windows(node)
@@ -319,7 +503,7 @@ public:
     unsigned dev_id;                     /// Virtual device id
     L4vbus::Pci_dev dev;                 /// Reference to vbus PCI device
     l4vbus_device_t dinfo;               /// vbus device info
-    cxx::Ref_ptr<Vdev::Irq_svr> irq;
+    // HW IRQ resource managed in Legacy_irq_router;
     cxx::Ref_ptr<Ds_access_mgr> msix_table_page_mgr;
     cxx::Ref_ptr<Msix::Virt_msix_table> msix_table;
     cxx::Ref_ptr<Vdev::Msi::Msi_src> msi_src;
@@ -447,13 +631,6 @@ protected:
         h->map_additional_iomem_resources(_vmm, _vbus->io_ds());
         init_dev_resources(h);
 
-        if (!h->has_msi && !h->has_msix)
-          warn().printf("\n\nDevice '%s' with vendor/device=%04x:%04x supports "
-                        "neither MSI nor MSI-X. Legacy interrupts are not "
-                        "supported. Device will not work properly.\n\n",
-                        dinfo.name, vendor_device & 0xffff,
-                        vendor_device >> 16);
-
         _bus.register_device(cxx::Ref_ptr<Pci_device>(h), h->dev_id);
       }
   }
@@ -494,6 +671,7 @@ private:
 protected:
   Vmm::Guest *_vmm;
   cxx::Ref_ptr<Vmm::Virt_bus> _vbus;
+  Legacy_irq_router _irq_router;
   Pci_bus _bus;
   /// MSI-X controller responsible for the devices of this PCIe host bridge,
   /// may be nullptr since MSI-X support is an optional feature.

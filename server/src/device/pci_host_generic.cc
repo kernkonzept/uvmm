@@ -600,20 +600,7 @@ Pci_host_generic::init_dev_resources(Hw_pci_device *hw_dev)
   info().printf("Device 0x%x: io provides legacy IRQ resource %i\n",
                 hw_dev->dev_id, io_irq);
 
-  // Create the io IRQ to guest IRQ mapping
-  hw_dev->irq = cxx::make_ref_obj<Vdev::Irq_svr>(_vmm->registry(), _vbus->icu(),
-                                                 io_irq, irq_ic(), line);
-  if (!hw_dev->irq)
-    {
-      warn().printf("[0x%x] Creation for vBus IRQ resource %i failed. Might be "
-                    "already in use and multiplexing is not available. "
-                    "PCI cfg space IRQ pin %u and IRQ line %u.\n",
-                    hw_dev->dev_id, io_irq, pin, line);
-      return;
-    }
-
-  if (!edge_triggered)
-    hw_dev->irq->eoi();
+  _irq_router.add_route(io_irq, irq_ic(), line);
 
   info().printf("  legacy IRQ mapping: %d -> %d\n", io_irq, line);
 }
