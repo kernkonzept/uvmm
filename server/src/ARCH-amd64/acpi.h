@@ -152,6 +152,40 @@ private:
   Vmm::Guest_addr _gfacs;
 };
 
+// Interrupt override data for MADT table
+// see ACPI Spec v6.3, 5.2.12.5 Interrupt Source Override Structure
+struct Madt_int_override
+{
+  l4_uint8_t src_irq;
+  l4_uint32_t gsi;
+  l4_uint16_t flags;
+};
+
+// Static storage management for interrupt override entries
+class Madt_int_override_storage
+{
+public:
+  static Madt_int_override_storage *get()
+  {
+    if (!_self)
+      _self = new Madt_int_override_storage();
+    return _self;
+  }
+
+  void add_override(Madt_int_override new_override)
+  { _overrides.push_back(new_override); }
+
+  std::vector<Madt_int_override> const &overrides() const
+  { return _overrides; }
+
+private:
+  Madt_int_override_storage() = default;
+  ~Madt_int_override_storage() = default;
+
+  static Madt_int_override_storage *_self;
+  std::vector<Madt_int_override> _overrides;
+};
+
 /**
  * ACPI control.
  *
@@ -458,7 +492,8 @@ protected:
     write_rsdt(wr);
     write_xsdt(wr);
     write_fadt(wr);
-    write_madt(wr, devs->cpus()->max_cpuid() + 1, devs->cpus());
+    write_madt(wr, devs->cpus()->max_cpuid() + 1, devs->cpus(),
+               Madt_int_override_storage::get()->overrides());
     write_mcfg(wr);
     write_facs(wr);
     write_dsdt(wr);
@@ -585,8 +620,10 @@ private:
    * \param nr_cpus  The number of enabled CPUs.
    * \param cpus     Pointer to the CPU container.
    */
-  static void write_madt(Writer &wr, unsigned nr_cpus,
-                         cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus)
+  static void
+  write_madt(Writer &wr, unsigned nr_cpus,
+             cxx::Ref_ptr<Vmm::Cpu_dev_array> cpus,
+             std::vector<Madt_int_override> const &madt_int_overrides)
   {
     auto *t = wr.start_table<ACPI_TABLE_MADT>(Table::Madt);
 
@@ -604,6 +641,19 @@ private:
     ioapic->Id = 0;
     ioapic->Address = Gic::Io_apic::Mmio_addr;
     ioapic->GlobalIrqBase = 0;
+
+    // Interrupt Override Structure.
+    // Information about overriding ISA specified interrupt numbers with new
+    // ones.
+    for (auto const &over : madt_int_overrides)
+      {
+        auto *tbl = wr.reserve_madt_subtable<ACPI_MADT_INTERRUPT_OVERRIDE>(
+          ACPI_MADT_TYPE_INTERRUPT_OVERRIDE);
+        tbl->Bus = 0;
+        tbl->SourceIrq = over.src_irq;
+        tbl->GlobalIrq = over.gsi;
+        tbl->IntiFlags = over.flags;
+      }
 
     // Processor Local APIC Structure.
     // Structure to be appended to the MADT base table for each local APIC.

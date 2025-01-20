@@ -28,6 +28,7 @@
 static cxx::Static_container<Vmm::Guest> guest;
 Acpi::Acpi_device_hub *Acpi::Acpi_device_hub::_hub;
 Acpi::Facs_storage *Acpi::Facs_storage::_facs_storage;
+Acpi::Madt_int_override_storage *Acpi::Madt_int_override_storage::_self;
 __thread unsigned vmm_current_cpu_id;
 
 namespace {

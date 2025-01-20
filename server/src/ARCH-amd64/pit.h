@@ -42,6 +42,8 @@ class Pit_timer
   public Vdev::Device,
   public Vdev::Timer
 {
+  enum : l4_uint8_t { Pit_isa_irq = 0, };
+
   enum
   {
     Channels = 2,
@@ -403,10 +405,11 @@ class Pit_timer
   static constexpr int port2idx(int port) { return port >> 1; }
 
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "PIT"); }
+  static Dbg info() { return Dbg(Dbg::Irq, Dbg::Info, "PIT"); }
   static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "PIT"); }
 
 public:
-  Pit_timer(cxx::Ref_ptr<Gic::Ic> const &ic, int irq);
+  Pit_timer(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned irq);
   virtual ~Pit_timer() = default;
 
   char const *dev_name() const override

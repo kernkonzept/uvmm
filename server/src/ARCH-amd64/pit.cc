@@ -8,15 +8,24 @@
 
 #include "irq_dt.h"
 #include "pit.h"
+#include "acpi.h"
 
 namespace Vdev {
 
-Pit_timer::Pit_timer(cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
+Pit_timer::Pit_timer(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned irq)
 : _irq(ic, irq)
 {
   _channel[0] = cxx::make_unique_ptr<Channel>(new Channel(this));
   _channel[1] = cxx::make_unique_ptr<Channel>(new Channel(this, true));
   _port61 = make_device<Port61>(_channel[1].get());
+
+  if (irq != Pit_isa_irq)
+    {
+      info().printf("Timer IRQ configured to be %u, default is %u. Adding an "
+                    "override in MADT.\n", irq, Pit_isa_irq);
+      Acpi::Madt_int_override_storage::get()->add_override(
+        {Pit_isa_irq, irq, 0U});
+    }
 }
 
 void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
