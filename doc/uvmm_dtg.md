@@ -42,7 +42,7 @@ Uvmm can commence.
 
 * `file`
 
-  On L4Re, the string given as <file> is interpreted as a named capability
+  On L4Re, the string given as `<file>` is interpreted as a named capability
   which needs to be backed by a sufficiently large Dataspace. On
   Linux, a file with the given name is created. In both cases,
   uvmm_dtg will output into the named file.
