@@ -13,6 +13,9 @@ struct Ioapic: Ic, Device
 {
   using Device::Device;
 
+  virtual ~Ioapic()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("ioapic", "ioapic");

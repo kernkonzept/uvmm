@@ -13,6 +13,9 @@ struct Ns8250: Device
 {
   using Device::Device;
 
+  virtual ~Ns8250()
+  {}
+
   void add(Tree *dt) override
   {
     auto t = _trg_arch.is(Arch::X86) ? dt->root() : dt->l4vmm();

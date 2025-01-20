@@ -12,6 +12,9 @@ struct Qemu_fw_if: Device
 {
   using Device::Device;
 
+  virtual ~Qemu_fw_if()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->section("/isa")->add_section("qemu_fw_if");

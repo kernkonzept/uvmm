@@ -13,6 +13,9 @@ struct Virtio_input_power: Device
 {
   using Device::Device;
 
+  virtual ~Virtio_input_power()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->l4vmm()->add_section(name("virtio_input_power"));

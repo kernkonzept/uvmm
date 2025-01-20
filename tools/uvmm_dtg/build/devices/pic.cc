@@ -12,6 +12,9 @@ struct Pic: Device
 {
   using Device::Device;
 
+  virtual ~Pic()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("pic", "PIC");

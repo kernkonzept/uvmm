@@ -12,6 +12,9 @@ struct Cpu: Device
 {
   using Device::Device;
 
+  virtual ~Cpu()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("cpus", "", 1, 0);

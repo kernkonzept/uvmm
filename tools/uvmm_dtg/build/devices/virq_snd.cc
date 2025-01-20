@@ -12,6 +12,9 @@ struct Virq_snd: Device
 {
   using Device::Device;
 
+  virtual ~Virq_snd()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->l4vmm()->add_section(name("virq_snd"));

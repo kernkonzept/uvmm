@@ -12,6 +12,9 @@ struct Syscon: Device
 {
   using Device::Device;
 
+  virtual ~Syscon()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->l4vmm()->add_section("vmm-syscon");

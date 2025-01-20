@@ -13,6 +13,9 @@ struct Sysclock: Device
 {
   using Device::Device;
 
+  virtual ~Sysclock()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("sysclk", "sysclk");

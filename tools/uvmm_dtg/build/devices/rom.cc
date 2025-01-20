@@ -12,6 +12,9 @@ struct Rom: Device
 {
   using Device::Device;
 
+  virtual ~Rom()
+  {}
+
   void add(Tree *dt) override
   {
     auto t = _trg_arch.is(Arch::X86) ? dt->root() : dt->l4vmm();

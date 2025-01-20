@@ -13,6 +13,9 @@ struct Pci_host_ecam: Device
 {
   using Device::Device;
 
+  virtual ~Pci_host_ecam()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("pcie", "",

@@ -13,6 +13,9 @@ struct Pit: Device
 {
   using Device::Device;
 
+  virtual ~Pit()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("pit");

@@ -13,6 +13,9 @@ struct Pl011: Device
 {
   using Device::Device;
 
+  virtual ~Pl011()
+  {}
+
   void add(Tree *dt) override
   {
     auto n = name("pl011");

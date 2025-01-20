@@ -380,7 +380,7 @@ struct Tree
   void add_str_property(std::string &&name,
                         std::initializer_list<std::string> &&prop)
   { _props.emplace_back(std::move(name), Prop::StrVec,
-                        std::move((std::vector<std::string>)prop)); }
+                        (std::vector<std::string>)prop); }
 
   void add_num_property(std::string &&name, unsigned prop)
   { add_num_property(std::move(name), { prop }); }
@@ -388,7 +388,7 @@ struct Tree
   void add_num_property(std::string &&name,
                         std::initializer_list<unsigned> &&prop)
   { _props.emplace_back(std::move(name), Prop::IntVec,
-                        std::move((std::vector<unsigned>)prop)); }
+                        (std::vector<unsigned>)prop); }
 
   void add_num_property(std::string &&name, std::vector<unsigned> &&prop)
   { _props.emplace_back(std::move(name), Prop::IntVec,

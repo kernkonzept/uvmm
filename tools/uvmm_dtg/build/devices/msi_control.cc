@@ -12,6 +12,9 @@ struct Msi_control: Device
 {
   using Device::Device;
 
+  virtual ~Msi_control()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("msictrl", "msictrl");

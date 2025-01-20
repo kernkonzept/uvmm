@@ -12,6 +12,9 @@ struct Eisa: Device
 {
   using Device::Device;
 
+  virtual ~Eisa()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("isa", "isa", 2, 1);

@@ -22,6 +22,9 @@ struct Device_list_parser: Parser_with_args
           {Option("help", "show usage", make_parser<Help_parser>(&_opts))})
   {}
 
+  virtual ~Device_list_parser()
+  {}
+
   void add_options(Option &&opts)
   { _opts.add_option(std::move(opts)); };
 
@@ -204,6 +207,9 @@ struct Device_parser: Parser
   : Device_parser(name, desc, f)
   { _opts.add_option(std::move(opts)); }
 
+  virtual ~Device_parser()
+  {}
+
   Result parse(const std::string &key, arg_vec *vec, arg_vec_it s) override
   {
     Result r;
@@ -314,6 +320,9 @@ struct Ds_auto_value: Auto_value_base
     _defcap(defcap)
   {}
 
+  virtual ~Ds_auto_value()
+  {}
+
   Result auto_result(const Results &res) const override
   {
     uint64_t size = Support::ds_size(res.as<std::string>(_dscap, _defcap));
@@ -336,6 +345,9 @@ private:
  */
 struct Cpu_auto_value: Auto_value_base
 {
+  virtual ~Cpu_auto_value()
+  {}
+
   Result auto_result(const Results & /*res*/) const override
   {
     uint32_t count = Support::cpu_count();

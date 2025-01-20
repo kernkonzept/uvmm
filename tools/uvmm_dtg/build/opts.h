@@ -115,6 +115,9 @@ struct Auto_value: Auto_value_base
   : _val(std::move(r))
   {}
 
+  virtual ~Auto_value()
+  {}
+
   Result auto_result(const Results &) const override { return Result(_val); }
 
   std::string to_string() const override
@@ -136,6 +139,9 @@ struct Auto_value<uint64_t>: Auto_value_base
 
   Auto_value(uint64_t &&r)
   : _val(std::move(r))
+  {}
+
+  virtual ~Auto_value()
   {}
 
   Result auto_result(const Results &) const override { return Result(_val); }
@@ -452,6 +458,9 @@ struct Help_parser: Parser
   Help_parser(Options *opts)
   : _opts(opts) {}
 
+  virtual ~Help_parser()
+  {}
+
   Result parse(const std::string &, arg_vec *, arg_vec_it) override
   {
     Result r;
@@ -465,6 +474,9 @@ private:
 
 struct Switch_parser: Parser
 {
+  virtual ~Switch_parser()
+  {}
+
   Result parse(const std::string &, arg_vec *, arg_vec_it) override
   { return Result(true); }
 };
@@ -489,6 +501,9 @@ struct Int_parser: Parser_with_args
             T max = std::numeric_limits<T>::max())
   : _min(min),
     _max(max)
+  {}
+
+  virtual ~Int_parser()
   {}
 
   Result parse(const std::string &opt, arg_vec *vec, arg_vec_it s) override
@@ -534,6 +549,9 @@ using UInt64_parser = Int_parser<uint64_t, stoull>;
 
 struct String_parser: Parser_with_args
 {
+  virtual ~String_parser()
+  {}
+
   Result parse(const std::string &, arg_vec *vec, arg_vec_it s) override
   {
     Result r;
@@ -552,6 +570,9 @@ struct Selector_parser: Parser_with_args
 
   Selector_parser(std::initializer_list<std::pair<const std::string, T>> &&map)
   : _map(std::move(map))
+  {}
+
+  virtual ~Selector_parser()
   {}
 
   Result parse(const std::string &opt, arg_vec *vec, arg_vec_it s) override

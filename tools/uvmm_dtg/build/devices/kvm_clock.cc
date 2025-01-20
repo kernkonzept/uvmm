@@ -12,6 +12,9 @@ struct Kvm_clock: Device
 {
   using Device::Device;
 
+  virtual ~Kvm_clock()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("kvm_clock");

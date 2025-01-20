@@ -13,6 +13,9 @@ struct Virq_rcv: Device
 {
   using Device::Device;
 
+  virtual ~Virq_rcv()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section(name("virq_rcv"));

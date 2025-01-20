@@ -12,6 +12,9 @@ struct Pl031: Device
 {
   using Device::Device;
 
+  virtual ~Pl031()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->l4vmm()->add_section("pl031");

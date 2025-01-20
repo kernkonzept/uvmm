@@ -13,6 +13,9 @@ struct Virtio_device_proxy: Device
 {
   using Device::Device;
 
+  virtual ~Virtio_device_proxy()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->l4vmm()->add_section(name("virtio_device_proxy"));

@@ -12,6 +12,9 @@ struct Stats: Device
 {
   using Device::Device;
 
+  virtual ~Stats()
+  {}
+
   void add(Tree *dt) override
   {
     if (_res.has("statscap"))

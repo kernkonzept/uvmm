@@ -9,9 +9,12 @@
 
 namespace {
 
-struct Virtio_proxy_pci: Device
+struct Virtio_input_power_pci: Device
 {
   using Device::Device;
+
+  virtual ~Virtio_input_power_pci()
+  {}
 
   void add(Tree *dt) override
   {
@@ -30,7 +33,7 @@ struct Virtio_proxy_pci: Device
   }
 };
 
-struct F: Device_factory<Virtio_proxy_pci>
+struct F: Device_factory<Virtio_input_power_pci>
 {
   using Device_factory::Device_factory;
 

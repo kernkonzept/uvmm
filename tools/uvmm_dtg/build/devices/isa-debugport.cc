@@ -12,6 +12,9 @@ struct Isa_debugport: Device
 {
   using Device::Device;
 
+  virtual ~Isa_debugport()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->section("/isa")->add_section("isa_debugport");

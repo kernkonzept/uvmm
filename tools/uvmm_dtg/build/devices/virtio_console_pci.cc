@@ -13,6 +13,9 @@ struct Virtio_console_pci: Device
 {
   using Device::Device;
 
+  virtual ~Virtio_console_pci()
+  {}
+
   void add(Tree *dt) override
   {
     auto dev = Pci_bridge::next_dev_id();

@@ -12,6 +12,9 @@ struct Psci: Device
 {
   using Device::Device;
 
+  virtual ~Psci()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("psci");

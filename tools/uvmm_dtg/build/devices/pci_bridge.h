@@ -10,6 +10,9 @@ struct Pci_bridge: Device
 {
   using Device::Device;
 
+  virtual ~Pci_bridge()
+  {}
+
   void add(Tree *dt) override;
 
   static unsigned next_dev_id() { return _dev_ids++; };

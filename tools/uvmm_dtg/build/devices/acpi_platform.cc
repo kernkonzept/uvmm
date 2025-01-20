@@ -13,6 +13,9 @@ struct Acpi_platform: Device
 {
   using Device::Device;
 
+  virtual ~Acpi_platform()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("acpi_platform");

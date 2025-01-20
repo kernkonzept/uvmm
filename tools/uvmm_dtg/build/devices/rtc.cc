@@ -12,6 +12,9 @@ struct Rtc: Device
 {
   using Device::Device;
 
+  virtual ~Rtc()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("rtc");

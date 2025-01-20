@@ -12,6 +12,9 @@ struct Mmio_proxy: Device
 {
   using Device::Device;
 
+  virtual ~Mmio_proxy()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->l4vmm()->add_section(name("mmio_proxy"));

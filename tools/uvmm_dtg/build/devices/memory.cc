@@ -12,6 +12,9 @@ struct Memory: Device
 {
   using Device::Device;
 
+  virtual ~Memory()
+  {}
+
   void add(Tree *dt) override
   {
     auto t = dt->root();

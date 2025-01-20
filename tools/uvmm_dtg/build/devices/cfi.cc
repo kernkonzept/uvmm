@@ -12,6 +12,9 @@ struct Cfi: Device
 {
   using Device::Device;
 
+  virtual ~Cfi()
+  {}
+
   void add(Tree *dt) override
   {
     if (!_res.has("dscap") && !_res.has("virtiocap"))

@@ -12,6 +12,9 @@ struct Timer: Device
 {
   using Device::Device;
 
+  virtual ~Timer()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("timer");

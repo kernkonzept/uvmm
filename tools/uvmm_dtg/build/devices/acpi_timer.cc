@@ -12,6 +12,9 @@ struct Acpi_timer: Device
 {
   using Device::Device;
 
+  virtual ~Acpi_timer()
+  {}
+
   void add(Tree *dt) override
   {
     auto a = dt->root()->add_section("acpi-timer");
