@@ -76,6 +76,6 @@ Uvmm can commence.
 
   This configures a device.
 
-  To get a list of supported devices, use `-device help`.
+  To get a list of supported devices, use `--device help`.
 
-  To get help for a specific device, use `-device devicename:help`.
+  To get help for a specific device, use `--device devicename:help`.
