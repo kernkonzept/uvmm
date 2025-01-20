@@ -67,7 +67,7 @@ struct F: Device_factory<Ns8250>
     return Option::None;
   }
 
-  std::vector<std::string> requires() const override
+  std::vector<std::string> a_requires() const override
   {
     if (_trg_arch.is(Arch::X86))
       return { _trg_arch.ic };

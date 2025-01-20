@@ -54,7 +54,7 @@ struct F: Device_factory<Ioapic>
   int flags() const override
   { return Option::None; }
 
-  std::vector<std::string> requires() const override
+  std::vector<std::string> a_requires() const override
   { return { "msi-control" }; }
 
 };

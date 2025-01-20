@@ -104,7 +104,7 @@ struct F: Device_factory<Pci_host_ecam>
                          std::move(opts));
   }
 
-  std::vector<std::string> requires() const override
+  std::vector<std::string> a_requires() const override
   { return { _trg_arch.ic }; }
 };
 

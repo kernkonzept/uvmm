@@ -125,7 +125,7 @@ struct Factory
 protected:
 
   virtual int flags() const { return Option::None; };
-  virtual std::vector<std::string> requires() const { return {}; };
+  virtual std::vector<std::string> a_requires() const { return {}; };
   virtual std::shared_ptr<Device> create(const Results &res) = 0;
 
   Factory* find(const std::string &name)
@@ -151,7 +151,7 @@ protected:
       {
         // We have to make sure that any dependent devices are created before
         // this device
-        for (auto a: requires())
+        for (auto a: a_requires())
           find(a)->create_devices(true);
 
         // Now create a device for every Result we got from the command line or

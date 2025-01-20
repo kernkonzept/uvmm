@@ -32,7 +32,7 @@ struct F: Device_factory<Pit>
   Option option() override
   { return Device_option("pit", "pit timer", this); }
 
-  std::vector<std::string> requires() const override
+  std::vector<std::string> a_requires() const override
   { return { _trg_arch.ic }; }
 
   int flags() const override

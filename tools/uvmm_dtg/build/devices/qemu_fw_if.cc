@@ -51,7 +51,7 @@ struct F: Device_factory<Qemu_fw_if>
                      make_parser<String_parser>())});
   }
 
-  std::vector<std::string> requires() const override
+  std::vector<std::string> a_requires() const override
   { return { "isa" }; }
 };
 

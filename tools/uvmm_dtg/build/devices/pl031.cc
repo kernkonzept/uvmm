@@ -37,7 +37,7 @@ struct F: Device_factory<Pl031>
                      make_auto<Addr_default>())});
   }
 
-  std::vector<std::string> requires() const override
+  std::vector<std::string> a_requires() const override
   { return { "sysclock" }; }
 };
 

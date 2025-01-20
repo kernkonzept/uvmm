@@ -55,7 +55,7 @@ struct F: Device_factory<Mmio_proxy>
   int flags() const override
   { return Option::Multiple; }
 
-  std::vector<std::string> requires() const override
+  std::vector<std::string> a_requires() const override
   { return { _trg_arch.ic }; }
 };
 

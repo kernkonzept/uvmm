@@ -46,7 +46,7 @@ struct F: Device_factory<Optee>
                      make_default<std::string>("smc"))});
   }
 
-  std::vector<std::string> requires() const override
+  std::vector<std::string> a_requires() const override
   { return { _trg_arch.ic }; }
 };
 

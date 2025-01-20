@@ -33,7 +33,7 @@ struct F: Device_factory<Pic>
   Option option() override
   { return Device_option("pic", "pic interrupt controller", this); }
 
-  std::vector<std::string> requires() const override
+  std::vector<std::string> a_requires() const override
   { return { "msi-control" }; }
 
   int flags() const override

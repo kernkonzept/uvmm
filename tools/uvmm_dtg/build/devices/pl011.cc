@@ -50,7 +50,7 @@ struct F: Device_factory<Pl011>
   int flags() const override
   { return Option::Default; }
 
-  std::vector<std::string> requires() const override
+  std::vector<std::string> a_requires() const override
   {
     if (_trg_arch.is(Arch::X86))
       return { _trg_arch.ic };

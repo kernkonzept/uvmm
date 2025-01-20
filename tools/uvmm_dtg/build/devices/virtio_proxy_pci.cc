@@ -50,7 +50,7 @@ struct F: Device_factory<Virtio_proxy_pci>
   int flags() const override
   { return Option::Multiple; }
 
-  std::vector<std::string> requires() const override
+  std::vector<std::string> a_requires() const override
   { return { "pci-bridge" }; }
 };
 
