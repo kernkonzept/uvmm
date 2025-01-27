@@ -24,9 +24,11 @@ struct Gic: Ic, Device
     a->add_address_cells(0);
     a->add_interrupt_cells(3);
     a->add_reg_property({Addr_type(_res.as<uint64_t>("addr_dist"),
-                                   0x10000, dt->rm()),
+                                   _res.as<uint32_t>("size_dist"),
+                                   20, dt->rm()),
                          Addr_type(_res.as<uint64_t>("addr_redist"),
-                                   0x20000, dt->rm())});
+                                   _res.as<uint32_t>("size_redist"),
+                                   20, dt->rm())});
 
     dt->root()->add_handle_property("interrupt-parent", "/l4vmm/gic");
   }
@@ -51,9 +53,15 @@ struct F: Device_factory<Gic>
              {Option("addr_dist", "fixed address of the device dist mmio region",
                      make_parser<Addr_parser>(_trg_arch.is64bit),
                      make_auto<Addr_default>()),
+              Option("size_dist", "size of the dist mmio region",
+                     make_parser<UInt32_parser>(),
+                     make_default<uint32_t>(0x10000)),
               Option("addr_redist", "fixed address of the device redist mmio region",
                      make_parser<Addr_parser>(_trg_arch.is64bit),
-                     make_auto<Addr_default>())});
+                     make_auto<Addr_default>()),
+              Option("size_redist", "size of the redist mmio region",
+                     make_parser<UInt32_parser>(),
+                     make_default<uint32_t>(0x20000))});
   }
 
   int flags() const override
