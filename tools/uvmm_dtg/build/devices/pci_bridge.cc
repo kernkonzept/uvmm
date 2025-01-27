@@ -18,14 +18,14 @@ void Pci_bridge::add(Tree *dt)
 
   // ECAM MCFG window
   a->add_reg_property(Addr_type(_res.as<uint64_t>("addr"),
-                                0x10000000, dt->rm()));
+                                0x1000'0000, dt->rm()));
 
   std::vector<Mixed_type> ranges;
   // io range (not managed by our region mapper)
   auto io =
     std::make_shared<Addr_type>(0x6000, 0xa000);
 
-  ranges += {0x1000000, Addr_ref(io), Addr_ref(io), Size_ref(io)};
+  ranges += {0x100'0000, Addr_ref(io), Addr_ref(io), Size_ref(io)};
 
   // mmio32 range
   auto mmio32 =
@@ -33,7 +33,7 @@ void Pci_bridge::add(Tree *dt)
                                 dt->rm(),
                                 std::numeric_limits<uint32_t>::min(),
                                 std::numeric_limits<uint32_t>::max());
-  ranges += {0x2000000, Addr_ref(mmio32), Addr_ref(mmio32), Size_ref(mmio32)};
+  ranges += {0x200'0000, Addr_ref(mmio32), Addr_ref(mmio32), Size_ref(mmio32)};
 
   if (_trg_arch.is64bit)
     {
@@ -42,7 +42,8 @@ void Pci_bridge::add(Tree *dt)
         std::make_shared<Addr_type>(_res.as<uint64_t>("mmio64-size"),
                                     dt->rm(),
                                     std::numeric_limits<uint32_t>::max());
-      ranges += {0x3000000, Addr_ref(mmio64), Addr_ref(mmio64), Size_ref(mmio64)};
+      a->add_position(mmio64);
+      ranges += {0x300'0000, Addr_ref(mmio64), Addr_ref(mmio64), Size_ref(mmio64)};
     }
 
   a->add_position(mmio32);
@@ -65,12 +66,12 @@ struct F: Device_factory<Pci_bridge>
               make_auto<Addr_default>()),
        Option("mmio32-size", "size of the 32bit pci window",
               make_parser<UInt32_parser>(),
-              make_default<uint32_t>(0x1000000))};
+              make_default<uint32_t>(0x100'0000))};
 
     if (_trg_arch.is64bit)
       opts.emplace_back("mmio64-size", "size of the 64bit pci window",
                         make_parser<UInt64_parser>(),
-                        make_default<uint64_t>(0x1000000));
+                        make_default<uint64_t>(0x1'0000'0000));
 
     return Device_option("pci-bridge", "pci bridge device", this,
                         std::move(opts));
