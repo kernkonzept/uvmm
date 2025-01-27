@@ -106,7 +106,7 @@ static int run(int argc, char **argv)
   Factory::create_all_devices();
 
   // We are ready to build up the device tree
-  Region_mapper rm(result.as<uint64_t>("-mem-base"),
+  Region_mapper rm(result.as<uint64_t>("--mem-base"),
                    arch.is64bit ? std::numeric_limits<uint64_t>::max() :
                                   std::numeric_limits<uint32_t>::max());
   Tree t(arch, &rm);
@@ -114,7 +114,7 @@ static int run(int argc, char **argv)
   t.finalize();
 
   // Choose the output format and write to the given file
-  if (result.as<OutFormat>("-format") == Txt)
+  if (result.as<OutFormat>("--format") == Txt)
     {
       OutputTxt s;
       s.build(&t);
