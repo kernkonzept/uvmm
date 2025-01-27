@@ -120,7 +120,7 @@ public:
 
     switch (reg)
       {
-      case Registers::Dr: retval = counter() + _offset; break;
+      case Registers::Dr: retval = counter(); break;
       case Registers::Mr: retval = _match_reg; break;
       case Registers::Lr: retval = _load_reg; break;
       case Registers::Cr: retval = 1U; break; // always on.
@@ -216,6 +216,7 @@ private:
 
   static l4_uint64_t ns_to_s(l4_uint64_t ns) { return ns / 1'000'000'000; }
   static l4_uint64_t s_to_us(l4_uint64_t s) { return s * 1'000'000; }
+  static l4_uint64_t s_to_ns(l4_uint64_t s) { return s * 1'000'000'000; }
 
   /// Return current counter value with 1Hz granularity. Wraps after 136 years.
   static l4_uint32_t counter()
@@ -237,29 +238,27 @@ private:
    */
   void update_alarm(l4_uint32_t const counter_val = counter())
   {
-    if (_match_reg <=  counter_val + _offset)
+    if (_match_reg <=  counter_val)
       set_irq();
     else
       {
-        l4_uint64_t next_alarm = _match_reg - counter_val + _offset;
+        l4_uint64_t next_alarm = _match_reg - counter_val;
 
         trace().printf("enqueue alarm for %lli seconds from now. (counter: %u,"
-                       " offset: 0x%u, 0x%u)\n",
-                      next_alarm, counter_val, _offset, _match_reg);
+                       " 0x%u)\n",
+                      next_alarm, counter_val, _match_reg);
         enqueue_timeout(&_alarm, l4_kip_clock(l4re_kip()) + s_to_us(next_alarm));
       }
   }
 
   void update_load()
   {
-    l4_uint32_t const counter_val = counter();
-    _offset = _load_reg - counter_val;
-    update_alarm(counter_val);
+    L4rtc_hub::set_ns_since_epoch(s_to_ns(_load_reg));
+    update_alarm();
   }
 
   void reset()
   {
-    _offset = 0;
     _load_reg = 0;
     _match_reg = 0;
     _imsc = 0;
@@ -273,7 +272,6 @@ private:
   Vmm::Irq_sink _irq;
   Alarm_timeout _alarm;
 
-  l4_uint32_t _offset;
   l4_uint32_t _match_reg;
   l4_uint32_t _load_reg;
   l4_uint8_t _imsc; // 1 = masked, 0 = clear
