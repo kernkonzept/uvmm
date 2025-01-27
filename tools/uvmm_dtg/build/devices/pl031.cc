@@ -5,6 +5,7 @@
  * License: see LICENSE.spdx (in this directory or the directories above)
  */
 #include "device.h"
+#include "ic.h"
 
 namespace {
 
@@ -19,6 +20,7 @@ struct Pl031: Device
   {
     auto a = dt->l4vmm()->add_section("pl031");
     a->add_compatible({"arm,primecell", "arm,pl031"});
+    a->add_num_property("interrupts", Ic::default_ic(_trg_arch)->next_irq());
     a->add_reg_property(Addr_type(_res.as<uint64_t>("addr"), 0x1000, dt->rm()));
     a->add_str_property("clock-names", "apb_pclk");
     a->add_handle_property("clocks", "/sysclk");
@@ -38,7 +40,7 @@ struct F: Device_factory<Pl031>
   }
 
   std::vector<std::string> a_requires() const override
-  { return { "sysclock" }; }
+  { return { _trg_arch.ic, "sysclock" }; }
 };
 
 static F f = { Arch::Arm, "pl031" };
