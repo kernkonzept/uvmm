@@ -155,7 +155,7 @@ c_vcpu_entry(l4_vcpu_state_t *vcpu)
   L4::Cap<L4::Thread> myself;
   auto e = l4_error(myself->vcpu_resume_commit(myself->vcpu_resume_start()));
 
-  Err().printf("VM restart failed with %ld\n", e);
+  Err().printf("VM restart failed with %d\n", e);
   guest->halt_vm(c);
 }
 

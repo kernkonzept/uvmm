@@ -81,7 +81,7 @@ Cpu_dev::restart_vcpu()
   if (!l4_msgtag_has_error(res))
     return true;
 
-  Err().printf("Error waking Cpu%d: %lx\n", _vcpu.get_vcpu_id(), l4_error(res));
+  Err().printf("Error waking Cpu%d: %d\n", _vcpu.get_vcpu_id(), l4_error(res));
   return false;
 }
 
@@ -161,7 +161,7 @@ Cpu_dev::reset()
   L4::Cap<L4::Thread> self;
   auto e = l4_error(self->vcpu_resume_commit(self->vcpu_resume_start()));
 
-  Err().printf("VMM exited with %ld\n", e);
+  Err().printf("VMM exited with %d\n", e);
   stop_vcpu();
 
   // Failed to take vCPU offline. Should not happend but play safe.

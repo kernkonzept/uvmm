@@ -62,7 +62,7 @@ void Virtual_timer::run_timer(unsigned vcpu_no, unsigned phys_cpu_id)
   // Wait for initial wakeup (timer is set the first time)
   auto e = l4_error(_wakeup_irq->receive(L4_IPC_NEVER));
 
-  info.printf("Received initial timer thread wakeup on CPU %u! (%ld)\n",
+  info.printf("Received initial timer thread wakeup on CPU %u! (%d)\n",
                vcpu_no, e);
 
   // now loop forever

@@ -335,7 +335,7 @@ Guest::vcpu_entry(l4_vcpu_state_t *vcpu)
   L4::Cap<L4::Thread> self;
   auto e = l4_error(self->vcpu_resume_commit(self->vcpu_resume_start()));
 
-  Err().printf("VM resume failed with %ld\n", e);
+  Err().printf("VM resume failed with %d\n", e);
   guest->halt_vm(c);
 }
 

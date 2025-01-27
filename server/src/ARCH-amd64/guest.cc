@@ -999,7 +999,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
         }
       else if (e)
         {
-          Err().printf("[%3u]: Entering VM failed with error %ld\n",
+          Err().printf("[%3u]: Entering VM failed with error %d\n",
                        vcpu_id, e);
           vm->additional_failure_info(vcpu_id);
           halt_vm(vcpu);

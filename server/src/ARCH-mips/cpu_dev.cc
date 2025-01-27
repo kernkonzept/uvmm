@@ -86,7 +86,7 @@ Cpu_dev::reset()
   L4::Cap<L4::Thread> myself;
   auto e = l4_error(myself->vcpu_resume_commit(myself->vcpu_resume_start()));
 
-  Err().printf("VMM exited with %ld\n", e);
+  Err().printf("VMM exited with %d\n", e);
 }
 
 void

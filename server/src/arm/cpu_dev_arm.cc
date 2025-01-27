@@ -149,7 +149,7 @@ Cpu_dev::reset()
   auto res = myself->vcpu_resume_commit(myself->vcpu_resume_start());
 
   // Could not enter guest! Take us offline...
-  Err().printf("vcpu_resume_commit error %lx\n", l4_error(res));
+  Err().printf("vcpu_resume_commit error %d\n", l4_error(res));
   stop();
 
   // Failed to take vCPU offline. Should not happend but play safe.
@@ -167,7 +167,7 @@ Cpu_dev::restart()
   if (!l4_msgtag_has_error(res))
     return true;
 
-  Err().printf("Error waking Cpu%d: %lx\n", _vcpu.get_vcpu_id(), l4_error(res));
+  Err().printf("Error waking Cpu%d: %d\n", _vcpu.get_vcpu_id(), l4_error(res));
   return false;
 }
 
