@@ -3,11 +3,21 @@ local L4 = require "L4";
 local l = L4.Loader.new({mem = L4.Env.user_factory});
 loader = l;
 
+function table_override(...)
+  local combined = {}
+  for _, tab in ipairs({...}) do
+    for k, v in pairs(tab) do
+      combined[k] = v
+    end
+  end
+  return combined
+end
+
 function new_sched(prio, cpus)
   return  L4.Env.user_factory:create(L4.Proto.Scheduler, prio + 10, prio, cpus);
 end
 
-function start_io(busses, opts)
+function start_io(busses, opts, ext_caps)
   local caps = {
     sigma0 = L4.cast(L4.Proto.Factory, L4.Env.sigma0):create(L4.Proto.Sigma0);
     icu    = L4.Env.icu;
@@ -25,7 +35,7 @@ function start_io(busses, opts)
 
   return l:start({
     log = { "io", "red" },
-    caps = caps
+    caps = table_override(caps, ext_caps or {})
   }, "rom/io " .. opts .. files)
 end
 
@@ -51,13 +61,12 @@ local function set_sched(opts, prio, cpus)
   opts["scheduler"] = sched;
 end
 
-function start_virtio_switch(ports, prio, cpus, switch_type)
-  local caps = {};
+function start_virtio_switch(ports, prio, cpus, switch_type, ext_caps)
   local switch = l:new_channel();
 
   local opts = {
     log = { "switch", "Blue" },
-    caps = { svr = switch:svr() };
+    caps = table_override({ svr = switch:svr() }, ext_caps or {});
   };
 
   set_sched(opts, prio, cpus);
@@ -171,16 +180,10 @@ function start_vm(options)
     end
   end
 
-  if options.ext_caps then
-    for k, v in pairs(options.ext_caps) do
-      caps[k] = v
-    end
-  end
-
   local opts = {
     log  = options.log or l.log_fab:create(L4.Proto.Log, "vm" .. nr, "w",
                                            keyb_shortcut);
-    caps = caps;
+    caps = table_override(caps, options.ext_caps or {});
   };
 
   set_sched(opts, prio, cpus);
