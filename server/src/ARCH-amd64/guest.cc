@@ -592,7 +592,16 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
       [[fallthrough]];
     case 0x8000'0004:
       [[fallthrough]];
+
+
+    // Intel: reserved
+    // AMD: L1 cache information
     case 0x8000'0005:
+      [[fallthrough]];
+
+    // Intel: L2 cache information
+    // AMD: TLB and L2/L3 cache information
+    case 0x8000'0006:
       break;
 
     case 0x8000'0007:
