@@ -17,7 +17,26 @@ function new_sched(prio, cpus)
   return  L4.Env.user_factory:create(L4.Proto.Scheduler, prio + 10, prio, cpus);
 end
 
-function start_io(busses, opts, ext_caps)
+-- Starts IO service with the given options:
+--
+-- `busses` :  Table of vBus names to create. One file per vBus; file name must
+--             be <name>.vbus for busses.<name>.
+-- `cmdline`:  io command line parameters
+-- `opts`   :  Option table for loader.start function, e.g. scheduler or
+--             ext_caps. ext_caps overwrites default caps created by this
+--             function.
+function start_io(busses, cmdline, opts)
+  if opts == nil then opts = {} end
+
+  if opts.caps ~= nil then
+    print("Warning: use opts.ext_caps to pass custom/additional capabilities.")
+  end
+
+  if opts.scheduler == nil then
+    print("IO started with base priority. Risk of priority related deadlocks! "
+          .. "Provide an opts.scheduler entry.")
+  end
+
   local caps = {
     sigma0 = L4.cast(L4.Proto.Factory, L4.Env.sigma0):create(L4.Proto.Sigma0);
     icu    = L4.Env.icu;
@@ -27,16 +46,19 @@ function start_io(busses, opts, ext_caps)
   local files = "";
 
   for k, v in pairs(busses) do
+    if caps[k] ~= nil then
+      print("Warning: overwriting caps." .. k .. " with vbus of same name.")
+    end
     local c = l:new_channel();
     busses[k] = c
     caps[k] = c:svr();
     files = files .. " rom/" .. k .. ".vbus";
   end
 
-  return l:start({
-    log = { "io", "red" },
-    caps = table_override(caps, ext_caps or {})
-  }, "rom/io " .. opts .. files)
+  opts.caps = table_override(caps, opts.caps or {}, opts.ext_caps or {})
+  opts.log  = opts.log or { "io", "red" }
+
+  return l:start(opts, "rom/io " .. cmdline .. files)
 end
 
 -- Creates a scheduler proxy and writes it into the `opts` table.
@@ -47,7 +69,7 @@ end
 --  C) No Prio, but cpus: Create a scheduler proxy with default prio and cpus
 --     limit.
 --  D) A prio and cpus: Create a scheduler proxy with given limits.
-local function set_sched(opts, prio, cpus)
+function set_sched(opts, prio, cpus)
   if cpus == nil and prio == nil then
     return
   end
