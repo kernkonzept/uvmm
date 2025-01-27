@@ -56,9 +56,8 @@ public:
   {
     if (_con_irq.is_valid())
       if (long err = l4_error(_con->unbind(0, _con_irq)) < 0)
-          Dbg(Dbg::Irq, Dbg::Warn)
-            .printf("Unbind notification IRQ from Vcon: %s\n.",
-                    l4sys_errtostr(err));
+        warn().printf("Unbind notification IRQ from Vcon: %s\n.",
+                      l4sys_errtostr(err));
   }
 
   void register_obj(L4::Registry_iface *registry)
@@ -74,6 +73,9 @@ public:
   bool inject_command(char cmd);
 
 private:
+  static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "pwr-input"); }
+  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "pwr-input"); }
+
   DEV *dev() { return static_cast<DEV *>(this); }
   L4::Cap<L4::Vcon> _con;
   L4::Cap<L4::Irq> _con_irq;
@@ -100,7 +102,7 @@ Vcon_pwr_input<DEV>::handle_irq()
         }
 
       inject_command(cmd);
-      Dbg().printf("Vcon_pwr_input::handle_irq OK\n");
+      trace().printf("Vcon_pwr_input::handle_irq OK\n");
       _con->write("OK\n", 3);
     }
 }
@@ -110,7 +112,7 @@ bool
 Vcon_pwr_input<DEV>::inject_command(char cmd)
 {
   bool ret = false;
-  Dbg().printf("cmd=%c\n", cmd);
+  trace().printf("cmd=%c\n", cmd);
 
   switch(cmd)
   {
@@ -131,8 +133,7 @@ Vcon_pwr_input<DEV>::inject_command(char cmd)
       }
       break;
     default:
-      Dbg(Dbg::Dev, Dbg::Warn, "pwr-input")
-        .printf("Unknown character '%c'\n", cmd);
+      warn().printf("Unknown character '%c'\n", cmd);
       break;
   }
 
