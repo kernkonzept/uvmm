@@ -20,13 +20,6 @@ struct Rtc: Device
     auto a = dt->root()->add_section("rtc");
     a->add_compatible("virt-rtc");
     a->add_num_property("interrupts", 8);
-
-    if (_res.has("rtc_cap"))
-      {
-        auto b = dt->root()->add_section("l4rtc");
-        b->add_compatible("l4rtc");
-        b->add_str_property("l4vmm,rtccap", _res.as<std::string>("rtc_cap"));
-      }
   }
 };
 
@@ -35,11 +28,7 @@ struct F: Device_factory<Rtc>
   using Device_factory::Device_factory;
 
   Option option() override
-  { return Device_option("rtc", "rtc device", this,
-                         {Option("rtc_cap", "Capability for the l4rtc server",
-                                 make_parser<String_parser>())
-                         });
-  }
+  { return Device_option("rtc", "rtc device", this); }
 
   int flags() const override
   { return Option::Default; }

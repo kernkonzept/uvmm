@@ -41,7 +41,8 @@ SRC_CC = uvmm_dtg.cc device.cc tree.cc ic.cc \
 	devices/eisa.cc \
 	devices/qemu_fw_if.cc \
 	devices/isa-debugport.cc \
-	devices/rom.cc
+	devices/rom.cc \
+	devices/l4rtc.cc
 
 PRIVATE_INCDIR ?= $(SRC_DIR) $(SRC_DIR)/target $(SRC_DIR)/ARCH-$(ARCH)
 
