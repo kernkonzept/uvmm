@@ -617,6 +617,23 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
         break;
       }
 
+    // reserved leaves
+    case 0x8:
+      [[fallthrough]];
+    case 0xc:
+      [[fallthrough]];
+    case 0xe:
+      [[fallthrough]];
+    case 0x11:
+      [[fallthrough]];
+    case 0x13:
+      if (a || b || c || d)
+        warn().printf("Unexpected feature in reserved CPUID leaf "
+                      "(eax = 0x%llx,exc = 0x%llx) a=0x%x b=0x%x c=0x%x d=0x%x\n",
+                      rax, rcx, a, b, c, d);
+      a = b = c = d = 0;
+      break;
+
       // For future reference:
       //    case 0x8000001f:
       //      {
