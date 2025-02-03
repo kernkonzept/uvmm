@@ -254,7 +254,7 @@ private:
     trace().printf("msi.msg_ctrl 0x%x\n", cap->ctrl.raw);
     trace().printf("msi.table 0x%x\n", cap->tbl.raw);
     trace().printf("msi.pba 0x%x\n", cap->pba.raw);
-    trace().printf("Size of MSI-X cap 0x%lx\n", sizeof(*cap));
+    trace().printf("Size of MSI-X cap 0x%zx\n", sizeof(*cap));
   }
 
   inline void
