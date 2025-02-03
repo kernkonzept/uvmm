@@ -450,8 +450,8 @@ Guest::subarch_init()
   ADD_FEAT_REG(3, 0, 0, 7, 0,
                  (0xfUL << 60)  // ECV
                | (0xfUL << 56)  // FGT
-               | (  0UL << 52)  // RES0
-               | (  0UL << 48)  // RES0
+               | (0xfUL << 52)  // MSA_frac
+               | (0xfUL << 48)  // MSA
                | (0xfUL << 44)  // ExS
                | (0xfUL << 40)  // TGran4_2
                | (0xfUL << 36)  // TGran64_2
