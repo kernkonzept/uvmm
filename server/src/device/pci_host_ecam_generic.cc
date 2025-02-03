@@ -342,13 +342,6 @@ struct F : Factory
   {
     info().printf("Creating PCIe host bridge\n");
 
-    if (!devs->vbus().get() || !devs->vbus()->available())
-      {
-        info().printf(
-          "No vbus available. Device not created.\n");
-        return nullptr;
-      }
-
     // Parse the interrupt map once
     Interrupt_map irq_map;
     parse_interrupt_map(&irq_map, devs, node);
