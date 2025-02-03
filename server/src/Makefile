@@ -20,8 +20,6 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   address_space_manager.cc \
                   device/rtc-hub.cc pm_device_if.cc
 
-SRC_CC-$(CONFIG_UVMM_PCI_SUPPORT)       += pci_device.cc virt_pci_device.cc
-
 SRC_CC-$(CONFIG_RELEASE_MODE)y          += debug.cc
 SRC_CC-$(CONFIG_UVMM_MONITOR)           += monitor/monitor.cc
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_MONITOR) += debugger/generic_guest_debugger.cc
@@ -47,7 +45,6 @@ SRC_CC_amd64-l4f = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
                    ARCH-amd64/rtc.cc ARCH-amd64/virt_lapic.cc \
                    ARCH-amd64/ioapic.cc \
                    ARCH-amd64/vcpu_ptr.cc \
-                   device/pci_host_bridge.cc device/pci_host_generic.cc \
                    ARCH-amd64/kvm_clock.cc \
                    ARCH-amd64/legacy_pic.cc ARCH-amd64/acpi_platform.cc \
                    ARCH-amd64/acpi_timer.cc ARCH-amd64/zeropage.cc \
@@ -58,8 +55,6 @@ SRC_CC_amd64-l4f = ARCH-amd64/guest.cc ARCH-amd64/mad.cc ARCH-amd64/pit.cc \
 
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_DEVICE_FRAMEBUFFER) += ARCH-amd64/framebuffer.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_ISA_DEBUG_PORT) += ARCH-amd64/isa_debugport.cc
-SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_VIRTIO_CONSOLE) += virtio_console_pci.cc
-SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_VIRTIO_PROXY) += virtio_proxy_pci.cc
 
 SRC_CC_arm-l4f-$(CONFIG_UVMM_VDEV_PSCI)   += device/arm/psci.cc
 SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_PSCI) += device/arm/psci.cc
@@ -71,17 +66,12 @@ SRC_CC-$(CONFIG_UVMM_VDEV_PL011) += device/pl011.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_OPTEE) += device/optee.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_PL031) += device/arm/pl031.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_INPUT)   += device/virtio_input_event.cc
-SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_VIRTIO_INPUT) += device/virtio_input_event_pci.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_POWER)   += device/virtio_input_power.cc
-SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_VIRTIO_POWER) += device/virtio_input_power_pci.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_VIRQ) += device/virq.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_MMIO_PROXY) += device/mmio_proxy.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_SYSCTL) += device/sysctl.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_PROXY) += device/virtio_device_mem_pool.cc \
                                            device/virtio_device_proxy.cc
-SRC_CC_amd64-l4f-$(CONFIG_UVMM_VDEV_DEVICE_PROXY) += device/virtio_device_proxy_pci.cc
-SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
-                                                           device/pci_host_ecam_generic.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_CFI_FLASH) +=  device/cfi.cc
 SRC_CC-$(CONFIG_UVMM_EXTERNAL_RTC) += device/l4rtc.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_FRAMEBUFFER) += device/framebuffer.cc
@@ -93,6 +83,20 @@ SRC_CC-$(CONFIG_UVMM_QEMU_FW_IF) += device/qemu_fw_cfg.cc
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_QEMU_FW_IF) += \
 	ARCH-amd64/qemu_fw_cfg_acpi.cc \
 	ARCH-amd64/qemu_fw_cfg_boot.cc
+
+ifeq ($(CONFIG_UVMM_PCI_SUPPORT),y)
+    SRC_CC   += pci_device.cc virt_pci_device.cc
+
+    SRC_CC_amd64-l4f += device/pci_host_bridge.cc device/pci_host_generic.cc \
+
+    SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_CONSOLE) += virtio_console_pci.cc
+    SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_PROXY) += virtio_proxy_pci.cc
+    SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_INPUT) += device/virtio_input_event_pci.cc
+    SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_POWER) += device/virtio_input_power_pci.cc
+    SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_PROXY) += device/virtio_device_proxy_pci.cc
+    SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
+                                                             device/pci_host_ecam_generic.cc
+endif
 
 SRC_CC += binary_loader.cc
 SRC_CC-$(CONFIG_UVMM_LOADER_RAW) += binary_loader_raw.cc
