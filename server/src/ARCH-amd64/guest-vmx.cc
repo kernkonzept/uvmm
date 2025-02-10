@@ -45,8 +45,9 @@ Guest::handle_io_access_string<Vmx_state>(unsigned port, bool is_in,
           bool ret = handle_io_access_ptr(port, true, op_width, &value);
           if (!ret)
             {
-              trace().printf("WARNING: Unhandled string IO read port 0x%x/%u\n",
-                             port, (1U << op_width) * 8);
+              Dbg(Dbg::Dev, Dbg::Trace)
+                .printf("WARNING: Unhandled string IO read port 0x%x/%u\n",
+                        port, (1U << op_width) * 8);
               int rv = vms->store_io_value(regs, _ptw, info, op_width, ~0U);
               if (rv != Jump_instr)
                 return rv;
@@ -67,8 +68,10 @@ Guest::handle_io_access_string<Vmx_state>(unsigned port, bool is_in,
 
           bool ret = handle_io_access_ptr(port, false, op_width, &value);
           if (!ret)
-            trace().printf("WARNING: Unhandled string IO write port 0x%x/%u <- 0x%x\n",
-                           port, (1U << op_width) * 8, value);
+            Dbg(Dbg::Dev, Dbg::Trace)
+              .printf("WARNING: Unhandled string IO write port 0x%x/%u <- "
+                      "0x%x\n",
+                      port, (1U << op_width) * 8, value);
         }
 
       // No REP prefix: Terminate the loop after the first iteration.
