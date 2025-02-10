@@ -71,7 +71,8 @@ namespace Gic {
            {
              // ignore writes to RO fields
              value = (value & ~Redir_tbl_entry::Ro_mask)
-                     | e_new.delivery_status() | e_new.remote_irr();
+                     | e_new.delivery_status().get_unshifted()
+                     | e_new.remote_irr().get_unshifted();
 
              // retain level_set bit, if entry is still masked.
              if (   value & (1 << Redir_tbl_entry::Masked_bit)
