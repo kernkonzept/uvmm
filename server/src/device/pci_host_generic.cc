@@ -267,6 +267,9 @@ public:
     if (has_ecam())
       size += amend_dsdt_with_mcfg(static_cast<l4_uint8_t *>(buf) + size,
                                    max_size - size);
+
+    size += amend_dsdt_with_prt(static_cast<l4_uint8_t *>(buf) + size,
+                                max_size - size);
     return size;
   }
 
@@ -577,6 +580,11 @@ Pci_host_generic::init_dev_resources(Hw_pci_device *hw_dev)
       info().printf("Device 0x%x has no legacy IRQs.\n", hw_dev->dev_id);
       return;
     }
+  if (pin < Pci_hdr_interrupt_pin_min || pin > Pci_hdr_interrupt_pin_max)
+    {
+      warn().printf("Invalid interrupt pin encoding %u\n", pin);
+      return;
+    }
 
   unsigned line = Pci_config_consts::Interrupt_line_unknown;
   hw_dev->cfg_read(Pci_hdr_interrupt_line_offset, &line,
@@ -599,7 +607,7 @@ Pci_host_generic::init_dev_resources(Hw_pci_device *hw_dev)
   info().printf("Device 0x%x: io provides legacy IRQ resource %i\n",
                 hw_dev->dev_id, io_irq);
 
-  _irq_router.add_route(io_irq, irq_ic(), line);
+  _irq_router.add_route(io_irq, irq_ic(), hw_dev->dev_id, pin, line);
 
   info().printf("  legacy IRQ mapping: %d -> %u (pin %c)\n", io_irq, line,
                 'A' + (pin - 1));

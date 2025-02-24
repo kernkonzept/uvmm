@@ -171,6 +171,7 @@ enum
   Pci_hdr_capability_offset = 0x34,
   Pci_hdr_interrupt_line_offset = 0x3c,
   Pci_hdr_interrupt_pin_offset = 0x3d,
+  Pci_hdr_interrupt_pin_min = 0x1,
   Pci_hdr_interrupt_pin_max = 0x4,
 
   Pci_hdr_type0_base_addr0_offset = Pci_hdr_base_addr0_offset,

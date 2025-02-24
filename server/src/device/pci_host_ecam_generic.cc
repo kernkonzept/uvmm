@@ -157,6 +157,9 @@ private:
     if (pin == 0) // No legacy interrupt messages enabled
       return;
 
+    if (pin < Pci_hdr_interrupt_pin_min || pin > Pci_hdr_interrupt_pin_max)
+      L4Re::chksys(-L4_EINVAL, "Invalid interrupt pin encoding %u\n", pin);
+
     // Apply interrupt pin mask
     pin &= _irq_map.pin_mask;
 
@@ -191,7 +194,7 @@ private:
     assert(io_irq != -1);
 
     // Create the io->guest irq mapping
-    _irq_router.add_route(io_irq, ic, map_irq);
+    _irq_router.add_route(io_irq, ic, dev_id, pin, map_irq);
     info().printf("  IRQ mapping: %d -> %d\n", io_irq, map_irq);
   }
 

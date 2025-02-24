@@ -119,6 +119,12 @@ class Legacy_irq_router
     std::atomic<l4_uint32_t> _triggers = 0;
 
   public:
+    /**
+     * Construct guest PCI IRQ.
+     *
+     * \param ic         Interrupt controller.
+     * \param guest_irq  Guest IRQ.
+     */
     Guest_pci_irq(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned guest_irq)
     {
       if (ic->get_irq_src_handler(guest_irq))
@@ -169,14 +175,65 @@ public:
   : _registry(registry), _icu(icu)
   {}
 
-  void add_route(unsigned host_irq,
-                 cxx::Ref_ptr<Gic::Ic> const &ic, unsigned guest_irq)
+  /**
+   * Add PCI legacy interrupt to guest IRQ forwarding route.
+   *
+   * \param host_irq   Host IRQ.
+   * \param ic         Interrupt controller.
+   * \param dev_id     PCI device ID.
+   * \param pin        PCI interrupt pin (1 = A, 2 = B, 3 = C, 4 = D).
+   * \param guest_irq  Guest IRQ.
+   */
+  void add_route(unsigned host_irq, cxx::Ref_ptr<Gic::Ic> const &ic,
+                 unsigned dev_id, unsigned pin, unsigned guest_irq)
   {
-    Host_pci_irq *src = get_source(host_irq);
-    Guest_pci_irq *dst = get_sink(ic, guest_irq);
-    src->add_sink(dst);
-    dst->add_source(src);
+    Host_pci_irq *source = get_source(host_irq);
+    Guest_pci_irq *sink = get_sink(ic, guest_irq);
+    unsigned guest_irq_prev = get_route(ic, dev_id, pin, guest_irq);
+
+    if (guest_irq_prev != guest_irq)
+      L4Re::throw_error(-L4_EINVAL,
+                        "Contradictory PCI legacy interrupt routing.");
+
+    source->add_sink(sink);
+    sink->add_source(source);
   }
+
+  /**
+   * Generate the _PRT interrupt routing table for ACPI DSDT.
+   *
+   * Generate a _PRT interrupt routing table based on the PCI legacy interrupt
+   * routes. Each PCI device, interrupt pin and guest IRQ tuple generates an
+   * entry in the table. The guest IRQs are considered Global System
+   * Interrupts.
+   *
+   * See ACPI Specification, Revision 6.5, Section 6.2.13 (PCI Routing Table).
+   *
+   * The AML templates are based on the following ASL:
+   *
+   * DefinitionBlock ("_prt.aml", "DSDT", 1, "UVMM  ", "KERNKONZ", 4) {
+   *   Scope (\_SB.PCI0) {
+   *     Name(_PRT, Package{
+   *       Package{0x0FFFFFFF, 3, 0, 0x0FFAFAFA}
+   *     })
+   *   }
+   * }
+   *
+   * Conversion (save above as _prt.asl):
+   *   $ iasl _prt.aml
+   *   $ xxd -i -s 0x24 -c 8 _prt.aml
+   *
+   * However, the AML templates which are actually used here have been manually
+   * altered to use a 4-byte PkgLength encoding for the Total size (offset
+   * 0x01) and Package size (offset 0x14) fields, as well as a WordConst
+   * encoding for the Count (offset 0x19) field.
+   *
+   * \param[out] buf       Output buffer.
+   * \param      max_size  Size of the buffer in bytes.
+   *
+   * \return Number of bytes generated.
+   */
+  l4_size_t amend_dsdt_with_prt(void *buf, l4_size_t max_size) const;
 
 private:
   Host_pci_irq *get_source(unsigned host_irq)
@@ -202,11 +259,49 @@ private:
     return ret;
   }
 
+  unsigned get_route(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned dev_id,
+                     unsigned pin, unsigned guest_irq)
+  {
+    auto idx = std::make_tuple(ic.get(), dev_id, pin);
+    auto it = _routes.find(idx);
+    if (it != _routes.end())
+      return it->second;
+
+    _routes[idx] = guest_irq;
+    return guest_irq;
+  }
+
+  /**
+   * Encode a 4-byte ACPI PkgLength field.
+   *
+   * See ACPI Specification, Revision 6.5, Section 20.2.4 (Package Length
+   * Encoding).
+   *
+   * \note The output buffer is assumed to contain space for at least 4 bytes.
+   *
+   * \param[out] buf    Output buffer.
+   * \param      value  Value to encode.
+   */
+  static void encode_pkg_length_4b(unsigned char *buf, unsigned value)
+  {
+    assert(value <= 0x0fffffff);
+
+    // Bits 6 & 7 set in the leading byte indicate the 4-byte encoding.
+    // The leading byte also uses bits 0 to 3 for the least significant bits
+    // of the value.
+    buf[0] = 0xc0U | (value & 0x0fU);
+    buf[1] = (value >> 4) & 0xffU;
+    buf[2] = (value >> 12) & 0xffU;
+    buf[3] = (value >> 20) & 0xffU;
+  }
+
   L4Re::Util::Object_registry *_registry;
   L4::Cap<L4::Icu> _icu;
   std::map<unsigned, cxx::unique_ptr<Host_pci_irq>> _sources;
   std::map<std::tuple<Gic::Ic *, unsigned>,
-           cxx::unique_ptr<Guest_pci_irq>>  _sinks;
+           cxx::unique_ptr<Guest_pci_irq>> _sinks;
+  std::map<std::tuple<Gic::Ic *, unsigned, unsigned>,
+           unsigned> _routes;
 };
 
 /**
@@ -661,6 +756,19 @@ public:
   Gic::Msix_dest msix_dest(unsigned dev_id) const
   {
     return Gic::Msix_dest(_msix_ctrl, msi_vsrc_id(dev_id));
+  }
+
+  /**
+   * Generate the _PRT interrupt routing table for ACPI DSDT.
+   *
+   * \param[out] buf       Output buffer.
+   * \param      max_size  Size of the buffer in bytes.
+   *
+   * \return Number of bytes generated.
+   */
+  l4_size_t amend_dsdt_with_prt(void *buf, l4_size_t max_size) const
+  {
+    return _irq_router.amend_dsdt_with_prt(buf, max_size);
   }
 
 private:

@@ -82,6 +82,82 @@ Pci_host_bridge::Hw_pci_device::add_decoder_resources(Vmm::Guest *,
     add_exp_rom_resource();
 }
 
+l4_size_t
+Legacy_irq_router::amend_dsdt_with_prt(void *buf, l4_size_t max_size) const
+{
+  // _PRT table prefix.
+  unsigned char dsdt_prt_prefix[] = {
+    /* 0x00 */ 0x10,
+    /* 0x01 */ 0xc0, 0x00, 0x00, 0x00, // Total size
+    /* 0x05 */ 0x2e, 0x5f, 0x53, 0x42, 0x5f, 0x50,
+    /* 0x0b */ 0x43, 0x49, 0x30, 0x08, 0x5f, 0x50, 0x52, 0x54,
+    /* 0x13 */ 0x13,
+    /* 0x14 */ 0xc0, 0x00, 0x00, 0x00, // Package size
+    /* 0x18 */ 0x0b,
+    /* 0x19 */ 0x00, 0x00 // Count
+  };
+
+  // _PRT table entry.
+  unsigned char dsdt_prt_entry[] = {
+    // Package
+    /* 0x00 */ 0x12, 0x0f, 0x04, 0x0c,
+    /* 0x04 */ 0x00, 0x00, 0x00, 0x00, // Address
+    /* 0x08 */ 0x0a,
+    /* 0x09 */ 0x00, // Pin
+    /* 0x0a */ 0x00, // Source (zero constant)
+    /* 0x0b */ 0x0c,
+    /* 0x0c */ 0x00, 0x00, 0x00, 0x00 // Global System Interrupt
+  };
+
+  auto count = _routes.size();
+  if (count > 0xffffU)
+    L4Re::throw_error(-L4_ENOMEM,
+                      "Too many entries in DSDT _PRT ACPI table.");
+
+  l4_size_t prefix_size = sizeof(dsdt_prt_prefix);
+  l4_size_t entry_size = sizeof(dsdt_prt_entry);
+  l4_size_t entries_size = entry_size * count;
+
+  if (max_size < prefix_size + entries_size)
+    L4Re::throw_error(-L4_ENOMEM,
+                      "Not enough space in DSDT ACPI table for _PRT table.");
+
+  // Update _PRT table prefix. The size fields are computed relative to
+  // their own offset. See ACPI Specification, Revision 6.5, Section 5.4.1 (AML
+  // Encoding).
+  encode_pkg_length_4b(dsdt_prt_prefix + 0x01,
+                       prefix_size + entries_size - 0x01);
+  encode_pkg_length_4b(dsdt_prt_prefix + 0x14,
+                       prefix_size + entries_size - 0x14);
+  *reinterpret_cast<l4_uint16_t *>(&dsdt_prt_prefix[0x19]) = count;
+
+  unsigned char *output = static_cast<unsigned char *>(buf);
+
+  std::memcpy(output, &dsdt_prt_prefix, prefix_size);
+  output += prefix_size;
+
+  // Update table entries.
+  for (auto const &i : _routes)
+    {
+      // PCI device address has the form of 0xnnnnFFFF where nnnn is the PCI
+      // device ID.
+      *reinterpret_cast<l4_uint32_t *>(&dsdt_prt_entry[0x04])
+        = 0xffffU | (std::get<1>(i.first) << 16);
+
+      // Contrary to the PCI Configuration Space, the _PRT entries encode the
+      // PCI interrupt pins as zero-based.
+      dsdt_prt_entry[0x09] = std::get<2>(i.first) - 1;
+
+      // Guest IRQ as Global System Interrupt.
+      *reinterpret_cast<l4_uint32_t *>(&dsdt_prt_entry[0x0c]) = i.second;
+
+      std::memcpy(output, &dsdt_prt_entry, entry_size);
+      output += entry_size;
+    }
+
+  return prefix_size + entries_size;
+}
+
 void Pci_host_bridge::Hw_pci_device::add_exp_rom_resource()
 {
   auto region =
