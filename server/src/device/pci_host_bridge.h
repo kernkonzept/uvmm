@@ -68,12 +68,12 @@ class Legacy_irq_router
         {
         case 0:
           Dbg(Dbg::Dev, Dbg::Info, "irq_svr")
-            .printf("Irq 0x%x will be unmasked directly\n", host_irq);
+            .printf("IRQ %u will be unmasked directly\n", host_irq);
           _eoi = obj_cap();
           break;
         case 1:
           Dbg(Dbg::Dev, Dbg::Info, "irq_svr")
-            .printf("Irq 0x%x will be unmasked at ICU\n", host_irq);
+            .printf("IRQ %u will be unmasked at ICU\n", host_irq);
           _eoi = icu;
           break;
         default:

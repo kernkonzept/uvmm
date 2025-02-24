@@ -583,8 +583,7 @@ Pci_host_generic::init_dev_resources(Hw_pci_device *hw_dev)
                    Vmm::Mem_access::Width::Wd8);
   if (line == Pci_config_consts::Interrupt_line_unknown)
     {
-      info().printf("Device 0x%x uses no legacy IRQs. %i\n",
-                    hw_dev->dev_id, line);
+      info().printf("Device 0x%x uses no legacy IRQs.\n", hw_dev->dev_id);
       return;
     }
 
@@ -602,7 +601,8 @@ Pci_host_generic::init_dev_resources(Hw_pci_device *hw_dev)
 
   _irq_router.add_route(io_irq, irq_ic(), line);
 
-  info().printf("  legacy IRQ mapping: %d -> %d\n", io_irq, line);
+  info().printf("  legacy IRQ mapping: %d -> %u (pin %c)\n", io_irq, line,
+                'A' + (pin - 1));
 }
 
 } } // namespace Vdev::Pci

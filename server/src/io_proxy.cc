@@ -122,7 +122,7 @@ Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus,
                    cxx::Ref_ptr<Gic::Ic> const &ic,
                    unsigned dt_irq, unsigned io_irq, char const *dev_name)
 {
-  info.printf("IO device '%s' - registering irq 0x%x -> 0x%x\n",
+  info.printf("IO device '%s' - registering IRQ %u -> %u\n",
       dev_name, io_irq, dt_irq);
 
   auto *irq_source = ic->get_irq_src_handler(dt_irq);
@@ -137,7 +137,7 @@ Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus,
       return;
     }
 
-  warn.printf("IO device '%s': irq 0x%x -> 0x%x already registered\n",
+  warn.printf("IO device '%s': IRQ %u -> %u already registered\n",
       dev_name, io_irq, dt_irq);
 
   // Ensure we have the correct binding of the currently registered
@@ -146,16 +146,16 @@ Io_proxy::bind_irq(Vmm::Guest *vmm, Vmm::Virt_bus *vbus,
 
   if (!other_svr)
     {
-      Err().printf("ic:0x%x is bound to a different irq type\n",
+      Err().printf("ic:%u is bound to a different IRQ type\n",
                    dt_irq);
       L4Re::chksys(-L4_EEXIST, "Bind IRQ for IO proxy object.");
     }
 
   if (io_irq != other_svr->get_io_irq())
     {
-      Err().printf("bind_irq: ic:0x%x -> 0x%x -- "
-                   "irq already bound to different io irq: 0x%x  \n",
-                   dt_irq, io_irq, other_svr->get_io_irq());
+      Err().printf("bind_irq: %u -> ic:%u -- "
+                   "IRQ already bound to different IO IRQ: %u\n",
+                   io_irq, dt_irq, other_svr->get_io_irq());
       L4Re::chksys(-L4_EEXIST, "Bind IRQ for IO proxy object.");
     }
 
@@ -343,7 +343,7 @@ struct F : Factory
                                  node.get_name());
               }
 
-            trace.printf("Registering IRQ resource %s.%.4s : 0x%lx\n",
+            trace.printf("Registering IRQ resource %s.%.4s : %lu\n",
                          vdev->dev_info().name, resname, res.start);
             --todo_irqs;
           }

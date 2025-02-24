@@ -103,7 +103,7 @@ Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
       else if (res.type == L4VBUS_RESOURCE_IRQ)
         {
           Dbg(Dbg::Dev, Dbg::Info, "ioproxy")
-            .printf("Registering IRQ resource %s.%.4s : 0x%lx\n",
+            .printf("Registering IRQ resource %s.%.4s : %lu\n",
                     dev.dev_info().name, resname, res.start);
           _irqs.mark_irq_present(res.start);
         }
