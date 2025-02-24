@@ -109,9 +109,9 @@ public:
     int err;
     _ns_offset = ns_offset - l4_kip_clock_ns(l4re_kip());
     if ((err = _rtc->set_timer_offset(_ns_offset)))
-      warn().printf("Failed at setting the time @rtc. Errorcode %d. "
-                    "Did you add write permission to the rtc cap?\n",
-                    err);
+      trace().printf("Failed at setting the time @rtc. Errorcode %d. "
+                     "Did you add write permission to the rtc cap?\n",
+                     err);
   }
 
   // rtc server tells us that the time has changed
@@ -123,6 +123,7 @@ public:
   }
 
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "RTC"); }
+  static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "RTC"); }
 
 private:
   // offset of kip_clock to epoch (wallclock time)
