@@ -5,7 +5,6 @@
 /dts-v1/;
 /include/ "skeleton.dtsi"
 /include/ "vmm-devices-arm.dtsi"
-/include/ "ic-arm.dtsi"
 
 / {
     model = "L4 VM";
@@ -22,7 +21,26 @@
     };
 
     icsoc {
-        ranges = <0x0 0x40000 0x3000>;
+        compatible = "simple-bus";
+        #address-cells = <1>;
+        #size-cells = <1>;
+        ranges = <0x0 0x40000 0x100000>;
+
+        /* Uvmm will adapt the compatible string depending on the present gic
+         * version. It expects reg entries that provide enough space for the
+         * Cpu/Dist interface for gicv2 (at least 0x1000, 0x1000) or the
+         * Dist/Redist interface for gicv3 (0x10000, 0x20000 * number of CPUs).
+         * The entries provided here support any gicv2 setup or a gicv3 setup
+         * with up to 4 CPUs.
+         */
+        gic: interrupt-controller {
+            compatible = "arm,cortex-a15-gic", "arm,cortex-a9-gic";
+            #interrupt-cells = <3>;
+            #address-cells = <0>;
+            interrupt-controller;
+            reg = <0x10000 0x10000>,
+                  <0x20000 0x80000>;
+        };
     };
 
     timer {
