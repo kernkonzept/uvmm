@@ -220,6 +220,10 @@ public:
     t->Pm1aEventBlock = Ports::Pm1a_event_block;
     t->Pm1EventLength = Ports::Pm1_event_length;
 
+    // Indicate the presence of an i8042 keyboard controller.
+    if (_vmm->i8042_present())
+      t->BootFlags |= ACPI_FADT_8042;
+
     // set the reset register for ACPI reboot
     t->Flags                 |= ACPI_FADT_RESET_REGISTER;
     t->ResetRegister.Address  = Ports::Reset_register;

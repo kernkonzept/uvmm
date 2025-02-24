@@ -118,6 +118,21 @@ void Guest::del_io_device(Io_region const &region)
   _iomap.erase(region);
 }
 
+bool Guest::i8042_present()
+{
+  std::unique_lock<std::mutex> lock(_iomap_lock);
+
+  auto i = _iomap.find(Io_region(0x60));
+  if (i == _iomap.end())
+    return false;
+
+  i = _iomap.find(Io_region(0x64));
+  if (i == _iomap.end())
+    return false;
+
+  return true;
+}
+
 void Guest::register_msr_device(cxx::Ref_ptr<Msr_device> const &dev)
 {
   _msr_devices.push_back(dev);

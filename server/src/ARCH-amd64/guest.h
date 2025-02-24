@@ -68,6 +68,17 @@ public:
                      cxx::Ref_ptr<Io_device> const &dev);
   void del_io_device(Io_region const &region);
 
+  /**
+   * Indicate whether the legacy i8042 keyboard controller is present.
+   *
+   * We assume that the legacy i8042 keyboard controller is present if the
+   * I/O ports 0x60 and 0x64 are registered.
+   *
+   * \retval true   The legacy i8042 keyboard controller is present.
+   * \retval false  The legacy i8042 keyboard controller is absent.
+   */
+  bool i8042_present();
+
   bool register_framebuffer(l4_uint64_t addr, l4_uint64_t size,
                             const L4Re::Video::View::Info &info);
 
