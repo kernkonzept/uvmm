@@ -616,15 +616,15 @@ public:
       /* 0x39 */ 0x79, 0x00
     };
 
-    // Update the I/O resource
-    *reinterpret_cast<l4_uint16_t *>(&dsdt_fwcf[0x33]) = _base;
-    *reinterpret_cast<l4_uint16_t *>(&dsdt_fwcf[0x35]) = _base;
-    dsdt_fwcf[0x38] = _size;
-
     l4_size_t size = sizeof(dsdt_fwcf);
     if (max_size < size)
       L4Re::throw_error(-L4_ENOMEM,
         "Not enough space in DSDT ACPI table for firmware configuration device.");
+
+    // Update the I/O resource
+    *reinterpret_cast<l4_uint16_t *>(&dsdt_fwcf[0x33]) = _base;
+    *reinterpret_cast<l4_uint16_t *>(&dsdt_fwcf[0x35]) = _base;
+    dsdt_fwcf[0x38] = _size;
 
     std::memcpy(buf, &dsdt_fwcf, size);
     return size;
