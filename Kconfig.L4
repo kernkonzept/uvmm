@@ -202,6 +202,15 @@ config UVMM_VDEV_PL031
 	
 	  For details on the configuration see device/arm/pl031.cc
 
+config UVMM_VDEV_SBSA_GWDT
+	bool "SBSA Watchdog"
+	default y
+	depends on BUILD_ARCH_arm64
+	help
+	  Emulate a SBSA watchdog for the guest.
+
+	  For details on the configuration see device/sbsa_gwdt.cc
+
 config UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC
 	bool "ECAM PCIe host bridge support"
 	default y

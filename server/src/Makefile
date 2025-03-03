@@ -81,6 +81,7 @@ SRC_CC-$(CONFIG_UVMM_VDEV_CFI_FLASH) +=  device/cfi.cc
 SRC_CC-$(CONFIG_UVMM_EXTERNAL_RTC) += device/l4rtc.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_FRAMEBUFFER) += device/framebuffer.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_ROM) += device/rom.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_SBSA_GWDT) += device/sbsa_gwdt.cc
 
 SRC_CC-$(CONFIG_UVMM_VDEV_BCM2835_MBOX) += device/bcm2835_mbox.cc
 
