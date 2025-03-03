@@ -64,6 +64,7 @@ namespace {
 
     void *get() const { return _addr; }
     bool valid() { return _addr != MAP_FAILED; }
+    size_t size() const {return _size; }
 
   private:
     size_t _size = 0;
@@ -104,6 +105,7 @@ Vdev::Host_dt::add_source(char const *fname)
 
   if (valid())
     {
+      _fdt->resize(_fdt->size() + mem.size());
       get().apply_overlay(mem.get(), filename.substr(0, pos).c_str());
       return;
     }

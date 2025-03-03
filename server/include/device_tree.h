@@ -128,6 +128,14 @@ public:
       }
   }
 
+  void resize(l4_size_t s)
+  {
+    _dtmem = realloc(_dtmem, s);
+    if (!_dtmem)
+      L4Re::chksys(-L4_ENOMEM, "Allocating memory for device tree.");
+    fdt_set_totalsize(_dtmem, s);
+  }
+
   size_t size() const
   { return fdt_totalsize(_dtmem); }
 
