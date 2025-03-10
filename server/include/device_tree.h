@@ -495,21 +495,23 @@ public:
   {
     int r = _fdt->setprop_string(_node, name, value);
     if (r < 0)
-      ERR(this, "cannot set property '%s' to '%s'", name, value);
+      ERR(this, "cannot set property '%s' to '%s'i: %s", name, value,
+          fdt_strerror(r));
   }
 
   void setprop_data(char const *name, void const *data, int len) const
   {
     int r = _fdt->setprop(_node, name, data, len);
     if (r < 0)
-      ERR(this, "cannot set property '%s'", name);
+      ERR(this, "cannot set property '%s': %s", name, fdt_strerror(r));
   }
 
   void setprop_placeholder(char const *name, int len, void **prop_data) const
   {
     int r = _fdt->setprop_placeholder(_node, name, len, prop_data);
     if (r < 0)
-      ERR(this, "cannot resize property '%s' to %d bytes", name, len);
+      ERR(this, "cannot resize property '%s' to %d bytes: %s", name, len,
+          fdt_strerror(r));
   }
 
   void appendprop_u32(char const *name, l4_uint32_t value) const
@@ -1138,7 +1140,7 @@ public:
   {
     int ret = _fdt->overlay_apply(fdt_overlay);
     if (ret < 0)
-      ERR("cannot apply overlay '%s': %d\n", name, ret);
+      ERR("cannot apply overlay '%s': %s\n", name, fdt_strerror(ret));
   }
 
   Node first_node() const
