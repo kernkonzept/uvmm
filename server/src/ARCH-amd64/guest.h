@@ -432,11 +432,11 @@ public:
         break;
 
       case 0x250:  // MTRRfix64K_0000
-          // fall-through
+        [[fallthrough]];
       case 0x258:  // MTRRfix16K
-          // fall-through
+        [[fallthrough]];
       case 0x259:  // MTRRfix16K
-          // fall-through
+        [[fallthrough]];
       // MTRRfix_4K_*
       case 0x268: case 0x269: case 0x26a: case 0x26b: case 0x26c: case 0x26d:
       case 0x26e: case 0x26f:
@@ -468,11 +468,11 @@ public:
         break;
 
       case 0x250:  // MTRRfix64K_0000
-          // fall-through
+        [[fallthrough]];
       case 0x258:  // MTRRfix16K
-          // fall-through
+        [[fallthrough]];
       case 0x259:  // MTRRfix16K
-          // fall-through
+        [[fallthrough]];
       // MTRRfix_4K_*
       case 0x268: case 0x269: case 0x26a: case 0x26b: case 0x26c: case 0x26d:
       case 0x26e: case 0x26f:

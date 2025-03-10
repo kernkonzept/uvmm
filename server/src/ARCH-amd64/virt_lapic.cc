@@ -63,7 +63,7 @@ Virt_lapic::set(Vdev::Msix::Data_register_format data)
 
   switch (data.delivery_mode())
     {
-    case Dm_fixed: // FALL-THROUGH
+    case Dm_fixed: [[fallthrough]];
     case Dm_lowest_prio:
       irq_trigger(data.vector(), data.trigger_mode(), true);
       break;

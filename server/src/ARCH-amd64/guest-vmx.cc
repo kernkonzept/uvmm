@@ -191,7 +191,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
       }
       // FIXME entry info might be overwritten by exception handling
       // currently this isn't fully fletched anyways so this works for now.
-      /* fall-through */
+      [[fallthrough]];
     case Exit::External_int:
       return vms->handle_exception_nmi_ext_int(ev_rec);
 
@@ -342,7 +342,7 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
                      reason_raw, qual, ip, insn_err, entry_exc_err
                      );
       }
-      /* fall-through */
+      [[fallthrough]];
 
     case Exit::Task_switch:
     case Exit::Apic_access:

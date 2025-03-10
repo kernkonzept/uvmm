@@ -391,7 +391,7 @@ private:
             break;
           case Cmd_program_erase_suspend:
             _status |= Status_ready;
-            // FALLTHROUGH
+            [[fallthrough]];
           case Cmd_write_byte:
           case Cmd_write_byte2:
           case Cmd_block_erase:

@@ -929,7 +929,7 @@ Guest::new_state_action(Cpu_dev::Cpu_state state, bool halt_req,
                        cpu->vcpu().get_vcpu_id());
           shutdown(Shutdown);
         }
-      // fall-through
+      [[fallthrough]];
     case Cpu_dev::Init:
       cpu->wait_for_ipi();
       break;

@@ -176,7 +176,7 @@ public:
         return;
       case Mips::Op::Jal:
         r->ra = r->ip + 8;
-        // fallthrough
+        [[fallthrough]];
       case Mips::Op::J:
         r->ip = (r->ip & ~((1UL << 28) - 1)) | (insn.instr_index() << 2);
         return;

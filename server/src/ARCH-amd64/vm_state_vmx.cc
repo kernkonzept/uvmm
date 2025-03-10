@@ -436,7 +436,7 @@ Vmx_state::handle_hardware_exception(Event_recorder *ev_rec, unsigned num,
     case 1: // #DB
       // #DB exceptions are either of fault type or of trap type. We reflect
       // both to the guest, without changing state, thus don't change the IP.
-      // Fall-through
+      [[fallthrough]];
     default:
       ev_rec->make_add_event<Event_exc>(Event_prio::Exception, num);
       break;

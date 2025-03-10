@@ -132,16 +132,16 @@ public:
         warn().printf("Reading write-only ICR register\n");
         break;
 
-      case Registers::Periph_id0: // fall-through
-      case Registers::Periph_id1: // fall-through
-      case Registers::Periph_id2: // fall-through
+      case Registers::Periph_id0: [[fallthrough]];
+      case Registers::Periph_id1: [[fallthrough]];
+      case Registers::Periph_id2: [[fallthrough]];
       case Registers::Periph_id3:
         retval = periph_id[(reg - Periph_id0) >> 2];
         break;
 
-      case Registers::Pcell_id0: // fall-through
-      case Registers::Pcell_id1: // fall-through
-      case Registers::Pcell_id2: // fall-through
+      case Registers::Pcell_id0: [[fallthrough]];
+      case Registers::Pcell_id1: [[fallthrough]];
+      case Registers::Pcell_id2: [[fallthrough]];
       case Registers::Pcell_id3:
         retval = pcell_id[(reg - Pcell_id0) >> 2];
         break;
@@ -186,7 +186,7 @@ public:
 
       case Registers::Imsc: _imsc = value & 1U; break;
 
-      case Registers::Ris: // fall-through
+      case Registers::Ris: [[fallthrough]];
       case Registers::Mis:
         warn().printf("Writing read-only register 0x%x. Ignoring.\n", reg);
         break;
@@ -203,7 +203,6 @@ public:
         info()
           .printf("Writing read-only register or unspecified register 0x%x\n",
                   reg);
-        // fall-through
       }
   }
 

@@ -184,7 +184,7 @@ public:
         if (inject_abort(pfa, vcpu))
           return Retry;
         warn().printf("Abort inject failed! Halting VM...\n");
-        /* FALLTHRU */
+        [[fallthrough]];
       case Fault_mode::Halt:
         break;
       }

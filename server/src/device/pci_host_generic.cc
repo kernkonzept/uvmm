@@ -459,15 +459,15 @@ public:
         break;
 
       case Pci_bus_config_data_31_24:
-        // Falls through.
+        [[fallthrough]];
       case Pci_bus_config_data_15_8:
         if (width != Mem_access::Wd8)
           break;
-        // Else falls through.
+        [[fallthrough]];
       case Pci_bus_config_data_31_16:
         if (width == Mem_access::Wd32)
           break;
-        // Else falls through.
+        [[fallthrough]];
       case Pci_bus_config_data:
         {
           if (!_cfg_addr.enabled())
@@ -508,15 +508,15 @@ public:
           }
         break;
       case Pci_bus_config_data_31_24:
-        // Falls through.
+        [[fallthrough]];
       case Pci_bus_config_data_15_8:
         if (width != Mem_access::Wd8)
           break;
-        // Else falls through.
+        [[fallthrough]];
       case Pci_bus_config_data_31_16:
         if (width == Mem_access::Wd32)
           break;
-        // Else falls through.
+        [[fallthrough]];
       case Pci_bus_config_data:
         {
           if (!_cfg_addr.enabled())
