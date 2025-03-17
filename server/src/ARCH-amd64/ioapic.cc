@@ -108,6 +108,8 @@ namespace Gic {
         return _ioregsel;
       case Iowin:
         return read_reg(_ioregsel.load());
+      case Eoir:
+        return 0UL;
       default:
         warn().printf("Unimplemented MMIO read from register %d by CPU %d\n",
                       reg, cpu_id);
@@ -124,6 +126,9 @@ namespace Gic {
         break;
       case Iowin:
         write_reg(_ioregsel.load(), value);
+        break;
+      case Eoir:
+        clear_all_rirr(value & 0xff);
         break;
       default:
         warn().printf("Unimplemented MMIO write to register %d by CPU %d\n",

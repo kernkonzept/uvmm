@@ -31,8 +31,8 @@ class Io_apic : public Ic,
   {
     Io_apic_id = 0,
     Io_apic_id_offset = 24,
-    Io_apic_ver = 0x11,
-    Io_apic_num_pins = 24,
+    Io_apic_ver = 0x20,
+    Io_apic_num_pins = 120,
     Io_apic_mem_size = 0x1000,
     Irq_cells = 1, // keep in sync with virt-pc.dts
   };
@@ -41,6 +41,7 @@ class Io_apic : public Ic,
   {
     Ioregsel = 0,
     Iowin = 0x10,
+    Eoir = 0x40,
   };
 
   enum Ioapic_regs
@@ -263,6 +264,15 @@ private:
         e_new.remote_irr() = 1;
       }
     while (!_redirect_tbl[irq].compare_exchange_weak(e, e_new));
+  }
+
+  void clear_all_rirr(l4_uint8_t vec)
+  {
+    for (unsigned i = 0; i < Io_apic_num_pins; ++i)
+      {
+        if (_redirect_tbl[i].load().vector() == vec)
+          entry_eoi(i);
+      }
   }
 
   void apic_bind_irq_src_handler(unsigned entry_num, unsigned vec,
