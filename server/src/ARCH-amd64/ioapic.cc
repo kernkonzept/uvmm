@@ -26,7 +26,7 @@ namespace Gic {
           unsigned irq = index / 2;
           if (irq >= Io_apic_num_pins)
             {
-              warn().printf("Unimplemented MMIO read from ioregsel "
+              info().printf("Unimplemented MMIO read from ioregsel "
                             "register 0x%x\n", reg);
               return -1;
             }
@@ -52,7 +52,7 @@ namespace Gic {
     unsigned irq = index / 2;
     if (irq >= Io_apic_num_pins)
       {
-        warn().printf("Unimplemented MMIO write to ioregsel register 0x%x\n",
+        info().printf("Unimplemented MMIO write to ioregsel register 0x%x\n",
                       reg);
         return;
       }
@@ -111,7 +111,7 @@ namespace Gic {
       case Eoir:
         return 0UL;
       default:
-        warn().printf("Unimplemented MMIO read from register %d by CPU %d\n",
+        info().printf("Unimplemented MMIO read from register %d by CPU %d\n",
                       reg, cpu_id);
         return -1;
       }
@@ -131,7 +131,7 @@ namespace Gic {
         clear_all_rirr(value & 0xff);
         break;
       default:
-        warn().printf("Unimplemented MMIO write to register %d by CPU %d\n",
+        info().printf("Unimplemented MMIO write to register %d by CPU %d\n",
                       reg, cpu_id);
         break;
       }
