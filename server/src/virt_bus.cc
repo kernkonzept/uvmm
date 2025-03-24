@@ -88,14 +88,12 @@ Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
                 rights |= L4_FPAGE_RO;
               if (res.flags & L4VBUS_RESOURCE_F_MEM_W)
                 rights |= L4_FPAGE_W;
+              auto rm_flags = static_cast<L4Re::Rm::Region_flags>(rights);
+              auto ds_mgr = cxx::make_ref_obj<Ds_manager>(
+                std::string("Virt_bus: ") + dev.dev_info().name,
+                io_ds(), res.start, size, rm_flags);
               auto handler = Vdev::make_device<Ds_handler>(
-                  cxx::make_ref_obj<Ds_manager>(std::string("Virt_bus: ") +
-                                                  dev.dev_info().name,
-                                                io_ds(),
-                                                res.start, size,
-                                                L4Re::Rm::Region_flags(rights)),
-                  static_cast<L4_fpage_rights>(rights)
-                );
+                ds_mgr, static_cast<L4_fpage_rights>(rights));
               devs->vmm()->add_mmio_device(region, handler);
             }
 
