@@ -729,11 +729,17 @@ void Pci_host_bridge::Hw_pci_device::map_additional_iomem_resources(
         rights |= L4_FPAGE_RO;
       if (res.flags & L4VBUS_RESOURCE_F_MEM_W)
         rights |= L4_FPAGE_W;
+      auto rm_flags = static_cast<L4Re::Rm::Region_flags>(rights);
+      if (res.flags & L4VBUS_RESOURCE_F_MEM_CACHEABLE)
+        rm_flags = rm_flags | L4Re::Rm::Region_flags::Cache_normal;
+      else if (res.flags & L4VBUS_RESOURCE_F_MEM_PREFETCHABLE)
+        rm_flags = rm_flags | L4Re::Rm::Region_flags::Cache_buffered;
+      else
+        rm_flags = rm_flags | L4Re::Rm::Region_flags::Cache_uncached;
+      auto ds_mgr = cxx::make_ref_obj<Ds_manager>(
+        "Pci_host_bridge: additional IO mem", io_ds, res.start, size, rm_flags);
       auto handler = Vdev::make_device<Ds_handler>(
-        cxx::make_ref_obj<Vmm::Ds_manager>("Pci_host_bridge: additional IO mem",
-                                           io_ds, res.start, size,
-                                           L4Re::Rm::Region_flags(rights)),
-        static_cast<L4_fpage_rights>(rights));
+        ds_mgr, static_cast<L4_fpage_rights>(rights));
       vmm->add_mmio_device(region, handler);
     }
 }

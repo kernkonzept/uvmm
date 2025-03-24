@@ -89,6 +89,12 @@ Virt_bus::collect_dev_resources(Virt_bus::Devinfo const &dev,
               if (res.flags & L4VBUS_RESOURCE_F_MEM_W)
                 rights |= L4_FPAGE_W;
               auto rm_flags = static_cast<L4Re::Rm::Region_flags>(rights);
+              if (res.flags & L4VBUS_RESOURCE_F_MEM_CACHEABLE)
+                rm_flags = rm_flags | L4Re::Rm::Region_flags::Cache_normal;
+              else if (res.flags & L4VBUS_RESOURCE_F_MEM_PREFETCHABLE)
+                rm_flags = rm_flags | L4Re::Rm::Region_flags::Cache_buffered;
+              else
+                rm_flags = rm_flags | L4Re::Rm::Region_flags::Cache_uncached;
               auto ds_mgr = cxx::make_ref_obj<Ds_manager>(
                 std::string("Virt_bus: ") + dev.dev_info().name,
                 io_ds(), res.start, size, rm_flags);

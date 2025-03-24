@@ -296,12 +296,16 @@ struct F : Factory
                       vdev->dev_info().name, resname, res.start, res.end,
                       dtaddr, dtaddr + (dtsize - 1));
 
-            auto handler = Vdev::make_device<Ds_handler>(
-                cxx::make_ref_obj<Vmm::Ds_manager>("Io_proxy: vbus",
-                                                   vbus->io_ds(), res.start,
-                                                   dtsize)
-              );
-
+            L4Re::Rm::Region_flags rm_flags = L4Re::Rm::F::RW;
+            if (res.flags & L4VBUS_RESOURCE_F_MEM_CACHEABLE)
+              rm_flags = rm_flags | L4Re::Rm::Region_flags::Cache_normal;
+            else if (res.flags & L4VBUS_RESOURCE_F_MEM_PREFETCHABLE)
+              rm_flags = rm_flags | L4Re::Rm::Region_flags::Cache_buffered;
+            else
+              rm_flags = rm_flags | L4Re::Rm::Region_flags::Cache_uncached;
+            auto ds_mgr = cxx::make_ref_obj<Vmm::Ds_manager>(
+              "Io_proxy: vbus", vbus->io_ds(), res.start, dtsize, rm_flags);
+            auto handler = Vdev::make_device<Ds_handler>(ds_mgr);
             auto region = Vmm::Region::ss(Vmm::Guest_addr(dtaddr), dtsize,
                                           Vmm::Region_type::Virtual);
             devs->vmm()->add_mmio_device(region, handler);
