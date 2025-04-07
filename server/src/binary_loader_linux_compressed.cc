@@ -73,7 +73,7 @@ public:
             // Should finish in one round
             if (err != Z_STREAM_END)
               {
-                Err().printf("zlib decompression error: %s\n", strm.msg);
+                Err().printf("zlib decompression error(%d): %s\n", err, strm.msg);
                 L4Re::throw_error(-L4_EINVAL);
               }
             else
