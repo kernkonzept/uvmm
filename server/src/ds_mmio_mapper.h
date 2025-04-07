@@ -50,7 +50,8 @@ private:
   /// manager for a portion of a dataspace + local mapping
   cxx::Ref_ptr<Vmm::Ds_manager> _ds;
 
-  /// Stores the rights for the mapping into the guest
+  /// Stores the rights for the mapping into the guest (R/W/X).
+  /// The cacheability options are copied from the local mappings!
   L4_fpage_rights _rights;
 
   /// Stores the offset relative to the offset in the Ds_manager
@@ -95,7 +96,17 @@ private:
     return (full_offset() + (start_other - start_this)) == dsh->full_offset();
   }
 
-  /// map the memory into the guest. (this might establish a VMM local mapping)
+  /**
+   * Map the entire MMIO region into the guest.
+   *
+   * \param vm_task  VM task capability.
+   * \param start    Guest start address of the region.
+   * \param end      Guest end address of the region.
+   *
+   * \note This might establish a VMM local mapping.
+   * \note The cacheability options for the VMM mapping are copied from the
+   *       local mapping!
+   */
   void map_eager(L4::Cap<L4::Vm> vm_task, Vmm::Guest_addr start,
                  Vmm::Guest_addr end) override
   {
@@ -104,7 +115,11 @@ private:
   }
 
   /**
-   * Map an MMIO region to the guest.
+   * Map parts of an MMIO region to the guest.
+   *
+   * \note This might establish a VMM local mapping.
+   * \note The cacheability options for the VMM mapping are copied from the
+   *       local mapping!
    *
    * \param pfa      Guest-physical page fault address.
    * \param offset   Offset of the page fault into the MMIO region.
@@ -237,6 +252,11 @@ private:
         return -L4_EPERM;
       }
 
+    // XXX This is differs from !MAP_OTHER:
+    //     - There, we copy the cacheability options from the local mappings.
+    //     - Here, we request Dataspace::Flags::Normal = Cacheable mapping!
+    //     Resolve this by changing _rights to Dataspace::Flags.
+#warning Always requests Dataspace::Flags::Cacheable mapping!
     long res = _ds->map(offset + _offset, L4Re::Dataspace::Flags(_rights),
                         pfa, min, max, vm_task);
 

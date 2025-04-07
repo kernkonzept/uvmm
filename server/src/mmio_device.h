@@ -110,10 +110,13 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    * \param dest  Guest physical address the address range should be mapped to
    * \param src   Local address of the range
    * \param size  Size of range
-   * \param attr  Attributes used for mapping
+   * \param attr  Flexpage access rights used for mapping
    *
-   * This function iterates over the specified local area and maps
-   * everything into the address space of the guest.
+   * This function iterates over the specified local area and maps everything
+   * into the address space of the guest.
+   *
+   * \note The cacheability options for memory send items cannot be specified.
+   *       Instead, the cacheability options from the local mappings are used.
    */
   void map_guest_range(L4::Cap<L4::Vm> vm_task, Vmm::Guest_addr dest,
                        l4_addr_t src, l4_size_t size, unsigned attr);
