@@ -28,9 +28,9 @@
             status = "okay";
         };
 
-        virtio_uart@20000 {
+        virtio_uart@3000 {
             compatible = "virtio,mmio";
-            reg = <0x20000 0x100>;
+            reg = <0x3000 0x100>;
             interrupt-parent = <&gic>;
             interrupts = <0 122 4>;
             l4vmm,vdev = "console";
@@ -38,9 +38,9 @@
             status = "disabled";
         };
 
-        virtio_net@10000 {
+        virtio_net@4000 {
             compatible = "virtio,mmio";
-            reg = <0x10000 0x200>;
+            reg = <0x4000 0x200>;
             interrupt-parent = <&gic>;
             interrupts = <0 123 4>;
             l4vmm,vdev = "proxy";
