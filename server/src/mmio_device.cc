@@ -61,8 +61,13 @@ void Vmm::Mmio_device::map_guest_range(L4::Cap<L4::Vm> vm_task,
     {
       auto doffs = dest.get() + offs;
       char ps = get_page_shift(doffs, dest.get(), dest_end, offs, src);
+      // Map explicitly cacheable into VM task. This lets the guest choose the
+      // effective memory attributes.
       auto res = l4_error(vm_task->map(L4Re::This_task,
-                                       l4_fpage(src + offs, ps, attr), doffs));
+                                       l4_fpage(src + offs, ps, attr),
+                                       l4_map_control(doffs,
+                                                      L4_FPAGE_CACHEABLE,
+                                                      L4_MAP_ITEM_MAP)));
       if (res < 0)
         {
           Err().printf("Could not map (%lx, %d) to (%lx, %d)\n",

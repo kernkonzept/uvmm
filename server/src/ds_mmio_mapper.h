@@ -51,7 +51,6 @@ private:
   cxx::Ref_ptr<Vmm::Ds_manager> _ds;
 
   /// Stores the rights for the mapping into the guest (R/W/X).
-  /// The cacheability options are copied from the local mappings!
   L4_fpage_rights _rights;
 
   /// Stores the offset relative to the offset in the Ds_manager
@@ -104,8 +103,6 @@ private:
    * \param end      Guest end address of the region.
    *
    * \note This might establish a VMM local mapping.
-   * \note The cacheability options for the VMM mapping are copied from the
-   *       local mapping!
    */
   void map_eager(L4::Cap<L4::Vm> vm_task, Vmm::Guest_addr start,
                  Vmm::Guest_addr end) override
@@ -118,8 +115,6 @@ private:
    * Map parts of an MMIO region to the guest.
    *
    * \note This might establish a VMM local mapping.
-   * \note The cacheability options for the VMM mapping are copied from the
-   *       local mapping!
    *
    * \param pfa      Guest-physical page fault address.
    * \param offset   Offset of the page fault into the MMIO region.
@@ -151,11 +146,15 @@ private:
             return -L4_EPERM;
           }
 
+        // Map explicitly cacheable into VM task. This lets the guest choose
+        // the effective memory attributes.
         res = l4_error(
                 vm_task->map(L4Re::This_task,
                              l4_fpage(l4_trunc_size(ls + offset, ps),
                                       ps, _rights),
-                             l4_trunc_size(pfa, ps)));
+                             l4_map_control(l4_trunc_size(pfa, ps),
+                                            L4_FPAGE_CACHEABLE,
+                                            L4_MAP_ITEM_MAP)));
       }
 
     if (res < 0)

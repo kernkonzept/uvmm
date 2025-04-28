@@ -114,9 +114,6 @@ struct Mmio_device : public virtual Vdev::Dev_ref
    *
    * This function iterates over the specified local area and maps everything
    * into the address space of the guest.
-   *
-   * \note The cacheability options for memory send items cannot be specified.
-   *       Instead, the cacheability options from the local mappings are used.
    */
   void map_guest_range(L4::Cap<L4::Vm> vm_task, Vmm::Guest_addr dest,
                        l4_addr_t src, l4_size_t size, unsigned attr);
@@ -385,9 +382,13 @@ struct Ro_ds_mapper_t : Mmio_device
                          local_start + dev()->mapped_mmio_size() - 1);
         l4_addr_t base = l4_trunc_size(local_start + offset, ps);
 
+        // Map explicitly cacheable into VM task. This lets the guest choose
+        // the effective memory attributes.
         res = l4_error(vm_task->map(L4Re::This_task,
                                     l4_fpage(base, ps, L4_FPAGE_RX),
-                                    l4_trunc_size(pfa, ps)));
+                                    l4_map_control(l4_trunc_size(pfa, ps),
+                                                   L4_FPAGE_CACHEABLE,
+                                                   L4_MAP_ITEM_MAP)));
       }
 #endif
 

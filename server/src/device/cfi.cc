@@ -234,9 +234,13 @@ private:
                      local_start + mapped_size() - 1U);
     l4_addr_t base = l4_trunc_size(local_start + offset, ps);
 
+    // Map explicitly cacheable into VM task. This lets the guest choose the
+    // effective memory attributes.
     res = l4_error(vm_task->map(L4Re::This_task,
                                 l4_fpage(base, ps, L4_FPAGE_RX),
-                                l4_trunc_size(pfa, ps)));
+                                l4_map_control(l4_trunc_size(pfa, ps),
+                                               L4_FPAGE_CACHEABLE,
+                                               L4_MAP_ITEM_MAP)));
 #endif
 
     return res;
