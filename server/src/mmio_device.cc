@@ -6,45 +6,9 @@
  */
 
 #include "mmio_device.h"
+#include "batch_unmapper.h"
 #include "debug.h"
-
-namespace {
-
-class Batch_unmapper
-{
-  enum { Batch_size = L4_UTCB_GENERIC_DATA_SIZE - 2 };
-
-  L4::Cap<L4::Vm> _task;
-  l4_fpage_t _fpages[Batch_size];
-  unsigned _num = 0;
-  l4_umword_t _mask;
-
-  void flush()
-  {
-    if (_num > 0)
-      L4Re::chksys(_task->unmap_batch(_fpages, _num, _mask),
-                   "unmap_batch failed");
-    _num = 0;
-  }
-
-public:
-  explicit Batch_unmapper(L4::Cap<L4::Vm> task, l4_umword_t mask)
-  : _task(task), _mask(mask)
-  {}
-
-  ~Batch_unmapper()
-  { flush(); }
-
-  void unmap(l4_fpage_t fpage)
-  {
-    if (_num >= Batch_size)
-      flush();
-
-    _fpages[_num++] = fpage;
-  }
-};
-
-}
+#include "consts.h"
 
 void Vmm::Mmio_device::map_guest_range(L4::Cap<L4::Vm> vm_task,
                                        Vmm::Guest_addr dest, l4_addr_t src,
@@ -60,7 +24,7 @@ void Vmm::Mmio_device::map_guest_range(L4::Cap<L4::Vm> vm_task,
   while (offs < size)
     {
       auto doffs = dest.get() + offs;
-      char ps = get_page_shift(doffs, dest.get(), dest_end, offs, src);
+      char ps = Vmm::get_page_shift(doffs, dest.get(), dest_end, offs, src);
       // Map explicitly cacheable into VM task. This lets the guest choose the
       // effective memory attributes.
       auto res = l4_error(vm_task->map(L4Re::This_task,
@@ -88,11 +52,11 @@ void Vmm::Mmio_device::unmap_guest_range(L4::Cap<L4::Vm> vm_task,
   Dbg(Dbg::Mmio, Dbg::Info, "mmio")
     .printf("\tUnmapping [%lx - %lx]\n", dest.get(), dest_end);
 
-  Batch_unmapper b(vm_task, L4_FP_ALL_SPACES);
+  Vmm::Batch_unmapper b(vm_task, L4_FP_ALL_SPACES);
   while (offs < size)
     {
       auto doffs = dest.get() + offs;
-      char ps = get_page_shift(doffs, dest.get(), dest_end, offs);
+      char ps = Vmm::get_page_shift(doffs, dest.get(), dest_end, offs);
       b.unmap(l4_fpage(doffs, ps, L4_FPAGE_RWX));
       offs += static_cast<l4_addr_t>(1) << ps;
     }

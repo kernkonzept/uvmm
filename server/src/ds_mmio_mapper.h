@@ -136,7 +136,7 @@ private:
         // We assume that the region manager provided the largest possible
         // page size and try to map the largest possible page to the
         // client.
-        unsigned char ps = get_page_shift(pfa, min, max, offset, ls);
+        unsigned char ps = Vmm::get_page_shift(pfa, min, max, offset, ls);
 
         if (vcpu.pf_write() && !(_rights & L4_FPAGE_W))
           {
