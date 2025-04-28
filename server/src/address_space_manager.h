@@ -58,10 +58,16 @@ public:
    * \param vm_start  Start of the RAM region in VM memory.
    * \param start     Start of the local mapping of the RAM region.
    * \param size      Size of the RAM region.
-   *
-   * \return Error value.
    */
   void add_ram_iommu(Guest_addr vm_start, l4_addr_t start, l4_size_t size);
+
+  /**
+   * Delete a piece of RAM from the manager and the IO-MMU.
+   *
+   * \param dest      Start of the RAM region in VM memory.
+   * \param size      Size of the RAM region.
+   */
+  void del_ram_iommu(Guest_addr dest, l4_size_t size);
 
   /**
    * Register a piece of RAM for identity mapping and get the host physical

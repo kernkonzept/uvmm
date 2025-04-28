@@ -5,7 +5,10 @@
  * License: see LICENSE.spdx (in this directory or the directories above)
  */
 #include <l4/sys/cxx/consts>
+
 #include "address_space_manager.h"
+#include "batch_unmapper.h"
+#include "consts.h"
 
 namespace Vmm {
 
@@ -50,6 +53,27 @@ void Address_space_manager::add_ram_iommu(Guest_addr vm_start, l4_addr_t src_sta
                    "Map guest RAM into KDMA space");
       src_start += 1UL << order;
       dst_start += 1UL << order;
+    }
+}
+
+void Address_space_manager::del_ram_iommu(Guest_addr dest, l4_size_t size)
+{
+  l4_addr_t dst_start = dest.get();
+  l4_addr_t dst_end = dst_start + size - 1;
+  l4_addr_t offs = 0;
+
+  // Must be page aligned
+  assert(l4_trunc_page(dst_start) == dst_start);
+
+  warn().printf("Remove RAM Iommu: [0x%lx, 0x%lx]\n", dst_start, dst_end);
+
+  Vmm::Batch_unmapper b(_kdma_space.get(), 0);
+  while (offs < size)
+    {
+      auto doffs = dst_start + offs;
+      char ps = Vmm::get_page_shift(doffs, dst_start, dst_end, offs);
+      b.unmap(l4_fpage(doffs, ps, L4_FPAGE_RWX));
+      offs += static_cast<l4_addr_t>(1) << ps;
     }
 }
 
