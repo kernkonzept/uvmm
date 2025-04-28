@@ -121,6 +121,10 @@ struct Generic_region
     return (start <= r.start) && (r.end <= end) &&
       (type == r.type) && (flags == r.flags);
   }
+
+  l4_size_t size() const
+  { return end - start + 1; }
+
 };
 
 using Region = Generic_region<Guest_addr>;

@@ -102,16 +102,19 @@ class Virtio_device_proxy_base
     Region_config_t *get()
     { return ds_mgr->local_addr<Region_config_t*>(); }
 
-    int add_region(Vmm::Region const &region, l4_uint64_t base)
+    int add_region(Vmm::Region const *region, l4_uint64_t base)
     {
-      auto c = get();
-      if (c->num >= L4VHOST_MAX_MEM_REGIONS)
+      if (!region)
         return -L4_EINVAL;
 
-      c->region[c->num].phys = region.start.get();
-      c->region[c->num].size = region.end - region.start + 1;
-      c->region[c->num].base = base;
-      ++(c->num);
+      auto config = get();
+      if (config->num >= L4VHOST_MAX_MEM_REGIONS)
+        return -L4_EINVAL;
+
+      config->region[config->num].phys = region->start.get();
+      config->region[config->num].size = region->size();
+      config->region[config->num].base = base;
+      ++(config->num);
 
       return L4_EOK;
     }
@@ -249,8 +252,11 @@ public:
     if (err < 0)
       return err;
 
-    return _l4cfg.add_region(_mempool->register_ds(ds, ds_base, offset, sz),
-                             ds_base);
+    auto *region = _mempool->register_ds(ds, ds_base, offset, sz);
+    if (!region)
+      return -L4_ERANGE;
+
+    return _l4cfg.add_region(region, ds_base);
   }
 
   long op_set_status(L4virtio::Device::Rights, unsigned)
