@@ -227,8 +227,10 @@ public:
     return r;
   }
 
-  void drop_region(Vmm::Region region)
+  void drop_region(l4_uint64_t phys, l4_uint64_t size)
   {
+    auto const region = Vmm::Region::ss(Vmm::Guest_addr(phys),
+                                        size, Vmm::Region_type::Virtual);
     // If this is the last user of the region, remove it.
     auto it = _region_map.find(region);
     if (it != _region_map.end() && !it->second.drop_ref())

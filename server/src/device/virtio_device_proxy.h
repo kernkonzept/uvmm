@@ -82,24 +82,26 @@ class Virtio_device_proxy_base
     L4_region_config(l4_uint64_t size)
     {
       auto *e = L4Re::Env::env();
-      auto ds = L4Re::chkcap(L4Re::Util::make_unique_del_cap<L4Re::Dataspace>(),
-                             "Allocate Virtio::Dev dataspace capability.");
+      L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap ds
+        = L4Re::chkcap(L4Re::Util::make_ref_cap<L4Re::Dataspace>(),
+                       "Allocate Virtio::Dev dataspace capability.");
 
       L4Re::chksys(e->mem_alloc()->alloc(size, ds.get()),
                    "Allocate Virtio::Dev configuration memory.");
 
       ds_mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Virtio_device_proxy: l4 cfg",
-                                                  ds.get(), 0, size,
+                                                  ds, 0, size,
                                                   L4Re::Rm::F::RW |
                                                   L4Re::Rm::F::Cache_uncached);
       ds_hdlr = Vdev::make_device<Ds_handler>(ds_mgr, L4_FPAGE_RO);
-
-      cfg_ds = std::move(ds);
 
       get()->num = 0;
     }
 
     Region_config_t *get()
+    { return ds_mgr->local_addr<Region_config_t*>(); }
+
+    Region_config_t const *get() const
     { return ds_mgr->local_addr<Region_config_t*>(); }
 
     int add_region(Vmm::Region const *region, l4_uint64_t base)
@@ -119,9 +121,23 @@ class Virtio_device_proxy_base
       return L4_EOK;
     }
 
+    l4_uint32_t count() const
+    { return get()->num; }
+
+    int region(l4_uint32_t i, l4_uint64_t *phys, l4_uint64_t *size) const
+    {
+      auto c = get();
+      if (i >= c->num)
+        return -L4_ERANGE;
+
+      *phys = c->region[i].phys;
+      *size = c->region[i].size;
+
+      return L4_EOK;
+    }
+
     cxx::Ref_ptr<Ds_handler> ds_hdlr;
     cxx::Ref_ptr<Vmm::Ds_manager> ds_mgr;
-    L4Re::Util::Unique_del_cap<L4Re::Dataspace> cfg_ds;
   };
 
 public:
@@ -143,6 +159,29 @@ public:
     // RAM cap before we ever call wait_for_ipc.
     Vmm::Generic_cpu_dev::main_vcpu().get_bm()->alloc_buffer_demand(
       get_buffer_demand());
+  }
+
+  virtual ~Virtio_device_proxy_base()
+  {
+    // We need to delete the IRQ/Gate object ourselves. Otherwise it will not
+    // be unbind from the thread. Please note that specifying "unmap" in the
+    // unregister call is not enough, because there the L4_FP_DELETE_OBJ flag
+    // is missing.
+    // TODO: unregister_obj calls modify_senders. This call makes only sense on
+    // the thread where the IRQ/Gate is bound. However, Linux is free to remove
+    // the "vhost device proxy" from any vpcu, meaning we could end up here on
+    // a vcpu != obj bound vcpu. Therefore, we actually would need some
+    // infrastructure to call unregister_obj from the correct vcpu!
+    L4::Cap<L4::Task>(L4Re::This_task)->delete_obj(_host_irq.obj_cap());
+    _vmm->registry()->unregister_obj(&_host_irq, false);
+    L4::Cap<L4::Task>(L4Re::This_task)->delete_obj(obj_cap());
+    _vmm->registry()->unregister_obj(this, false);
+    for (l4_uint32_t i = 0; i < _l4cfg.count(); ++i)
+      {
+        l4_uint64_t phys, size;
+        if (!_l4cfg.region(i, &phys, &size))
+          _mempool->drop_region(phys, size);
+      }
   }
 
   virtual void irq_kick() = 0;
