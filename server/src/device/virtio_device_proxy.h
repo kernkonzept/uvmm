@@ -133,6 +133,7 @@ public:
     _l4cfg(l4cfg_size),
     _mempool(mempool)
   {
+    l4_debugger_set_object_name(ep.cap(), "vhost-proxy");
     // Make sure the receive window of the main cpu server loop is large
     // enough. Other VMs may already wait in the kernel to connect to this vio
     // cap. We have to make sure the receive window has enough space for the
@@ -190,7 +191,8 @@ public:
         if (value == L4VIRTIO_MAGIC)
           {
             trace.printf("Starting up vio server\n");
-            _vmm->registry()->register_irq_obj(&_host_irq);
+            auto irq =_vmm->registry()->register_irq_obj(&_host_irq);
+            l4_debugger_set_object_name(irq.cap(),  "vhost-proxy: irq");
             _vmm->registry()->register_obj(this, _ep);
           }
         break;
