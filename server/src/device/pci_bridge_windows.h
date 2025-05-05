@@ -8,6 +8,7 @@
 
 #include <tuple>
 #include <l4/re/error_helper>
+#include <l4/cxx/arith>
 
 #include "device_tree.h"
 #include "debug.h"
@@ -51,21 +52,20 @@ public:
    *
    * \return `Invalid_addr` if the allocation failed, otherwise a valid address.
    *
-   * Allocations must be naturally aligned. Sub-page allocations and
-   * alignments are rounded up.
+   * Allocations must be naturally aligned and the size must be power of 2.
+   * Sub-page allocations and alignments are rounded up.
    */
   l4_addr_t alloc_mmio(l4_size_t size)
   {
     if (_base == Invalid_addr) // allocator not initialized
       return Invalid_addr;
 
-    l4_size_t rounded_size = l4_round_page(size); // at least 4KB allocations
+    // at least 4KB allocations
+    auto rounded_size = l4_round_page(size);
+    // make sure the size is always power of 2 and return order
+    auto order = cxx::arith::log2u_ceil(rounded_size);
 
-    unsigned align = 12;
-    while ((((rounded_size >> align) & 1) == 0) && ((rounded_size >> align) > 0))
-      ++align;
-
-    return alloc(l4_round_size(_free_addr, align), size);
+    return alloc(l4_round_size(_free_addr, order), size);
   }
 
   /**
