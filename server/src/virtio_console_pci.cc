@@ -30,7 +30,7 @@ public:
   : Virtio_console(ram, con),
     Virtio_device_pci<Virtio_console_pci>(node, num_msix_entries, wnds),
     Virtio::Pci_connector<Virtio_console_pci>(),
-    _evcon(msix_dest)
+    _evcon(num_msix_entries, msix_dest)
   {
     init_virtio_pci_device();
   }

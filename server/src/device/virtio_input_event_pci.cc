@@ -63,7 +63,7 @@ public:
     Virtio_input<Virtio_input_event_pci>(ram),
     Virtio_device_pci<Virtio_input_event_pci>(node, num_msix_entries, wnds),
     Virtio::Pci_connector<Virtio_input_event_pci>(),
-    _evcon(msix_dest)
+    _evcon(num_msix_entries, msix_dest)
   {
     init_virtio_pci_device();
     if (device_config_len() < sizeof(l4virtio_input_config_t))

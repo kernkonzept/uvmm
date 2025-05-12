@@ -23,10 +23,11 @@ namespace Virtio {
 class Event_connector_msix
 {
 public:
-  Event_connector_msix(Gic::Msix_dest const &msix_dest)
+  Event_connector_msix(unsigned max_msix_entries, Gic::Msix_dest const &msix_dest)
   : _msix_dest(msix_dest),
-    _msix_mem(make_ram_ds_handler(Vdev::Pci::Msix_mem_need,
-                                  L4Re::Mem_alloc::Continuous))
+    _msix_mem(make_ram_ds_handler(
+                Vdev::Msix::msix_table_pba_mem_size(max_msix_entries),
+                L4Re::Mem_alloc::Continuous))
   {}
 
   void send_events(Virtio::Event_set &&ev)
@@ -44,6 +45,9 @@ public:
   }
 
   void clear_events(unsigned) {}
+
+  l4_size_t mem_size() const
+  { return _msix_mem->size(); }
 
   /**
    * Create virtual device to let guest access MSI-X table.

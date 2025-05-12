@@ -55,7 +55,7 @@ public:
   {
     // There is a 32-bit BAR configured that fits the MSI-X table.
     unsigned msix_bar = msix_bar_idx();
-    check_msix_bar_constraints(msix_bar);
+    check_msix_bar_constraints(msix_bar, num_msix_entries);
     create_msix_cap(num_msix_entries, msix_bar);
 
     bool mmio_bar = false;
@@ -248,7 +248,7 @@ private:
     cap->ctrl.masked()   = 0;
     cap->ctrl.max_msis() = max_msix_entries - 1;
     cap->tbl.bir()       = bar_index;
-    cap->pba.offset()    = L4_PAGESIZE >> 3;
+    cap->pba.offset()    = Vdev::Msix::msix_table_mem_size(max_msix_entries) >> 3;
     cap->pba.bir()       = bar_index;
 
     trace().printf("msi.msg_ctrl 0x%x\n", cap->ctrl.raw);
@@ -258,16 +258,19 @@ private:
   }
 
   inline void
-  check_msix_bar_constraints(unsigned msix_idx)
+  check_msix_bar_constraints(unsigned msix_idx, unsigned max_msix_entries)
   {
     if (msix_idx == -1U)
       L4Re::throw_error(-L4_EINVAL,
                         "Configure the device with an MMIO BAR for the MSI-X table.");
 
-    if (bars[msix_idx].size < Msix_mem_need)
+    if (bars[msix_idx].size <
+        Vdev::Msix::msix_table_pba_mem_size(max_msix_entries))
       {
-        Err().printf("At least 0x%x Bytes of MSI-X memory are configured in BAR %u.\n",
-                     Msix_mem_need, msix_idx);
+        Err().printf("At least 0x%zx Bytes of MSI-X memory are required "
+                     "in BAR %u.\n",
+                     Vdev::Msix::msix_table_pba_mem_size(max_msix_entries),
+                     msix_idx);
         L4Re::throw_error(-L4_EINVAL, "More MSI-X memory necessary.");
       }
   }
@@ -302,12 +305,12 @@ private:
   }
 
   /**
-   * Per convention we return the first MMIO32 BAR fitting an MSI-X table.
+   * Per convention we return the first MMIO32 BAR.
    */
   unsigned msix_bar_idx() const
   {
     for (unsigned i = 0; i < Bar_num_max_type0; ++i)
-      if (bars[i].type == Pci_cfg_bar::MMIO32 && bars[i].size >= Msix_mem_need)
+      if (bars[i].type == Pci_cfg_bar::MMIO32)
         return i;
 
     return -1;

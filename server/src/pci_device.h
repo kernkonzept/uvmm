@@ -256,11 +256,6 @@ enum
   Pci_header_status_capability_bit = (1UL << 4),
 };
 
-enum Virtual_pci_device_msix_consts
-{
-  Msix_mem_need = 2 * L4_PAGESIZE, // ideally Table and PBA on different pages
-};
-
 /// Base class of a PCI capability.
 struct Pci_cap
 {

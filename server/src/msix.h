@@ -45,4 +45,14 @@ struct Table_entry
 static_assert(sizeof(Table_entry) == 16,
               "MSI-X table entry size conforms to specification.");
 
+inline size_t msix_table_mem_size(unsigned max_msix_entries)
+{
+  return l4_round_page(sizeof(Table_entry) * max_msix_entries);
+};
+
+inline size_t msix_table_pba_mem_size(unsigned max_msix_entries)
+{
+  return msix_table_mem_size(max_msix_entries) + L4_PAGESIZE;
+};
+
 } } // namespace Vdev::Msix

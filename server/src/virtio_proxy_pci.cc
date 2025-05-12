@@ -27,7 +27,7 @@ public:
     // 0x100: size of the virtio config header
     Virtio_proxy<Virtio_proxy_pci>(device, 0x100 + device_config_len(), ram),
     Virtio::Pci_connector<Virtio_proxy_pci>(),
-    _evcon(msix_dest)
+    _evcon(num_msix_entries, msix_dest)
   {}
 
   Virtio::Event_connector_msix *event_connector() { return &_evcon; }

@@ -30,7 +30,7 @@ struct Virtio_input_power_pci
     Virtio_input_power(con),
     Virtio_device_pci<Virtio_input_power_pci>(node, num_msix_entries, wnds),
     Virtio::Pci_connector<Virtio_input_power_pci>(),
-    _evcon(msix_dest)
+    _evcon(num_msix_entries, msix_dest)
   {
     init_virtio_pci_device();
     if (device_config_len() < sizeof(l4virtio_input_config_t))

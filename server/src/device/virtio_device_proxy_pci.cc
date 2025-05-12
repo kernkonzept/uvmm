@@ -93,14 +93,14 @@ public:
                           cxx::Ref_ptr<Virtio_device_mem_pool> mempool)
   : Pci::Virt_pci_device(node, wnds),
     Virtio_device_proxy_base(ep, cfg_size, l4cfg_size, vmm, mempool),
-    _evcon(msix_dest)
+    _evcon(num_msix_entries, msix_dest)
   {
     Pci_msix_cap *cap    = create_pci_cap<Pci_msix_cap>();
     cap->ctrl.enabled()  = 1;
     cap->ctrl.masked()   = 0;
     cap->ctrl.max_msis() = num_msix_entries - 1;
     cap->tbl.bir()       = 0;
-    cap->pba.offset()    = L4_PAGESIZE >> 3;
+    cap->pba.offset()    = Vdev::Msix::msix_table_mem_size(num_msix_entries) >> 3;
     cap->pba.bir()       = 0;
 
     L4host_pci_cap *cap1 = create_pci_cap<L4host_pci_cap>();
