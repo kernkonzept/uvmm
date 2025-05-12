@@ -253,7 +253,19 @@ struct Binary_loader_factory
       }
 
     if (res != L4_EOK)
-      L4Re::throw_error(res, "No loader found for provided image.");
+      {
+        // If we didn't find a loader, check if the image is valid at all.
+        // Check this late to avoid a special check for rom:/raw: arguments.
+        if (!image->is_valid())
+          {
+            Err().printf("File not found: filename: '%s' / cmdline arg: '%s'\n",
+                         file, bin);
+            L4Re::throw_error(-L4_ENOENT,
+                              "Binary file / Kernel image not found.");
+          }
+        else
+          L4Re::throw_error(res, "No loader found for provided image.");
+      }
 
     return res;
   }
