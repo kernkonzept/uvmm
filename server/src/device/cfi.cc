@@ -150,7 +150,7 @@ public:
   {}
 
   int access(l4_addr_t pfa, l4_addr_t offset, Vmm::Vcpu_ptr vcpu,
-             L4::Cap<L4::Vm> vm_task, l4_addr_t min, l4_addr_t max) override
+             L4::Cap<L4::Vm> vm_task, l4_addr_t, l4_addr_t) override
   {
     auto insn = vcpu.decode_mmio();
 
@@ -161,18 +161,8 @@ public:
       }
     else if (_cmd == Cmd_read_array)
       {
-        if (offset < mapped_size())
-          {
-            long err = map_page_ro(pfa, offset, vm_task, min, max);
-            if (err >= 0)
-              return Vmm::Retry;
-
-            warn().printf("MMIO access @ 0x%lx: could not map page: %ld.\n",
-                          pfa, err);
-            return -L4_ENXIO;
-          }
-        else
-          return Vmm::Jump_instr;
+        map_mem_ro(vm_task);
+        return Vmm::Retry;
       }
     else if (insn.access == Vmm::Mem_access::Load)
       {
@@ -196,54 +186,25 @@ public:
 private:
   void set_mode(L4::Cap<L4::Vm> vm_task, uint8_t cmd)
   {
+    if (_cmd == Cmd_read_array && cmd != Cmd_read_array)
+      unmap_mem(vm_task);
+
     _cmd = cmd;
-    if (cmd != Cmd_read_array && _guest_mapped_min < _guest_mapped_max)
-      {
-        unmap_guest_range(vm_task, Vmm::Guest_addr(_guest_mapped_min),
-                          _guest_mapped_max - _guest_mapped_min + 1U);
-        _guest_mapped_min = -1;
-        _guest_mapped_max = 0;
-      }
 
     // Proactively map the flash memory, to avoid instruction decoding on reads.
-    if (cmd == Cmd_read_array && _guest_mapped_min >= _guest_mapped_max)
-      map_page_ro(_base, 0, vm_task, _base, _base + _size - 1U);
+    if (cmd == Cmd_read_array)
+      map_mem_ro(vm_task);
   }
 
-  long map_page_ro(l4_addr_t pfa, l4_addr_t offset, L4::Cap<L4::Vm> vm_task,
-                   l4_addr_t min, l4_addr_t max)
+  void map_mem_ro(L4::Cap<L4::Vm> vm_task)
   {
-    if (min < _guest_mapped_min)
-      _guest_mapped_min = min;
-    if (max > _guest_mapped_max)
-      _guest_mapped_max = max;
+    auto local = reinterpret_cast<l4_addr_t>(local_addr());
+    map_guest_range(vm_task, Vmm::Guest_addr(_base), local, _size, L4_FPAGE_RX);
+  }
 
-#ifdef MAP_OTHER
-    auto res = dev()->mmio_ds()->map(offset, L4Re::Dataspace::F::RX, pfa,
-                                     min, max, vm_task);
-#else
-    auto local_start = reinterpret_cast<l4_addr_t>(local_addr());
-
-    // Make sure that the page is currently mapped.
-    long res = page_in(local_start + offset, false);
-    if (res < 0)
-      return res;
-
-    unsigned char ps =
-      get_page_shift(pfa, min, max, offset, local_start,
-                     local_start + mapped_size() - 1U);
-    l4_addr_t base = l4_trunc_size(local_start + offset, ps);
-
-    // Map explicitly cacheable into VM task. This lets the guest choose the
-    // effective memory attributes.
-    res = l4_error(vm_task->map(L4Re::This_task,
-                                l4_fpage(base, ps, L4_FPAGE_RX),
-                                l4_map_control(l4_trunc_size(pfa, ps),
-                                               L4_FPAGE_CACHEABLE,
-                                               L4_MAP_ITEM_MAP)));
-#endif
-
-    return res;
+  void unmap_mem(L4::Cap<L4::Vm> vm_task)
+  {
+    unmap_guest_range(vm_task, Vmm::Guest_addr(_base), _size);
   }
 
   char *local_addr() const
@@ -500,9 +461,6 @@ private:
 
   l4_uint8_t _cmd = Cmd_read_array;
   l4_uint8_t _status = 0;
-
-  l4_addr_t _guest_mapped_min = -1;
-  l4_addr_t _guest_mapped_max = 0;
 
   l4_uint8_t _cfi_table[Cfi_table_size] = { 0 };
 
