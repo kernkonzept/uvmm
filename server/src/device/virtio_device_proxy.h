@@ -83,6 +83,7 @@ class Virtio_device_proxy
     // C type shared with guest
     struct Region_config_t
     {
+      char name[16];
       l4_uint32_t num;
       struct
       {
@@ -154,7 +155,8 @@ class Virtio_device_proxy
   };
 
 public:
-  Virtio_device_proxy(l4_uint32_t id,
+  Virtio_device_proxy(char const *name,
+                      l4_uint32_t id,
                       Virtio_device_proxy_irq_sender *irq_sender,
                       L4Re::Util::Ref_cap<L4::Rcv_endpoint>::Cap cap,
                       Vmm::Guest *vmm,
@@ -195,6 +197,10 @@ public:
     // RAM cap before we ever call wait_for_ipc.
     Vmm::Generic_cpu_dev::main_vcpu().get_bm()->alloc_buffer_demand(
       get_buffer_demand());
+
+    // Add name if available
+    if (name)
+      strncpy(_l4cfg.get()->name, name, sizeof(_l4cfg.get()->name) - 1);
   }
 
   virtual ~Virtio_device_proxy()
@@ -509,6 +515,7 @@ class Virtio_device_proxy_control_base
   {
     Add_reg = 0x0,
     Del_reg = 0x4,
+    Count_reg = 0x8,
   };
 
   enum
@@ -553,6 +560,9 @@ class Virtio_device_proxy_control_base
   };
 
 public:
+  using viocaps_vector =
+    std::vector<std::pair<char const*, L4Re::Util::Ref_cap<L4::Rcv_endpoint>::Cap>>;
+
   /**
    * This manages the region containing the two pages required per actual
    * virtio proxy device.
@@ -605,6 +615,7 @@ public:
      * \retval < 0 Maximum number of supported Virtio device proxies reached.
      */
     l4_uint32_t add(Virtio_device_proxy_irq_sender *irq_sender,
+                    char const *name,
                     L4Re::Util::Ref_cap<L4::Rcv_endpoint>::Cap cap,
                     Vmm::Guest *vmm,
                     cxx::Ref_ptr<Virtio_device_mem_pool> mempool)
@@ -614,7 +625,8 @@ public:
         return id;
 
       _devices.emplace(id,
-                       cxx::make_ref_obj<Virtio_device_proxy>(id,
+                       cxx::make_ref_obj<Virtio_device_proxy>(name,
+                                                              id,
                                                               irq_sender,
                                                               cap,
                                                               vmm,
@@ -648,6 +660,9 @@ public:
     static l4_size_t max_mem_size(l4_uint32_t max_entries)
     { return max_entries * Proxy_cfg_size; }
 
+    l4_uint32_t count() const
+    { return _devices.size(); }
+
 private:
     static l4_uint32_t offset_to_id(l4_addr_t offset)
     { return offset / Proxy_cfg_size; }
@@ -665,11 +680,16 @@ private:
 
   Virtio_device_proxy_control_base(l4_uint32_t max_devs,
                                    Vmm::Guest *vmm,
-                                   cxx::Ref_ptr<Virtio_device_mem_pool> mempool)
+                                   cxx::Ref_ptr<Virtio_device_mem_pool> mempool,
+                                   viocaps_vector const &viocaps)
   : _vmm(vmm),
     _mempool(mempool),
     _prm(cxx::make_ref_obj<Proxy_region_mapper>(max_devs))
-  {}
+  {
+    // Add any static configured devices
+    for (auto &c: viocaps)
+      _prm->add(this, c.first, c.second, vmm, _mempool);
+  }
 
   /**
    * Read access to the virtio device proxy controller mmio region.
@@ -678,6 +698,10 @@ private:
    *          proxy to this virtio device proxy controller. On return to the
    *          guest, the read value is the id of the new device. On error -1 is
    *          returned.
+   *
+   * Count_reg: Reading this value returns the actual count of currently
+   *            configured virtio device proxies. Note, that the ids are not
+   *            necessarily continuous.
    *
    * All other reads are ignored and -1 is returned.
    */
@@ -695,8 +719,10 @@ private:
                        cap.get(), L4::Cap_base::Invalid, 0)) < 0)
             return -1;
 
-          return _prm->add(this, cap, _vmm, _mempool);
+          return _prm->add(this, nullptr, cap, _vmm, _mempool);
         }
+      case Count_reg:
+        return _prm->count();
       }
 
     warn().printf("Read from unsupported register %x.\n", reg);

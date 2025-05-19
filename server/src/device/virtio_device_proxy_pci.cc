@@ -39,6 +39,7 @@ using namespace Pci;
  *           msi-parent = <&msi_ctrl>;
  *           l4vmm,vdev = "device-proxy-controller";
  *           l4vmm,mempool = <&viodev_mp>;
+ *           l4vmm,viocaps = "test", "test1";
  *       };
  *       ...
  *   };
@@ -46,6 +47,8 @@ using namespace Pci;
  *
  * viodev_mp points to the node containing the memory pool for the foreign
  * guest memory. See the virtio mem pool documentation for details.
+ * l4vmm,viocaps points to a list of valid cap names for which l4proxy devices
+ * should be created.
  */
 class Virtio_device_proxy_control_pci
 : public Virtio_device_proxy_control_base,
@@ -58,9 +61,10 @@ public:
   Virtio_device_proxy_control_pci(l4_uint32_t max_devs,
                                   Vmm::Guest *vmm,
                                   cxx::Ref_ptr<Virtio_device_mem_pool> mempool,
+                                  viocaps_vector const &viocaps,
                                   Gic::Msix_dest const &msix_dest,
                                   Pci_host_bridge *pci)
-  : Virtio_device_proxy_control_base(max_devs, vmm, mempool),
+  : Virtio_device_proxy_control_base(max_devs, vmm, mempool, viocaps),
     _evcon(max_devs, msix_dest)
   {
     // msix
@@ -171,12 +175,27 @@ struct Pci_controller_factory : Factory
         return nullptr;
       }
 
+    Virtio_device_proxy_control_base::viocaps_vector viocaps;
+    for (int i = 0; i < node.stringlist_count("l4vmm,viocaps"); ++i)
+      {
+        auto s = node.stringlist_get("l4vmm,viocaps", i, NULL);
+        auto scap = L4Re::Env::env()->get_cap<L4::Rcv_endpoint>(s);
+        if (!scap.is_valid())
+          {
+            warn.printf("%s: failed to get 'l4vmm,viocaps': %s\n",
+                        node.get_name(), s);
+            return nullptr;
+          }
+        viocaps.emplace_back(std::make_pair(s, scap));
+      }
+
     l4_size_t const max_devs = 2048;
     uint32_t dev_id = pci->bus()->alloc_dev_id();
     auto c =
       make_device<Virtio_device_proxy_control_pci>(max_devs,
                                                    devs->vmm(),
                                                    mempool,
+                                                   viocaps,
                                                    pci->msix_dest(dev_id),
                                                    pci);
 
@@ -186,6 +205,8 @@ struct Pci_controller_factory : Factory
                 node.get_name());
     info.printf("%s:  max supported devs: %zu\n",
                 node.get_name(), max_devs);
+    info.printf("%s:  static devs: %zu\n",
+                node.get_name(), viocaps.size());
 
     return c;
   }

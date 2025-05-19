@@ -36,11 +36,14 @@ namespace Vdev {
  *       interrupts = <0 145 4>,
  *                    <0 146 4>;
  *       l4vmm,mempool = <&viodev_mp>;
+ *       l4vmm,viocaps = "test", "test1";
  *   };
  * \endcode
  *
  * viodev_mp points to the node containing the memory pool for the foreign
  * guest memory. See the virtio mem pool documentation for details.
+ * l4vmm,viocaps points to a list of valid cap names for which l4proxy devices
+ * should be created.
  */
 
 class Virtio_device_proxy_control
@@ -50,9 +53,10 @@ public:
   Virtio_device_proxy_control(l4_uint32_t max_devs,
                               Vmm::Guest *vmm,
                               cxx::Ref_ptr<Virtio_device_mem_pool> mempool,
+                              viocaps_vector const &viocaps,
                               l4_uint64_t l4cfg_addr, l4_uint64_t l4cfg_size,
                               std::vector<std::unique_ptr<Vmm::Irq_sink>> &&irq_sinks)
-  : Virtio_device_proxy_control_base(max_devs, vmm, mempool),
+  : Virtio_device_proxy_control_base(max_devs, vmm, mempool, viocaps),
     _irq_sinks(std::move(irq_sinks))
   {
     // Add devices l4/virtio config page region to vmm map
@@ -169,9 +173,24 @@ struct F : Factory
         return nullptr;
       }
 
+    Virtio_device_proxy_control_base::viocaps_vector viocaps;
+    for (int i = 0; i < node.stringlist_count("l4vmm,viocaps"); ++i)
+      {
+        auto cap_name = node.stringlist_get("l4vmm,viocaps", i, NULL);
+        auto scap = L4Re::Env::env()->get_cap<L4::Rcv_endpoint>(cap_name);
+        if (!scap.is_valid())
+          {
+            warn.printf("%s: failed to get 'l4vmm,viocaps': %s\n",
+                        node.get_name(), cap_name);
+            return nullptr;
+          }
+        viocaps.emplace_back(std::make_pair(cap_name, scap));
+      }
+
     auto c = make_device<Virtio_device_proxy_control>(max_devs,
                                                       devs->vmm(),
                                                       mempool,
+                                                      viocaps,
                                                       l4cfg_addr, l4cfg_size,
                                                       std::move(irq_sinks));
 
@@ -182,6 +201,8 @@ struct F : Factory
                 node.get_name());
     info.printf("%s:  max supported devs: %zu\n",
                 node.get_name(), max_devs);
+    info.printf("%s:  static devs: %zu\n",
+                node.get_name(), viocaps.size());
 
     return c;
   }
