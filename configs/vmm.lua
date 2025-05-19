@@ -120,6 +120,7 @@ function start_vm(options)
   local vnet    = options.net;
   local prio    = options.prio;
   local cpus    = options.cpus;
+  local scheduler = options.scheduler;
 
   local align   = 10;
   if L4.Info.arch() == "arm" then
@@ -208,7 +209,11 @@ function start_vm(options)
     caps = table_override(caps, options.ext_caps or {});
   };
 
-  set_sched(opts, prio, cpus);
+  if scheduler then
+    opts["scheduler"] = scheduler;
+  else
+    set_sched(opts, prio, cpus);
+  end
 
   if type(options.mon) == 'string' then
     -- assume 'mon' is the name of a server binary which implements the uvmm
