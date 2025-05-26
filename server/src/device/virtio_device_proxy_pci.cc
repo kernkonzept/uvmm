@@ -42,17 +42,10 @@ enum
  *       ...
  *       virtio_dev_proxy@3 {
  *           compatible = "virtio,pci";
- *           // The reg property requirements are described in virtio_uart.
- *           // The third row holds the virtio config space.
- *           // The forth row is for the l4 config space.
- *           reg = <0x00001800 0x0 0x0 0x0 0x0000
- *                  0x02001810 0x0 0x0 0x0 0x2000
- *                  0x02001814 0x0 0x0 0x0 0x1000
- *                  0x02001818 0x0 0x0 0x0 0x1000>;
  *           msi-parent = <&msi_ctrl>;
- *           l4vmm,virtiocap = "viodev";
  *           l4vmm,vdev = "device-proxy";
  *           l4vmm,mempool = <&viodev_mp>;
+ *           l4vmm,virtiocap = "viodev";
  *       };
  *       ...
  *   };
@@ -83,18 +76,28 @@ class Virtio_device_proxy_pci
   };
 
 public:
-  Virtio_device_proxy_pci(Vdev::Dt_node const &node,
-                          unsigned num_msix_entries,
+  Virtio_device_proxy_pci(unsigned num_msix_entries,
                           Gic::Msix_dest const &msix_dest,
                           Vdev::Pci::Pci_bridge_windows *wnds,
                           L4::Cap<L4::Rcv_endpoint> ep,
-                          l4_size_t cfg_size, l4_uint64_t l4cfg_size,
                           Vmm::Guest *vmm,
                           cxx::Ref_ptr<Virtio_device_mem_pool> mempool)
-  : Pci::Virt_pci_device(node, wnds),
-    Virtio_device_proxy_base(ep, cfg_size, l4cfg_size, vmm, mempool),
+  : Virtio_device_proxy_base(ep, 0x1000, 0x1000, vmm, mempool),
     _evcon(num_msix_entries, msix_dest)
   {
+    // msix
+    l4_addr_t addr =
+      wnds->alloc_bar_resource(0x2000, Pci_cfg_bar::Type::MMIO32);
+    set_mem_space<Pci_header::Type0>(0, addr, 0x2000);
+    // virtio cfg
+    addr =
+      wnds->alloc_bar_resource(0x1000, Pci_cfg_bar::Type::MMIO32);
+    set_mem_space<Pci_header::Type0>(1, addr, 0x1000);
+    // l4 cfg
+    addr =
+      wnds->alloc_bar_resource(0x1000, Pci_cfg_bar::Type::MMIO32);
+    set_mem_space<Pci_header::Type0>(2, addr, 0x1000);
+
     Pci_msix_cap *cap    = create_pci_cap<Pci_msix_cap>();
     cap->ctrl.enabled()  = 1;
     cap->ctrl.masked()   = 0;
@@ -174,38 +177,6 @@ struct Pci_factory : Factory
         return nullptr;
       }
 
-    l4_uint64_t cfg_size;
-    Dtb::Reg_flags cfg_flags;
-    auto res = node.get_reg_size_flags(Cfg_bar + 1, &cfg_size, &cfg_flags);
-    if (res < 0)
-      {
-        warn.printf("%s: failed to read 'reg[%u] = virtio cfg': %s\n",
-                      node.get_name(), Cfg_bar + 1, node.strerror(res));
-        return nullptr;
-      }
-
-    if (!cfg_flags.is_mmio())
-      {
-        warn.printf("%s: virtio cfg bar must be mmio\n", node.get_name());
-        return nullptr;
-      }
-
-    l4_uint64_t l4cfg_size;
-    Dtb::Reg_flags l4cfg_flags;
-    res = node.get_reg_size_flags(L4Cfg_bar + 1, &l4cfg_size, &l4cfg_flags);
-    if (res < 0)
-      {
-        warn.printf("%s: failed to read 'reg[%u] = l4 cfg': %s\n",
-                    node.get_name(), L4Cfg_bar + 1, node.strerror(res));
-        return nullptr;
-      }
-
-    if (!l4cfg_flags.is_mmio())
-      {
-        warn.printf("%s: l4 cfg bar must be mmio\n", node.get_name());
-        return nullptr;
-      }
-
     cxx::Ref_ptr<Virtio_device_mem_pool> mempool;
     int size = 0;
     auto *prop = node.get_prop<fdt32_t>("l4vmm,mempool", &size);
@@ -228,11 +199,10 @@ struct Pci_factory : Factory
     auto dev_id = pci->bus()->alloc_dev_id();
     unsigned num_msix = 1;
     auto c =
-      make_device<Virtio_device_proxy_pci>(node, num_msix,
+      make_device<Virtio_device_proxy_pci>(num_msix,
                                            pci->msix_dest(dev_id),
                                            pci->bridge_windows(),
                                            cap,
-                                           cfg_size, l4cfg_size,
                                            devs->vmm(),
                                            mempool);
 
