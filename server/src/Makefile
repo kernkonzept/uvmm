@@ -87,7 +87,8 @@ SRC_CC-$(CONFIG_UVMM_VDEV_BCM2835_MBOX) += device/bcm2835_mbox.cc
 SRC_CC-$(CONFIG_UVMM_QEMU_FW_IF) += device/qemu_fw_cfg.cc
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_QEMU_FW_IF) += \
 	ARCH-amd64/qemu_fw_cfg_acpi.cc \
-	ARCH-amd64/qemu_fw_cfg_boot.cc
+	ARCH-amd64/qemu_fw_cfg_boot.cc \
+	ARCH-amd64/qemu_fw_cfg_e820.cc
 
 ifeq ($(CONFIG_UVMM_PCI_SUPPORT),y)
     SRC_CC   += pci_device.cc virt_pci_device.cc

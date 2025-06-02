@@ -177,6 +177,9 @@ public:
       func(*r.get());
   }
 
+  unsigned num_regions() const
+  { return _regions.size(); }
+
   Vmm::Address_space_manager *as_mgr() const { return _as_mgr.get(); }
 
   /**

@@ -13,6 +13,7 @@
 #include "debug.h"
 #include "vm_ram.h"
 #include "binary_loader.h"
+#include "e820_map.h"
 
 namespace Vmm {
 
@@ -60,19 +61,6 @@ class Zeropage
     Setup_pci,
     Setup_efi,
   };
-
-  enum E820_types
-  {
-    E820_ram = 1,
-    E820_reserved = 2
-  };
-
-  struct E820_entry
-  {
-    l4_uint64_t addr; // start of segment
-    l4_uint64_t size;
-    l4_uint32_t type;
-  } __attribute__((packed));
 
   struct Xloadflags
   {
