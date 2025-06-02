@@ -102,7 +102,7 @@ public:
 #if !defined(CONFIG_UVMM_EXTERNAL_RTC) and !(CONFIG_RELEASE_MODE)
     warn().printf(
       "No external clock source. Rtc time will not represent wallclock time.\n"
-      "Set CONFIG_UVMM_EXTERNAL_CLOCK = y if you have an external clock "
+      "Set CONFIG_UVMM_EXTERNAL_RTC = y if you have an external clock "
       "source.\n");
 #endif
   }
