@@ -22,18 +22,6 @@ FilesAnalyzed: true
 PackageCopyrightText: NOASSERTION
 PackageDownloadLocation: NOASSERTION
 
-FileName: ./configs/dts/ls1021a-twr.dts
-SPDXID: SPDXRef-dts-ls1021a-twr-dts
-LicenseConcluded: GPL-2.0-only
-LicenseInfoInFile: NOASSERTION
-FileCopyrightText: NOASSERTION
-
-FileName: ./configs/dts/ls1021a.dtsi
-SPDXID: SPDXRef-dts-ls1021a-dtsi
-LicenseConcluded: GPL-2.0-only
-LicenseInfoInFile: NOASSERTION
-FileCopyrightText: NOASSERTION
-
 FileName: ./configs/dts/include/dt-bindings/interrupt-controller/irq.h
 SPDXID: SPDXRef-dts-irq-h
 LicenseConcluded: GPL-2.0-only OR MIT
