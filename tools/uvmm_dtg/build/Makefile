@@ -43,7 +43,8 @@ SRC_CC = uvmm_dtg.cc device.cc tree.cc ic.cc \
 	devices/isa-debugport.cc \
 	devices/rom.cc \
 	devices/l4rtc.cc \
-	devices/virtio_input_event_pci.cc
+	devices/virtio_input_event_pci.cc \
+	devices/framebuffer.cc
 
 PRIVATE_INCDIR ?= $(SRC_DIR) $(SRC_DIR)/target $(SRC_DIR)/ARCH-$(ARCH)
 
