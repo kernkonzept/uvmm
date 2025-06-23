@@ -1,0 +1,92 @@
+name: uvmm_dtg The device tree generator for Uvmm
+binary-name: uvmm_dtg
+anchor: l4re_servers_uvmm_uvmm_dtg
+caps:
+  - name: 'dt'
+    desc: |
+      The dataspace that the device tree is put into.
+    protocol: 'dataspace'
+cmds:
+  - name: 'output'
+    metavar: 'file | --'
+    desc: |
+      `--` prints to stdout.
+      On L4Re, the string given as `<file>` is interpreted as a named capability
+      which needs to be backed by a sufficiently large Dataspace. On Linux, a
+      file with the given name is created. In both cases, uvmm_dtg will output
+      into the named file.
+    mandatory: true
+    type: 'str'
+    positional: true
+  - name: 'help'
+    short: 'h'
+    desc: |
+      Show help.
+    type: 'flag'
+  - name: 'arch'
+    desc: |
+      Select the target architecture.
+    type: 'selection'
+    options: ['x86', 'x86_64', 'arm32', 'arm64', 'mips32', 'mips64']
+    metavar: 'target architecture'
+  - name: 'format'
+    desc: |
+      Select the output format.
+    type: 'selection'
+    options:
+      'txt': "The device tree will be printed as plain text (`dts`)."
+      'bin': "The device tree will be output as binary (`dtb`)."
+    metavar: 'format'
+  - name: 'mem-base'
+    desc: |
+      Configure the start of the memory distribution. `membase` can be defined
+      in both decimal and hex notations. uvmm_dtg rounds the given base up to
+      the platforms page size.
+
+      This value can be overridden by memory devices with fixed addresses.
+    type: 'int'
+    metavar: 'membase'
+  - name: 'device'
+    metavar: 'devicename:[Option1,Option2=value,Option3=value,...]'
+    desc: |
+      This configures a device.
+
+      To get a list of supported devices, use `--device help`.
+
+      To get help for a specific device, use `--device devicename:help`.
+    type: 'str'
+desc: |
+  A virtual machine in Uvmm is configured with a device tree that contains
+  information about the VMs resources, memory layout, virtual CPUs and
+  peripheral devices.
+
+  Uvmm_dtg is a tool to generate such a device tree at runtime according to its
+  command line.
+
+examples: |
+  ### Usage in L4Re
+
+  Example lua script for Ned:
+  ```lua
+  -- Create DS holding device tree
+  local dt = L4.Env.user_factory:create(L4.Proto.Dataspace, 4 * 1024):m("rw");
+
+  -- Start the generator
+  L4.default_loader:start(
+  {
+    caps = { dt = dt },
+  }, "rom/uvmm_dtg dt"):wait();
+
+  -- Start uvmm
+  vmm.start_vm
+  {
+    ...
+    ext_caps = { dt = dt },
+    fdt = "dt",
+    ...
+  }
+  ```
+
+  Please notice the `:wait()` when starting `uvmm_dtg`. This makes Ned pause
+  until uvmm_dtg has exited and put the device tree into the dataspace such
+  that Uvmm can commence.

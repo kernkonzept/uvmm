@@ -1,130 +1,202 @@
-vi:ft=c
+# Uvmm, the virtual machine monitor {#l4re_servers_uvmm}
 
-\page l4re_servers L4Re Servers
+[comment]: # (This is a generated file. Do not change it.)
+[comment]: # (Instead, change capdb.yml.)
 
- - \subpage l4re_servers_uvmm
+Uvmm provides a virtual machine for running an unmodified guest in non-
+privileged mode.
 
-\page l4re_servers_uvmm Uvmm, the virtual machine monitor
 
-Uvmm provides a virtual machine for running an unmodified guest in
-non-privileged mode.
+## Capabilities
 
-Command Line Options
---------------------
+* `ram`
 
-uvmm provides the following command line options:
+  The memory for the guest provided via a simple dataspace.
 
-* `-c, --cmdline=<guest command line>`
+* `pfc`
 
-   Command line that is passed to the guest on boot.
+  Uvmm can be instructed to inform a PM manager of PM events through the
+  L4::Platform_control interface. To that end, uvmm may be equipped with a `pfc`
+  cap. On suspend, uvmm will call l4_platform_ctl_system_suspend().
 
-* `-k, --kernel=<kernel image name>`
+  The `pfc` cap can also be implemented by IO. In that case the guest can start
+  a machine suspend/shutdown/reboot.
 
-   The name of the guest-kernel image file present in the ROM namespace.
 
-* `-d, --dtb=<DTB overlay>`
+## Command Line Options
 
-   The name of the device tree file present in the ROM namespace.
-   The device tree will be placed in the upmost region of guest memory.
-   Optionally, a user may use an additional parameter in the form of
-   "<DTB overlay>:limit=0xffffffff" to set an upper limit for the device tree
-   location.
+* `--mon <option>`
 
-* `-r, --ramdisk=<RAM disk name>`
+  Control the handling of guest reads/writes to non-existing memory.
 
-   The name of the RAM disk file present in the ROM namespace
+  Possible values for `<option>` are
+    * `true`: The monitor interface is enabled but no server implementing the
+    client side of the monitor interface is started. The monitor interface can
+    still be utilized via cons but no readline functionality will be available.
 
-* `-b, --rambase=<Base address of the guest RAM>`
+    * `some_binary`: If a string is passed as the value of mon, the monitor
+    interface is enabled and the string is interpreted as the name of a server
+    binary which implements the client side of the monitor interface. This
+    server is automatically started and has access to a vcon capability named
+    mon at startup through which it can make use of the monitor interface.
+    Unless you have written your own server you should specify 'uvmm_cli' which
+    is a server implementing a simple readline interface.
 
-   Physical start address for the guest RAM. This value is
-   platform specific.
+    * `false`: The monitor interface is disabled at runtime.
 
-* `-D, --debug=[<component>=][level]`
 
-   Control the verbosity level of the uvmm. Possible `level` values are:
-     quiet, warn, info, trace
+  Default: `true`
 
-   Using the `component` prefix, the verbosity level of each uvmm
-   component is configurable. The component names are:
-     core, cpu, mmio, irq, dev, pm, vbus_event
+* `-c <guest command line>`, `--cmdline <guest command line>`
 
-   For example, the following command line sets the verbosity of all uvmm
-   components to `info` except for IRQ handling, which is set to `trace`.
+  Command line that is passed to the guest on boot.
 
-       uvmm -D info -D irq=trace
+  String value.
 
-* `-f, --fault-mode`
+* `-k <kernel image name>`, `--kernel <kernel image name>`
 
-   Control the handling of guest reads/writes to non-existing memory.
-   Possible values are:
+  The name of the guest-kernel image file present in the ROM namespace.
 
-   * `ignore` - Invalid writes are ignored. Invalid reads either return 0 or
-     are skipped. The guest may experience undefined behaviour.
-   * `halt` - Halt the VM on the first invalid memory access.
-   * `inject` - Try to forward the invalid access to the guest. This is not
-     supported on all architectures. Falls back to `halt` if the error could
-     not be forwarded to the guest.
+  File path in ROM namespace.
 
-   Defaults to `ignore`.
+* `-d <DTB overlay>`, `--dtb <DTB overlay>`
 
-* `-q, --quiet`
+  The name of the device tree file present in the ROM namespace. The device tree
+  will be placed in the upmost region of guest memory. Optionally, a user may
+  use an additional parameter in the form of "<DTB overlay>:limit=0xffffffff" to
+  set an upper limit for the device tree location.
 
-   Silence all uvmm output.
+  File path in ROM namespace.
 
-* `-v, --verbose`
+* `-r <RAM disk name>`, `--ramdisk <RAM disk name>`
+
+  The name of the RAM disk file present in the ROM namespace
+
+  File path in ROM namespace.
+
+* `-b <Base address of the guest RAM>`, `--rambase <Base address of the guest
+RAM>`
+
+  Physical start address for the guest RAM. This value is platform specific.
+
+  Numerical value.
+
+* `-D <component=level>`, `--debug <component=level>`
+
+  Control the verbosity level of the uvmm.
+
+  Using the `component` prefix, the verbosity level of each uvmm component is
+  configurable.
+
+  For example, the following command line sets the verbosity of all uvmm
+  components to `info` except for IRQ handling, which is set to `trace`:
+
+  `uvmm -D info -D irq=trace`
+
+  Can be used multiple times.
+
+  Possible values for component are
+  | `core`, `cpu`, `mmio`, `irq`, `dev`, `pm`, `vbus_event`.
+
+  Possible values for level are
+  | `quiet`, `warn`, `info`, `trace`.
+
+  Options `-q, --quiet`, `-v, --verbose` and `-D, --debug` cancel each other
+  out.
+
+
+* `-f`, `--fault-mode`
+
+  Control the handling of guest reads/writes to non-existing memory.
+
+  Possible values are
+    * `ignore`: Invalid writes are ignored. Invalid reads either return 0 or are
+    skipped. The guest may experience undefined behaviour.
+
+    * `halt`: Halt the VM on the first invalid memory access.
+
+    * `inject`: Try to forward the invalid access to the guest. This is not
+    supported on all architectures. Falls back to `halt` if the error could not
+    be forwarded to the guest.
+
+
+  Default: `ignore`
+
+* `-q`, `--quiet`
+
+  Silence all uvmm output.
+
+  Flag. True if provided.
+
+  Options `-q, --quiet`, `-v, --verbose` and `-D, --debug` cancel each other
+  out.
+
+
+* `-v`, `--verbose`
 
   Increase the verbosity of the uvmm. Repeating the option increases the
   verbosity by another level.
 
-* `-W, --wakeup-on-system-resume`
+  Can be used multiple times.
 
-   When set, the uvmm resumes when the host system resumes after a
-   suspend call.
+  Flag. True if provided.
 
-* `-i`
+  Options `-q, --quiet`, `-v, --verbose` and `-D, --debug` cancel each other
+  out.
 
-   When set, the option forces the guest RAM to be mapped to its
-   corresponding host-physical addresses.
 
-\note Options `-q, --quiet`, `-v, --verbose` and `-D, --debug` cancel each
-      other out.
+* `-W`, `--wakeup-on-system-resume`
 
-Setting up guest memory
------------------------
+  When set, the uvmm resumes when the host system resumes after a suspend call.
 
-In the most simple setup, memory for the guest can be provided via a
-simple dataspace. In your ned script, create a new dataspace of the
-required size and hand it into uvmm as the `ram` capability:
+  Flag. True if provided.
 
-    local ramds = L4.Env.user_factory:create(L4.Proto.Dataspace, 60 * 1024 * 1024)
+* `-i`, `--ram-identity-mapping`
 
-    L4.default_loader::startv({caps = {ram = ramds:m("rw")}}, "rom/uvmm")
+  When set, the option forces the guest RAM to be mapped to its corresponding
+  host-physical addresses.
 
-The memory will be mapped to the most appropriate place and a memory node
-added to the device tree, so that the guest can find the memory.
+  Flag. True if provided.
 
-For a more complex setup, the memory can be configured via the device tree.
-uvmm scans for memory nodes and tries to set up the memory from them. A
-memory device node should look like this:
+## Setting up guest memory
 
-    memory@0 {
-      device_type = "memory";
-      reg = <0x00000000 0x00100000
-             0x00200000 0xffffffff>;
-      l4vmm,dscap = "memcap";
-      dma-ranges = <>;
-    };
+In the most simple setup, memory for the guest can be provided via a simple
+dataspace. In your ned script, create a new dataspace of the required size and
+hand it into uvmm as the `ram` capability:
+
+```lua
+local ramds = L4.Env.user_factory:create(L4.Proto.Dataspace, 0x4000000)
+
+L4.default_loader::startv({caps = {ram = ramds:m("rw")}}, "rom/uvmm")
+```
+
+The memory will be mapped to the most appropriate place and a memory node added
+to the device tree, so that the guest can find the memory.
+
+For a more complex setup, the memory can be configured via the device tree. uvmm
+scans for memory nodes and tries to set up the memory from them. A memory device
+node should look like this:
+
+```dts
+memory@0 {
+  device_type = "memory";
+  reg = <0x00000000 0x00100000
+         0x00200000 0xffffffff>;
+  l4vmm,dscap = "memcap";
+  dma-ranges = <>;
+};
+```
 
 The `device_type` property is mandatory and needs to be set to `memory`.
 
-`l4vmm,dscap` contains the name of the capability containing the dataspace
-to be used for the RAM. `reg` describe the memory regions to use for the
-memory. The regions will be filled up to the size of the supplied dataspace.
-If they are larger, then the remaining area will be cut.
+`l4vmm,dscap` contains the name of the capability containing the dataspace to be
+used for the RAM. `reg` describe the memory regions to use for the memory. The
+regions will be filled up to the size of the supplied dataspace. If they are
+larger, then the remaining area will be cut.
 
-If the optional `dma-ranges` property is given, the host-physical address
-ranges for the memory regions will be added here. Note that the property is
-not cleared first, so it should be left empty.
+If the optional `dma-ranges` property is given, the host-physical address ranges
+for the memory regions will be added here. Note that the property is not cleared
+first, so it should be left empty.
 
 For more details see \subpage l4re_servers_uvmm_ram_details.
 
@@ -136,302 +208,318 @@ uvmm populates the RAM with the following data:
 * (optional) ramdisk
 * (optional) device tree
 
-The kernel binary is put at the predefined address. For ELF binaries, this
-is an absolute physical address. If the binary supports relative addressing,
-the binary is put to the requested offset relative to beginning of the
-first 'memory' region defined in the device tree.
+The kernel binary is put at the predefined address. For ELF binaries, this is an
+absolute physical address. If the binary supports relative addressing, the
+binary is put to the requested offset relative to beginning of the first
+'memory' region defined in the device tree.
 
 The ramdisk and device tree are placed as far as possible to the end of the
 regions defined in the first 'memory' node.
 
-If there is a part of RAM that must remain empty, then define an extra
-memory node for it in the device tree. uvmm only writes to memory in
-the first memory node it finds.
+If there is a part of RAM that must remain empty, then define an extra memory
+node for it in the device tree. uvmm only writes to memory in the first memory
+node it finds.
 
-Warning: uvmm does not touch any unpopulated memory. In particular, it does
-not ensure that the memory is cleared. It is the responsibility of the provider
-of the RAM dataspace to make sure that no data leakage can happen. Normally
-this is not an issue because dataspaces are guaranteed to be cleaned when
-they are newly created but users should be careful when reusing memory or
-dataspaces, for example, when restarting the uvmm.
+Warning: uvmm does not touch any unpopulated memory. In particular, it does not
+ensure that the memory is cleared. It is the responsibility of the provider of
+the RAM dataspace to make sure that no data leakage can happen. Normally this is
+not an issue because dataspaces are guaranteed to be cleaned when they are newly
+created but users should be careful when reusing memory or dataspaces, for
+example, when restarting the uvmm.
 
-Forwarding hardware resources to the guest
-------------------------------------------
+## Forwarding hardware resources to the guest
 
-Hardware resources must be specified in two places: the device tree contains
-the description of all hardware devices the guest could see and the Vbus
-describes which resources are actually available to the uvmm.
+Hardware resources must be specified in two places: the device tree contains the
+description of all hardware devices the guest could see and the Vbus describes
+which resources are actually available to the uvmm.
 
-The vbus allows the uvmm access to hardware resources in the same way as
-any other L4 application. uvmm expects a capability named 'vbus' where it
-can access its hardware resources. It is possible to leave out the capability
-for purely virtual guests (Note that this is not actually practical on some
-architectures. On ARM, for example, the guest needs hardware access to the
-interrupt controller. Without a 'vbus' capability, interrupts will not work.)
-For information on how to configure a vbus, see the \ref io "IO documentation".
+The vbus allows the uvmm access to hardware resources in the same way as any
+other L4 application. uvmm expects a capability named 'vbus' where it can access
+its hardware resources. It is possible to leave out the capability for purely
+virtual guests (Note that this is not actually practical on some architectures.
+On ARM, for example, the guest needs hardware access to the interrupt
+controller. Without a 'vbus' capability, interrupts will not work.) For
+information on how to configure a vbus, see the \ref io "IO documentation".
 
-The device tree needs to contain the hardware description the guest should
-see. For hardware devices this usually means to use a device tree that would
-also be used when running the guest directly on hardware.
+The device tree needs to contain the hardware description the guest should see.
+For hardware devices this usually means to use a device tree that would also be
+used when running the guest directly on hardware.
 
-On startup, uvmm scans the device tree for any devices that require memory
-or interrupt resources and compares the required resources with the ones
-available from its vbus. When all resources are available, it sets up the
-appropriate forwarding, so that the guest now has direct access to the
-hardware. If the resources are not available, the device will be marked
-as 'disabled'. This mechanism allows to work with a standard device tree
-for all guests in the system while handling the actual resource allocation
-in a flexible manner via the vbus configuration.
-
+On startup, uvmm scans the device tree for any devices that require memory or
+interrupt resources and compares the required resources with the ones available
+from its vbus. When all resources are available, it sets up the appropriate
+forwarding, so that the guest now has direct access to the hardware. If the
+resources are not available, the device will be marked as 'disabled'. This
+mechanism allows to work with a standard device tree for all guests in the
+system while handling the actual resource allocation in a flexible manner via
+the vbus configuration.
 
 The default mechanism assigns all resources 1:1, i.e. with the same memory
 address and interrupt number as on hardware. It is also possible to map a
-hardware device to a different location. In this case, the assignment
-between vbus device and device tree device must be known in advance and
-marked in the device tree using the `l4vmm,vbus-dev` property.
+hardware device to a different location. In this case, the assignment between
+vbus device and device tree device must be known in advance and marked in the
+device tree using the `l4vmm,vbus-dev` property.
 
-The following device will for example be bound with the vbus device with
-the HID 'l4-test,dev':
+The following device will for example be bound with the vbus device with the HID
+'l4-test,dev':
 
-    test@e0000000 {
-        compatible = "memdev,bar";
-        reg = <0 0xe0000000 0 0x50000>,
-              <0 0xe1000000 0 0x50000>;
-        l4vmm,vbus-dev = "l4-test,dev";
-        interrupts-extended = <&gic 0 139 4>;
-    };
+```dts
+test@e0000000 {
+  compatible = "memdev,bar";
+  reg = <0 0xe0000000 0 0x50000>,
+        <0 0xe1000000 0 0x50000>;
+  l4vmm,vbus-dev = "l4-test,dev";
+  interrupts-extended = <&gic 0 139 4>;
+};
+```
 
-Resources are then matched by name. Memory resources in the vbus must
-be named `reg0` to `reg9` to match against the address ranges in the
-device tree `reg` property. Interrupts must be called `irq0` to `irq9`
-and will be matched against `interrupts` or `interrupts-extended` entries
-in the device tree. The vbus must expose resources for all resources
-defined in the device tree entry or the initialisation will fail.
+Resources are then matched by name. Memory resources in the vbus must be named
+`reg0` to `reg9` to match against the address ranges in the device tree `reg`
+property. Interrupts must be called `irq0` to `irq9` and will be matched against
+`interrupts` or `interrupts-extended` entries in the device tree. The vbus must
+expose resources for all resources defined in the device tree entry or the
+initialisation will fail.
 
 An appropriate IO entry for the above device would thus be:
 
-    MEM = Io.Hw.Device(function()
-        Property.hid = "l4-test,dev"
-        Resource.reg0 = Io.Res.mmio(0x41000000, 0x4104ffff)
-        Resource.reg1 = Io.Res.mmio(0x42000000, 0x4204ffff)
-        Resource.irq0 = Io.Res.irq(134);
-    end)
+```lua
+MEM = Io.Hw.Device(function()
+  Property.hid = "l4-test,dev"
+  Resource.reg0 = Io.Res.mmio(0x41000000, 0x4104ffff)
+  Resource.reg1 = Io.Res.mmio(0x42000000, 0x4204ffff)
+  Resource.irq0 = Io.Res.irq(134);
+end)
+```
 
 Please note that HIDs on the vbus are not necessarily unique. If multiple
-devices with the HID given in `l4vmm,vbus-dev` are available on the vbus,
-then one device is chosen at random.
+devices with the HID given in `l4vmm,vbus-dev` are available on the vbus, then
+one device is chosen at random.
 
 If no vbus device with the given HID is available, the device is disabled.
 
-How to enable guest suspend/resume
-----------------------------------
+## How to enable guest suspend/resume
 
-\note Currently only supported on ARM. It should work fine with Linux
-version 4.4 or newer.
+> [!note]
+> Currently only supported on ARM. It should work fine with Linux version 4.4 or
+> newer.
 
-Uvmm (partially) implements the power state coordination interface (PSCI),
-which is the standard ARM power management interface. To make use of this
-interface, you have to announce its availability to the guest operating
-system via the device tree like so:
+Uvmm (partially) implements the power state coordination interface (PSCI), which
+is the standard ARM power management interface. To make use of this interface,
+you have to announce its availability to the guest operating system via the
+device tree like so:
 
-    psci {
-          compatible = "arm,psci-0.2";
-          method = "hvc";
-    };
+```dts
+psci {
+  compatible = "arm,psci-0.2";
+  method = "hvc";
+};
+```
 
 The Linux guest must be configured with at least these options:
 
-    CONFIG_SUSPEND=y
-    CONFIG_ARM_PSCI=y
+```
+CONFIG_SUSPEND=y
+CONFIG_ARM_PSCI=y
+```
 
-How to communicate power management (PM) events
------------------------------------------------
+## How to communicate power management (PM) events
 
 Uvmm can be instructed to inform a PM manager of PM events through the
-L4::Platform_control interface. To that end, uvmm may be equipped with a
-`pfc` cap. On suspend, uvmm will call l4_platform_ctl_system_suspend().
+L4::Platform_control interface. To that end, uvmm may be equipped with a `pfc`
+cap. On suspend, uvmm will call l4_platform_ctl_system_suspend().
 
-The `pfc` cap can also be implemented by IO. In that case the guest can
-start a machine suspend/shutdown/reboot.
+The `pfc` cap can also be implemented by IO. In that case the guest can start a
+machine suspend/shutdown/reboot.
 
-Ram block device support
-------------------------
+## Ram block device support
 
 The example ramdisk works by loading a file system into RAM, which needs RAM
 block device support to work. In the Linux kernel configuration add:
-     CONFIG_BLK_DEV_RAM=y
+CONFIG_BLK_DEV_RAM=y
 
-Framebuffer support for uvmm/amd64 guests
------------------------------------------
-Uvmm can be instructed to pass along a framebuffer to the Linux guest. To
-enable this three things need to be done:
+## Framebuffer support for uvmm/amd64 guests
+
+Uvmm can be instructed to pass along a framebuffer to the Linux guest. To enable
+this three things need to be done:
 
 1. Configure Linux to support a simple framebuffer by enabling
-     CONFIG_FB_SIMPLE=y
-     CONFIG_X86_SYSFB=y
+    ```
+    CONFIG_FB_SIMPLE=y
+    CONFIG_X86_SYSFB=y
+    ```
 
-2. Configure a simple framebuffer device in the device tree (currently only
-   read by uvmm, linearer framebuffer at [0xf0000000 - 0xf1000000])
+2. Configure a simple framebuffer device in the device tree (currently only read
+by uvmm, linearer framebuffer at [0xf0000000 - 0xf1000000])
 
-     simplefb {
-           compatible = "simple-framebuffer";
-           reg = <0x0 0xf0000000 0x0 0x1000000>;
-           l4vmm,fbcap = "fb";
-     };
+    ```dts
+    simplefb {
+      compatible = "simple-framebuffer";
+      reg = <0x0 0xf0000000 0x0 0x1000000>;
+      l4vmm,fbcap = "fb";
+    };
+    ```
 
 3. Start a framebuffer instance and connect it to uvmm e.g.
-     -- Start fb-drv (but only if we need to)
-     local fbdrv_fb = L4.Env.vesa;
-     if (not fbdrv_fb) then
-       fbdrv_fb = l:new_channel();
-       l:start({
-                caps = {
-                  vbus = io_busses.fbdrv,
-                  fb   = fbdrv_fb:svr(),
-                },
-                log = { "fbdrv", "r" },
-              },
-              "rom/fb-drv");
-     end
-     vmm.start_vm{
-       ext_caps = { fb = fbdrv_fb },
-     -- ...
 
+    ```lua
+    -- Start fb-drv (but only if we need to)
+    local fbdrv_fb = L4.Env.vesa;
+    if (not fbdrv_fb) then
+      fbdrv_fb = l:new_channel();
+      l:start({
+               caps = {
+                 vbus = io_busses.fbdrv,
+                 fb   = fbdrv_fb:svr(),
+               },
+               log = { "fbdrv", "r" },
+             },
+             "rom/fb-drv");
+    end
+    vmm.start_vm{
+      ext_caps = { fb = fbdrv_fb },
+    -- ...
+    ```
 
-Requirements on the Fiasco.OC configuration on amd64
-----------------------------------------------------
+## Requirements on the Fiasco.OC configuration on amd64
 
 The kernel configuration must feature `CONFIG_SYNC_TSC=y` in order for the
 emulated timers to reach a sufficiently high resolution.
 
+## Recommended Linux configuration options for uvmm/amd64 guests
 
-Recommended Linux configuration options for uvmm/amd64 guests
--------------------------------------------------------------
-
-The following options are recommended in additon to the amd64 defaults
-provided by a `make defconfig`:
+The following options are recommended in additon to the amd64 defaults provided
+by a `make defconfig`:
 
 Virtio support is required to access virtual devices provided by uvmm:
 
-     CONFIG_VIRTIO=y
-     CONFIG_VIRTIO_PCI=y
-     CONFIG_VIRTIO_BLK=y
-     CONFIG_BLK_MQ_VIRTIO=y
-     CONFIG_VIRTIO_CONSOLE=y
-     CONFIG_VIRTIO_INPUT=y
-     CONFIG_VIRTIO_NET=y
+```
+CONFIG_VIRTIO=y
+CONFIG_VIRTIO_PCI=y
+CONFIG_VIRTIO_BLK=y
+CONFIG_BLK_MQ_VIRTIO=y
+CONFIG_VIRTIO_CONSOLE=y
+CONFIG_VIRTIO_INPUT=y
+CONFIG_VIRTIO_NET=y
+```
 
-It is highly recommended to use the X2APIC, which needs virtualization
-awareness to work under uvmm:
+It is highly recommended to use the X2APIC, which needs virtualization awareness
+to work under uvmm:
 
-     CONFIG_X86_X2APIC=y
-     CONFIG_PARAVIRT=y
-     CONFIG_PARAVIRT_SPINLOCKS=y
+```
+CONFIG_X86_X2APIC=y
+CONFIG_PARAVIRT=y
+CONFIG_PARAVIRT_SPINLOCKS=y
+```
 
-KVM clock for uvmm/amd64 guests
--------------------------------
+## KVM clock for uvmm/amd64 guests
 
-When executing L4Re + uvmm on QEMU, the PIT as clock source is not reliable.
-The paravirtualized KVM clock provides the guest with a stable clock source.
+When executing L4Re + uvmm on QEMU, the PIT as clock source is not reliable. The
+paravirtualized KVM clock provides the guest with a stable clock source.
 
-A KVM clock device is available to the guest, if the device tree contains
-the corresponding entry:
+A KVM clock device is available to the guest, if the device tree contains the
+corresponding entry:
 
-    kvm_clock {
-        compatible = "kvm-clock";
-        reg = <0x0 0x0 0x0 0x0>;
-    };
+```dts
+kvm_clock {
+  compatible = "kvm-clock";
+  reg = <0x0 0x0 0x0 0x0>;
+};
+```
 
 To make use of this clock, the Linux guest must be built with the following
 configuration options:
 
-    CONFIG_HYPERVISOR_GUEST=y
-    CONFIG_KVM_GUEST=y
-    CONFIG_PTP_1588_CLOCK_KVM is not set
+```
+CONFIG_HYPERVISOR_GUEST=y
+CONFIG_KVM_GUEST=y
+CONFIG_PTP_1588_CLOCK_KVM is not set
+```
 
-Note: KVM calls besides the KVM clock are unhandled and lead to failure
-in the uvmm, e.g. vmcall 0x9 for the PTP_1588_CLOCK_KVM.
+> [!note]
+> KVM calls besides the KVM clock are unhandled and lead to failure in the uvmm,
+> e.g. vmcall 0x9 for the PTP_1588_CLOCK_KVM.
 
 This is considered a development feature. The KVM clock is not required when
-running on physical hardware as TSC calibration via the PIT works as
-expected.
+running on physical hardware as TSC calibration via the PIT works as expected.
 
-
-Development notes for amd64
----------------------------
+## Development notes for amd64
 
 When you are developing on Linux using QEMU please note that nested
-virtualization support is necessary on your host system to run uvmm guests.
-Your host Linux version should be 4.12 or greater, **excluding 4.20**.
+virtualization support is necessary on your host system to run uvmm guests. Your
+host Linux version should be 4.12 or greater, **excluding 4.20**.
 
 Check if your KVM module has nested virtualization enabled via:
 
-    > cat /sys/module/kvm_intel/parameters/nested
-    Y
+```bash
+cat /sys/module/kvm_intel/parameters/nested
+Y
+```
 
-In case it shows `N` instead of `Y` enable nested virtualization support
-via:
+In case it shows `N` instead of `Y` enable nested virtualization support via:
 
-    modprobe kvm_intel nested=1
+```bash
+modprobe kvm_intel nested=1
+```
 
 On AMD platforms the module name is `kvm_amd`.
 
-
-QEMU network setup for a uvmm guest on amd64
---------------------------------------------
-
+## QEMU network setup for a uvmm guest on amd64
+```bash
 qemu-system-x86_64 -M q35 -cpu host -enable-kvm  -device intel-iommu
                    -device e1000e,netdev=net0 -netdev bridge,id=net0,br=virbr0
+```
 
-where 'virbr0' is the name of the host's bridge device. The line 'allow
-virbr0' needs to be present in /etc/qemu/bridge.conf.
-The bridge can either be created via the network manager or via the command
-line:
+where 'virbr0' is the name of the host's bridge device. The line 'allow virbr0'
+needs to be present in `/etc/qemu/bridge.conf`. The bridge can either be created
+via the network manager or via the command line:
 
-    brctl addbr virbr0
-    ip addr add 192.168.124.1/24 dev virbr0
-    ip link set up dev virbr0
+```bash
+brctl addbr virbr0
+ip addr add 192.168.124.1/24 dev virbr0
+ip link set up dev virbr0
+```
 
 In the guest linux with eth0 as network device:
 
-    ip a a 192.168.124.5/24 dev eth0
-    ip li se up dev eth0
+```bash
+ip a a 192.168.124.5/24 dev eth0
+ip li se up dev eth0
+```
 
 Now the host and guest can ping each other using their respective IPs.
 
-Of course, uvmm needs to be connected to Io and Io needs a vbus
-configuration for the uvmm client like this:
+Of course, uvmm needs to be connected to Io and Io needs a vbus configuration
+for the uvmm client like this:
 
-    Io.add_vbusses
-    {
-      vm_pci = Io.Vi.System_bus(function ()
-        Property.num_msis = 6
-        PCI = Io.Vi.PCI_bus(function ()
-          pci_net = wrap(Io.system_bus():match("PCI/CC_0200"))
-        end)
-      end)
-    }
+```lua
+Io.add_vbusses
+{
+  vm_pci = Io.Vi.System_bus(function ()
+    Property.num_msis = 6
+    PCI = Io.Vi.PCI_bus(function ()
+      pci_net = wrap(Io.system_bus():match("PCI/CC_0200"))
+    end)
+  end)
+}
+```
 
-QEMU emulated VirtIO devices and IO-MMU on amd64
-------------------------------------------------
+## QEMU emulated VirtIO devices and IO-MMU on amd64
 
-QEMU does not route VirtIO devices through the IO-MMU per default. To use
-QEMU emulated VirtIO devices add the
-`disable-legacy=on,disable-modern=off,iommu_platform=on` flags to the option
-list of the device.
-The e1000e card in the network example above can be replaced with an
-virtio-net-pci card like this:
+QEMU does not route VirtIO devices through the IO-MMU per default. To use QEMU
+emulated VirtIO devices add the `disable-legacy=on,disable-
+modern=off,iommu_platform=on` flags to the option list of the device. The e1000e
+card in the network example above can be replaced with an virtio-net-pci card
+like this:
 
-    -device virtio-net-pci,disable-legacy=on,disable-modern=off,
-            iommu_platform=on,netdev=net0
+```bash
+-device virtio-net-pci,disable-legacy=on,disable-modern=off,
+        iommu_platform=on,netdev=net0
+```
 
 For more information on VirtIO devices and their options see
 https://wiki.qemu.org/Features/VT-d.
 
-
-
-Using the uvmm monitor interface
---------------------------------
+## Using the uvmm monitor interface
 
 Uvmm implements an interface with which parts of the guest's state can be
 queried and manipulated at runtime. This monitor interface needs to be enabled
@@ -441,10 +529,10 @@ detail below.
 ### Compiling uvmm with monitor interface support
 
 To compile uvmm with monitor interface support pass the `CONFIG_MONITOR=y`,
-option during the `make` step (or set in in the Makefile.config). This
-option is available on all architectures but note that the set of available
-monitor interface features may vary significantly between them. Also note
-that the monitor interface will always be disabled in release mode, i.e. if
+option during the `make` step (or set in in the Makefile.config). This option is
+available on all architectures but note that the set of available monitor
+interface features may vary significantly between them. Also note that the
+monitor interface will always be disabled in release mode, i.e. if
 `CONFIG_RELEASE_MODE=y`.
 
 ### Enabling the monitor interface at runtime
@@ -454,57 +542,55 @@ When starting a uvmm instance from inside a `ned` script using the
 interface is enabled at runtime. There are three cases to distinguish:
 
 - `mon=true` (default): The monitor interface is enabled but no server
-                        implementing the client side of the monitor interface
-                        is started. The monitor interface can still be
-                        utilized via `cons` but no readline functionality will
-                        be available.
+implementing the client side of the monitor interface is started. The monitor
+interface can still be utilized via `cons` but no readline functionality will be
+available.
 
-- `mon='some_binary'`: If a string is passed as the value of `mon`, the
-                       monitor interface is enabled and the string is
-                       interpreted as the name of a server binary which
-                       implements the client side of the monitor interface.
-                       This server is automatically started and has access to
-                       a vcon capability named `mon` at startup through which
-                       it can make use of the monitor interface. Unless you
-                       have written your own server you should specify
-                       `'uvmm_cli'` which is a server implementing a simple
-                       readline interface.
+- `mon='some_binary'`: If a string is passed as the value of `mon`, the monitor
+interface is enabled and the string is interpreted as the name of a server
+binary which implements the client side of the monitor interface. This server is
+automatically started and has access to a vcon capability named `mon` at startup
+through which it can make use of the monitor interface. Unless you have written
+your own server you should specify `'uvmm_cli'` which is a server implementing a
+simple readline interface.
 
 - `mon=false`: The monitor interface is disabled at runtime.
 
 ### Using the monitor interface
 
-If the monitor interface was enabled you can connect to it via `cons` under
-the name `mon<n>` where `<n>` is a unique integer for every uvmm instance
-that is started with the monitor interface enabled (numbered starting from
-one in order of corresponding `vmm.start_vm` calls). If `mon='uvmm_cli'` was
-specified, readline functionality such as command completion and history
-will be available. Enter a command followed by enter to run that command.
-To obtain a list of all available commands issue the `help` command, to
-obtain usage information for a specific command `foo` issue `help foo`.
+If the monitor interface was enabled you can connect to it via `cons` under the
+name `mon<n>` where `<n>` is a unique integer for every uvmm instance that is
+started with the monitor interface enabled (numbered starting from one in order
+of corresponding `vmm.start_vm` calls). If `mon='uvmm_cli'` was specified,
+readline functionality such as command completion and history will be available.
+Enter a command followed by enter to run that command. To obtain a list of all
+available commands issue the `help` command, to obtain usage information for a
+specific command `foo` issue `help foo`.
 
-\note Some commands will modify the guests state. Since it should be obvious
-      to which ones this applies this is usually not specifically
-      highlighted. Exercise reasonable caution.
+> [!note]
+> Some commands will modify the guests state. Since it should be obvious to
+> which ones this applies this is usually not specifically highlighted. Exercise
+> reasonable caution.
 
 ### Using the guest debugger
 
-The guest debugger provides monitoring functionality akin to a very
-bare-bone GDB interface, e.g. guest RAM and page table dumping,
-breakpointing and single stepping. Additional functionality might be added in
-the future.
+The guest debugger provides monitoring functionality akin to a very bare-bone
+GDB interface, e.g. guest RAM and page table dumping, breakpointing and single
+stepping. Additional functionality might be added in the future.
 
-\note The guest debugger is currently still under development. The guest
-      debugger may also not be available on all architectures. To check
-      whether the guest debugger is available check if `help dbg` returns
-      usage information.
+> [!note]
+> The guest debugger is currently still under development. The guest debugger
+> may also not be available on all architectures. To check whether the guest
+> debugger is available check if `help dbg` returns usage information.
 
 If the guest debugger is available, you have to manually load it at runtime
-using the monitor interface. This saves resources if the guest debugger is
-not used. To enable the guest debugger, issue the `dbg on` monitor command.
-Once enabled, the guest debugger can not be disabled again.
+using the monitor interface. This saves resources if the guest debugger is not
+used. To enable the guest debugger, issue the `dbg on` monitor command. Once
+enabled, the guest debugger can not be disabled again.
 
 To list available guest debugger subcommands, issue `dbg help` after `dbg on`.
 
-\note When using SMP, most guest debugger subcommands require you to
-      explicitly specify a guest vcpu using an index starting from zero.
+> [!note]
+> When using SMP, most guest debugger subcommands require you to explicitly
+> specify a guest vcpu using an index starting from zero.
+
