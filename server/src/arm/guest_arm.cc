@@ -196,8 +196,34 @@ struct F_timer : Factory
   {
     Vdev::Irq_dt_iterator it(devs, node);
 
-    // skip the first two interrupts
-    for (int i = 0; i < 3; ++i)
+    int timer_irq_idx = -1;
+
+    int p_sz;
+    const char *p = node.get_prop<char>("interrupt-names", &p_sz);
+    if (p)
+      {
+        int i = 0;
+        while (p_sz > 0)
+          {
+            int namelen = strlen(p);
+            if (!strcmp(p, "virt"))
+              {
+                timer_irq_idx = i + 1;
+                break;
+              }
+            p    += namelen + 1;
+            p_sz -= namelen + 1;
+            ++i;
+          }
+
+        if (timer_irq_idx == -1)
+          L4Re::chksys(-L4_EINVAL, "No 'virt' interrupt in arm timer node");
+      }
+    else
+      timer_irq_idx = 3; // convention is that the third number is "virt"
+
+    // now we want to see up to timer_irq_idx interrupts
+    for (int i = 0; i < timer_irq_idx; ++i)
       L4Re::chksys(it.next(devs), "Parsing timer interrupt");
 
     if (!it.ic_is_virt())
