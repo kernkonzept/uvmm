@@ -476,11 +476,10 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
 
     case 0xb: // Extended Topology Enumeration Leaf
     case 0x1f: // v2 Extended Topology Enumeration
-      // must be the Local APIC ID of ACPI_MADT_TYPE_LOCAL_APIC
-      if (!rcx)
-        d = id;
-      else
-        a = b = c = d = 0;
+      if (rcx != 0)
+        a = b = c = 0;
+      // the Local APIC ID of ACPI_MADT_TYPE_LOCAL_APIC for all sub-leafs
+      d = id;
       // TODO: Emulate the other registers according to the intended virtual CPU
       //       topology. Also consider ECX>=0 as input.
       break;
