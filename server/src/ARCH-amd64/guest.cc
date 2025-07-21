@@ -928,7 +928,9 @@ Guest::new_state_action(Cpu_dev::Cpu_state state, bool halt_req,
                        cpu->vcpu().get_vcpu_id());
           shutdown(Shutdown);
         }
-      [[fallthrough]];
+      // still handle incoming IPC (e.g. stats IF)
+      cpu->vcpu().wait_for_ipc(l4_utcb(), L4_IPC_NEVER);
+      break;
     case Cpu_dev::Init:
       cpu->wait_for_ipi();
       break;
