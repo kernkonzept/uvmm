@@ -603,7 +603,7 @@ std::shared_ptr<T>
 make_parser(Args&&... args)
 { return std::make_shared<T>(std::forward<Args>(args)...); }
 
-// Fixes a problem where intializer lists do not work with make_shared directly
+// Fixes a problem where initializer lists do not work with make_shared directly
 // because it can't deduce the arguments automatically
 template <template <typename> class T, typename U>
 std::shared_ptr< T<U> >
