@@ -88,7 +88,7 @@ class Uart_8250_base
     Scr         = 7,
   };
 
-  /// Interrupt Enable Register
+  /// Interrupt Enable Register.
   struct Ier_reg
   {
     l4_uint8_t raw;
@@ -99,11 +99,11 @@ class Uart_8250_base
     CXX_BITFIELD_MEMBER(2, 2, rls, raw);
     /// Receive interrupt when data can be written.
     CXX_BITFIELD_MEMBER(1, 1, thre, raw);
-    /// Receive interrupt when data is available.
+    /// Receive interrupt when data is available for reading.
     CXX_BITFIELD_MEMBER(0, 0, rda, raw);
   };
 
-  /// Interrupt Identification Register
+  /// Interrupt Identification Register.
   struct Iir_reg
   {
     l4_uint8_t raw;
@@ -120,27 +120,27 @@ class Uart_8250_base
 
     /// Interrupt ID.
     CXX_BITFIELD_MEMBER(1, 2, id, raw);
-    /// 0, when interrupt is pending
-    CXX_BITFIELD_MEMBER(0, 0, pending, raw);
+    /// 0: interrupt is pending, 1: no interrupt pending. Set to 1 by clear().
+    CXX_BITFIELD_MEMBER(0, 0, not_pending, raw);
 
     void set_data_irq()
     {
       id() = Rda;
-      pending() = 0;
+      not_pending() = 0;
     }
     bool data_irq() const { return id() == Rda; }
 
     void set_error_irq()
     {
       id() = Rls;
-      pending() = 0;
+      not_pending() = 0;
     }
     bool error_irq() const { return id() == Rls; }
 
     void set_write_irq()
     {
       id() = Thre;
-      pending() = 0;
+      not_pending() = 0;
     }
     bool write_irq() const { return id() == Thre; }
 
@@ -148,7 +148,7 @@ class Uart_8250_base
     bool cleared() const { return raw == 1; }
   };
 
-  /// Line Control Register
+  /// Line Control Register.
   struct Lcr_reg
   {
     l4_uint8_t raw;
@@ -156,7 +156,7 @@ class Uart_8250_base
     explicit Lcr_reg(l4_uint8_t v) : raw(v) {}
 
     /**
-     * Divisor Latch Access Bit
+     * Divisor Latch Access Bit.
      *
      * If 0, read/writes to registers 0 and 1 access RBR/THR/IER.
      * If 1, read/writes to registers 0 and 1 access DLL/DLM.
@@ -164,7 +164,7 @@ class Uart_8250_base
     CXX_BITFIELD_MEMBER(7, 7, dlab, raw);
   };
 
-  /// Line Status Register
+  /// Line Status Register.
   struct Lsr_reg
   {
     l4_uint8_t raw;
@@ -183,7 +183,7 @@ class Uart_8250_base
     CXX_BITFIELD_MEMBER(2, 2, pe, raw);
     /// Overrun error.
     CXX_BITFIELD_MEMBER(1, 1, oe, raw);
-    /// Set, when data is available.
+    /// Set, when data is available for reading.
     CXX_BITFIELD_MEMBER(0, 0, dr, raw);
 
     void set_error()
