@@ -114,7 +114,7 @@ class Uart_8250_base
     enum Iir_id
     {
       Thre = 1, ///< Transmitter Holding Register is empty.
-      Rda  = 2, ///< Receiver Data is availabe.
+      Rda  = 2, ///< Receiver Data is available.
       Rls  = 3, ///< An error occurred.
     };
 
