@@ -57,7 +57,7 @@ public:
         _ns_offset = 0;
       }
 
-    auto irq = L4Re::Util::make_unique_cap<L4::Irq>();
+    auto irq = L4Re::Util::make_unique_del_cap<L4::Irq>();
     if (!irq)
       {
         warn().printf("Could not allocate capability for "
@@ -94,7 +94,9 @@ public:
   ~External_rtc()
   {
     _rtc->unbind(0, _irq.get());
-    _registry->unregister_obj(this);
+    // Do not unmap the IRQ object in unregister_obj() because we need the
+    // capability to delete the kernel object in the dtor of _irq.
+    _registry->unregister_obj(this, false);
     // Remove a potential reference to this object.
     L4rtc_hub::invalidate();
   }
@@ -128,7 +130,7 @@ public:
 private:
   // offset of kip_clock to epoch (wallclock time)
   l4_uint64_t _ns_offset;
-  L4Re::Util::Unique_cap<L4::Irq> _irq;
+  L4Re::Util::Unique_del_cap<L4::Irq> _irq;
 };
 
 }
