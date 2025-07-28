@@ -247,10 +247,13 @@ public:
       case Iir:
         ret = _iir.raw;
         if (_iir.write_irq())
-          {
-            _iir.clear();
-            _sink.ack();
-          }
+          _iir.clear();
+
+        // The IIR may already have been clear before: This handles a rare case
+        // where the IRQ was not acknowledged but the IIR reports that no IRQ is
+        // pending.
+        if (_iir.cleared())
+          _sink.ack();
         break;
       case Lcr:
         ret = _lcr.raw;
