@@ -88,13 +88,16 @@ class Uart_8250_base
     Scr         = 7,
   };
 
-  /// Interrupt Enable Register.
+  /// Interrupt Enable Register. The upper 4 bits are always 0.
   struct Ier_reg
   {
     l4_uint8_t raw;
     Ier_reg() : raw(0) {}
-    explicit Ier_reg(l4_uint8_t v) : raw(v) {}
+    explicit Ier_reg(l4_uint32_t v) : raw(v & 0xf) {}
+    void set(l4_uint8_t v) { raw = v & 0xf; }
 
+    /// Modem status interrupt. Stored but not emulated.
+    CXX_BITFIELD_MEMBER(3, 3, msi, raw);
     /// Receive interrupt on error.
     CXX_BITFIELD_MEMBER(2, 2, rls, raw);
     /// Receive interrupt when data can be written.
@@ -305,7 +308,7 @@ public:
           _dlm = value;
         else
           {
-            _ier.raw = value;
+            _ier.set(value);
 
             if (_lsr.dr())
               signal_readable();
