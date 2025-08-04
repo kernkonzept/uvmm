@@ -190,8 +190,6 @@ public:
     _ipi.trigger();
   }
 
-  bool has_message() const { return _check_msgq; }
-
   Cpu_state next_state()
   {
     if (!has_message())
@@ -210,16 +208,22 @@ public:
     return new_state;
   }
 
-  l4_msgtag_t wait_for_ipi()
+  /**
+   * Wait for an IPI, unless there are still items in the message queue.
+   */
+  void wait_for_ipi()
   {
-    l4_msgtag_t tag = _ipi.receive();
-    _check_msgq = true;
+    if (has_message())
+      return;
 
-    return tag;
+    _ipi.receive();
+    _check_msgq = true;
   }
 
 private:
   static Dbg info() { return Dbg(Dbg::Cpu, Dbg::Info, "Cpu_dev"); }
+
+  bool has_message() const { return _check_msgq; }
 
   /// Wait until an IPI puts the CPU in online state.
   void wait_until_online()
