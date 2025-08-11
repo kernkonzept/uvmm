@@ -106,14 +106,15 @@ Cpu_dev::reset()
                   (vmpidr & ~(Mpidr_up_sys | Mpidr_mt_sys | Mpidr_aff_mask))
                   | _dt_affinity);
 
+  arm_subarch_setup(*_vcpu, !(_vcpu->r.flags & Flags_mode_32), _pmsa);
+
   if (_dt_vpidr)
     {
+      // Override default value set by subarch_setup().
       l4_uint32_t vpidr = l4_vcpu_e_read_32(*_vcpu, L4_VCPU_E_VPIDR);
       Dbg().printf("Using VPIDR %lx instead of %x\n", _dt_vpidr, vpidr);
-      l4_vcpu_e_write_32(*_vcpu, L4_VCPU_E_VPIDR,  _dt_vpidr);
+      l4_vcpu_e_write_32(*_vcpu, L4_VCPU_E_VPIDR, _dt_vpidr);
     }
-
-  arm_subarch_setup(*_vcpu, !(_vcpu->r.flags & Flags_mode_32), _pmsa);
 
   //
   // Initialize vcpu state

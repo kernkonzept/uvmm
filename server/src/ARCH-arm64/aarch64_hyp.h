@@ -31,5 +31,10 @@ inline void arm_subarch_setup(void *vcpu, bool guest_64bit, bool pmsa)
     L4Re::throw_error(-L4_ENOSYS, "CPU does not support VMSA");
 
   l4_vcpu_e_write_64(vcpu, L4_VCPU_E_VTCR, pmsa ? 0 : (1ULL << 31));
+
+  // VPIDR default: Use MIDR_EL1 of this host CPU.
+  l4_uint64_t midr_el1;
+  asm volatile ("mrs %0, midr_el1" : "=r"(midr_el1));
+  l4_vcpu_e_write_32(vcpu, L4_VCPU_E_VPIDR, midr_el1);
 }
 
