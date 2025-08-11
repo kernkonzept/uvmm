@@ -8,6 +8,7 @@
 #include <cassert>
 #include <l4/re/env>
 #include <l4/re/error_helper>
+#include <l4/util/printf_helpers.h>
 
 #include "debug.h"
 #include "ram_ds.h"
@@ -72,8 +73,10 @@ Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr)
     info.printf("RAM not set up for DMA.\n");
 
   l4_addr_t local_start = this->local_start();
-  info.printf("RAM: @ 0x%lx size=0x%lx\n", _vm_start.get(),
-              static_cast<l4_addr_t>(size()));
+  char sz[64];
+  l4util_human_readable_size(sz, sizeof(sz), size());
+  info.printf("RAM: @ 0x%lx size=0x%lx (%s)\n", _vm_start.get(),
+              static_cast<l4_addr_t>(size()), sz);
   info.printf("RAM: VMM local mapping @ 0x%lx\n", local_start);
 
   _offset = local_start - _vm_start.get();

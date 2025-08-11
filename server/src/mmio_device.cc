@@ -10,6 +10,8 @@
 #include "debug.h"
 #include "consts.h"
 
+#include <l4/util/printf_helpers.h>
+
 void Vmm::Mmio_device::map_guest_range(L4::Cap<L4::Vm> vm_task,
                                        Vmm::Guest_addr dest, l4_addr_t src,
                                        l4_size_t size, unsigned attr)
@@ -17,9 +19,14 @@ void Vmm::Mmio_device::map_guest_range(L4::Cap<L4::Vm> vm_task,
   l4_addr_t dest_end = dest.get() + size - 1;
   l4_addr_t offs = 0;
 
-  Dbg(Dbg::Mmio, Dbg::Info, "mmio")
-    .printf("\tMapping [%lx - %lx] -> [%lx - %lx]\n", src, src + size - 1,
-            dest.get(), dest_end);
+  Dbg d(Dbg::Mmio, Dbg::Info, "mmio");
+  if (d.is_active())
+    {
+      char sz[64];
+      l4util_human_readable_size(sz, sizeof(sz), size);
+      d.printf("\tMapping [%lx - %lx] -> [%lx - %lx] (%s)\n",
+               src, src + size - 1, dest.get(), dest_end, sz);
+    }
 
   while (offs < size)
     {
@@ -49,8 +56,13 @@ void Vmm::Mmio_device::unmap_guest_range(L4::Cap<L4::Vm> vm_task,
   l4_addr_t dest_end = dest.get() + size - 1;
   l4_addr_t offs = 0;
 
-  Dbg(Dbg::Mmio, Dbg::Info, "mmio")
-    .printf("\tUnmapping [%lx - %lx]\n", dest.get(), dest_end);
+  Dbg d(Dbg::Mmio, Dbg::Info, "mmio");
+  if (d.is_active())
+    {
+      char sz[64];
+      l4util_human_readable_size(sz, sizeof(sz), size);
+      d.printf("\tUnmapping [%lx - %lx] (%s)\n", dest.get(), dest_end, sz);
+    }
 
   Vmm::Batch_unmapper b(vm_task, L4_FP_ALL_SPACES);
   while (offs < size)

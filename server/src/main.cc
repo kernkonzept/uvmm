@@ -18,6 +18,7 @@
 
 #include <l4/re/env>
 #include <l4/re/random>
+#include <l4/util/printf_helpers.h>
 
 #include "debug.h"
 #include "guest.h"
@@ -105,8 +106,13 @@ setup_ramdisk(char const *ram_disk, Vdev::Host_dt const &dt,
           rd_start.get() + rd_size);
     }
 
-  info.printf("Loaded ramdisk image %s to %lx (size: %08zx)\n",
-      ram_disk, rd_start.get(), rd_size);
+  if (info.is_active())
+    {
+      char sz[64];
+      l4util_human_readable_size(sz, sizeof(sz), rd_size);
+      info.printf("Loaded ramdisk image %s to %lx (size: %08zx, %s)\n",
+                  ram_disk, rd_start.get(), rd_size, sz);
+    }
 }
 
 static void
