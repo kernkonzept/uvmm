@@ -62,7 +62,8 @@ public:
     _dt_irq(dt_irq),
     _irq_num(irq),
     _registry(registry),
-    _cap(L4Re::Util::make_unique_cap<L4::Irq>())
+    _cap(L4Re::Util::make_unique_cap<L4::Irq>()),
+    _icu(icu)
   {
     if (ic->get_irq_src_handler(dt_irq))
       L4Re::throw_error(-L4_EEXIST, "Bind IRQ for Irq_svr object.");
@@ -187,6 +188,14 @@ public:
     _vcpu_irq_cfg = cfg;
     if (_state == State::Vcpu_enabled)
       try_bind_as_vcpu();
+  }
+
+  void set_mode(L4_irq_mode mode) override
+  {
+    int err = l4_error(_icu->set_mode(_irq_num, mode));
+    if (err < 0)
+      Dbg(Dbg::Dev, Dbg::Warn, "irq_svr")
+          .printf("set_mode(0x%x, 0x%x) failed: %d\n", _irq_num, mode, err);
   }
 
   bool enable() override
@@ -327,6 +336,7 @@ private:
   l4_umword_t _vcpu_irq_cfg = 0;
   L4Re::Util::Unique_cap<L4::Irq> _cap;
   std::mutex _mutex;
+  L4::Cap<L4::Icu> _icu;
 };
 
 } // namespace

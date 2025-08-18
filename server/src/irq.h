@@ -50,6 +50,14 @@ struct Irq_src_handler
   virtual void configure(l4_umword_t /* cfg */) {}
 
   /**
+   * Set IRQ mode at ICU.
+   *
+   * Forward the chosen IRQ mode (level vs. edge) at the interrupt controller
+   * to the underlying ICU.
+   */
+  virtual void set_mode(L4_irq_mode /* mode */) {}
+
+  /**
    * Enable interrupt source.
    *
    * Called from the virtual interrupt controller if the guest enabled the

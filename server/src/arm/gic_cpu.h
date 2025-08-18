@@ -473,7 +473,10 @@ public:
   {
     _src = src;
     if (src)
-      src->configure(vcpu_irq_cfg());
+      {
+        src->configure(vcpu_irq_cfg());
+        src->set_mode(_irq.config() ? L4_IRQ_F_POS_EDGE : L4_IRQ_F_LEVEL_HIGH);
+      }
   }
 
   void set_id(uint16_t id) { _id = id; }
@@ -546,7 +549,15 @@ public:
   }
 
   void active(bool act) { _irq.active(act); }
-  void config(unsigned char cfg) { _irq.config(cfg); }
+
+  void config(unsigned char cfg)
+  {
+    cfg &= 0x2U;  // Int_config[0] is RES0!
+
+    _irq.config(cfg);
+    if (_src)
+      _src->set_mode(cfg ? L4_IRQ_F_POS_EDGE : L4_IRQ_F_LEVEL_HIGH);
+  }
 
   void set_lr(unsigned idx) { _lr = idx; }
   void clear_lr() { set_lr(0); }
