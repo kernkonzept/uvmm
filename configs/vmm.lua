@@ -13,8 +13,15 @@ function table_override(...)
   return combined
 end
 
-function new_sched(prio, cpus)
-  return  L4.Env.user_factory:create(L4.Proto.Scheduler, prio + 10, prio, cpus);
+-- Creates a new scheduler proxy at moe. Parameters are:
+--
+-- `prio`     : Base priority of the threads running in the scheduler proxy
+-- `cpu_mask` : First of a list of CPU masks for the first 64 CPUs to use for
+--              the scheduler proxy
+-- `...`      : more CPU masks
+function new_sched(prio, cpu_mask, ...)
+  return  L4.Env.user_factory:create(L4.Proto.Scheduler, prio + 10, prio,
+                                     cpu_mask, ...);
 end
 
 -- Starts IO service with the given options:
@@ -69,7 +76,7 @@ end
 --  C) No Prio, but cpus: Create a scheduler proxy with default prio and cpus
 --     limit.
 --  D) A prio and cpus: Create a scheduler proxy with given limits.
-function set_sched(opts, prio, cpus)
+function set_sched(opts, prio, cpus, ...)
   if cpus == nil and prio == nil then
     return
   end
@@ -79,7 +86,7 @@ function set_sched(opts, prio, cpus)
     prio = 0
   end
 
-  local sched = new_sched(prio, cpus);
+  local sched = new_sched(prio, cpus, ...);
   opts["scheduler"] = sched;
 end
 
