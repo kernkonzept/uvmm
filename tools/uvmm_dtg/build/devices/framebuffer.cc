@@ -8,9 +8,13 @@
 
 namespace {
 
-class Framebuffer: public Device
+struct Framebuffer: Device
 {
   using Device::Device;
+
+  virtual ~Framebuffer()
+  {}
+
   /*      simplefb {
    *            compatible = "simple-framebuffer";
    *            reg = <0x0 0xf0000000 0x0 0x1000000>;
