@@ -91,6 +91,21 @@ function set_sched(opts, prio, cpus, ...)
 end
 
 function start_virtio_switch(ports, prio, cpus, switch_type, ext_caps)
+  local opts = {
+    ports = ports,
+    switch_type = switch_type,
+    ext_caps = ext_caps,
+  }
+  set_sched(opts, prio, cpus)
+  return start_virtio_switch(opts)
+end
+
+function start_virtio_switch(options)
+  local ports = options.ports;
+  local scheduler = options.scheduler;
+  local switch_type = options.type;
+  local ext_caps = options.ext_caps;
+
   local switch = l:new_channel();
 
   local opts = {
@@ -98,7 +113,10 @@ function start_virtio_switch(ports, prio, cpus, switch_type, ext_caps)
     caps = table_override({ svr = switch:svr() }, ext_caps or {});
   };
 
-  set_sched(opts, prio, cpus);
+  if scheduler then
+    opts["scheduler"] = scheduler;
+  end
+
   if switch_type == "switch" then
     local port_count = 0;
     for k, v in pairs(ports) do
