@@ -439,7 +439,7 @@ Guest::subarch_init()
                | (0xfUL << 28)  // CLRBHB
                | (  0UL << 24)  // Mask PAC_frac (FEAT_PAuth2)
                | (0xfUL << 20)  // BC
-               | (0xfUL << 16)  // MOPS
+               | (  0UL << 16)  // MOPS
                | (  0UL << 12)  // Mask APA3 (FEAT_PAuth)
                | (  0UL <<  8)  // Mask GPA3 (FEAT_PAuth)
                | (0xfUL <<  4)  // RPRES
