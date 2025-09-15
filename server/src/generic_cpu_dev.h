@@ -120,7 +120,7 @@ protected:
 
 public:
   Generic_cpu_dev(unsigned idx, unsigned phys_id)
-  : _vcpu(nullptr), _phys_cpu_id(phys_id), _thread(nullptr),
+  : _vcpu(nullptr), _phys_cpu_id(phys_id), _thread(0),
     _registry(&_bm), _stop_irq(Stop_event(this))
   {
     // The CPU 0 (boot CPU) vCPU is allocated in main
