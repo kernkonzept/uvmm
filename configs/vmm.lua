@@ -124,8 +124,17 @@ function start_virtio_switch_tbl(options)
     end
     svr = l:start(opts, "rom/l4vio_switch -v -m -p " .. port_count );
 
-    for k, v in pairs(ports) do
-       ports[k] = L4.cast(L4.Proto.Factory, switch):create(0, "ds-max=4", "name=" .. k)
+    for k, extra_opts in pairs(ports) do
+      if type(extra_opts) ~= "table" then
+        extra_opts = {}
+      end
+
+      ports[k] = L4.cast(L4.Proto.Factory, switch):create(
+          0,
+          "ds-max=4",
+          "name=" .. k,
+          table.unpack(extra_opts)
+      )
     end
   else
     svr = l:start(opts, "rom/l4vio_net_p2p");
