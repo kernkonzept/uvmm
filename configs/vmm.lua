@@ -97,13 +97,13 @@ function start_virtio_switch(ports, prio, cpus, switch_type, ext_caps)
     ext_caps = ext_caps,
   }
   set_sched(opts, prio, cpus)
-  return start_virtio_switch(opts)
+  return start_virtio_switch_tbl(opts)
 end
 
-function start_virtio_switch(options)
+function start_virtio_switch_tbl(options)
   local ports = options.ports;
   local scheduler = options.scheduler;
-  local switch_type = options.type;
+  local switch_type = options.switch_type;
   local ext_caps = options.ext_caps;
 
   local switch = l:new_channel();
