@@ -14,6 +14,8 @@
 #include <l4/cxx/unique_ptr>
 #include <l4/re/util/env_ns>
 
+#include <endian.h>
+
 namespace {
 
 /**
