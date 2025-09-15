@@ -161,18 +161,41 @@ end
   | `scheduler`  | scheduler (e.g. created with new_sched)                          |
   | `switch_type`| selects application to start. Either `switch` or `p2p`           |
   | `ext_caps`   | Extra capabilities to pass to the started application            |
+  | `svr_cap`    | cap slot to be used for the server interface                     |
+  | `port_limit` | the maximum number of dynamic ports the switch shall support     |
 
   The switch_type `switch` can take additional arguments to create a port at the
   switch. To pass these arguments for a specific port, pass a table as value for
   a key in the ports table.
+
+  \note The `svr_cap` capability requires server rights, use ":svr()".
 ]]
 function start_virtio_switch_tbl(options)
   local ports = options.ports;
   local scheduler = options.scheduler;
   local switch_type = options.switch_type;
   local ext_caps = options.ext_caps;
+  local svr_cap = options.svr_cap;
+  local port_limit = options.port_limit;
 
-  local switch = l:new_channel();
+  if svr_cap and port_limit == nil then
+    print("Warning: start_virtio_switch_tbl(): 'svr_cap' defined, but no "..
+          "'port_limit' set. The svr_cap will not support dynamic port "..
+          "creation.")
+  end
+
+  if port_limit and svr_cap == nil then
+    error("start_virtio_switch_tbl(): 'port_limit' set, but no 'svr_cap'. "..
+          "This is not supported")
+  end
+
+  local switch
+
+  if svr_cap then
+    switch = svr_cap:svr()
+  else
+    switch = l:new_channel()
+  end
 
   local opts = {
     log = { "switch", "Blue" },
@@ -188,6 +211,10 @@ function start_virtio_switch_tbl(options)
     for k, v in pairs(ports) do
       port_count = port_count + 1;
     end
+    if port_limit then
+      port_count = port_count + port_limit
+    end
+
     svr = l:start(opts, "rom/l4vio_switch -v -p " .. port_count );
 
     for k, extra_opts in pairs(ports) do
