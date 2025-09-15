@@ -122,7 +122,7 @@ function start_virtio_switch_tbl(options)
     for k, v in pairs(ports) do
       port_count = port_count + 1;
     end
-    svr = l:start(opts, "rom/l4vio_switch -v -m -p " .. port_count );
+    svr = l:start(opts, "rom/l4vio_switch -v -p " .. port_count );
 
     for k, extra_opts in pairs(ports) do
       if type(extra_opts) ~= "table" then
