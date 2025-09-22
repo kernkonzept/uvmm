@@ -10,6 +10,8 @@ VARIANTS        = nofpu
 REQUIRES_LIBS   = libstdc++ libio-vbus libfdt libpthread
 REQUIRES_LIBS_amd64-l4f = acpica
 
+DEFINES        += -D_GNU_SOURCE
+
 SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
                   cpu_dev_array.cc generic_cpu_dev.cc \
                   ARCH-$(ARCH)/cpu_dev.cc \
