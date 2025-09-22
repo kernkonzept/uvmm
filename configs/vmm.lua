@@ -1,8 +1,21 @@
+--! \file vmm.lua
+
 local L4 = require "L4";
 
 local l = L4.Loader.new({mem = L4.Env.user_factory});
 loader = l;
 
+--[[!
+  \internal
+
+  Utility function to merge several lua tables
+
+  \param ... one or more tables
+
+  \note Later tables are given more priority when merging
+
+  \return a new combined table
+]]
 function table_override(...)
   local combined = {}
   for _, tab in ipairs({...}) do
@@ -13,25 +26,34 @@ function table_override(...)
   return combined
 end
 
--- Creates a new scheduler proxy at moe. Parameters are:
---
--- `prio`     : Base priority of the threads running in the scheduler proxy
--- `cpu_mask` : First of a list of CPU masks for the first 64 CPUs to use for
---              the scheduler proxy
--- `...`      : more CPU masks
+--[[!
+  Creates a new scheduler proxy at moe.
+
+  \param prio     Base priority of the threads running in the scheduler proxy
+  \param cpu_mask First of a list of CPU masks for the first 64 CPUs to use for
+                  the scheduler proxy
+  \param ...      more CPU masks
+
+  \return created scheduler
+]]
 function new_sched(prio, cpu_mask, ...)
   return  L4.Env.user_factory:create(L4.Proto.Scheduler, prio + 10, prio,
                                      cpu_mask, ...);
 end
 
--- Starts IO service with the given options:
---
--- `busses` :  Table of vBus names to create. One file per vBus; file name must
---             be <name>.vbus for busses.<name>.
--- `cmdline`:  io command line parameters
--- `opts`   :  Option table for loader.start function, e.g. scheduler or
---             ext_caps. ext_caps overwrites default caps created by this
---             function.
+--[[!
+  Start IO service with the given options
+
+  \param[in,out] busses  table of vBus names as keys. Uses io config
+                         `<name>.vbus` to fill vBus `<name>`.
+  \param         cmdline io command line parameters
+  \param         opts    Option table for loader.start function, e.g. scheduler
+                         or ext_caps. Entries from ext_caps have precedence over
+                         default caps created by this function.
+
+  After this function returns the created vBusses are located in the table
+  passed as `busses`.
+]]
 function start_io(busses, cmdline, opts)
   if opts == nil then opts = {} end
 
@@ -68,14 +90,23 @@ function start_io(busses, cmdline, opts)
   return l:start(opts, "rom/io " .. cmdline .. files)
 end
 
--- Creates a scheduler proxy and writes it into the `opts` table.
---
--- Four cases happen here:
---  A) No prio and no cpus: No scheduler proxy created.
---  B) A prio, but no cpus: Create a scheduler proxy with only a priority limit.
---  C) No Prio, but cpus: Create a scheduler proxy with default prio and cpus
---     limit.
---  D) A prio and cpus: Create a scheduler proxy with given limits.
+--[[!
+  Create scheduler proxy and add it into the `opts` table under
+  the key `scheduler`.
+
+  \param[in,out]  opts  option table
+  \param          prio  thread priority (or `nil`)
+  \param          cpus  cpu mask (or `nil`)
+  \param          ...   more CPU masks
+
+  There are four possibilities for values of prio and cpus:
+
+  \li No prio and no cpus: No scheduler proxy created.
+  \li A prio, but no cpus: Create a scheduler proxy with only a priority limit.
+  \li No Prio, but cpus: Create a scheduler proxy with default prio and cpus
+      limit.
+  \li A prio and cpus: Create a scheduler proxy with given limits.
+]]
 function set_sched(opts, prio, cpus, ...)
   if cpus == nil and prio == nil then
     return
@@ -90,6 +121,23 @@ function set_sched(opts, prio, cpus, ...)
   opts["scheduler"] = sched;
 end
 
+--[[!
+  Start virtio network application.
+
+  \deprecated This function exists for backwards compatiblity reasons and calls
+              \ref start_virtio_switch_tbl with an appropriate `options` table
+
+  \param[in,out] ports       table with port names as keys
+  \param         prio        priority for started thread
+  \param         cpus        cpu mask for started thread
+  \param         switch_type Selects application to start. Either `switch` or `p2p`
+  \param         ext_caps    Extra capabilities to pass to the started application
+
+  The switch_type `switch` can take additional arguments to create a port at the
+  switch. To pass these arguments for a specific port, pass a table as value for
+  a key in the ports table.
+
+]]
 function start_virtio_switch(ports, prio, cpus, switch_type, ext_caps)
   local opts = {
     ports = ports,
@@ -100,6 +148,24 @@ function start_virtio_switch(ports, prio, cpus, switch_type, ext_caps)
   return start_virtio_switch_tbl(opts)
 end
 
+--[[!
+  Start virtio network application.
+
+  \param options  A table of parameters
+
+  The following keys are supported in the `options` table:
+
+  | table key    | value                                                            |
+  | ------------ | ---------------------------------------------------------------- |
+  | `ports`      | table with port names as keys                                    |
+  | `scheduler`  | scheduler (e.g. created with new_sched)                          |
+  | `switch_type`| selects application to start. Either `switch` or `p2p`           |
+  | `ext_caps`   | Extra capabilities to pass to the started application            |
+
+  The switch_type `switch` can take additional arguments to create a port at the
+  switch. To pass these arguments for a specific port, pass a table as value for
+  a key in the ports table.
+]]
 function start_virtio_switch_tbl(options)
   local ports = options.ports;
   local scheduler = options.scheduler;
@@ -147,6 +213,32 @@ function start_virtio_switch_tbl(options)
   return svr;
 end
 
+--[[!
+  Start UVMM
+
+  \param options  A table of parameters
+
+  The following keys are supported in the `options` table:
+
+  | table key   | value                                                            |
+  | ----------- | ---------------------------------------------------------------- |
+  | `bootargs`  | command line for guest kernel                                    |
+  | `cpus`      | cpu mask                                                         |
+  | `ext_args`  | additional arguments to pass to UVMM                             |
+  | `fdt`       | file name of the device tree                                     |
+  | `id`        | an integer identifying the VM                                    |
+  | `jdb`       | jdb capability                                                   |
+  | `kernel`    | file name of the guest kernel binary                             |
+  | `mem`       | RAM size in MiB \e or dataspace cap for guest memory.            |
+  | `mem_align` | alignment for the guest memory in bits. Ignored if mem is a cap. |
+  | `mon`       | monitor application file name                                    |
+  | `net`       | a virtio cap, e.g. for network                                   |
+  | `prio`      | thread priority                                                  |
+  | `ram_base`  | start of guest memory                                            |
+  | `rd`        | file name of the ramdisk                                         |
+  | `scheduler` | a scheduler cap. If used, prio and cpus are ignored.             |
+  | `vbus`      | the vBus to attach to the VM                                     |
+]]
 function start_vm(options)
   local nr      = options.id;
   local size_mb = 0;
