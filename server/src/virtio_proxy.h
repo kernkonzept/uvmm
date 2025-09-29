@@ -136,8 +136,11 @@ public:
   {
     if (l4virtio_get_feature(_config->dev_features_map,
                              L4VIRTIO_FEATURE_CMD_CONFIG))
+    {
+      std::lock_guard<std::mutex> lock(_mutex);
       // Do busy waiting, because the irq could arrive on any CPU
       return _config->config_queue(num, _host_irq.get(), L4::Cap<L4::Triggerable>());
+    }
 
     _config->queues()[num].driver_notify_index = 0;
 
@@ -175,8 +178,11 @@ public:
   {
     if (l4virtio_get_feature(_config->dev_features_map,
                              L4VIRTIO_FEATURE_CMD_CONFIG))
+    {
+      std::lock_guard<std::mutex> lock(_mutex);
       // Do busy waiting, because the irq could arrive on any CPU
       _config->notify_queue(num, _host_irq.get(), L4::Cap<L4::Triggerable>());
+    }
     else if (num < _queue_irqs.size())
       _queue_irqs[num]->trigger();
   }
@@ -193,20 +199,24 @@ public:
                            L4VIRTIO_FEATURE_CMD_CONFIG);
 
     if (use_irq)
+    {
+      std::lock_guard<std::mutex> lock(_mutex);
       // Do busy waiting, because the irq could arrive on any CPU
       _config->set_status(status, _host_irq.get(), L4::Cap<L4::Triggerable>());
+    }
     else
       _device->set_status(status);
   }
 
   void cfg_changed(unsigned reg)
   {
-    bool use_irq = l4virtio_get_feature(_config->dev_features_map,
-                                        L4VIRTIO_FEATURE_CMD_CONFIG);
-
-    if (use_irq)
-      // Do busy waiting, because the irq could arrive on any CPU
-      _config->cfg_changed(reg, _host_irq.get(), L4::Cap<L4::Triggerable>());
+    if (l4virtio_get_feature(_config->dev_features_map,
+                             L4VIRTIO_FEATURE_CMD_CONFIG))
+      {
+        std::lock_guard<std::mutex> lock(_mutex);
+        // Do busy waiting, because the irq could arrive on any CPU
+        _config->cfg_changed(reg, _host_irq.get(), L4::Cap<L4::Triggerable>());
+      }
     else
       L4Re::throw_error(-L4_EINVAL, "Direct config change not supported in L4Virtio protocol.");
   }
@@ -228,6 +238,7 @@ private:
   std::vector<L4Re::Util::Unique_cap<L4::Irq> > _queue_irqs;
   L4Re::Util::Unique_cap<L4::Irq> _host_irq;
   L4Re::Util::Unique_cap<L4Re::Dataspace> _config_cap;
+  std::mutex _mutex;
 
   unsigned _config_page_size = 0;
 };
