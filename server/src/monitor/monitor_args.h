@@ -334,7 +334,7 @@ public:
    *
    * \return  The next argument converted to `T`.
    *
-   * This is a convencience method whose result is equal to `peek().get<T>()`.
+   * This is a convenience method whose result is equal to `peek().get<T>()`.
    */
   template<typename T>
   T peek(char const *msg = nullptr) const
@@ -379,7 +379,7 @@ public:
    * \throws L4::Runtime_error  If there are no more arguments or the conversion
    *                            fails.
    *
-   * This is a convencience method whose result is equal to `pop().get<T>()`.
+   * This is a convenience method whose result is equal to `pop().get<T>()`.
    */
   template<typename T>
   T pop(char const *msg = nullptr)
@@ -398,7 +398,7 @@ public:
    *
    * \throws L4::Runtime_error  If the conversion fails.
    *
-   * This is a convencience method whose result is equal to `pop().get<T>(def)`.
+   * This is a convenience method whose result is equal to `pop().get<T>(def)`.
    */
   template<typename T>
   T pop(T def, char const *msg = nullptr)
