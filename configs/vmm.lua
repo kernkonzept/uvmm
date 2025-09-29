@@ -260,9 +260,9 @@ function start_vm(options)
       caps = { mon = mon:svr() }
     }, "rom/" .. options.mon)
 
-    caps["mon"] = mon
+    opts.caps["mon"] = mon
   elseif options.mon ~= false then
-    caps["mon"] = l.log_fab:create(L4.Proto.Log, "mon" .. nr, "g");
+    opts.caps["mon"] = l.log_fab:create(L4.Proto.Log, "mon" .. nr, "g");
   end
 
   return l:startv(opts, "rom/uvmm", table.unpack(cmdline));
