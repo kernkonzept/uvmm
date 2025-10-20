@@ -19,6 +19,7 @@
 #include <l4/sys/vcon>
 
 #include <l4/re/error_helper>
+#include <l4/cxx/minmax>
 
 namespace Vdev {
 
@@ -237,15 +238,19 @@ public:
             break;
           }
 
-        r = _con->read(p.data, p.len);
+        unsigned max_readable_bytes =
+                     cxx::min(p.len, static_cast<unsigned>(L4_VCON_READ_SIZE));
+        r = _con->read(p.data, max_readable_bytes);
         if (r < 0)
           {
             Err().printf("Virtio_console: read error: %d\n", r);
             break;
           }
 
-        unsigned size = static_cast<unsigned>(r) <= p.len
-                        ? static_cast<unsigned>(r) : p.len;
+        unsigned bytes_read = static_cast<unsigned>(r);
+        bool all_read = bytes_read <= max_readable_bytes;
+        unsigned size = all_read ? bytes_read : max_readable_bytes;
+
         q->consumed(req, size);
 
         if (!q->no_notify_guest())
@@ -254,7 +259,7 @@ public:
             ev->set(q->config.driver_notify_index);
           }
 
-        if (static_cast<unsigned>(r) <= p.len)
+        if (all_read)
           break;
       }
   }
