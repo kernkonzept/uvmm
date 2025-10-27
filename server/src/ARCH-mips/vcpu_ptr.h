@@ -190,7 +190,7 @@ public:
       }
 
     Err().printf("Guest exception in branch delay slot. Instruction not implemented @ IP 0x%lx\n", _s->r.ip);
-    enter_kdebug("STOP");
+    l4_kd_enter("STOP");
   }
 
   Mem_access decode_mmio() const
