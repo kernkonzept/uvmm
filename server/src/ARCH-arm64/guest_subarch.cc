@@ -7,6 +7,8 @@
 
 #include <l4/sys/thread.h>
 #include <l4/re/elf_aux.h>
+
+#include "aarch64_hyp.h"
 #include "guest.h"
 
 L4RE_ELF_AUX_ELEM_T(l4re_elf_aux_mword_t, __ex_regs_flags,
@@ -20,18 +22,6 @@ asm (
   "   hvc #0\n"
   "   ret\n"
 );
-
-namespace {
-
-bool
-has_aarch32()
-{
-  l4_uint64_t aa64pfr0;
-  asm ("mrs %0, ID_AA64PFR0_EL1" : "=r"(aa64pfr0));
-  return (aa64pfr0 & 0x0f) == 2;
-}
-
-}
 
 namespace Vmm {
 

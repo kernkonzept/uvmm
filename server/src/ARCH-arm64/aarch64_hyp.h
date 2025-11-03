@@ -9,6 +9,13 @@
 #include <arm_hyp.h>
 #include <l4/re/error_helper>
 
+inline bool has_aarch32()
+{
+  l4_uint64_t aa64pfr0;
+  asm ("mrs %0, ID_AA64PFR0_EL1" : "=r"(aa64pfr0));
+  return (aa64pfr0 & 0x0f) == 2;
+}
+
 inline void arm_subarch_setup(void *vcpu, bool guest_64bit, bool pmsa)
 {
   if (guest_64bit)
@@ -18,6 +25,8 @@ inline void arm_subarch_setup(void *vcpu, bool guest_64bit, bool pmsa)
       hcr |= 1UL << 31; // set RW bit
       l4_vcpu_e_write(vcpu, L4_VCPU_E_HCR, hcr);
     }
+  else if (!has_aarch32())
+    L4Re::throw_error(-L4_ENOSYS, "CPU does not support 32-bit mode");
 
   unsigned long id_aa64mmfr0_el1;
   asm("mrs %0, S3_0_C0_C7_0" : "=r"(id_aa64mmfr0_el1));
