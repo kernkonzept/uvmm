@@ -436,8 +436,9 @@ class Rtc :
   }
 
 public:
- Rtc(cxx::Ref_ptr<Gic::Ic> const &ic, int irq)
- : Pm_device(), _alarm_timeout(this), _sink(ic, irq), _previous_alarm_second(0)
+  Rtc(cxx::Ref_ptr<Gic::Ic> const &ic, int irq,
+      cxx::Ref_ptr<Vmm::Vm_ram> const &vm_ram)
+  : Pm_device(), _alarm_timeout(this), _sink(ic, irq), _previous_alarm_second(0)
   {
     info().printf("Hello from RTC. Irq=%d\n", irq);
 #if !defined(CONFIG_UVMM_EXTERNAL_RTC) and !(CONFIG_RELEASE_MODE)
@@ -446,6 +447,8 @@ public:
       "Set CONFIG_UVMM_EXTERNAL_RTC = y if you have an external clock "
       "source.\n");
 #endif
+
+    ovmf_memdetect(vm_ram);
 
     _seconds = ns_to_s(L4rtc_hub::ns_since_epoch());
   }
@@ -503,6 +506,90 @@ public:
   }
 
 private:
+  // Here we determine the memory size below 4GiB and above 4GiB. These values
+  // are required by the firmware. For Tianocore/EDK2, see
+  // OvmfPkg/PlatformPei/MemDetect.c as reference.
+  void ovmf_memdetect(cxx::Ref_ptr<Vmm::Vm_ram> const &vm_ram)
+  {
+    // high_mem: memory above 4GiB
+    // low_mem: memory below 4GiB
+    l4_uint64_t high_mem = 0, low_mem = 0;
+
+    vm_ram->foreach_region([&high_mem, &low_mem](Vmm::Ram_ds const &r)
+    {
+      // ignore areas that are not writable because they are not RAM
+      if (!r.writable())
+        return;
+
+      // region is [start, end)
+      l4_uint64_t start = r.vm_start().get();
+      l4_uint64_t size = r.size();
+      l4_uint64_t end  = start + size; // exclusive
+
+      if (end < start)
+        return; // overflow
+
+      // We assume that memory regions are valid, e.g. no non-canonical
+      // addresses, no size == 0 regions.
+
+      enum
+      {
+        Max_4gb  = 0x1'0000'0000,
+        Max_16mb = 0x0'0100'0000,
+      };
+
+      if (start >= Max_4gb)
+        {
+          high_mem += end - start;
+          return;
+        }
+
+      // ignore memory areas under 16MB
+      if (start < Max_16mb)
+        {
+          start = Max_16mb;
+          if (end <= start)
+            return;
+        }
+
+      if (end < Max_4gb)
+        {
+          low_mem += end - start;
+          return;
+        }
+
+      // handle areas that span below and above 4G
+      low_mem  += Max_4gb - start;
+      high_mem += end - Max_4gb;
+    });
+
+    if (!low_mem)
+      warn().printf("Did not find any memory below 4GB. "
+                    "EDK2 will probably not work.\n");
+
+    // size is specified in 64kb chunks
+    low_mem >>= 16;
+    high_mem >>= 16;
+
+    // cmos addresses
+    enum
+    {
+      Low_mem_l = 0x34 - Ram_start,
+      Low_mem_h = 0x35 - Ram_start,
+
+      High_mem_l = 0x5b - Ram_start,
+      High_mem_m = 0x5c - Ram_start,
+      High_mem_h = 0x5d - Ram_start,
+    };
+
+    cmos_write(Low_mem_h, (low_mem & 0xff00) >> 8);
+    cmos_write(Low_mem_l, low_mem & 0x00ff);
+
+    cmos_write(High_mem_h, (high_mem & 0xff'0000) >> 16);
+    cmos_write(High_mem_m, (high_mem & 0x00'ff00) >> 8);
+    cmos_write(High_mem_l, high_mem & 0x00'00ff);
+  }
+
   static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "RTC"); }
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "RTC"); }
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "RTC"); }
@@ -583,7 +670,7 @@ struct F : Vdev::Factory
         return nullptr;
       }
 
-    auto dev = Vdev::make_device<Vdev::Rtc>(it.ic(), it.irq());
+    auto dev = Vdev::make_device<Vdev::Rtc>(it.ic(), it.irq(), devs->ram());
 
     auto region = Vmm::Io_region(0x70, 0x71, Vmm::Region_type::Virtual);
     devs->vmm()->add_io_device(region, dev);
