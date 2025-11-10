@@ -158,15 +158,20 @@ private:
       return;
 
     if (pin < Pci_hdr_interrupt_pin_min || pin > Pci_hdr_interrupt_pin_max)
-      L4Re::chksys(-L4_EINVAL, "Invalid interrupt pin encoding %u\n", pin);
+      L4Re::throw_error_fmt(-L4_EINVAL,
+                            "Invalid interrupt pin encoding %u.\n", pin);
 
     // Apply interrupt pin mask
+    if ((pin & _irq_map.pin_mask) < Pci_hdr_interrupt_pin_min)
+      L4Re::throw_error_fmt(-L4_EINVAL,
+                            "Invalid interrupt pin encoding after applying "
+                            "mask %#x to %u.\n", _irq_map.pin_mask, pin);
     pin &= _irq_map.pin_mask;
 
     // Apply device id mask
     unsigned dev_id = (hw_dev->dev_id << 11) & _irq_map.dev_id_mask;
     if (!_irq_map.map.count(dev_id))
-      L4Re::chksys(-L4_EINVAL, "PCI device not found in interrupt map.");
+      L4Re::throw_error(-L4_EINVAL, "PCI device not found in interrupt map.");
 
     // Query the corresponding irq/ic entry based on the device id and irq pin
     int map_irq = _irq_map.map.at(dev_id).targets[pin - 1].irq;
@@ -245,35 +250,42 @@ struct F : Factory
     int map_addr_cells = node.get_cells_attrib("#address-cells");
     int map_int_cells = node.get_cells_attrib("#interrupt-cells");
     if (map_addr_cells != 3 || map_int_cells != 1)
-      L4Re::chksys(-L4_EINVAL, "Cell attributes have wrong size.");
+      L4Re::throw_error(-L4_EINVAL, "Cell attributes have wrong size.");
 
-    int i = 0, sz;
+    int sz;
     fdt32_t const *p = node.get_prop<fdt32_t>("interrupt-map-mask", &sz);
     if (!p || sz < map_addr_cells + map_int_cells)
-      L4Re::chksys(-L4_EINVAL, "interrupt-map-mask attribute invalid.");
+      L4Re::throw_error(-L4_EINVAL, "interrupt-map-mask attribute invalid.");
     map->dev_id_mask = cpu_to_fdt32(*p);
     p += map_addr_cells;
     map->pin_mask = cpu_to_fdt32(*p);
 
     p = node.get_prop<fdt32_t>("interrupt-map", &sz);
-    i = 0;
+    int i = 0;
+    unsigned line = 0; // only for error messages
     while (p && i < sz)
       {
+        ++line;
+
         // Read child address
         unsigned dev = cpu_to_fdt32(p[i]);
         i += map_addr_cells;
 
         // Read child interrupt specifier
         unsigned irq_map = cpu_to_fdt32(p[i]);
-        if (irq_map > Pci_hdr_interrupt_pin_max)
-          L4Re::chksys(-L4_EINVAL, "Invalid value for interrupt pin.");
+        if (irq_map < Pci_hdr_interrupt_pin_min
+            || irq_map > Pci_hdr_interrupt_pin_max)
+          L4Re::throw_error_fmt(-L4_EINVAL,
+                                "Parsing interrupt-map line %u: Invalid value "
+                                "(%u) for interrupt pin.", line, irq_map);
         i += map_int_cells;
 
         // Query dt node for ic
         Dt_node const pn = node.find_phandle(p[i++]);
         if (!pn.is_valid())
-          L4Re::chksys(-L4_EINVAL, "Can't find node for phandle while "
-                       "parsing interrupt-map");
+          L4Re::throw_error_fmt(-L4_EINVAL,
+                                "Parsing interrupt-map line %u: "
+                                "Can't find node for phandle.", line);
 
         if (pn.has_prop("#address-cells")) // skip ic address cells
           i += pn.get_cells_attrib("#address-cells");
@@ -292,17 +304,23 @@ struct F : Factory
           }
 
         if (!pn.is_enabled())
-          L4Re::chksys(-L4_EINVAL, "Interrupt parent is disabled.");
+          L4Re::throw_error_fmt(-L4_EINVAL,
+                                "Parsing interrupt-map line %u: Interrupt "
+                                "parent is disabled.", line);
 
         cxx::Ref_ptr<Gic::Ic> ic = cxx::dynamic_pointer_cast<Gic::Ic>(
                 Vdev::Factory::create_dev(devs, pn));
         if (!ic)
-          L4Re::chksys(-L4_EINVAL, "Can't create device for interrupt parent.");
+          L4Re::throw_error_fmt(-L4_EINVAL,
+                                "Parsing interrupt-map line %u: Can't "
+                                "create device for interrupt parent.", line);
 
         int int_cells;
         int irq = ic->dt_get_interrupt(&p[i], sz-i, &int_cells);
         if (irq < 0)
-          L4Re::chksys(-L4_EINVAL, "Can't translate interrupt.");
+          L4Re::throw_error_fmt(-L4_EINVAL,
+                                "Parsing interrupt-map line %u: Can't "
+                                "translate interrupt.", line);
         i += int_cells;
 
         // Done parsing this entry; fetch or create map entry for this device
