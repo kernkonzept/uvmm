@@ -11,6 +11,7 @@
 #include "irq_dt.h"
 #include "io_proxy.h"
 #include "virt_bus.h"
+#include "io_port_handler.h"
 
 static Dbg trace(Dbg::Dev, Dbg::Trace, "ioproxy");
 static Dbg info(Dbg::Dev, Dbg::Info, "ioproxy");
@@ -350,6 +351,18 @@ struct F : Factory
             trace.printf("Registering IRQ resource %s.%.4s : %lu\n",
                          vdev->dev_info().name, resname, res.start);
             --todo_irqs;
+          }
+        else if (res.type == L4VBUS_RESOURCE_PORT)
+          {
+            info
+              .printf("Registering IO Port resource %s.%.4s : 0x%lx - 0x%lx\n",
+                      vdev->dev_info().name, resname, res.start, res.end);
+            auto region = Vmm::Io_region::ss(res.start, res.end - res.start + 1,
+                                             Vmm::Region_type::Vbus);
+            L4Re::chksys(vbus->bus()->request_ioport(&res),
+                         "Request IO port resource from vBus.");
+            auto handler = Vdev::make_device<Vdev::Io_port_handler>(res.start);
+            devs->vmm()->add_io_device(region, handler);
           }
       }
 
