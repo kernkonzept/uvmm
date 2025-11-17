@@ -315,7 +315,7 @@ struct F : Factory
           {
             if (strncmp(resname, "irq", 3) || resname[3] < '0' || resname[3] > '9')
               {
-                warn.printf("%s: Vbus memory resource '%.4s' has no recognisable name.\n",
+                warn.printf("%s: Vbus IRQ resource '%.4s' has no recognisable name.\n",
                             node.get_name(), resname);
                 continue;
               }
