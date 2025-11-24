@@ -34,6 +34,8 @@ public:
           *entry = strtol(e + 5, NULL, 16);
       }
 
+    _64bit = sizeof(long) == 8;
+
     return raw_load_image(image, ram, free_list, entry);
   }
 };
