@@ -164,6 +164,13 @@ public:
     }
 
     auto insn = vcpu.decode_mmio();
+    if (insn.access == Mem_access::Other)
+      {
+        warn().printf("Invalid access/execution at ip 0x%lx! Halting...\n",
+                      vcpu->r.ip);
+        return ret;
+      }
+
     warn().printf("Invalid %s 0x%lx, ip 0x%lx! %sing...\n",
                   vcpu.pf_write() ? "write to" : "read from",
                   pfa, vcpu->r.ip,
