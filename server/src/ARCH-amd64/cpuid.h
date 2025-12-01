@@ -306,7 +306,6 @@ enum Cpuid_configuration : l4_uint32_t
   //  Cpuid_1_edx_acpi
   //  Cpuid_1_edx_ds
   //  Cpuid_1_edx_tm
-  //  Cpuid_1_edx_htt
   //  Cpuid_1_edx_psn
   //  Cpuid_1_edx_pbe
   Cpuid_1_edx_supported = \
@@ -331,7 +330,8 @@ enum Cpuid_configuration : l4_uint32_t
     | Cpuid_1_edx_fxsr \
     | Cpuid_1_edx_sse \
     | Cpuid_1_edx_sse2 \
-    | Cpuid_1_edx_ss,
+    | Cpuid_1_edx_ss \
+    | Cpuid_1_edx_htt,
 
   Cpuid_6_eax_supported  = \
     Cpuid_6_eax_arat,

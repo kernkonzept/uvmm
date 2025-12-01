@@ -424,8 +424,22 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
       break;
     case 0x1:
       {
+        static bool warn_once = true;
         // Emulate Initial APIC ID
-        b &= 0x00ffffff;
+        b &= 0x0000ffff;
+        // set max phys id
+        unsigned max_phys_id = _cpus.get()->size();
+        if (max_phys_id > 255)
+          {
+            max_phys_id = 0xff;
+            if (warn_once)
+              {
+                warn().printf("cpuid emulation: Truncating max physid to "
+                              "255.\n");
+                warn_once = false;
+              }
+          }
+        b |= (max_phys_id << 16);
         if (id < 0x100)
           b |= id << 24;
 
