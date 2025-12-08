@@ -271,7 +271,12 @@ private:
     for (unsigned i = 0; i < Io_apic_num_pins; ++i)
       {
         if (_redirect_tbl[i].load().vector() == vec)
-          entry_eoi(i);
+          {
+            entry_eoi(i);
+            Irq_src_handler *hdlr = get_irq_src_handler(i);
+            if (hdlr)
+              hdlr->eoi();
+          }
       }
   }
 
