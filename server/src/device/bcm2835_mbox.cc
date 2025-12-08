@@ -60,16 +60,9 @@ class Bcm2835_mbox_dev
   public Vmm::Mmio_device_t<Bcm2835_mbox_dev>,
   public Bcm2835_mbox
 {
-  struct alignas(16) Shm_block
-  {
-    l4_uint32_t phys;
-    l4_uint32_t _align[3];
-    l4_uint32_t msg_size;
-  };
-
 public:
   Bcm2835_mbox_dev(L4::Cap<L4vbus::Vbus> vbus, Vmm::Vm_ram *ram,
-               Vdev::Device_lookup *devs, Vdev::Dt_node const &node)
+                   Vdev::Device_lookup *devs, Vdev::Dt_node const &node)
   : Bcm2835_mbox(vbus, warn),
     _ram(ram)
   {
