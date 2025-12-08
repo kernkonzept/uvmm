@@ -263,6 +263,8 @@ public:
     L4::Cap<L4::Irq> guest_irq = L4Re::chkcap(registry->register_irq_obj(this),
                                               "Registering guest IRQ in proxy");
 
+    l4_debugger_set_object_name(guest_irq.cap(), dev()->dev_name());
+
     _dev.driver_connect(guest_irq);
 
     // Unmask it, this might be a hardware interrupt.
