@@ -149,44 +149,30 @@ public:
   {
     (void) cpu_id;
 
+    // calc the local address where uvmm mapped that address
     l4_addr_t l = (l4_addr_t) mmio_local_addr() + reg;
 
     // only naturally aligned 32bit accesses are allowed
     if (L4_UNLIKELY(l & ((1UL << width) - 1)))
       return;
 
-    l4_uint32_t old_value = 0;
-    if (reg == offsetof(l4virtio_config_hdr_t, cmd) ||
-        reg == offsetof(l4virtio_config_hdr_t, magic))
-      old_value = *reinterpret_cast<l4_uint32_t *>(l);
-    else if (reg == offsetof(l4virtio_config_hdr_t, queue_notify))
-      {
-        // Acknowledge earlier queue irqs
-        irq_ack();
-        // Now kick the driver
-        mmio_local_addr()->irq_status |= L4VIRTIO_IRQ_STATUS_VRING;
-        _kick_guest_irq->trigger();
-        return; // do not actually write the value
-      }
+    l4_uint32_t old_value = *reinterpret_cast<l4_uint32_t *>(l);
 
-    Vmm::Mem_access::write_width(l, value, width);
-
-    if (reg >= 0x100)
+    // Note: do not try to optimize this. The order of commands for the
+    // different regs is *very* important. E.g. sometimes the value itself
+    // *must* be written before something else is done and sometimes it is the
+    // other way around.
+    if (reg == offsetof(l4virtio_config_hdr_t, magic))
       {
-        // The guest accessed the device specific config. Make sure the cache
-        // is cleaned.
-        Vmm::Mem_access::cache_clean_data_width(l, width);
-        return;
-      }
-
-    switch (reg)
-      {
-      case offsetof(l4virtio_config_hdr_t, magic):
         if (old_value == L4VIRTIO_MAGIC)
           {
-            warn.printf("Virtio magic value overwritten. Reset is not handled.\n");
+            warn.printf("Device reset via writing to virtio magic not "
+                        "supported. Write ignored.\n");
             return;
           }
+
+        // Write the new value to the virtio header
+        Vmm::Mem_access::write_width(l, value, width);
 
         if (value == L4VIRTIO_MAGIC)
           {
@@ -195,20 +181,53 @@ public:
             l4_debugger_set_object_name(irq.cap(),  "vhost-proxy: irq");
             _vmm->registry()->register_obj(this, _ep);
           }
-        break;
-      case offsetof(l4virtio_config_hdr_t, cmd):
+
+        return;
+      }
+    else if (reg == offsetof(l4virtio_config_hdr_t, queue_notify))
+      {
+        // Acknowledge earlier queue irqs
+        irq_ack();
+        // Now kick the driver
+        mmio_local_addr()->irq_status |= L4VIRTIO_IRQ_STATUS_VRING;
+        _kick_guest_irq->trigger();
+        // do not actually write the value
+      }
+    else if (reg == offsetof(l4virtio_config_hdr_t, cmd))
+      {
         if (value == 0)
           {
+            // Acknowledge earlier queue irqs
+            // Make sure we do this *before* we actually write the value back
+            // to memory. The other side may poll this value and submit a new
+            // irq straight away, which may lead to an race and therefore
+            // missed irqs.
+            irq_ack();
+
+            // if we transition from cmd -> ack, trigger a guest irq
             if (old_value & L4VIRTIO_CMD_MASK)
               {
                 L4virtio::wmb();
                 mmio_local_addr()->irq_status |= L4VIRTIO_IRQ_STATUS_VRING;
                 _kick_guest_irq->trigger();
               }
-
-            irq_ack();
           }
-        break;
+
+        // Write the new value to the virtio header
+        Vmm::Mem_access::write_width(l, value, width);
+      }
+    else
+      {
+        // Write the new value to the virtio header
+        Vmm::Mem_access::write_width(l, value, width);
+
+        if (reg >= 0x100)
+          {
+            // The guest accessed the device specific config. Make sure the cache
+            // is cleaned.
+            Vmm::Mem_access::cache_clean_data_width(l, width);
+            return;
+          }
       }
   }
 
