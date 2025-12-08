@@ -976,6 +976,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
   auto cpu = _cpus->cpu(vcpu_id);
   auto *ev_rec = recorder(vcpu_id);
   Gic::Virt_lapic *vapic = lapic(vcpu);
+  vapic->clear_irq_state();
 
   _clocks[vcpu_id].start_clock_source_thread(vcpu_id, cpu->get_phys_cpu_id());
   for (auto &dev : _timer_devices[vcpu_id])
