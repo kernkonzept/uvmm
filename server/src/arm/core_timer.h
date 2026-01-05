@@ -65,26 +65,24 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
   }
   /*
    * We use "scaling math" as described in a comment in
-   * linux/arch/x86/kernel/tsc.c. We use micro seconds instead of nano
-   * seconds and adjust the math accordingly.
+   * linux/arch/x86/kernel/tsc.c. We use microseconds instead of nanoseconds
+   * and adjust the math accordingly.
    *
-   * convert from cycles(32bits) => microseconds (32Bit), ms 64Bit
+   * convert from cycles(32 bits) => microseconds (32 bits), us is 64 bits
    *   basic equation:
-   *              ms = cycles / (freq / ms_per_sec)
-   *              ms = cycles * (ms_per_sec / freq)
-   *              ms = cycles * (10^6 / (timer_khz * 10^3))
-   *              ms = cycles * (10^3 / timer_khz)
+   *              us = cycles / (freq / us_per_sec)
+   *              us = cycles * (us_per_sec / freq)
+   *              us = cycles * (10^6 / (timer_khz * 10^3))
+   *              us = cycles * (10^3 / timer_khz)
    *
    *      Then we use scaling math (suggested by george@mvista.com) to get:
-   *              ms = cycles * (10^3 * 2^SC / timer_khz) / 2^SC
+   *              us = cycles * (10^3 * 2^SC / timer_khz) / 2^SC
    *
-   *              cyc2ms_scale = (10^3 * 2^SC / timer_khz)
-   *              ms = cycles * cyc2ms_scale / 2^SC
+   *              cyc2us_scale = (10^3 * 2^SC / timer_khz)
+   *              us = cycles * cyc2us_scale / 2^SC
    *
-   *
-   * We select SC so that cyc2ms_scale is the largest scaling factor
-   * fitting into a 32Bit und use a simple shift for the division by
-   * 2^SC.
+   * We select SC so that cyc2us_scale is the largest scaling factor fitting
+   * into 32 bits and use a simple shift for the division by 2^SC.
    */
 
   /**
@@ -106,7 +104,7 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
          * triggers up to 1 microsecond early.
          */
         l4_uint64_t tmp = static_cast<l4_uint32_t>(ticks);
-        return ((tmp * _cyc2ms_scale) >> _shift);
+        return ((tmp * _cyc2us_scale) >> _shift);
       }
 
     /*
@@ -144,7 +142,7 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
 
   /**
    * Calculate constants used to convert timer ticks (< 2^32) into
-   * micro seconds. Sets member variables _cyc2ms_scale and
+   * micro seconds. Sets member variables _cyc2us_scale and
    * _shift. Assumes a timer rate >= 1Khz
    *
    * \param freq Rate of the timer (e.g. 12.5Mhz = 12500000)
@@ -159,7 +157,7 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
         if (scale >= (1ULL << 32))
           return;
 
-        _cyc2ms_scale = static_cast<l4_uint32_t>(scale);
+        _cyc2us_scale = static_cast<l4_uint32_t>(scale);
         _shift = i;
       }
   }
@@ -204,7 +202,7 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
     Dbg(Dbg::Cpu, Dbg::Info, "Timer")
       .printf("Guest timer frequency is %d\n"
               "using (%d/%d), (%d/%d) to calculate timeouts\n",
-              cntfrq, _scale, _scaled_ticks_per_us, _cyc2ms_scale, _shift);
+              cntfrq, _scale, _scaled_ticks_per_us, _cyc2us_scale, _shift);
   }
 
   void add_cpu(Vmm::Vcpu_ptr vcpu)
@@ -223,7 +221,7 @@ struct Core_timer : public Device, public Vmm::Irq_edge_sink
 
 private:
   l4_uint32_t _scale, _scaled_ticks_per_us;
-  l4_uint32_t _cyc2ms_scale, _shift;
+  l4_uint32_t _cyc2us_scale, _shift;
   std::map<unsigned, cxx::unique_ptr<Cpu_timer_irq>> _per_cpu_timers;
 };
 
