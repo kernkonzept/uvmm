@@ -143,6 +143,8 @@ private:
     cxx::Bitmap<Num_irqs * 2> _i;
 
   public:
+    Irq_bitmap() { _i.clear_all(); }
+
     bool irq_present(unsigned irq)
     { return _i[irq * 2]; }
 
