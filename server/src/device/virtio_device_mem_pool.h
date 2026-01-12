@@ -147,7 +147,7 @@ public:
   }
 
 private:
-  static constexpr Vmm::Region region(l4_addr_t start, l4_size_t size)
+  static Vmm::Region region(l4_addr_t start, l4_size_t size)
   {
     return Vmm::Region::ss(Vmm::Guest_addr(start), size,
                            Vmm::Region_type::Virtual);
