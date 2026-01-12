@@ -239,6 +239,14 @@ config UVMM_VDEV_BCM2835_MBOX
 	help
 	  Emulate the bcm2835 mailbox device as found on Raspberry Pi 4.
 
+config UVMM_VDEV_TEGRA_BPMP
+	bool "Support for external NVIDIA Tegra BPMP service"
+	default y
+	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	depends on HAVE_BIDPC_LIBTEGRA_BPMP
+	help
+	  Emulate the Tegra BPMP device as found on NVIDIA Orin SoCs.
+
 config UVMM_VDEV_GIC_V2
 	def_bool UVMM_VDEV_SEL_GIC_V2 || UVMM_VDEV_SEL_GIC_BOTH
 
