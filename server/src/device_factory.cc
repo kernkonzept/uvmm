@@ -100,7 +100,7 @@ Factory::create_dev(Device_lookup *devs, Dt_node const &node)
     }
   catch (...)
     {
-      Err().printf("Device creation for virtual device %s failed.\n",
+      Err().printf("Device creation for virtual device '%s' failed.\n",
                    node.get_name());
       throw;
     }

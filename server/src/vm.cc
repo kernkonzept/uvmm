@@ -125,7 +125,7 @@ Vm::add_virt_device(Vdev::Dt_node const &node)
   if (Vdev::Factory::create_dev(this, node))
     return true;
 
-  warn.printf("Device creation for virtual device %s failed. Disabling device.\n",
+  warn.printf("Device creation for virtual device '%s' failed. Disabling device.\n",
               node.get_name());
 
   node.disable();

@@ -36,7 +36,7 @@ Virt_bus::scan_bus()
           & (1 << L4VBUS_INTERFACE_PCI | 1 << L4VBUS_INTERFACE_PCIDEV))
         {
           Dbg(Dbg::Dev, Dbg::Trace, "VirtBus")
-            .printf("scan_bus: skipping PCI device %s\n", dev_info.name);
+            .printf("scan_bus: skipping PCI device '%s'\n", dev_info.name);
           continue;
         }
 

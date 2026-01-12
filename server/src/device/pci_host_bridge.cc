@@ -613,7 +613,7 @@ void Pci_host_bridge::Hw_pci_device::setup_msix_table()
       Gic::Msix_dest _msix_dest = parent->msix_dest(dev_id);
       if (!_msix_dest.is_present())
         warn().printf(
-          "No MSI-X controller available for MSI-X device %s (devid=%u).\n",
+          "No MSI-X controller available for MSI-X device '%s' (devid=%u).\n",
           dinfo.name, dev_id);
 
       unsigned max_msis = msix_cap.ctrl.max_msis() + 1;
@@ -638,7 +638,7 @@ void Pci_host_bridge::Hw_pci_device::setup_msix_table()
         parent->_vmm->registry(), src_id(), max_msis, _msix_dest);
     }
   else
-    warn().printf("Device %s (devid=%u) has invalid MSI-X bar: %u\n",
+    warn().printf("Device '%s' (devid=%u) has invalid MSI-X bar: %u\n",
                   dinfo.name, dev_id, bir);
 }
 
