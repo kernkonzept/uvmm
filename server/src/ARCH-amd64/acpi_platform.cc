@@ -192,6 +192,47 @@ public:
                          | Pm1a_evt_rtc,
   };
 
+  class Acpi_fixed_event : public Vdev::Device, public Vbus_stream_id_handler
+  {
+  public:
+    enum Type
+    {
+      Power_button = 0,
+      Sleep_button = 1
+    };
+
+    Acpi_fixed_event(Acpi_platform *p, Type t, char const *name)
+    : _platform(p), _type(t), _name(name)
+    {}
+
+    void handle_event(L4Re::Event_buffer::Event *e)
+    {
+      if (e->payload.type != 0x8) // io: Hw::Acpi_dev::Acpi_event
+        return;
+
+      switch (e->payload.code)
+        {
+        case 0x80: // Acpi event shutdown
+          info().printf("%s button event\n", _type ? "sleep" : "power");
+          if (_type == Power_button)
+            _platform->inject_pwrbtn();
+          else
+            _platform->inject_slpbtn();
+          break;
+        default:
+          warn().printf("Unknown fixed ACPI event: code 0x%x.\n",
+                        e->payload.code);
+        }
+    }
+
+    char const *dev_name() { return _name; }
+
+  private:
+    Acpi_platform *_platform;
+    Type const _type;
+    char const *_name;
+  };
+
   Acpi_platform(Vdev::Device_lookup *devs, cxx::Ref_ptr<Gic::Ic> const &ic, int irq,
                 L4::Cap<L4::Vcon> pwr_vcon)
   : Acpi_device(), Vcon_pwr_input<Acpi_platform>(pwr_vcon),
@@ -209,6 +250,32 @@ public:
     info().printf("Registering as event handler for vbus->root() = %lx\n",
                   vbus->root().dev_handle());
     Vbus_event::register_stream_id_handler(vbus->root().dev_handle(), this);
+
+    // check for power button
+    Vmm::Virt_bus::Devinfo *power_button_dev =
+      devs->vbus()->find_unassigned_device_by_hid("PNP0C0C");
+    if (power_button_dev)
+      {
+        _power_button_event = cxx::make_ref_obj<Acpi_fixed_event>(
+            this,
+            Acpi_fixed_event::Type::Power_button,
+            "ACPI power button");
+        power_button_dev->set_handler(_power_button_event);
+        info().printf("Registering as event handler for ACPI power button: "
+                      "dev %lx\n",
+                      power_button_dev->io_dev().dev_handle());
+        Vbus_event::register_stream_id_handler(power_button_dev->io_dev()
+                                                 .dev_handle(),
+                                               _power_button_event.get());
+      }
+
+  }
+
+  ~Acpi_platform()
+  {
+    if (_power_button_event.get())
+      Vbus_event::unregister_stream_id_handler(_power_button_event.get());
+    Vbus_event::unregister_stream_id_handler(this);
   }
 
   char const *dev_name() const override
@@ -508,6 +575,7 @@ private:
   unsigned const _irq;
   bool _acpi_enabled;
   l4_uint32_t _pm1a_sts, _pm1a_en;
+  cxx::Ref_ptr<Acpi_fixed_event> _power_button_event;
 };
 
 } // namespace Acpi
