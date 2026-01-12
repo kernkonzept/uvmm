@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020, 2022-2024 Kernkonzept GmbH.
+ * Copyright (C) 2020, 2022-2025 Kernkonzept GmbH.
  * Author(s): Benjamin Lamowski <benjamin.lamowski@kernkonzept.com>
  *
  * License: see LICENSE.spdx (in this directory or the directories above)

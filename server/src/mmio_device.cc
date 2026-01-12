@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018, 2021-2024 Kernkonzept GmbH.
+ * Copyright (C) 2018, 2021-2025 Kernkonzept GmbH.
  * Author(s): Jean Wolter <jean.wolter@kernkonzept.com>
  *
  * License: see LICENSE.spdx (in this directory or the directories above)
