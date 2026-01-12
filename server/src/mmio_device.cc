@@ -24,8 +24,8 @@ void Vmm::Mmio_device::map_guest_range(L4::Cap<L4::Vm> vm_task,
     {
       char sz[64];
       l4util_human_readable_size(sz, sizeof(sz), size);
-      d.printf("\tMapping [%lx - %lx] -> [%lx - %lx] (%s)\n",
-               src, src + size - 1, dest.get(), dest_end, sz);
+      d.printf("  Mapping [%08lx-%08lx] -> [%08lx-%08lx] (%10s) %s\n",
+               src, src + size - 1, dest.get(), dest_end, sz, dev_name());
     }
 
   while (offs < size)
@@ -61,7 +61,8 @@ void Vmm::Mmio_device::unmap_guest_range(L4::Cap<L4::Vm> vm_task,
     {
       char sz[64];
       l4util_human_readable_size(sz, sizeof(sz), size);
-      d.printf("\tUnmapping [%lx - %lx] (%s)\n", dest.get(), dest_end, sz);
+      d.printf("  Unmapping [%08lx-%08lx] (%9s) %s\n",
+               dest.get(), dest_end, sz, dev_name());
     }
 
   Vmm::Batch_unmapper b(vm_task, L4_FP_ALL_SPACES);
