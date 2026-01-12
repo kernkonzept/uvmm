@@ -30,9 +30,15 @@
 #include "mem_types.h"
 
 extern "C" {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wextern-c-compat"
 #include "platform/acenv.h"
 #include "actypes.h"
 #include "actbl.h"
+#pragma clang diagnostic pop
+#pragma GCC diagnostic pop
 }
 
 namespace Acpi
