@@ -331,7 +331,10 @@ class Pci_bus
 
 public:
   // Create a PCI bus with the specified bus number.
-  explicit Pci_bus(unsigned char num) : _bus_num(num) {}
+  explicit Pci_bus(unsigned char num) : _bus_num(num)
+  {
+    _dev_id_alloc.clear_all();
+  }
 
   /**
    * Return the hw device referred to in the configuration address.
