@@ -22,7 +22,7 @@
 #include "io_device.h"
 #include "virtio_dev.h"
 #include "pci_virtio_config.h"
-#include "virtio_qword.h"
+#include "virtio.h"
 #include "device/pci_bridge_windows.h"
 
 namespace Vdev { namespace Pci {

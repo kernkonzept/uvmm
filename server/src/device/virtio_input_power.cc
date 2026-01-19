@@ -72,7 +72,7 @@ translate_char(unsigned char c)
 class Virtio_input_power_mmio
 : public Virtio_input_power<Virtio_input_power_mmio>,
   public Virtio_input<Virtio_input_power_mmio>,
-  public Vmm::Ro_ds_mapper_t<Virtio_input_power_mmio>,
+  public Vmm::Mmio_device_t<Virtio_input_power_mmio>,
   public Virtio::Mmio_connector<Virtio_input_power_mmio>
 {
 public:

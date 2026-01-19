@@ -161,9 +161,6 @@ Virtio_input_power<DEV>::virtio_input_cfg_written(l4virtio_input_config_t *dev_c
       dev_cfg->size = 0;
       break;
   }
-  // flush the complete structure instead of selectively flushing the actually
-  // used area
-  dev()->writeback_cache(dev_cfg);
 }
 
 template<typename DEV>

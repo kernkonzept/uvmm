@@ -297,7 +297,7 @@ private:
 
 class Virtio_console_mmio
 : public Virtio_console<Virtio_console_mmio>,
-  public Vmm::Ro_ds_mapper_t<Virtio_console_mmio>,
+  public Vmm::Mmio_device_t<Virtio_console_mmio>,
   public Virtio::Mmio_connector<Virtio_console_mmio>
 {
 public:

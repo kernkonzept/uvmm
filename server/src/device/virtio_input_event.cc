@@ -76,7 +76,7 @@ std::forward_list<Event_demux> Event_demux::_events;
 class Virtio_input_event_mmio
 : public Virtio_input_event<Virtio_input_event_mmio>,
   public Virtio_input<Virtio_input_event_mmio>,
-  public Vmm::Ro_ds_mapper_t<Virtio_input_event_mmio>,
+  public Vmm::Mmio_device_t<Virtio_input_event_mmio>,
   public Virtio::Mmio_connector<Virtio_input_event_mmio>
 {
 public:

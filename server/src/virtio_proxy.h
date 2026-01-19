@@ -106,11 +106,6 @@ public:
       L4Re::chksys(ret, "Receive notification IRQ from device");
 
     _queue_irqs.resize(_config->num_queues);
-
-    // Flush initial config page content
-    l4_cache_clean_data(reinterpret_cast<l4_addr_t>(_config.get()),
-                        reinterpret_cast<l4_addr_t>(_config.get())
-                        + _config_page_size);
   }
 
 
@@ -305,14 +300,14 @@ public:
     dev()->event_connector()->clear_events(val);
   }
 
-  l4virtio_config_hdr_t *mmio_local_addr() const
-  { return _dev.device_config(); }
-
-  l4_size_t mapped_mmio_size() const
-  { return l4_round_page(_dev.config_size()); }
-
   L4::Cap<L4Re::Dataspace> mmio_ds() const
   { return _dev.config_ds(); }
+
+  l4_size_t mmio_size() const
+  { return l4_round_page(_dev.config_size()); }
+
+  l4_addr_t local_addr() const
+  { return (l4_addr_t)_dev.device_config(); }
 
   l4virtio_config_hdr_t *virtio_cfg()
   { return _dev.device_config(); }
@@ -367,7 +362,7 @@ private:
 
 class Virtio_proxy_mmio
 : public Virtio_proxy<Virtio_proxy_mmio>,
-  public Vmm::Ro_ds_mapper_t<Virtio_proxy_mmio>,
+  public Vmm::Mmio_device_t<Virtio_proxy_mmio>,
   public Virtio::Mmio_connector<Virtio_proxy_mmio>
 {
 public:

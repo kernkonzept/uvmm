@@ -27,8 +27,8 @@ enum
 /**
  * PCI Virtio proxy for a device exported from the VMM.
  *
- * PCI Device for emulating a virtio device for the guest. Needs a special l4
- * driver running within the guest os.
+ * PCI Device for emulating a virtio device for the guest. Needs a special L4
+ * driver running within the guest OS.
  *
  * A device tree entry needs to look like this:
  *

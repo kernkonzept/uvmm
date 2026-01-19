@@ -11,7 +11,7 @@
 #include "mmio_device.h"
 #include "io_device.h"
 #include "virtio_dev.h"
-#include "virtio_qword.h"
+#include "virtio.h"
 #include "pci_virtio_config.h"
 
 namespace Virtio {
@@ -82,7 +82,6 @@ public:
         break;
 
       case 18: // RO num queues (max)
-        // set the number of VQs for the virtio_console to 2
         result  = vcfg->num_queues;
         break;
 
@@ -102,7 +101,6 @@ public:
         {
           auto *qc = dev()->current_virtqueue_config();
           result = qc ? qc->num : 0;
-          trace().printf("read queue size %i\n", result);
           break;
         }
 
@@ -176,8 +174,6 @@ public:
       }
 
     *value = Vmm::Mem_access::read(result, 0, wd);
-
-    trace().printf("In port(width) %i(%i) : 0x%x\n", port, wd, *value);
   }
 
   void out(unsigned port, Vmm::Mem_access::Width wd, l4_uint32_t value)
@@ -191,9 +187,6 @@ public:
         write_device_memory(port - Vdev::Num_pci_connector_ports, wd, value);
         return;
       }
-
-    if (port != 56)
-      trace().printf("OUT port(width) %i(%i) = 0x%x\n", port, wd, value);
 
     switch(port)
       {
@@ -217,7 +210,6 @@ public:
       case 16: // config msix vec
         {
           vcfg->cfg_driver_notify_index = value;
-          dbg().printf("config_msix_vec set %i\n", value);
           break;
         }
 
@@ -228,8 +220,32 @@ public:
         break;
 
       case 22: // queue select
-        vcfg->queue_sel = value;
-        break;
+        {
+          vcfg->queue_sel = value;
+          auto *qc = dev()->current_virtqueue_config();
+          if (qc)
+            {
+              // Copy the queue config from the L4virtio extension into the
+              // virtio header
+              vcfg->queue_num = qc->num;
+              vcfg->queue_num_max = qc->num_max;
+              vcfg->queue_ready = qc->ready;
+              vcfg->queue_desc = qc->desc_addr;
+              vcfg->queue_avail = qc->avail_addr;
+              vcfg->queue_used = qc->used_addr;
+            }
+          else
+            {
+              // Reset
+              vcfg->queue_num = 0;
+              vcfg->queue_num_max = 0;
+              vcfg->queue_ready = 0;
+              vcfg->queue_desc = 0;
+              vcfg->queue_avail = 0;
+              vcfg->queue_used = 0;
+            }
+          break;
+        }
 
       case 24: // queue size (max)
         {
@@ -241,9 +257,6 @@ public:
 
       case 26: // queue_msix_vector
         {
-          dbg().printf("\t[q.%u] queue_msix_vector set %i\n", vcfg->queue_sel,
-                       value);
-
           auto *qc = dev()->current_virtqueue_config();
           if (qc)
             qc->driver_notify_index = value;
@@ -251,7 +264,12 @@ public:
         }
 
       case 28: // queue_enable
-        dev()->virtio_queue_ready(value);
+        {
+          dev()->virtio_queue_ready(value);
+
+          auto *qc = dev()->current_virtqueue_config();
+          vcfg->queue_ready = qc ? qc->ready : 0;
+        }
         break;
 
       case 32: // queue_desc[31:0]
@@ -303,6 +321,7 @@ public:
         }
 
       case 56: // queue notify: length depends on cap values set
+        vcfg->queue_notify = value;
         dev()->virtio_queue_notify(value);
         break;
 
@@ -328,16 +347,9 @@ public:
   };
 
   template<typename T>
-  void writeback_cache(T const *p)
-  {
-    l4_cache_clean_data((l4_addr_t)p, (l4_addr_t)p + sizeof(T));
-  }
-
-  template<typename T>
   T *virtio_device_config()
   {
-    return reinterpret_cast<T *>(  (l4_addr_t)dev()->virtio_cfg()
-                                 + Device_config_start);
+    return reinterpret_cast<T *>(dev()->local_addr() + Device_config_start);
   }
 
 private:
@@ -365,10 +377,7 @@ private:
       + port;
 
     if (Vmm::Mem_access::write_width(dev_cfg, val, wd) == L4_EOK)
-      {
-        Vmm::Mem_access::cache_clean_data_width(dev_cfg, wd);
-        dev()->virtio_device_config_written(port);
-      }
+      dev()->virtio_device_config_written(port);
   }
 }; // Pci_layout
 
