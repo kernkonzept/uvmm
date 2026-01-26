@@ -66,6 +66,9 @@ privileged mode.
   use an additional parameter in the form of "<DTB overlay>:limit=0xffffffff" to
   set an upper limit for the device tree location.
 
+  This option can be issued multiple times. uvmm will merge all provided
+  device tree overlays.
+
   File path in ROM namespace.
 
 * `-r <RAM disk name>`, `--ramdisk <RAM disk name>`
