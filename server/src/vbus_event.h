@@ -46,6 +46,18 @@ public:
     _stream_id_handlers[stream_id] = handler;
   }
 
+  /// remove all event entries with given handler
+  static void unregister_stream_id_handler(Vbus_stream_id_handler *handler)
+  {
+    for (auto kv = _stream_id_handlers.begin(); kv != _stream_id_handlers.end();)
+      {
+        if (kv->second == handler)
+          kv = _stream_id_handlers.erase(kv);
+        else
+          ++kv;
+      }
+  }
+
 private:
   L4Re::Util::Event _vbus_event;
   static std::map<l4_umword_t, Vbus_stream_id_handler *> _stream_id_handlers;
