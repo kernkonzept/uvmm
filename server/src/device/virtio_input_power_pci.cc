@@ -51,7 +51,7 @@ struct Virtio_input_power_pci
 protected:
   cxx::Ref_ptr<Vmm::Mmio_device> get_mmio_bar_handler(unsigned idx) override
   {
-    if (idx == 0)
+    if (idx == msix_bar_idx())
       return event_connector()->make_mmio_device();
 
     return cxx::Ref_ptr<Vmm::Mmio_device>(this);

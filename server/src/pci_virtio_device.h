@@ -153,6 +153,18 @@ protected:
    */
   unsigned device_config_len() const { return _device_config_len; }
 
+  /**
+   * Per convention we return the first MMIO32 BAR.
+   */
+  unsigned msix_bar_idx() const
+  {
+    for (unsigned i = 0; i < Bar_num_max_type0; ++i)
+      if (bars[i].type == Pci_cfg_bar::MMIO32)
+        return i;
+
+    return -1;
+  }
+
 private:
   Virtio_pci_cap *
   create_vio_pci_cap_common_entry(Virtio_pci_cap *prev, unsigned bar_idx)
@@ -302,18 +314,6 @@ private:
             L4Re::throw_error(-L4_EINVAL, "More IO ports necessary.");
           }
       }
-  }
-
-  /**
-   * Per convention we return the first MMIO32 BAR.
-   */
-  unsigned msix_bar_idx() const
-  {
-    for (unsigned i = 0; i < Bar_num_max_type0; ++i)
-      if (bars[i].type == Pci_cfg_bar::MMIO32)
-        return i;
-
-    return -1;
   }
 
   /**
