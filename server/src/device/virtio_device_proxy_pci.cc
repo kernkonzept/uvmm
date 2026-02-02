@@ -66,7 +66,8 @@ public:
                                   Pci_host_bridge *pci)
   : Virtio_device_proxy_control_base(max_devs, vmm, mempool, viocaps),
     _msix_bar_pba_offset(Vdev::Msix::msix_table_mem_size(max_devs)),
-    _evcon(max_devs, msix_dest)
+    _evcon(max_devs, _msix_bar_msix_table_offset, _msix_bar_pba_offset,
+           msix_dest)
   {
     // msix
     l4_addr_t addr =
@@ -120,7 +121,7 @@ private:
   cxx::Ref_ptr<Vmm::Mmio_device> get_mmio_bar_handler(unsigned i) override
   {
     if (i == 0)
-      return event_connector()->make_mmio_device();
+      return event_connector()->mmio_device();
     else if (i == 1)
       return cxx::Ref_ptr<Vmm::Mmio_device>(this);
     else if (i == 2)
