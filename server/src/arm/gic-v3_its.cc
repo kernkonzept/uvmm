@@ -597,7 +597,7 @@ private:
     if (!cpu)
       return Cmd::Err_invall_unmapped_collection;
 
-    lpis_for_col(icid, [=](Irq *lpi) { update_lpi_config(lpi); });
+    lpis_for_col(icid, [this](Irq *lpi) { update_lpi_config(lpi); });
 
     return Cmd::Err_ok;
   }
