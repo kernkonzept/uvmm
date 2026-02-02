@@ -47,7 +47,6 @@ public:
 
   Ram_ds(Vmm::Ram_ds const &) = delete;
   Ram_ds(Vmm::Ram_ds &&) = default;
-  ~Ram_ds() = default;
 
   /**
    * Set up the memory for DMA and host access.
