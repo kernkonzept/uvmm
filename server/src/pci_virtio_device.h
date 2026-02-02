@@ -34,8 +34,6 @@ template<typename DEV>
 class Virtio_device_pci
 : public Virt_pci_device
 {
-  unsigned _device_config_len;
-
 public:
   /**
    * Create virtual PCI device and configure capabilities.
@@ -51,7 +49,8 @@ public:
    */
   Virtio_device_pci(Vdev::Dt_node const &node, unsigned num_msix_entries,
                     Pci_bridge_windows *wnds)
-  : Virt_pci_device(node, wnds)
+  : Virt_pci_device(node, wnds),
+    _msix_bar_pba_offset(Vdev::Msix::msix_table_mem_size(num_msix_entries))
   {
     // There is a 32-bit BAR configured that fits the MSI-X table.
     unsigned msix_bar = msix_bar_idx();
@@ -165,6 +164,11 @@ protected:
     return -1;
   }
 
+  /// Offset of the MSI-X table within the MSI-X BAR.
+  unsigned msix_table_offset() const { return _msix_bar_msix_table_offset; }
+  /// Offset of the MSI-X pending-bit array within the MSI-X BAR.
+  unsigned msix_pba_offset() const { return _msix_bar_pba_offset; }
+
 private:
   Virtio_pci_cap *
   create_vio_pci_cap_common_entry(Virtio_pci_cap *prev, unsigned bar_idx)
@@ -259,8 +263,9 @@ private:
     cap->ctrl.enabled()  = 1;
     cap->ctrl.masked()   = 0;
     cap->ctrl.max_msis() = max_msix_entries - 1;
+    cap->tbl.offset()    = _msix_bar_msix_table_offset;
     cap->tbl.bir()       = bar_index;
-    cap->pba.offset()    = Vdev::Msix::msix_table_mem_size(max_msix_entries) >> 3;
+    cap->pba.offset()    = _msix_bar_pba_offset >> 3;
     cap->pba.bir()       = bar_index;
 
     trace().printf("msi.msg_ctrl 0x%x\n", cap->ctrl.raw);
@@ -338,6 +343,11 @@ private:
 
   DEV *dev() { return static_cast<DEV *>(this); }
   DEV const *dev() const { return static_cast<DEV const *>(this); }
+
+  unsigned _device_config_len;
+  unsigned const _msix_bar_msix_table_offset = 0U;
+  unsigned _msix_bar_pba_offset = 0x1000U;
+
 }; // class Virtio_device_pci
 
 

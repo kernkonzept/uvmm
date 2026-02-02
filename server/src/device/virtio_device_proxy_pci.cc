@@ -65,6 +65,7 @@ public:
                                   Gic::Msix_dest const &msix_dest,
                                   Pci_host_bridge *pci)
   : Virtio_device_proxy_control_base(max_devs, vmm, mempool, viocaps),
+    _msix_bar_pba_offset(Vdev::Msix::msix_table_mem_size(max_devs)),
     _evcon(max_devs, msix_dest)
   {
     // msix
@@ -90,8 +91,9 @@ public:
     cap->ctrl.enabled()  = 1;
     cap->ctrl.masked()   = 0;
     cap->ctrl.max_msis() = max_devs - 1;
+    cap->tbl.offset()    = _msix_bar_msix_table_offset;
     cap->tbl.bir()       = 0;
-    cap->pba.offset()    = Vdev::Msix::msix_table_mem_size(max_devs) >> 3;
+    cap->pba.offset()    = _msix_bar_pba_offset >> 3;
     cap->pba.bir()       = 0;
 
     auto *const hdr = get_header<Pci_header::Type0>();
@@ -130,6 +132,8 @@ private:
   cxx::Ref_ptr<Vmm::Io_device> get_io_bar_handler(unsigned) override
   { return nullptr; }
 
+  unsigned const _msix_bar_msix_table_offset = 0U;
+  unsigned _msix_bar_pba_offset = 0x1000U;
   Virtio::Event_connector_msix _evcon;
 };
 
