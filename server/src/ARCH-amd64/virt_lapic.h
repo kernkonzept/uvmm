@@ -723,7 +723,7 @@ class Lapic_access_handler
   };
 
 public:
-  enum { Mmio_addr = 0xfee00000 };
+  static constexpr l4_uint64_t Mmio_addr = 0xfee00000;
   static_assert(!(Mmio_addr & 0xfff), "LAPIC memory is 4k-aligned.");
 
   Lapic_access_handler(cxx::Ref_ptr<Lapic_array> apics,

@@ -69,11 +69,8 @@ class Virtio_device_proxy_pci
     l4_uint8_t l4cfg_bar;
   };
 
-  enum
-  {
-    // PCI device id is L4Re specific
-    Virtio_pci_device_id_vhost = 50
-  };
+  // PCI device id is L4Re specific
+  static constexpr unsigned Virtio_pci_device_id_vhost = 50;
 
 public:
   Virtio_device_proxy_pci(unsigned num_msix_entries,

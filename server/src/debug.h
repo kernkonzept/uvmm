@@ -43,11 +43,9 @@ public:
   };
 
 #ifndef NDEBUG
-  enum
-  {
-    Verbosity_shift = 3, /// Bits per component for verbosity
-    Verbosity_mask = (1UL << Verbosity_shift) - 1
-  };
+  /// Bits per component for verbosity
+  static constexpr unsigned Verbosity_shift = 3;
+  static constexpr unsigned long Verbosity_mask = (1UL << Verbosity_shift) - 1;
 
   static_assert(Max_component * Verbosity_shift <= sizeof(level) * 8,
                 "Too many components for level mask");
