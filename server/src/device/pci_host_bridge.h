@@ -645,8 +645,8 @@ public:
       dev->cfg_read(reg, &value, width);
 
     if (0)
-      trace().printf("read cfg dev=%u width=%d raw=0x%x val=0x%x\n",
-                     devid, (int)width, reg, value);
+      trace().printf("read cfg dev=%u reg=%04x val=0x%*.*x\n",
+                     devid, reg, 2 << width, 2 << width, value);
     return value;
   }
 
@@ -663,8 +663,8 @@ public:
       dev->cfg_write(_vmm, reg, value, width);
 
     if (0)
-      info().printf("write cfg dev=%u width=%d reg=0x%x, value=0x%x\n",
-                     devid, (int)width, reg, value);
+      trace().printf("write cfg dev=%u reg=%04x, val=0x%*.*x\n",
+                     devid, reg, 2 << width, 2 << width,  value);
   }
 
 protected:
