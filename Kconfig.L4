@@ -235,7 +235,9 @@ config UVMM_VDEV_ISA_DEBUG_PORT
 
 config UVMM_VDEV_BCM2835_MBOX
 	bool "Support for external bcm2835 mailbox service"
+	default y
 	depends on BUILD_ARCH_arm || BUILD_ARCH_arm64
+	depends on HAVE_BIDPC_LIBMBOX_BCM2835
 	help
 	  Emulate the bcm2835 mailbox device as found on Raspberry Pi 4.
 
