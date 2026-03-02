@@ -104,28 +104,21 @@ private:
                                Dt_node const &node)
   {
     auto *as_mgr = devs->ram()->as_mgr();
-    l4_size_t sz = mgr->size();
 
-    if (as_mgr->is_identity_mode())
-      {
-        auto phys = get_phys_mapping(as_mgr, mgr->dataspace().get(),
-                                     mgr->offset(), sz, node.get_name());
+    l4_uint64_t base, size;
+    if (node.get_reg_val(0, &base, &size) < 0)
+      L4Re::throw_error(-L4_EINVAL, "reg property not found or invalid");
 
-        node.set_reg_val(phys, sz, false);
-      }
-    else if (as_mgr->is_iommu_mode())
-      {
-        l4_uint64_t base, size;
-        if (node.get_reg_val(0, &base, &size) < 0)
-          L4Re::throw_error(-L4_EINVAL, "reg property not found or invalid");
+    if (l4_trunc_page(base) != base)
+      L4Re::throw_error(-L4_EINVAL, "reg base must be page aligned");
 
-        if (l4_trunc_page(base) != base)
-          L4Re::throw_error(-L4_EINVAL, "reg base must be page aligned");
+    size = mgr->size();
+    L4Re::chksys(as_mgr->add_ram(mgr->dataspace().get(), mgr->offset(),
+                                 mgr->local_addr<l4_addr_t>(),
+                                 &base, size),
+                 "Cannot map l4-mmio to guest RAM");
 
-        node.set_reg_val(base, sz, false);
-        as_mgr->add_ram_iommu(Vmm::Guest_addr(base),
-                              mgr->local_addr<l4_addr_t>(), sz);
-      }
+    node.set_reg_val(base, size, false);
 
     auto handler = Vdev::make_device<Ds_handler>(mgr, L4_FPAGE_RW, 0);
     devs->vmm()->register_mmio_device(handler, Vmm::Region_type::Ram, node, 0);
@@ -168,19 +161,21 @@ private:
             auto handler = Vdev::make_device<Ds_handler>(mgr, L4_FPAGE_RW, offs);
             devs->vmm()->register_mmio_device(handler, Vmm::Region_type::Virtual, node, index);
 
-            if (dma_ranges && as_mgr->is_identity_mode())
+            if (dma_ranges)
               {
-                auto phys = get_phys_mapping(as_mgr, mgr->dataspace().get(),
+                l4_uint64_t phys = base;
+                L4Re::chksys(as_mgr->add_ram(mgr->dataspace().get(),
                                              mgr->offset() + offs,
-                                             sz, node.get_name());
-
-                node.appendprop("dma-ranges", phys, addr_cells);
-                node.appendprop("dma-ranges", base, addr_cells);
-                node.appendprop("dma-ranges", sz, size_cells);
+                                             mgr->local_addr<l4_addr_t>() + offs,
+                                             &phys, sz),
+                             "Cannot map l4-mmio to guest RAM");
+                if (phys != base)
+                  {
+                    node.appendprop("dma-ranges", phys, addr_cells);
+                    node.appendprop("dma-ranges", base, addr_cells);
+                    node.appendprop("dma-ranges", sz, size_cells);
+                  }
               }
-            else if (as_mgr->is_iommu_mode())
-              as_mgr->add_ram_iommu(Vmm::Guest_addr(base),
-                                    mgr->local_addr<l4_addr_t>(), sz);
           }
       }
   }
@@ -214,35 +209,6 @@ private:
           }
       }
   }
-
-  static L4Re::Dma_space::Dma_addr get_phys_mapping(Vmm::Address_space_manager *as_mgr,
-                                                    L4::Cap<L4Re::Dataspace> cap,
-                                                    l4_addr_t offset, l4_size_t size,
-                                                    char const *node_name)
-  {
-    L4Re::Dma_space::Dma_addr phys_ram;
-    l4_size_t phys_size = size;
-    long err = as_mgr->get_dma_mapping(cap, offset, &phys_ram, &phys_size);
-
-    if (err < 0)
-      {
-        Err().printf("%s: Cannot resolve physical address of dataspace. "
-                     "Dataspace needs to be contiguous.\n",
-                     node_name);
-        L4Re::chksys(err, "Resolve physical address of dataspace.");
-      }
-    else if (phys_size < size)
-      {
-        Err().printf("%s: Cannot resolve physical address of complete area. "
-                     "Dataspace not contiguous.\n"
-                     "(dataspace size = 0x%zx, contiguous size = 0x%zx).\n",
-                     node_name, size, phys_size);
-        L4Re::chksys(-L4_ENOMEM, "Resolve dma-range of dataspace.");
-      }
-
-    return phys_ram;
-  }
-
 
   static l4_size_t get_offset_from_node(Dt_node const &node)
   {
