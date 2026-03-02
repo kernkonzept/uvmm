@@ -69,8 +69,16 @@ public:
     auto dscap = L4::cap_dynamic_cast<L4Re::Dataspace>(cap);
     if (dscap)
       {
-        auto mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Mmio_proxy", dscap, 0,
-                                                      dscap->size());
+        L4Re::Dataspace::Size size = dscap->size();
+        l4_uint64_t offset = get_offset_from_node(node);
+
+        if (offset > size)
+          L4Re::chksys(-L4_EINVAL, "l4vmm,mmio-offset outside dataspace");
+
+        size -= offset;
+        auto mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Mmio_proxy", dscap,
+                                                      offset, size);
+
 
         if (node.has_prop("l4vmm,physmap"))
           register_physmap_region(mgr, devs, node);
@@ -97,18 +105,11 @@ private:
   {
     auto *as_mgr = devs->ram()->as_mgr();
     l4_size_t sz = mgr->size();
-    l4_uint64_t offset = get_offset_from_node(node);
-
-    if (offset > sz)
-      L4Re::chksys(-L4_EINVAL, "l4vmm,mmio-offset outside dataspace");
-
-    sz -= offset;
 
     if (as_mgr->is_identity_mode())
       {
         auto phys = get_phys_mapping(as_mgr, mgr->dataspace().get(),
-                                     mgr->offset() + offset,
-                                     sz, node.get_name());
+                                     mgr->offset(), sz, node.get_name());
 
         node.set_reg_val(phys, sz, false);
       }
@@ -123,10 +124,10 @@ private:
 
         node.set_reg_val(base, sz, false);
         as_mgr->add_ram_iommu(Vmm::Guest_addr(base),
-                              mgr->local_addr<l4_addr_t>() + offset, sz);
+                              mgr->local_addr<l4_addr_t>(), sz);
       }
 
-    auto handler = Vdev::make_device<Ds_handler>(mgr, L4_FPAGE_RW, offset);
+    auto handler = Vdev::make_device<Ds_handler>(mgr, L4_FPAGE_RW, 0);
     devs->vmm()->register_mmio_device(handler, Vmm::Region_type::Ram, node, 0);
   }
 
@@ -136,7 +137,6 @@ private:
     auto *as_mgr = devs->ram()->as_mgr();
     l4_size_t dssize = mgr->size();
     l4_uint64_t regbase, base, size;
-    l4_uint64_t offset = get_offset_from_node(node);
     auto parent = node.parent_node();
     size_t addr_cells = node.get_address_cells(parent);
     size_t size_cells = node.get_size_cells(parent);
@@ -156,7 +156,7 @@ private:
           }
 
         l4_uint64_t sz = size;
-        l4_uint64_t offs = offset + (base - regbase);
+        l4_uint64_t offs = base - regbase;
         if (offs + sz > dssize)
           {
             sz = offs < dssize ? dssize - offs : 0;
@@ -180,7 +180,7 @@ private:
               }
             else if (as_mgr->is_iommu_mode())
               as_mgr->add_ram_iommu(Vmm::Guest_addr(base),
-                                    mgr->local_addr<l4_addr_t>() + offset, sz);
+                                    mgr->local_addr<l4_addr_t>(), sz);
           }
       }
   }
