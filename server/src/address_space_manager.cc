@@ -15,10 +15,12 @@ int Address_space_manager::add_ram(L4::Cap<L4Re::Dataspace>  ds,
                                    L4Re::Dataspace::Offset   offset,
                                    L4Re::Dma_space::Dma_addr *dma_start,
                                    L4Re::Dma_space::Dma_size *size,
-                                   L4Re::Dma_space::Dma_addr dma_max)
+                                   L4Re::Dma_space::Dma_addr dma_max,
+                                   bool                      writable)
 {
   if (_dma_space)
-    return _dma_space->map(L4::Ipc::make_cap(ds, L4_CAP_FPAGE_RW),
+    return _dma_space->map(L4::Ipc::make_cap(ds, writable ? L4_CAP_FPAGE_RW
+                                                          : L4_CAP_FPAGE_RO),
                            offset, size, dma_start, dma_max,
                            L4Re::Dma_space::Search_addr
                            | L4Re::Dma_space::Partial_map);
@@ -31,10 +33,9 @@ int Address_space_manager::add_ram(L4::Cap<L4Re::Dataspace>  ds,
     return -L4_ERANGE;
 
   max_size -= offset;
-  if (max_size < size)
-    return -L4_ENOMEM;
-
   *dma_start = ds_start + offset;
+  if (max_size > *size)
+    *size = max_size;
 #endif
 
   return 0;

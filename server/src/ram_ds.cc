@@ -31,7 +31,8 @@ Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Guest_addr vm_limit,
     {
       L4Re::Dma_space::Dma_size phys_size = size();
       int err = as_mgr->add_ram(dataspace().get(), ds_offset(), &_dma_start,
-                                &phys_size, vm_limit.get());
+                                &phys_size, vm_limit.get(),
+                                local_flags() & L4Re::Rm::F::W);
       if (err < 0)
         return err;
 
