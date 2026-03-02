@@ -156,6 +156,7 @@ Vmm::Ram_free_list::load_file_to_back(Vm_ram *ram, char const *name,
 int
 Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, Vmm::Guest_addr baseaddr,
                                l4_addr_t ds_offset, l4_size_t size, Vm_mem *memmap,
+                               Vmm::Ram_ds::Dma_mode dma_mode,
                                cxx::Ref_ptr<Vmm::Ram_ds> *res,
                                L4Re::Rm::Region_flags flags)
 {
@@ -164,7 +165,7 @@ Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, Vmm::Guest_addr base
   if (!r)
     return -L4_ENOMEM;
 
-  if (int err = r->setup(baseaddr, as_mgr()); err < 0)
+  if (int err = r->setup(baseaddr, as_mgr(), dma_mode); err < 0)
     return err;
 
   auto dsdev = Vdev::make_device<Ds_handler>(r, L4_FPAGE_RWX);
@@ -309,69 +310,64 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
       L4Re::throw_error(-L4_EINVAL, "DT property 'l4vmm,physmap' deprecated.");
     }
 
-  if (as_mgr()->is_identity_mode())
-    {
-      if (add_memory_region(ds, Vmm::Guest_addr(0UL), 0, remain, memmap) >= 0)
-        remain = 0; // we are done
-      else
-        {
-          warn.printf("Memory region '%s' cannot be identity mapped.\n",
-                      node.get_name());
-          if (!node.has_prop("reg"))
-            L4Re::chksys(-L4_ENOMEM, "Setup of RAM memory region");
-        }
-    }
-
   while (remain > 0)
     {
       l4_uint64_t reg_addr, reg_size;
       int ret = node.get_reg_val(reg_idx++, &reg_addr, &reg_size);
 
       if (ret == -Vdev::Dt_node::ERR_BAD_INDEX)
-        break;
+        {
+          warn.printf("Memory node does not provide enough room to map all available RAM.\n"
+                      "Consider increasing the 'reg' property size or reduce the dataspace size.\n");
+          break;
+        }
 
       if (ret < 0)
         {
-          if (ret == -FDT_ERR_NOTFOUND)
-            Err().printf("Memory node %s must contain a reg property in %s "
-                         "mode.\n",
-                         node.get_name(), as_mgr()->mode());
-          else
-            Err().printf("Error when parsing memory node %s: %s (%i)\n",
-                         node.get_name(), node.strerror(ret), ret);
+          Err().printf("Error when parsing memory node %s: %s (%i)\n",
+                       node.get_name(), node.strerror(ret), ret);
 
           L4Re::throw_error(-L4_EINVAL,
                             "Reading reg values from DT memory nodes.");
         }
-
-      trace.printf("Adding region @0x%llx (size = 0x%llx remaining = 0x%llx)\n",
-                   reg_addr, reg_size, remain);
 
       // If the size 0 was specified it means the user wants to use the
       // remaining available space.
       if (reg_size == 0)
         reg_size = remain;
 
-      l4_uint64_t map_size = cxx::min(reg_size, remain);
+      // Try to fill DT region. This might not work entirely because there can
+      // be reserved DMA regions in the range.
+      do
+        {
+          trace.printf("Adding region @0x%llx (size = 0x%llx remaining = 0x%llx)\n",
+                       reg_addr, reg_size, remain);
 
-      if (map_size & ~L4_PAGEMASK)
-        L4Re::chksys(-L4_EINVAL,
-                     "Size must be rounded to page size for DT memory nodes");
+          l4_uint64_t map_size = cxx::min(reg_size, remain);
 
-      if (reg_addr & ~L4_PAGEMASK)
-        L4Re::chksys(-L4_EINVAL,
-                     "Start address must be rounded to page size for DT memory nodes");
+          if (map_size & ~L4_PAGEMASK)
+            L4Re::chksys(-L4_EINVAL,
+                         "Size must be rounded to page size for DT memory nodes");
 
-      cxx::Ref_ptr<Ram_ds> r;
-      L4Re::chksys(add_memory_region(ds, Vmm::Guest_addr(reg_addr), offset,
-                                     map_size, memmap, &r),
-                   "Setting up RAM region via DT memory nodes.");
+          if (reg_addr & ~L4_PAGEMASK)
+            L4Re::chksys(-L4_EINVAL,
+                         "Start address must be rounded to page size for DT memory nodes");
 
-      remain -= map_size;
-      offset += map_size;
+          cxx::Ref_ptr<Ram_ds> r;
+          auto mode = add_dma_ranges ? Ram_ds::Dma_mode::Incongruent
+                                     : Ram_ds::Dma_mode::Congruent;
+          L4Re::chksys(add_memory_region(ds, Vmm::Guest_addr(reg_addr), offset,
+                                         map_size, memmap, mode, &r),
+                       "Setting up RAM region via DT memory nodes.");
 
-      if (!r->has_phys_addr())
-        add_dma_ranges = false;
+          remain -= r->size();
+          offset += r->size();
+
+          l4_uint64_t skip = r->vm_start().get() + r->size() - reg_addr;
+          reg_addr += skip;
+          reg_size -= skip;
+        }
+      while (remain > 0 && reg_size > 0);
     }
 
   if (first_region == _regions.size())
@@ -388,9 +384,6 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
         _regions[i]->dt_append_dmaprop(node);
     }
 
-  if (!add_dma_ranges)
-    node.delprop("dma-ranges");
-
   return L4_EOK;
 }
 
@@ -401,7 +394,8 @@ Vmm::Vm_ram::setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,
   auto ds = L4Re::chkcap(L4Re::Env::env()->get_cap<L4Re::Dataspace>("ram"),
                          "Grabbing default \"ram\" capability", -L4_ENOENT);
   cxx::Ref_ptr<Ram_ds> r;
-  L4Re::chksys(add_memory_region(ds, baseaddr, 0, ds->size(), memmap, &r),
+  L4Re::chksys(add_memory_region(ds, baseaddr, 0, ds->size(), memmap,
+                                 Ram_ds::Dma_mode::Congruent, &r),
                "Setting up default RAM region.");
 
   if (dt.valid())
@@ -413,8 +407,5 @@ Vmm::Vm_ram::setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,
       auto node = dt.get().first_node().add_subnode(buf);
       node.setprop_string("device_type", "memory");
       node.set_reg_val(r->vm_start().get(), r->size());
-
-      if (r->has_phys_addr())
-        r->dt_append_dmaprop(node);
     }
 }

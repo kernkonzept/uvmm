@@ -4,105 +4,88 @@
  *
  * ## RAM configuration for uvmm
  *
- * ### Operating modes
+ * ### DMA setup
  *
- * Depending on the system configuration, uvmm selects one of the following
- * operating modes for setting up guest RAM:
+ * If the vBus contains DMA capable devices, uvmm maps the guest RAM into a
+ * DMA address space so that those devices can access it. The shape of that
+ * DMA address space depends on whether the platform provides an IO-MMU:
  *
- *  * __No DMA__: There is no vBus or the vBus has no DMA capable devices. RAM
- *    is mapped at the guest-physical address requested by the configuration.
- *  * __IO-MMU__: The system provides an IO-MMU and the vBus has DMA capable
- *    devices. RAM is mapped at the guest-physical address requested by the
- *    configuration and the IO-MMU is programmed accordingly.
- *  * __DMA-offset__: The vBus has DMA capable devices, but there is no
- *    IO-MMU, and the device tree memory node has a `dma-ranges` property.
- *    RAM is mapped at the requested guest-physical address and `dma-ranges`
- *    is filled with the host-physical DMA addresses of the backing memory.
- *  * __Identity__: The vBus has DMA capable devices, but there is no IO-MMU
- *    and the device tree memory node has no `dma-ranges` property. RAM is
- *    mapped under the host-physical addresses of the backing dataspace.
+ *  * with an IO-MMU, the DMA address space is independent of host-physical
+ *    addresses;
+ *  * without an IO-MMU, DMA addresses are the host-physical addresses of the
+ *    backing dataspace.
  *
- * The mode is determined automatically from the system properties.
+ * If the vBus has no DMA capable devices, no DMA mapping is performed and
+ * RAM is placed at the guest-physical address requested by the
+ * configuration.
+ *
+ * Other components in the system may reserve DMA address ranges. RAM placement
+ * within the configured range therefore searches for free DMA addresses and
+ * may shift inside the configured range or be split into multiple chunks.
+ *
+ *
+ * ### Congruent vs. incongruent placement
+ *
+ * Per memory region, uvmm chooses one of two placement modes:
+ *
+ *  * __Congruent__ (default, no `dma-ranges` property): the guest-physical
+ *    address equals the DMA address. The actual placement is the DMA
+ *    address found by searching the configured range. On a system without
+ *    IO-MMU, this is the host-physical address of the backing dataspace, so
+ *    the guest sees its RAM at its host-physical address.
+ *  * __Incongruent__ (`dma-ranges` property present): the guest-physical
+ *    address is honoured as configured, but the corresponding DMA addresses
+ *    may differ. uvmm fills the `dma-ranges` property with the resulting
+ *    (DMA address, guest address, size) triplets. Use of this property
+ *    __requires__ modification of guest code so that DMA-capable devices
+ *    are programmed with the correct DMA addresses.
  *
  *
  * ### Without a memory node in the device tree
  *
- * * setup default RAM for guest VM from the `ram` capability.
- * * RAM starts either
- *    * at base-address which defaults to 0x0 or the base address value
- *      set via the -b cmdline option or
- *    * in case identity mode is selected, at the host-physical address of the
- *      dataspace allocated for the RAM.
+ * uvmm uses the dataspace bound to the `ram` capability with congruent
+ * placement. The base address defaults to 0x0 or the value of the `-b`
+ * command-line option. If a DMA address space is in use, the actual base
+ * address may be shifted upwards to the first free DMA address at or above
+ * the requested base. On a system without IO-MMU this is the host-physical
+ * address of the backing dataspace.
  *
- * If a device tree is present, uvmm adds a corresponding `memory@<addr>` node
- * for the guest. When identity mode is selected, a `dma-ranges` property is
- * appended to that node so that the guest can derive the host-physical DMA
- * addresses.
+ * If a device tree is loaded, uvmm adds a synthesized `memory@<addr>` node
+ * with the resulting `reg` value. No `dma-ranges` property is added.
  *
  *
  * ### With a memory node in the device tree
  *
- * The memory node needs at least the properties device_type and l4vmm,dscap:
+ * The memory node needs at least the properties device_type, l4vmm,dscap and
+ * reg:
  *
  *      memory@0 {
  *        device_type = "memory";
  *        l4vmm,dscap = "ram";
+ *        reg = < ... >;
  *      }
  *
- * Where the given l4vmm,dscap name is accessible in the capability namespace
- * of the uvmm. If the capability is invalid, the memory node is disabled.
+ * A memory node without a `reg` property is invalid and uvmm refuses to boot.
+ * The given l4vmm,dscap name must be accessible in the capability namespace of
+ * the uvmm. If the capability is invalid, the memory node is disabled.
  *
- * If memory nodes are given, but none provides valid RAM the configuration is
+ * The `reg` property describes the allowable guest-physical placement
+ * range(s) for the dataspace. It is mandatory for explicit memory nodes.
+ * uvmm fills the listed `reg` ranges in order with chunks of the dataspace,
+ * potentially using multiple chunks per `reg` entry if DMA address space
+ * reservations require it. A `reg` entry with `size == 0` means "use the
+ * remaining dataspace size". After setup, uvmm rewrites the `reg` property
+ * to reflect the actual placement(s) used.
+ *
+ * If the listed `reg` ranges cannot accommodate the full dataspace, uvmm
+ * emits a warning and stops mapping; the guest sees only the portion that
+ * fitted.
+ *
+ * The optional `dma-ranges` property, if present, switches the memory node to
+ * incongruent placement (see above). uvmm fills it with the resulting DMA
+ * mappings.
+ *
+ * If memory nodes are given, but none provides valid RAM, the configuration is
  * invalid and uvmm refuses to boot.
- *
- * Additional properties of the memory node are `reg` and `dma-ranges`.
- *
- * The `reg` property describes the location in the guest's address space that
- * should be backed by RAM.
- *
- * The `dma-ranges` property describes the offset between guest-physical and
- * host-physical addresses. The guest can evaluate this non-standard property
- * to derive the correct DMA addresses to program into passed-through devices.
- * Usage of this property __requires__ modification of guest code.
- *
- *
- * #### Without reg and dma-ranges properties
- *
- * The `reg` property is optional only when identity mode is selected. In that
- * case, uvmm maps the guest's RAM into the VM under the host-physical
- * addresses of the backing memory (l4vmm,dscap) and writes the resulting
- * range back into the memory node's `reg` property. In all other modes, a
- * `reg` property must be present.
- *
- *
- * #### Without a reg property, but with a dma-ranges property
- *
- * The presence of a `dma-ranges` property selects DMA-offset mode (or IO-MMU
- * mode, if an IO-MMU is available), both of which require an explicit `reg`
- * property. This configuration is therefore invalid and uvmm refuses to boot.
- *
- *
- * #### With a reg property
- *
- * uvmm parses the `reg` property of the memory node and maps the memory into
- * the VM to the given range(s).
- *
- * If identity mode is selected, uvmm first attempts to map the RAM at the
- * host-physical addresses of the backing memory. The `reg` property is used
- * as a fallback if identity mapping is not possible (e.g. because the
- * dataspace is not physically contiguous). After successful setup, the `reg`
- * property is updated to reflect the actual guest-physical address ranges
- * used.
- *
- *
- * #### With a reg and dma-ranges property
- *
- * uvmm parses the `reg` property of the memory node and maps the memory into
- * the VM to the given range(s).
- *
- * The `dma-ranges` property is filled with the corresponding host-physical
- * addresses of the backing memory (l4vmm,dscap). If the backing dataspace
- * does not provide host-physical addresses, the `dma-ranges` property is
- * removed from the memory node.
  *
  */

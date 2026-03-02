@@ -18,56 +18,25 @@ static Dbg trace(Dbg::Mmio, Dbg::Trace, "ram");
 
 namespace Vmm {
 
-long
-Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr)
+int
+Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr,
+              Dma_mode dma_mode)
 {
   Dbg info(Dbg::Mmio, Dbg::Info, "ram");
 
   _vm_start = vm_base;
+  _dma_start = vm_base.get();
 
-  if (as_mgr->is_identity_mode())
+  if (dma_mode == Dma_mode::Congruent || dma_mode == Dma_mode::Incongruent)
     {
-      l4_size_t phys_size = size();
-      L4Re::Dma_space::Dma_addr phys_ram = 0;
-      int err = as_mgr->get_dma_mapping(dataspace().get(), ds_offset(),
-                                        &phys_ram, &phys_size);
-
-      if (err < 0 || phys_size < size())
-        {
-          warn.printf(
-            "Identity mapping requested, but dataspace not contiguous.\n");
-          return err < 0 ? err : -L4_ENOMEM;
-        }
-
-      _vm_start = Vmm::Guest_addr(phys_ram);
-
-      _phys_ram = phys_ram;
-      _phys_size = phys_size;
+      int err = as_mgr->add_ram(dataspace().get(), ds_offset(), local_start(),
+                                &_dma_start, size());
+      if (err < 0)
+        return err;
     }
-  else if (as_mgr->is_dma_offset_mode())
-    {
-      /**
-       * While this code looks rather alike to the identity_mode case, the
-       * semantics are quite different. The DMA address the as_mgr returns
-       * can be used by the guest for device access, but it is not the host-
-       * physical address corresponding to the given dataspace.
-       */
-      l4_size_t dma_size = size();
-      L4Re::Dma_space::Dma_addr dma_addr = 0;
-      int err = as_mgr->get_dma_mapping(dataspace().get(), ds_offset(),
-                                        &dma_addr, &dma_size);
 
-      if (err < 0 || dma_size < size())
-        warn.printf("DMA offset mode requested, but dataspace not contiguous. "
-                    "DMA usage not recommended.\n");
-
-      _phys_ram = dma_addr;
-      _phys_size = dma_size;
-    }
-  else if (as_mgr->is_iommu_mode())
-    as_mgr->add_ram_iommu(vm_start(), local_start(), size());
-  else
-    info.printf("RAM not set up for DMA.\n");
+  if (dma_mode == Dma_mode::Congruent)
+    _vm_start = Vmm::Guest_addr(_dma_start);
 
   l4_addr_t local_start = this->local_start();
   char sz[64];

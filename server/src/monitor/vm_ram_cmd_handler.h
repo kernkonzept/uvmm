@@ -59,15 +59,15 @@ public:
 private:
   void show_dataspaces(FILE *f) const
   {
-    fprintf(f, "Dataspace  Guest area             Size        Local address  Phys?\n");
+    fprintf(f, "Dataspace  Guest area             Size        Local address  DMA address\n");
     for (auto const &r : vm_ram()->_regions)
-      fprintf(f, "%9lu  0x%08llx-0x%08llx  0x%08llx  0x%08llx     %s\n",
+      fprintf(f, "%9lu  0x%08llx-0x%08llx  0x%08llx  0x%08llx     0x%08llx\n",
               r->dataspace().cap() >> L4_CAP_SHIFT,
               static_cast<l4_uint64_t>(r->vm_start().get()),
               static_cast<l4_uint64_t>(r->vm_start().get() + r->size()),
               static_cast<l4_uint64_t>(r->size()),
               static_cast<l4_uint64_t>(r->local_start()),
-              r->has_phys_addr() ? "Y" : "N");
+              static_cast<l4_uint64_t>(r->dma_start()));
   }
 
   bool dump_memory(FILE *f, Arglist *args) const

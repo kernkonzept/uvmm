@@ -214,15 +214,31 @@ public:
 
     info.printf("Add region: 0x%lx:0x%lx\n", r->start.get(), sz);
 
+    L4Re::Dma_space::Dma_addr dma_start = r->start.get();
     auto ds_mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Virtio_mem_pool", ds,
                                                      offset, sz);
+
+    int err = _devs->ram()->as_mgr()->add_ram(ds, offset,
+                                              ds_mgr->local_addr<l4_addr_t>(),
+                                              &dma_start, sz);
+    if (err < 0)
+      {
+        warn.printf("Could not map foreign RAM: %d\n", err);
+        _region_map.del_region(*r);
+        return nullptr;
+      }
+
+    if (dma_start != r->start.get())
+      {
+        warn.printf("No IOMMU! DMA address differs from region address.\n");
+        _devs->ram()->as_mgr()->del_ram(Vmm::Guest_addr(dma_start), sz);
+        _region_map.del_region(*r);
+        return nullptr;
+      }
+
     _devs->vmm()->add_mmio_device(*r,
                                   Vdev::make_device<Ds_handler>(ds_mgr));
 
-    if (_devs->ram()->as_mgr()->is_iommu_mode())
-      _devs->ram()->as_mgr()->add_ram_iommu(r->start,
-                                            ds_mgr->local_addr<l4_addr_t>(),
-                                            sz);
     return r;
   }
 
@@ -235,8 +251,7 @@ public:
     if (it != _region_map.end() && !it->second.drop_ref())
       {
         // Remove iommu entry if necessary
-        if (_devs->ram()->as_mgr()->is_iommu_mode())
-          _devs->ram()->as_mgr()->del_ram_iommu(region.start, region.size());
+        _devs->ram()->as_mgr()->del_ram(region.start, region.size());
         // Delete vmm mmio device + mappings
         _devs->vmm()->del_mmio_device(region);
         // Remove the region from our virtual region map
@@ -246,6 +261,7 @@ public:
 
 private:
   Dbg info = {Dbg::Dev, Dbg::Info, "viodev-mp"};
+  Dbg warn = {Dbg::Dev, Dbg::Warn, "viodev-mp"};
 
   Vdev::Device_lookup *_devs;
 

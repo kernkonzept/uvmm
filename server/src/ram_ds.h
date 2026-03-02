@@ -41,23 +41,34 @@ public:
          L4Re::Rm::Region_flags flags = L4Re::Rm::F::RWX)
   : Ds_manager("Ram", ds, offset, size, flags,
                sizeof(l4_umword_t) == 8 && size >= Ram_hugepagesize
-               ? Ram_hugepageshift : L4_SUPERPAGESHIFT),
-    _phys_size(0U)
+               ? Ram_hugepageshift : L4_SUPERPAGESHIFT)
   {}
 
   Ram_ds(Vmm::Ram_ds const &) = delete;
   Ram_ds(Vmm::Ram_ds &&) = default;
 
   /**
+   * DMA handling mode for the RAM dataspace.
+   */
+  enum class Dma_mode
+  {
+    None,         ///< Do not map the region for DMA access
+    Congruent,    ///< Map region for DMA and adjust vm_base() if necessary
+    Incongruent,  ///< Map region for DMA, keeping vm_base
+  };
+
+  /**
    * Set up the memory for DMA and host access.
    *
    * \param vm_base  Guest physical address where the RAM should be mapped.
-   * \param as_mgr  DMA manager to register the RAM with.
+   * \param as_mgr    DMA manager to register the RAM with.
+   * \param dma_mode  The DMA access mode of the RAM.
    *
    * The actually used `vm_base` address might change, depending on the
    * necessity of DMA and the presence of an IO-MMU.
    */
-  long setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr);
+  int setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr,
+            Dma_mode dma_mode);
 
   /**
    * Load the contents of the given dataspace into guest RAM.
@@ -86,17 +97,16 @@ public:
     auto parent = mem_node.parent_node();
     size_t addr_cells = mem_node.get_address_cells(parent);
     size_t size_cells = mem_node.get_size_cells(parent);
-    mem_node.appendprop("dma-ranges", _phys_ram, addr_cells);
+    mem_node.appendprop("dma-ranges", _dma_start, addr_cells);
     mem_node.appendprop("dma-ranges", _vm_start.get(), addr_cells);
-    mem_node.appendprop("dma-ranges", _phys_size, size_cells);
+    mem_node.appendprop("dma-ranges", size(), size_cells);
   }
 
   Vmm::Guest_addr vm_start() const noexcept { return _vm_start; }
+  L4Re::Dma_space::Dma_addr dma_start() const noexcept { return _dma_start; }
 
   l4_addr_t local_start() { return local_addr<l4_addr_t>(); }
   l4_addr_t ds_offset() const noexcept { return offset(); }
-
-  bool has_phys_addr() const noexcept { return _phys_size > 0; }
 
   bool writable() const { return local_flags() & L4Re::Rm::F::W; }
 
@@ -106,10 +116,8 @@ private:
   /// Guest-physical address of the mapped dataspace.
   Vmm::Guest_addr _vm_start;
 
-  /// Host-physical address of the beginning of the mapped area (if applicable).
-  L4Re::Dma_space::Dma_addr _phys_ram;
-  /// Size of the contiguously mapped area from the beginning of the area.
-  l4_size_t _phys_size;
+  /// Guest-physical DMA address of the the mapped area (if applicable).
+  L4Re::Dma_space::Dma_addr _dma_start;
 };
 
 } // namespace
