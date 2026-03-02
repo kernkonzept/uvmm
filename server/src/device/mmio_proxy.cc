@@ -40,26 +40,16 @@ namespace Vdev
    *                       corresponds to the first base address in `reg`.
    *                       Default: 0.
    *   dma-ranges        - When present, uvmm adds the physical memory addresses
-   *                       of the dataspace. If the addresses cannot be determined
-   *                       because the dataspace does not have the appropriate
-   *                       properties, then startup of uvmm fails with an error.
-   *                       Note: ranges are added, so the property should be
-   *                       initially empty.
+   *                       of the dataspace, if required. Allows DMA access
+   *                       to the dataspace. Note: ranges are added, so the
+   *                       property should be initially empty.
    *   l4vmm,physmap     - When present, export the complete dataspace starting
    *                       from an optional `l4vmm,mmio-offset`. The `reg`
    *                       property will be overwritten with the appropriate
    *                       region. `dma-ranges` must not be set at the same time.
    */
   struct Mmio_proxy : public Device
-  {
-    friend class F;
-
-    void set_dma_space(L4Re::Util::Unique_cap<L4Re::Dma_space> &&dma)
-    { _dma = cxx::move(dma); }
-
-    /// container for DMA mapping, if applicable.
-    L4Re::Util::Unique_cap<L4Re::Dma_space> _dma;
-  };
+  {};
 }
 
 namespace {
@@ -79,33 +69,14 @@ public:
     auto dscap = L4::cap_dynamic_cast<L4Re::Dataspace>(cap);
     if (dscap)
       {
-        L4Re::Util::Unique_cap<L4Re::Dma_space> dma;
-        bool physmap = node.has_prop("l4vmm,physmap");
-
-        if (physmap || node.has_prop("dma-ranges"))
-          {
-            dma = L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dma_space>(),
-                               "Create capability for DMA space for memory region.");
-
-            L4Re::chksys(L4Re::Env::env()->user_factory()->create(dma.get()),
-                         "Create DMA space for MMIO proxy region");
-
-            L4Re::throw_error(-L4_EINVAL,
-                              "Mmio_proxy with dma-ranges or physmap property"
-                              "not support at the moment.");
-          }
-
         auto mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Mmio_proxy", dscap, 0,
                                                       dscap->size());
 
-        if (physmap)
-          register_physmap_region(mgr, devs, node, dma.get());
+        if (node.has_prop("l4vmm,physmap"))
+          register_physmap_region(mgr, devs, node);
         else
-          register_mmio_regions(mgr, devs, node, dma.get());
-        auto dev = Vdev::make_device<Mmio_proxy>();
-        dev->set_dma_space(cxx::move(dma));
-
-        return dev;
+          register_mmio_regions(mgr, devs, node, node.has_prop("dma-ranges"));
+        return Vdev::make_device<Mmio_proxy>();
       }
 
     auto mmcap = L4::cap_dynamic_cast<L4Re::Mmio_space>(cap);
@@ -122,8 +93,9 @@ public:
 private:
   void register_physmap_region(cxx::Ref_ptr<Vmm::Ds_manager> const &mgr,
                                Device_lookup const *devs,
-                               Dt_node const &node, L4::Cap<L4Re::Dma_space> dma)
+                               Dt_node const &node)
   {
+    auto *as_mgr = devs->ram()->as_mgr();
     l4_size_t sz = mgr->size();
     l4_uint64_t offset = get_offset_from_node(node);
 
@@ -132,19 +104,36 @@ private:
 
     sz -= offset;
 
-    auto phys = get_phys_mapping(mgr->dataspace().get(), dma,
-                                 mgr->offset() + offset,
-                                 sz, node.get_name());
+    if (as_mgr->is_any_identity_mode())
+      {
+        auto phys = get_phys_mapping(as_mgr, mgr->dataspace().get(),
+                                     mgr->offset() + offset,
+                                     sz, node.get_name());
 
-    node.set_reg_val(phys, sz, false);
+        node.set_reg_val(phys, sz, false);
+      }
+    else if (as_mgr->is_iommu_mode())
+      {
+        l4_uint64_t base, size;
+        if (node.get_reg_val(0, &base, &size) < 0)
+          L4Re::throw_error(-L4_EINVAL, "reg property not found or invalid");
+
+        if (l4_trunc_page(base) != base)
+          L4Re::throw_error(-L4_EINVAL, "reg base must be page aligned");
+
+        node.set_reg_val(base, sz, false);
+        as_mgr->add_ram_iommu(Vmm::Guest_addr(base),
+                              mgr->local_addr<l4_addr_t>() + offset, sz);
+      }
 
     auto handler = Vdev::make_device<Ds_handler>(mgr, L4_FPAGE_RW, offset);
     devs->vmm()->register_mmio_device(handler, Vmm::Region_type::Ram, node, 0);
   }
 
   void register_mmio_regions(cxx::Ref_ptr<Vmm::Ds_manager> mgr, Device_lookup const *devs,
-                             Dt_node const &node, L4::Cap<L4Re::Dma_space> dma)
+                             Dt_node const &node, bool dma_ranges)
   {
+    auto *as_mgr = devs->ram()->as_mgr();
     l4_size_t dssize = mgr->size();
     l4_uint64_t regbase, base, size;
     l4_uint64_t offset = get_offset_from_node(node);
@@ -179,9 +168,9 @@ private:
             auto handler = Vdev::make_device<Ds_handler>(mgr, L4_FPAGE_RW, offs);
             devs->vmm()->register_mmio_device(handler, Vmm::Region_type::Virtual, node, index);
 
-            if (dma.is_valid())
+            if (dma_ranges && as_mgr->is_any_identity_mode())
               {
-                auto phys = get_phys_mapping(mgr->dataspace().get(), dma,
+                auto phys = get_phys_mapping(as_mgr, mgr->dataspace().get(),
                                              mgr->offset() + offs,
                                              sz, node.get_name());
 
@@ -189,6 +178,9 @@ private:
                 node.appendprop("dma-ranges", base, addr_cells);
                 node.appendprop("dma-ranges", sz, size_cells);
               }
+            else if (as_mgr->is_iommu_mode())
+              as_mgr->add_ram_iommu(Vmm::Guest_addr(base),
+                                    mgr->local_addr<l4_addr_t>() + offset, sz);
           }
       }
   }
@@ -223,17 +215,14 @@ private:
       }
   }
 
-  static L4Re::Dma_space::Dma_addr get_phys_mapping(L4::Cap<L4Re::Dataspace> cap,
-                                                    L4::Cap<L4Re::Dma_space> dma,
+  static L4Re::Dma_space::Dma_addr get_phys_mapping(Vmm::Address_space_manager *as_mgr,
+                                                    L4::Cap<L4Re::Dataspace> cap,
                                                     l4_addr_t offset, l4_size_t size,
                                                     char const *node_name)
   {
     L4Re::Dma_space::Dma_addr phys_ram;
     l4_size_t phys_size = size;
-    long err = dma->map(L4::Ipc::make_cap(cap, L4_CAP_FPAGE_RW),
-                        offset, &phys_size,
-                        L4Re::Dma_space::Attributes::None,
-                        L4Re::Dma_space::Bidirectional, &phys_ram);
+    long err = as_mgr->get_dma_mapping(cap, offset, &phys_ram, &phys_size);
 
     if (err < 0)
       {
