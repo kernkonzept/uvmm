@@ -20,34 +20,6 @@ namespace Vmm {
 
 class Address_space_manager : public Vdev::Device
 {
-  /// Operating modes
-  enum class Mode { No_dma, Identity, Iommu, Dma_offset };
-
-  /// Information collected to base the operating mode decision on.
-  struct Info
-  {
-    unsigned raw;
-
-    CXX_BITFIELD_MEMBER(0, 0, vbus_present, raw);
-    CXX_BITFIELD_MEMBER(1, 1, vbus_has_dma_devs, raw);
-    CXX_BITFIELD_MEMBER(2, 2, io_mmu, raw);
-    CXX_BITFIELD_MEMBER(3, 3, dma_phys_addr, raw);
-    CXX_BITFIELD_MEMBER(4, 4, dt_dma_ranges, raw);
-
-    void dump() const
-    {
-      info().printf("Sys Info:\n"
-                    "\tvBus:            %i\n"
-                    "\tDMA devs:        %i\n"
-                    "\tIO-MMU:          %i\n"
-                    "\tDMA phys addr:   %i\n"
-                    "\tDT dma-ranges:   %i\n",
-                    vbus_present().get(), vbus_has_dma_devs().get(),
-                    io_mmu().get(),
-                    dma_phys_addr().get(), dt_dma_ranges().get());
-    }
-  };
-
 public:
   /**
    * Register a piece of RAM for DMA-mapping and get the DMA-capable
@@ -71,17 +43,6 @@ public:
    */
   void del_ram(Guest_addr dest, l4_size_t size);
 
-  /// Is the operating mode `Iommu`?
-  bool is_iommu_mode() const { return _mode == Mode::Iommu; }
-  /// Is the operating mode `Identity`?
-  bool is_identity_mode() const { return _mode == Mode::Identity; }
-  /// Is the operating mode `Dma_offset`?
-  bool is_dma_offset_mode() const { return _mode == Mode::Dma_offset; }
-
-  /// Return the string representation of the current operating mode.
-  char const *mode() const
-  { return mode_to_str(_mode); }
-
   /**
    * Detect system information.
    *
@@ -89,54 +50,11 @@ public:
    */
   void detect_sys_info(Virt_bus *vbus);
 
-  /// True: the devie tree memory node has a 'dma-ranges' property.
-  void info_add_dma_ranges() { _info.dt_dma_ranges() = 1; }
-
-  /**
-   * Start the mode selection based on the collected information.
-   *
-   * No DMA mode is selected, if the is no vBus or there are no DMA capable
-   * devices on the vBus.
-   *
-   * DMA offset mode is used, if there is a DMA ranges property in the device
-   * tree's memory node and DMA capable devices on the vBus. Forced identity
-   * mappings supercede this mode.
-   *
-   * Identity mode is used if either forced or when there are DMA capable
-   * devices and there is no DMA ranges property in the memory node of
-   * the device tree.
-   *
-   * IO-MMU mode is selected, when there is an IO-MMU present in the system
-   * and there are DMA capable devices on the vBus.
-   * If this is the case and identity mappings are forced, the IO-MMU+Identity
-   * mode is selected.
-   *
-   * \note The mode selection is just performed once. Subsequent calls do not
-   *       change the selected mode.
-   */
-  void mode_selection();
-
 private:
   static ::Dbg warn() { return {::Dbg::Mmio, ::Dbg::Warn, "ASM"}; }
   static ::Dbg info() { return {::Dbg::Mmio, ::Dbg::Info, "ASM"}; }
   static ::Dbg trace() { return {::Dbg::Mmio, ::Dbg::Trace, "ASM"}; }
 
-  static char const *mode_to_str(Mode m)
-  {
-    switch(m)
-      {
-      case Mode::No_dma: return "No DMA";
-      case Mode::Identity: return "Identity";
-      case Mode::Iommu: return "IO-MMU";
-      case Mode::Dma_offset: return "DMA-offset";
-      default: return "Invalid mode value";
-      }
-  }
-
-  Info _info{0};
-  bool _mode_selected = false;
-  Mode _mode = Mode::No_dma;
-  L4Re::Util::Unique_cap<L4::Task> _kdma_space;
   L4Re::Util::Unique_cap<L4Re::Dma_space> _dma_space;
 }; // class Address_space_manager
 

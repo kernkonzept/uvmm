@@ -214,10 +214,6 @@ Vmm::Vm_ram::setup_from_device_tree(Vdev::Host_dt const &dt, Vm_mem *memmap,
         }
     }
 
-  // In case of an invalid DT or without memory node, do mode selection;
-  // otherwise, doing it again returns directly.
-  as_mgr()->mode_selection();
-
   if (!has_memory_nodes)
     {
       warn.printf("No memory nodes found, setting up default region\n");
@@ -295,11 +291,6 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
   l4_size_t first_region = _regions.size();
   // dma-ranges can only be set for all regions or none
   bool add_dma_ranges = node.has_prop("dma-ranges");
-  if (add_dma_ranges)
-    as_mgr()->info_add_dma_ranges();
-
-  // all info acquired, do mode selection.
-  as_mgr()->mode_selection();
 
   if (node.has_prop("l4vmm,physmap"))
     {
