@@ -13,7 +13,6 @@ namespace Vmm {
 
 int Address_space_manager::add_ram(L4::Cap<L4Re::Dataspace>  ds,
                                    L4Re::Dataspace::Offset   offset,
-                                   l4_addr_t,
                                    L4Re::Dma_space::Dma_addr *dma_start,
                                    l4_size_t                 size)
 {

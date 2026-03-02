@@ -29,8 +29,8 @@ Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr,
 
   if (dma_mode == Dma_mode::Congruent || dma_mode == Dma_mode::Incongruent)
     {
-      int err = as_mgr->add_ram(dataspace().get(), ds_offset(), local_start(),
-                                &_dma_start, size());
+      int err = as_mgr->add_ram(dataspace().get(), ds_offset(), &_dma_start,
+                                size());
       if (err < 0)
         return err;
     }

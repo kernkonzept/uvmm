@@ -114,7 +114,6 @@ private:
 
     size = mgr->size();
     L4Re::chksys(as_mgr->add_ram(mgr->dataspace().get(), mgr->offset(),
-                                 mgr->local_addr<l4_addr_t>(),
                                  &base, size),
                  "Cannot map l4-mmio to guest RAM");
 
@@ -166,7 +165,6 @@ private:
                 l4_uint64_t phys = base;
                 L4Re::chksys(as_mgr->add_ram(mgr->dataspace().get(),
                                              mgr->offset() + offs,
-                                             mgr->local_addr<l4_addr_t>() + offs,
                                              &phys, sz),
                              "Cannot map l4-mmio to guest RAM");
                 if (phys != base)

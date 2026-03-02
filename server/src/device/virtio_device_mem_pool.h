@@ -218,9 +218,7 @@ public:
     auto ds_mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Virtio_mem_pool", ds,
                                                      offset, sz);
 
-    int err = _devs->ram()->as_mgr()->add_ram(ds, offset,
-                                              ds_mgr->local_addr<l4_addr_t>(),
-                                              &dma_start, sz);
+    int err = _devs->ram()->as_mgr()->add_ram(ds, offset, &dma_start, sz);
     if (err < 0)
       {
         warn.printf("Could not map foreign RAM: %d\n", err);
