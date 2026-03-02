@@ -66,6 +66,15 @@ private:
     return _local.get();
   }
 
+protected:
+  void set_size(L4Re::Dataspace::Size size)
+  {
+    if (_local.is_valid())
+      L4Re::throw_error(-L4_EINVAL, "Ds_manager already attached");
+
+    _size = size;
+  }
+
 public:
   /**
    * Create a manager for the given part of the given dataspace.
