@@ -77,6 +77,50 @@ void Address_space_manager::del_ram_iommu(Guest_addr dest, l4_size_t size)
     }
 }
 
+int Address_space_manager::add_ram(L4::Cap<L4Re::Dataspace>  ds,
+                                   L4Re::Dataspace::Offset   offset,
+                                   l4_addr_t                 local_start,
+                                   L4Re::Dma_space::Dma_addr *dma_start,
+                                   l4_size_t                 size)
+{
+#ifdef CONFIG_MMU
+  if (is_identity_mode() || is_dma_offset_mode())
+    {
+      l4_size_t phys_size = size;
+      int err = get_dma_mapping(ds, offset, dma_start, &phys_size);
+      if (err < 0 || phys_size < size)
+        {
+          warn().printf(
+            "Identity mapping requested, but dataspace not contiguous.\n");
+          return err < 0 ? err : -L4_ENOMEM;
+        }
+    }
+  else if (is_iommu_mode())
+    add_ram_iommu(Guest_addr(*dma_start), local_start, size);
+#else
+  l4_addr_t ds_start;
+  l4_addr_t ds_end;
+  L4Re::chksys(ds->map_info(&ds_start, &ds_end), "get ram ds addr");
+  l4_addr_t max_size = ds_end - ds_start + 1;
+  if (offset >= max_size)
+    return -L4_ERANGE;
+
+  max_size -= offset;
+  if (max_size < size)
+    return -L4_ENOMEM;
+
+  *dma_start = ds_start + offset;
+#endif
+
+  return 0;
+}
+
+void Address_space_manager::del_ram(Guest_addr dest, l4_size_t size)
+{
+  if (is_iommu_mode())
+    del_ram_iommu(dest, size);
+}
+
 void Address_space_manager::detect_sys_info(Virt_bus *vbus)
 {
   if (!vbus->available())
