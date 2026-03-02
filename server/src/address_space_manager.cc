@@ -60,6 +60,36 @@ void Address_space_manager::del_ram(Guest_addr dest, l4_size_t size)
     _dma_space->unmap(dst_start, size);
 }
 
+int Address_space_manager::reserve(L4Re::Dma_space::Dma_addr start,
+                                   L4Re::Dma_space::Dma_size size)
+{
+#ifdef CONFIG_MMU
+  if (_dma_space)
+    return _dma_space->map(L4::Cap<L4Re::Dataspace>(), 0,
+                           &size, &start, -1, L4Re::Dma_space::Reserve);
+
+  return 0;
+#else
+  return -L4_EPERM;
+#endif
+}
+
+int Address_space_manager::place_ram(L4::Cap<L4Re::Dataspace> ds,
+                                     L4Re::Dataspace::Offset offset,
+                                     L4Re::Dma_space::Dma_addr *start,
+                                     L4Re::Dma_space::Dma_size *size)
+{
+#ifdef CONFIG_MMU
+  if (_dma_space)
+    return _dma_space->map(L4::Ipc::make_cap(ds, L4_CAP_FPAGE_RW), offset,
+                           size, start, -1, L4Re::Dma_space::Replace);
+
+  return 0;
+#else
+  return add_ram(ds, offset, start, *size);
+#endif
+}
+
 void Address_space_manager::detect_sys_info(Virt_bus *vbus)
 {
   if (!vbus->available())

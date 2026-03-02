@@ -42,6 +42,37 @@ public:
   void del_ram(Guest_addr dest, l4_size_t size);
 
   /**
+   * Reserve RAM region.
+   *
+   * Makes sure that no DMA mappings can be created in the requested region by
+   * any component in the system (e.g., io when mapping the MSI controller for
+   * PCI devices). This is no-op of uvmm has no access to DMA capable devices.
+   * In case the physical DMA address space is used (i.e., no IOMMU), the
+   * function will fail with -L4_EPERM. A caller should be able to cope with
+   * this error.
+   *
+   * \retval  >=0       Success
+   * \retval  -L4_EPERM Identity mappings are needed. Reservations not allowed.
+   * \retval  <0        Failure
+   */
+  int reserve(L4Re::Dma_space::Dma_addr start, L4Re::Dma_space::Dma_size size);
+
+  /**
+   * Place RAM into reserved region.
+   *
+   * Note that the call might return a different address if no IOMMU is
+   * available.
+   *
+   * \param         ds     Dataspace of the backing memory.
+   * \param         offset Offset of the start address within the dataspace.
+   * \param[in,out] start  Base address of mapping
+   * \param[in,out] size   Size of the mapping.
+   */
+  int place_ram(L4::Cap<L4Re::Dataspace> ds, L4Re::Dataspace::Offset offset,
+                L4Re::Dma_space::Dma_addr *start,
+                L4Re::Dma_space::Dma_size *size);
+
+  /**
    * Detect system information.
    *
    * \param vbus                 The vbus containing hardware devices.
