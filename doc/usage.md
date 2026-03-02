@@ -154,13 +154,6 @@ RAM>`
 
   Flag. True if provided.
 
-* `-i`, `--ram-identity-mapping`
-
-  When set, the option forces the guest RAM to be mapped to its corresponding
-  host-physical addresses.
-
-  Flag. True if provided.
-
 ## Setting up guest memory
 
 In the most simple setup, memory for the guest can be provided via a simple

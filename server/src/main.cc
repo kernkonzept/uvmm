@@ -196,7 +196,6 @@ int main(int argc, char *argv[])
   l4_addr_t rambase = Vmm::Guest::Default_rambase;
   bool use_wakeup_inhibitor = false;
   Vmm::Guest::Fault_mode fault_mode = Vmm::Guest::Fault_mode::Ignore;
-  bool force_ram_identity_mapping = false;
 
   int opt;
   while ((opt = getopt_long(argc, argv, options, loptions, NULL)) != -1)
@@ -215,8 +214,12 @@ int main(int argc, char *argv[])
           rambase = strtoul(optarg, nullptr, 0);
           break;
         case 'i':
-          force_ram_identity_mapping = true;
-          break;
+          Err().printf(
+            "The -i command-line option has been removed.\n"
+            "Try again without the option. If you have trouble booting the VM, check\n"
+            "that DMA capable devices in Io's System_bus configuration feature the\n"
+            "'Io.Hw_device_DF_dma_supported' flag.\n");
+          return 1;
         case 'q':
           // quiet actually means guest output only
           verbosity = Dbg::Quiet;
@@ -251,8 +254,7 @@ int main(int argc, char *argv[])
 
   Vmm::Cpu_dev::alloc_main_vcpu();
   vm_instance.create_default_devices();
-  vm_instance.ram()->as_mgr()->detect_sys_info(vm_instance.vbus().get(),
-                                               force_ram_identity_mapping);
+  vm_instance.ram()->as_mgr()->detect_sys_info(vm_instance.vbus().get());
 
   auto *vmm = vm_instance.vmm();
   auto *ram = vm_instance.ram().get();

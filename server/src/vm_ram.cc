@@ -305,13 +305,11 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
       Err().printf("Physmap property in device tree memory nodes is deprecated.\n"
                    "Remove the property from the memory node and check that "
                    "DMA capable devices in \nIo's System_bus configuration "
-                   "feature the 'Io.Hw_device_DF_dma_supported' flag. \n"
-                   "If you still need a physmap alike mode, use the '-i' flag "
-                   "on the command line.\n");
+                   "feature the 'Io.Hw_device_DF_dma_supported' flag. \n");
       L4Re::throw_error(-L4_EINVAL, "DT property 'l4vmm,physmap' deprecated.");
     }
 
-  if (as_mgr()->is_any_identity_mode())
+  if (as_mgr()->is_identity_mode())
     {
       if (add_memory_region(ds, Vmm::Guest_addr(0UL), 0, remain, memmap) >= 0)
         remain = 0; // we are done

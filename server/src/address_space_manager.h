@@ -21,7 +21,7 @@ namespace Vmm {
 class Address_space_manager : public Vdev::Device
 {
   /// Operating modes
-  enum class Mode { No_dma, Identity, Iommu, Dma_offset, Iommu_identity };
+  enum class Mode { No_dma, Identity, Iommu, Dma_offset };
 
   /// Information collected to base the operating mode decision on.
   struct Info
@@ -31,9 +31,8 @@ class Address_space_manager : public Vdev::Device
     CXX_BITFIELD_MEMBER(0, 0, vbus_present, raw);
     CXX_BITFIELD_MEMBER(1, 1, vbus_has_dma_devs, raw);
     CXX_BITFIELD_MEMBER(2, 2, io_mmu, raw);
-    CXX_BITFIELD_MEMBER(3, 3, force_identity, raw);
-    CXX_BITFIELD_MEMBER(4, 4, dma_phys_addr, raw);
-    CXX_BITFIELD_MEMBER(5, 5, dt_dma_ranges, raw);
+    CXX_BITFIELD_MEMBER(3, 3, dma_phys_addr, raw);
+    CXX_BITFIELD_MEMBER(4, 4, dt_dma_ranges, raw);
 
     void dump() const
     {
@@ -41,12 +40,10 @@ class Address_space_manager : public Vdev::Device
                     "\tvBus:            %i\n"
                     "\tDMA devs:        %i\n"
                     "\tIO-MMU:          %i\n"
-                    "\tIdentity forced: %i\n"
                     "\tDMA phys addr:   %i\n"
                     "\tDT dma-ranges:   %i\n",
                     vbus_present().get(), vbus_has_dma_devs().get(),
                     io_mmu().get(),
-                    force_identity().get(),
                     dma_phys_addr().get(), dt_dma_ranges().get());
     }
   };
@@ -80,9 +77,6 @@ public:
    * \param[out] size       size of the corrsponding DMA-capable region.
    *
    * \return Error value of `dma_map()` operation.
-   *
-   * If identity mode was forced and an IO-MMU was detected, the KDMA space for
-   * the IO-MMU is set up as well.
    */
   int get_dma_mapping(L4::Cap<L4Re::Dataspace> ds, l4_addr_t offset,
                        L4Re::Dma_space::Dma_addr *dma_start,
@@ -94,11 +88,6 @@ public:
   bool is_identity_mode() const { return _mode == Mode::Identity; }
   /// Is the operating mode `Dma_offset`?
   bool is_dma_offset_mode() const { return _mode == Mode::Dma_offset; }
-  /// Is the operating mode `Iommu_identity`?
-  bool is_iommu_identity_mode() const { return _mode == Mode::Iommu_identity; }
-  /// Is the operating mode any of the indentity modes?
-  bool is_any_identity_mode() const
-  { return is_identity_mode() || is_iommu_identity_mode(); }
 
   /// Return the string representation of the current operating mode.
   char const *mode() const
@@ -108,9 +97,8 @@ public:
    * Detect system information.
    *
    * \param vbus                 The vbus containing hardware devices.
-   * \param force_identity_mode  true, if we must operate in identity mode.
    */
-  void detect_sys_info(Virt_bus *vbus, bool force_identity_mode);
+  void detect_sys_info(Virt_bus *vbus);
 
   /// True: the devie tree memory node has a 'dma-ranges' property.
   void info_add_dma_ranges() { _info.dt_dma_ranges() = 1; }
@@ -152,7 +140,6 @@ private:
       case Mode::Identity: return "Identity";
       case Mode::Iommu: return "IO-MMU";
       case Mode::Dma_offset: return "DMA-offset";
-      case Mode::Iommu_identity: return "IO-MMU+identity";
       default: return "Invalid mode value";
       }
   }

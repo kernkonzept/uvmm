@@ -104,7 +104,7 @@ private:
 
     sz -= offset;
 
-    if (as_mgr->is_any_identity_mode())
+    if (as_mgr->is_identity_mode())
       {
         auto phys = get_phys_mapping(as_mgr, mgr->dataspace().get(),
                                      mgr->offset() + offset,
@@ -168,7 +168,7 @@ private:
             auto handler = Vdev::make_device<Ds_handler>(mgr, L4_FPAGE_RW, offs);
             devs->vmm()->register_mmio_device(handler, Vmm::Region_type::Virtual, node, index);
 
-            if (dma_ranges && as_mgr->is_any_identity_mode())
+            if (dma_ranges && as_mgr->is_identity_mode())
               {
                 auto phys = get_phys_mapping(as_mgr, mgr->dataspace().get(),
                                              mgr->offset() + offs,

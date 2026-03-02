@@ -25,7 +25,7 @@ Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr)
 
   _vm_start = vm_base;
 
-  if (as_mgr->is_any_identity_mode())
+  if (as_mgr->is_identity_mode())
     {
       l4_size_t phys_size = size();
       L4Re::Dma_space::Dma_addr phys_ram = 0;
@@ -40,9 +40,6 @@ Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr)
         }
 
       _vm_start = Vmm::Guest_addr(phys_ram);
-
-      if (as_mgr->is_iommu_identity_mode())
-        as_mgr->add_ram_iommu(_vm_start, local_start(), size());
 
       _phys_ram = phys_ram;
       _phys_size = phys_size;

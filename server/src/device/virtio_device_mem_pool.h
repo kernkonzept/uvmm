@@ -219,8 +219,7 @@ public:
     _devs->vmm()->add_mmio_device(*r,
                                   Vdev::make_device<Ds_handler>(ds_mgr));
 
-    if (_devs->ram()->as_mgr()->is_iommu_mode() ||
-        _devs->ram()->as_mgr()->is_iommu_identity_mode())
+    if (_devs->ram()->as_mgr()->is_iommu_mode())
       _devs->ram()->as_mgr()->add_ram_iommu(r->start,
                                             ds_mgr->local_addr<l4_addr_t>(),
                                             sz);

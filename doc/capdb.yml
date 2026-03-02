@@ -140,12 +140,6 @@ cmds:
       When set, the uvmm resumes when the host system resumes after a
       suspend call.
     type: flag
-  - name: 'ram-identity-mapping'
-    short: 'i'
-    desc: |
-      When set, the option forces the guest RAM to be mapped to its
-      corresponding host-physical addresses.
-    type: flag
 text-after-cmds: |
   ## Setting up guest memory
 

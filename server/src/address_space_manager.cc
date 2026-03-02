@@ -77,25 +77,8 @@ void Address_space_manager::del_ram_iommu(Guest_addr dest, l4_size_t size)
     }
 }
 
-void Address_space_manager::detect_sys_info(Virt_bus *vbus,
-                                            bool force_identity_mode)
+void Address_space_manager::detect_sys_info(Virt_bus *vbus)
 {
-#ifndef CONFIG_MMU
-  info().printf("No-MMU platform. Forcing identity mapping mode.\n");
-  force_identity_mode = true;
-#endif
-  _info.force_identity() = force_identity_mode;
-  if (force_identity_mode)
-    {
-      auto dma_space =
-        L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dma_space>(),
-                     "Allocate DMA space capability");
-      L4Re::chksys(L4Re::Env::env()->user_factory()->create(dma_space.get()),
-                   "Create DMA space.");
-
-      _dma_space = std::move(dma_space);
-    }
-
   if (!vbus->available())
     return;
 
@@ -162,14 +145,6 @@ void Address_space_manager::mode_selection()
 
   _info.dump();
   _mode_selected = true;
-
-  if (_info.force_identity())
-    {
-      _mode = _info.io_mmu() ? Mode::Iommu_identity : Mode::Identity;
-      info().printf("Operating mode: %s (Identity forced)\n",
-                    mode_to_str(_mode));
-      return;
-    }
 
   if (!_info.vbus_present())
     {
