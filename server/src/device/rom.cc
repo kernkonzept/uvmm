@@ -57,8 +57,10 @@ struct F : Vdev::Factory
         return nullptr;
       }
 
-    devs->ram()->add_memory_region(dscap, Vmm::Guest_addr(base), 0, size,
-                                   devs->vmm()->memmap(), L4Re::Rm::F::RX);
+    L4Re::chksys(devs->ram()->add_memory_region(dscap, Vmm::Guest_addr(base),
+                                                0, size, devs->vmm()->memmap(),
+                                                nullptr, L4Re::Rm::F::RX),
+                 "Cannot map ROM into guest address space");
 
     return Vdev::make_device<Rom>();
   }

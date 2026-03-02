@@ -153,23 +153,29 @@ Vmm::Ram_free_list::load_file_to_back(Vm_ram *ram, char const *name,
   return L4_EOK;
 }
 
-l4_size_t
+int
 Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, Vmm::Guest_addr baseaddr,
                                l4_addr_t ds_offset, l4_size_t size, Vm_mem *memmap,
+                               cxx::Ref_ptr<Vmm::Ram_ds> *res,
                                L4Re::Rm::Region_flags flags)
 {
   cxx::Ref_ptr<Ram_ds> r = cxx::make_ref_obj<Ram_ds>(ds, size, ds_offset, flags);
 
-  if (!r || r->setup(baseaddr, as_mgr()) < 0)
-    return -1;
+  if (!r)
+    return -L4_ENOMEM;
+
+  if (int err = r->setup(baseaddr, as_mgr()); err < 0)
+    return err;
 
   auto dsdev = Vdev::make_device<Ds_handler>(r, L4_FPAGE_RWX);
   memmap->add_mmio_device(Region::ss(r->vm_start(), r->size(), Region_type::Ram),
                           std::move(dsdev));
 
-  _regions.push_back(std::move(r));
+  _regions.push_back(r);
 
-  return _regions.size() - 1;
+  if (res)
+    *res = std::move(r);
+  return L4_EOK;
 }
 
 
@@ -307,10 +313,7 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
 
   if (as_mgr()->is_any_identity_mode())
     {
-      l4_size_t ridx =
-        add_memory_region(ds, Vmm::Guest_addr(0UL), 0, remain, memmap);
-
-      if (ridx != -1U)
+      if (add_memory_region(ds, Vmm::Guest_addr(0UL), 0, remain, memmap) >= 0)
         remain = 0; // we are done
       else
         {
@@ -361,15 +364,15 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
         L4Re::chksys(-L4_EINVAL,
                      "Start address must be rounded to page size for DT memory nodes");
 
-      l4_size_t ridx = add_memory_region(ds, Vmm::Guest_addr(reg_addr), offset,
-                                         map_size, memmap);
-      if (ridx == -1U)
-        L4Re::chksys(-L4_ENOMEM, "Setting up RAM region via DT memory nodes.");
+      cxx::Ref_ptr<Ram_ds> r;
+      L4Re::chksys(add_memory_region(ds, Vmm::Guest_addr(reg_addr), offset,
+                                     map_size, memmap, &r),
+                   "Setting up RAM region via DT memory nodes.");
 
       remain -= map_size;
       offset += map_size;
 
-      if (!_regions[ridx]->has_phys_addr())
+      if (!r->has_phys_addr())
         add_dma_ranges = false;
     }
 
@@ -399,14 +402,12 @@ Vmm::Vm_ram::setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,
 {
   auto ds = L4Re::chkcap(L4Re::Env::env()->get_cap<L4Re::Dataspace>("ram"),
                          "Grabbing default \"ram\" capability", -L4_ENOENT);
-  l4_size_t ridx = add_memory_region(ds, baseaddr, 0, ds->size(), memmap);
-
-  if (ridx == -1U)
-    L4Re::chksys(-L4_ENOMEM, "Setting up default RAM region.");
+  cxx::Ref_ptr<Ram_ds> r;
+  L4Re::chksys(add_memory_region(ds, baseaddr, 0, ds->size(), memmap, &r),
+               "Setting up default RAM region.");
 
   if (dt.valid())
     {
-      auto const &r = _regions[ridx];
       // "memory@" + 64bit hex address + '\0'
       char buf[7 + 16 + 1];
       std::snprintf(buf, sizeof(buf), "memory@%lx", r->vm_start().get());

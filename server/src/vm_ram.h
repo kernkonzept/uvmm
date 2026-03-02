@@ -190,14 +190,18 @@ public:
    * \param ds_offset Offset into the dataspace where to start mapping.
    * \param size      Size of the area to map.
    * \param memap     Guest memory map where to register the new region.
+   * \param res[out]  Pointer to created Ram_ds object (optional).
    * \param flags     Access rights for the memory region.
    *
-   * \return Index into _regions of the newly added region.
+   * \retval 0  Success
+   * \retval <0 Error
    */
-  l4_size_t add_memory_region(L4::Cap<L4Re::Dataspace> ds,
-                              Vmm::Guest_addr baseaddr, l4_addr_t ds_offset,
-                              l4_size_t size, Vm_mem *memmap,
-                              L4Re::Rm::Region_flags flags = L4Re::Rm::F::RWX);
+  int
+  add_memory_region(L4::Cap<L4Re::Dataspace> ds,
+                    Vmm::Guest_addr baseaddr, l4_addr_t ds_offset,
+                    l4_size_t size, Vm_mem *memmap,
+                    cxx::Ref_ptr<Ram_ds> *res = nullptr,
+                    L4Re::Rm::Region_flags flags = L4Re::Rm::F::RWX);
 
 private:
   cxx::Ref_ptr<Ram_ds> find_region(Vmm::Guest_addr addr, l4_size_t size) const
