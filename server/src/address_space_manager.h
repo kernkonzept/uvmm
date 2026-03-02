@@ -29,9 +29,12 @@ public:
    * \param         offset    Offset of the start address within the dataspace.
    * \param[in,out] dma_start corresponding DMA-capable address
    * \param         size      size of the corresponding DMA-capable region.
+   * \param         dma_max   Highest guest physical address of the mapping.
    */
   int add_ram(L4::Cap<L4Re::Dataspace> ds, L4Re::Dataspace::Offset offset,
-              L4Re::Dma_space::Dma_addr *dma_start, l4_size_t size);
+              L4Re::Dma_space::Dma_addr *dma_start,
+              L4Re::Dma_space::Dma_size *size,
+              L4Re::Dma_space::Dma_addr dma_max);
 
   /**
    * Delete a piece of RAM from the manager and the IO-MMU.

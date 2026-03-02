@@ -14,20 +14,14 @@ namespace Vmm {
 int Address_space_manager::add_ram(L4::Cap<L4Re::Dataspace>  ds,
                                    L4Re::Dataspace::Offset   offset,
                                    L4Re::Dma_space::Dma_addr *dma_start,
-                                   l4_size_t                 size)
+                                   L4Re::Dma_space::Dma_size *size,
+                                   L4Re::Dma_space::Dma_addr dma_max)
 {
   if (_dma_space)
-    {
-      L4Re::Dma_space::Dma_size dma_size = size;
-      int err = _dma_space->map(L4::Ipc::make_cap(ds, L4_CAP_FPAGE_RW),
-                                offset, &dma_size, dma_start, -1,
-                                L4Re::Dma_space::Attributes::None);
-      if (err < 0 || dma_size < size)
-        {
-          warn().printf("Dataspace not contiguous.\n");
-          return err < 0 ? err : -L4_ENOMEM;
-        }
-    }
+    return _dma_space->map(L4::Ipc::make_cap(ds, L4_CAP_FPAGE_RW),
+                           offset, size, dma_start, dma_max,
+                           L4Re::Dma_space::Search_addr
+                           | L4Re::Dma_space::Partial_map);
 #ifndef CONFIG_MMU
   l4_addr_t ds_start;
   l4_addr_t ds_end;

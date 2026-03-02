@@ -19,8 +19,8 @@ static Dbg trace(Dbg::Mmio, Dbg::Trace, "ram");
 namespace Vmm {
 
 int
-Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr,
-              Dma_mode dma_mode)
+Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Guest_addr vm_limit,
+              Vmm::Address_space_manager *as_mgr, Dma_mode dma_mode)
 {
   Dbg info(Dbg::Mmio, Dbg::Info, "ram");
 
@@ -29,10 +29,16 @@ Ram_ds::setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr,
 
   if (dma_mode == Dma_mode::Congruent || dma_mode == Dma_mode::Incongruent)
     {
+      L4Re::Dma_space::Dma_size phys_size = size();
       int err = as_mgr->add_ram(dataspace().get(), ds_offset(), &_dma_start,
-                                size());
+                                &phys_size, vm_limit.get());
       if (err < 0)
         return err;
+
+      // If reserved DMA regions are encountered, we might not be able to map
+      // the whole size. The Vm_ram setup code will try again with the
+      // remainder.
+      set_size(phys_size);
     }
 
   if (dma_mode == Dma_mode::Congruent)

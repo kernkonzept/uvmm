@@ -187,6 +187,7 @@ public:
    *
    * \param ds        Dataspace containing the RAM.
    * \param baseaddr  Guest physical start address of the dataspce.
+   * \param max_addr  Highest guest physical address of the mapping (inclusive).
    * \param ds_offset Offset into the dataspace where to start mapping.
    * \param size      Size of the area to map.
    * \param memap     Guest memory map where to register the new region.
@@ -199,7 +200,9 @@ public:
    */
   int
   add_memory_region(L4::Cap<L4Re::Dataspace> ds,
-                    Vmm::Guest_addr baseaddr, l4_addr_t ds_offset,
+                    Vmm::Guest_addr baseaddr,
+                    Vmm::Guest_addr max_addr,
+                    l4_addr_t ds_offset,
                     l4_size_t size, Vm_mem *memmap,
                     Ram_ds::Dma_mode dma_mode,
                     cxx::Ref_ptr<Ram_ds> *res = nullptr,

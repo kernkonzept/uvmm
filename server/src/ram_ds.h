@@ -60,14 +60,16 @@ public:
   /**
    * Set up the memory for DMA and host access.
    *
-   * \param vm_base  Guest physical address where the RAM should be mapped.
+   * \param vm_base   Guest physical address where the RAM should be mapped.
+   * \param vm_limit  Highes guest physical address of the mapping.
    * \param as_mgr    DMA manager to register the RAM with.
    * \param dma_mode  The DMA access mode of the RAM.
    *
    * The actually used `vm_base` address might change, depending on the
    * necessity of DMA and the presence of an IO-MMU.
    */
-  int setup(Vmm::Guest_addr vm_base, Vmm::Address_space_manager *as_mgr,
+  int setup(Vmm::Guest_addr vm_base, Vmm::Guest_addr vm_limit,
+            Vmm::Address_space_manager *as_mgr,
             Dma_mode dma_mode);
 
   /**

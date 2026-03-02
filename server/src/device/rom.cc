@@ -58,6 +58,7 @@ struct F : Vdev::Factory
       }
 
     L4Re::chksys(devs->ram()->add_memory_region(dscap, Vmm::Guest_addr(base),
+                                                Vmm::Guest_addr(base) + size - 1,
                                                 0, size, devs->vmm()->memmap(),
                                                 Vmm::Ram_ds::Dma_mode::None,
                                                 nullptr, L4Re::Rm::F::RX),

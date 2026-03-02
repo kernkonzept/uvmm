@@ -154,7 +154,9 @@ Vmm::Ram_free_list::load_file_to_back(Vm_ram *ram, char const *name,
 }
 
 int
-Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, Vmm::Guest_addr baseaddr,
+Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds,
+                               Vmm::Guest_addr baseaddr,
+                               Vmm::Guest_addr max_addr,
                                l4_addr_t ds_offset, l4_size_t size, Vm_mem *memmap,
                                Vmm::Ram_ds::Dma_mode dma_mode,
                                cxx::Ref_ptr<Vmm::Ram_ds> *res,
@@ -165,7 +167,7 @@ Vmm::Vm_ram::add_memory_region(L4::Cap<L4Re::Dataspace> ds, Vmm::Guest_addr base
   if (!r)
     return -L4_ENOMEM;
 
-  if (int err = r->setup(baseaddr, as_mgr(), dma_mode); err < 0)
+  if (int err = r->setup(baseaddr, max_addr, as_mgr(), dma_mode); err < 0)
     return err;
 
   auto dsdev = Vdev::make_device<Ds_handler>(r, L4_FPAGE_RWX);
@@ -303,7 +305,7 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
 
   while (remain > 0)
     {
-      l4_uint64_t reg_addr, reg_size;
+      l4_uint64_t reg_addr, reg_size, reg_max;
       int ret = node.get_reg_val(reg_idx++, &reg_addr, &reg_size);
 
       if (ret == -Vdev::Dt_node::ERR_BAD_INDEX)
@@ -325,11 +327,16 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
       // If the size 0 was specified it means the user wants to use the
       // remaining available space.
       if (reg_size == 0)
-        reg_size = remain;
+        {
+          reg_size = remain;
+          reg_max = -1;
+        }
+      else
+        reg_max = reg_addr + reg_size - 1;
 
       // Try to fill DT region. This might not work entirely because there can
       // be reserved DMA regions in the range.
-      do
+      while (remain > 0 && reg_size > 0 && reg_addr <= reg_max)
         {
           trace.printf("Adding region @0x%llx (size = 0x%llx remaining = 0x%llx)\n",
                        reg_addr, reg_size, remain);
@@ -347,9 +354,16 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
           cxx::Ref_ptr<Ram_ds> r;
           auto mode = add_dma_ranges ? Ram_ds::Dma_mode::Incongruent
                                      : Ram_ds::Dma_mode::Congruent;
-          L4Re::chksys(add_memory_region(ds, Vmm::Guest_addr(reg_addr), offset,
-                                         map_size, memmap, mode, &r),
-                       "Setting up RAM region via DT memory nodes.");
+          if (int err = add_memory_region(ds, Vmm::Guest_addr(reg_addr),
+                                          Vmm::Guest_addr(reg_max), offset,
+                                          map_size, memmap, mode, &r); err < 0)
+            {
+              // If there is no usable space left at all between `reg_addr` and
+              // `reg_max`, move to the next reg entry (if any).
+              if (err == -L4_EADDRNOTAVAIL)
+                break;
+              L4Re::chksys(err, "Setting up RAM region via DT memory nodes.");
+            }
 
           remain -= r->size();
           offset += r->size();
@@ -358,7 +372,6 @@ Vmm::Vm_ram::add_from_dt_node(Vm_mem *memmap, bool *found,
           reg_addr += skip;
           reg_size -= skip;
         }
-      while (remain > 0 && reg_size > 0);
     }
 
   if (first_region == _regions.size())
@@ -385,7 +398,8 @@ Vmm::Vm_ram::setup_default_region(Vdev::Host_dt const &dt, Vm_mem *memmap,
   auto ds = L4Re::chkcap(L4Re::Env::env()->get_cap<L4Re::Dataspace>("ram"),
                          "Grabbing default \"ram\" capability", -L4_ENOENT);
   cxx::Ref_ptr<Ram_ds> r;
-  L4Re::chksys(add_memory_region(ds, baseaddr, 0, ds->size(), memmap,
+  L4Re::chksys(add_memory_region(ds, baseaddr, Vmm::Guest_addr(-1), 0,
+                                 ds->size(), memmap,
                                  Ram_ds::Dma_mode::Congruent, &r),
                "Setting up default RAM region.");
 
