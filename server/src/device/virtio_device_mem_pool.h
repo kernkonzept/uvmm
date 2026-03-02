@@ -86,25 +86,18 @@ public:
   Const_iterator end() const
   { return _map.end(); }
 
-  Vmm::Region const *add_region(l4_size_t size, T const &data,
-                                unsigned char align = L4_PAGESHIFT)
+  Iterator add_region(l4_size_t size, T const &data,
+                      unsigned char align = L4_PAGESHIFT)
   {
     auto addr = find_free(size, align);
     if (addr != L4_INVALID_ADDR)
       {
         const auto &[it, inserted] =_map.insert({region(addr, size), data});
         if (inserted)
-          return &it->first;
+          return it;
       }
 
-    return nullptr;
-  }
-
-  void del_region(Vmm::Region const &region)
-  {
-    auto it = _map.find(region);
-    if (it != _map.end())
-      del_region(it);
+    return end();
   }
 
   void del_region(Iterator it)
@@ -206,7 +199,8 @@ public:
 
   Vmm::Region const *register_ds(L4::Cap<L4Re::Dataspace> const &ds,
                                  l4_uint64_t ds_base, l4_umword_t offset,
-                                 l4_umword_t sz)
+                                 l4_umword_t sz,
+                                 L4Re::Dma_space::Dma_addr *dma_start)
   {
     Ds_item mr(ds, ds_base, offset, sz);
 
@@ -216,36 +210,43 @@ public:
     if (it != _region_map.end())
       {
         it->second.take_ref();
+        *dma_start = it->second.dma_phys();
         return &it->first;
       }
 
     // Not found, find/add new one.
-    Vmm::Region const *r = _region_map.add_region(sz, mr);
-    if (!r)
-      return r;
+    it = _region_map.add_region(sz, mr);
+    if (it == _region_map.end())
+      return nullptr;
+
+    auto r = &it->first;
 
     info.printf("Add region: 0x%lx:0x%lx\n", r->start.get(), sz);
 
-    L4Re::Dma_space::Dma_addr dma_start = r->start.get();
+    *dma_start = r->start.get();
     L4Re::Dma_space::Dma_size dma_size = sz;
     auto ds_mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Virtio_mem_pool", ds,
                                                      offset, sz);
 
-    int err = _devs->ram()->as_mgr()->place_ram(ds, offset, &dma_start, &dma_size);
+    int err = _devs->ram()->as_mgr()->place_ram(ds, offset, dma_start, &dma_size);
     if (err < 0)
       {
         warn.printf("Could not map foreign RAM: %d\n", err);
-        _region_map.del_region(*r);
+        _region_map.del_region(it);
         return nullptr;
       }
 
-    if (dma_start != r->start.get() || dma_size != sz)
+    if (dma_size != sz)
       {
-        warn.printf("No IOMMU! DMA address differs from region address.\n");
-        _devs->ram()->as_mgr()->del_ram(Vmm::Guest_addr(dma_start), sz);
-        _region_map.del_region(*r);
+        warn.printf("Could not map whole foreign RAM. (0x%llx < 0x%lx)\n",
+                    dma_size, sz);
+        _devs->ram()->as_mgr()->del_ram(Vmm::Guest_addr(*dma_start), dma_size);
+        _region_map.del_region(it);
         return nullptr;
       }
+
+    // Store the dma_phys addr, so we can returned it on later calls as well
+    it->second.set_dma_phys(*dma_start);
 
     _devs->vmm()->add_mmio_device(*r,
                                   Vdev::make_device<Ds_handler>(ds_mgr));
@@ -253,16 +254,16 @@ public:
     return r;
   }
 
-  void drop_region(l4_uint64_t phys, l4_uint64_t size)
+  void drop_region(l4_uint64_t cpu_phys, l4_uint64_t dma_phys, l4_uint64_t size)
   {
-    auto const region = Vmm::Region::ss(Vmm::Guest_addr(phys),
+    auto const region = Vmm::Region::ss(Vmm::Guest_addr(cpu_phys),
                                         size, Vmm::Region_type::Virtual);
     // If this is the last user of the region, remove it.
     auto it = _region_map.find(region);
     if (it != _region_map.end() && !it->second.drop_ref())
       {
         // Remove iommu entry if necessary
-        _devs->ram()->as_mgr()->del_ram(region.start, region.size());
+        _devs->ram()->as_mgr()->del_ram(Vmm::Guest_addr(dma_phys), region.size());
         // Delete vmm mmio device + mappings
         _devs->vmm()->del_mmio_device(region);
         // Remove the region from our virtual region map
@@ -287,6 +288,7 @@ private:
       _sz(sz)
     {}
 
+
     friend bool operator == (Ds_item const &l, Ds_item const &r) noexcept
     {
       return l._ds_base == r._ds_base && l._offset == r._offset
@@ -300,10 +302,17 @@ private:
     bool drop_ref()
     { return !!--_ref; }
 
+    void set_dma_phys(l4_uint64_t dma_phys)
+    { _dma_phys = dma_phys; }
+
+    l4_uint64_t dma_phys() const
+    { return _dma_phys; }
+
   private:
     l4_uint64_t _ref;
     L4::Cap<L4Re::Dataspace> _ds;
     l4_uint64_t _ds_base;
+    l4_uint64_t _dma_phys = 0;
     l4_umword_t _offset;
     l4_umword_t _sz;
   };

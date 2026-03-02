@@ -87,9 +87,10 @@ class Virtio_device_proxy
       l4_uint32_t num;
       struct
       {
-        l4_uint64_t phys;
-        l4_uint64_t size;
-        l4_uint64_t base;
+        l4_uint64_t cpu_phys;   // guest-physical address for CPU access
+        l4_uint64_t dma_phys;   // guest-physical address for DMA access
+        l4_uint64_t size;       // size of region
+        l4_uint64_t base;       // guest-physical address of DS in driver VM
       } region[Max_mem_regions];
     };
 
@@ -118,7 +119,8 @@ class Virtio_device_proxy
     Region_config_t const *get() const
     { return ds_mgr->local_addr<Region_config_t*>(); }
 
-    int add_region(Vmm::Region const *region, l4_uint64_t base)
+    int add_region(Vmm::Region const *region, l4_uint64_t dma_phys,
+                   l4_uint64_t base)
     {
       if (!region)
         return -L4_EINVAL;
@@ -127,7 +129,8 @@ class Virtio_device_proxy
       if (config->num >= Max_mem_regions)
         return -L4_EINVAL;
 
-      config->region[config->num].phys = region->start.get();
+      config->region[config->num].cpu_phys = region->start.get();
+      config->region[config->num].dma_phys = dma_phys;
       config->region[config->num].size = region->size();
       config->region[config->num].base = base;
       ++(config->num);
@@ -138,13 +141,15 @@ class Virtio_device_proxy
     l4_uint32_t count() const
     { return get()->num; }
 
-    int region(l4_uint32_t i, l4_uint64_t *phys, l4_uint64_t *size) const
+    int region(l4_uint32_t i, l4_uint64_t *cpu_phys, l4_uint64_t *dma_phys,
+               l4_uint64_t *size) const
     {
       auto c = get();
       if (i >= c->num)
         return -L4_ERANGE;
 
-      *phys = c->region[i].phys;
+      *cpu_phys = c->region[i].cpu_phys;
+      *dma_phys = c->region[i].dma_phys;
       *size = c->region[i].size;
 
       return L4_EOK;
@@ -220,9 +225,9 @@ public:
     _vmm->registry()->unregister_obj(this, false);
     for (l4_uint32_t i = 0; i < _l4cfg.count(); ++i)
       {
-        l4_uint64_t phys, size;
-        if (!_l4cfg.region(i, &phys, &size))
-          _mempool->drop_region(phys, size);
+        l4_uint64_t cpu_phys, dma_phys, size;
+        if (!_l4cfg.region(i, &cpu_phys, &dma_phys, &size))
+          _mempool->drop_region(cpu_phys, dma_phys, size);
       }
   }
 
@@ -343,11 +348,12 @@ public:
     if (err < 0)
       return err;
 
-    auto *region = _mempool->register_ds(ds, ds_base, offset, sz);
+    l4_uint64_t dma_phys;
+    auto *region = _mempool->register_ds(ds, ds_base, offset, sz, &dma_phys);
     if (!region)
       return -L4_ERANGE;
 
-    return _l4cfg.add_region(region, ds_base);
+    return _l4cfg.add_region(region, dma_phys, ds_base);
   }
 
   long op_set_status(L4virtio::Device::Rights, unsigned)
