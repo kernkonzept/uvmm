@@ -190,7 +190,19 @@ public:
                          l4_uint64_t phys, l4_uint64_t size)
   : _devs(devs),
     _region_map(phys, size)
-  {}
+  {
+    // Reserve guest-physical memory range. This might not work if we have DMA
+    // capable devices without an IOMMU on our Vbus. That is fine, though,
+    // because collisions with other mappings are inherently impossible then.
+    l4_ret_t err = devs->ram()->as_mgr()->reserve(phys, size);
+    if (err < 0)
+      {
+        if (err == -L4_EPERM)
+          info.printf("Cannot reserve aperture. Running in physical DMA address space.\n");
+        else
+          L4Re::chksys(err, "Reserve viodev-mp guest address region");
+      }
+  }
 
   Vmm::Region const *register_ds(L4::Cap<L4Re::Dataspace> const &ds,
                                  l4_uint64_t ds_base, l4_umword_t offset,
@@ -215,10 +227,11 @@ public:
     info.printf("Add region: 0x%lx:0x%lx\n", r->start.get(), sz);
 
     L4Re::Dma_space::Dma_addr dma_start = r->start.get();
+    L4Re::Dma_space::Dma_size dma_size = sz;
     auto ds_mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Virtio_mem_pool", ds,
                                                      offset, sz);
 
-    int err = _devs->ram()->as_mgr()->add_ram(ds, offset, &dma_start, sz);
+    int err = _devs->ram()->as_mgr()->place_ram(ds, offset, &dma_start, &dma_size);
     if (err < 0)
       {
         warn.printf("Could not map foreign RAM: %d\n", err);
@@ -226,7 +239,7 @@ public:
         return nullptr;
       }
 
-    if (dma_start != r->start.get())
+    if (dma_start != r->start.get() || dma_size != sz)
       {
         warn.printf("No IOMMU! DMA address differs from region address.\n");
         _devs->ram()->as_mgr()->del_ram(Vmm::Guest_addr(dma_start), sz);
