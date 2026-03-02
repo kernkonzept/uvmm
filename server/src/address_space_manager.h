@@ -50,39 +50,6 @@ class Address_space_manager : public Vdev::Device
 
 public:
   /**
-   * Register a piece of RAM with the manager for use with an IO-MMU.
-   *
-   * \param vm_start  Start of the RAM region in VM memory.
-   * \param start     Start of the local mapping of the RAM region.
-   * \param size      Size of the RAM region.
-   */
-  void add_ram_iommu(Guest_addr vm_start, l4_addr_t start, l4_size_t size);
-
-  /**
-   * Delete a piece of RAM from the manager and the IO-MMU.
-   *
-   * \param dest      Start of the RAM region in VM memory.
-   * \param size      Size of the RAM region.
-   */
-  void del_ram_iommu(Guest_addr dest, l4_size_t size);
-
-  /**
-   * Register a piece of RAM for DMA-mapping and get the DMA-capable
-   * address and size.
-   *
-   * \param start           Start of the local mapping of the RAM region.
-   * \param ds              Dataspace of the backing memory.
-   * \param offset          Offset of the start address within the dataspace.
-   * \param[out] dma_start  corresponding DMA-capabile address
-   * \param[out] size       size of the corrsponding DMA-capable region.
-   *
-   * \return Error value of `dma_map()` operation.
-   */
-  int get_dma_mapping(L4::Cap<L4Re::Dataspace> ds, l4_addr_t offset,
-                       L4Re::Dma_space::Dma_addr *dma_start,
-                       l4_size_t *size);
-
-  /**
    * Register a piece of RAM for DMA-mapping and get the DMA-capable
    * address and size.
    *

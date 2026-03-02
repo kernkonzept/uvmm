@@ -12,71 +12,6 @@
 
 namespace Vmm {
 
-int Address_space_manager::get_dma_mapping(L4::Cap<L4Re::Dataspace> ds,
-                                           l4_addr_t offset,
-                                           L4Re::Dma_space::Dma_addr *dma_start,
-                                           l4_size_t *size)
-{
-  assert(_dma_space);
-
-  int err = _dma_space->map(L4::Ipc::make_cap(ds, L4_CAP_FPAGE_RW), offset,
-                            size, L4Re::Dma_space::Attributes::None,
-                            L4Re::Dma_space::Bidirectional, dma_start);
-
-  return err;
-}
-
-void Address_space_manager::add_ram_iommu(Guest_addr vm_start, l4_addr_t src_start,
-                                          l4_size_t size)
-{
-  l4_addr_t src_end   = src_start + size;
-  l4_addr_t dst_start = vm_start.get();
-  l4_addr_t dst_end   = dst_start + size;
-
-  // Must be page aligned
-  assert(l4_trunc_page(src_start) == src_start);
-  assert(l4_trunc_page(dst_start) == dst_start);
-
-  warn().printf("Add RAM Iommu: [0x%lx, 0x%lx] -> [0x%lx, 0x%lx]\n", src_start,
-                src_end - 1, dst_start, dst_end - 1);
-
-  // map all pages of region into DMA space
-  while (src_start < src_end - 1)
-    {
-      // Make sure the order fits both send and receive address
-      unsigned char order = cxx::min(
-        L4::max_order(L4_LOG2_PAGESIZE, src_start, src_start, src_end),
-        L4::max_order(L4_LOG2_PAGESIZE, dst_start, dst_start, dst_end));
-      L4Re::chksys(_kdma_space->map(L4Re::This_task,
-                                    l4_fpage(src_start, order, L4_FPAGE_RW),
-                                    dst_start),
-                   "Map guest RAM into KDMA space");
-      src_start += 1UL << order;
-      dst_start += 1UL << order;
-    }
-}
-
-void Address_space_manager::del_ram_iommu(Guest_addr dest, l4_size_t size)
-{
-  l4_addr_t dst_start = dest.get();
-  l4_addr_t dst_end = dst_start + size - 1;
-  l4_addr_t offs = 0;
-
-  // Must be page aligned
-  assert(l4_trunc_page(dst_start) == dst_start);
-
-  warn().printf("Remove RAM Iommu: [0x%lx, 0x%lx]\n", dst_start, dst_end);
-
-  Vmm::Batch_unmapper b(_kdma_space.get(), 0);
-  while (offs < size)
-    {
-      auto doffs = dst_start + offs;
-      char ps = Vmm::get_page_shift(doffs, dst_start, dst_end, offs);
-      b.unmap(l4_fpage(doffs, ps, L4_FPAGE_RWX));
-      offs += static_cast<l4_addr_t>(1) << ps;
-    }
-}
-
 int Address_space_manager::add_ram(L4::Cap<L4Re::Dataspace>  ds,
                                    L4Re::Dataspace::Offset   offset,
                                    l4_addr_t                 local_start,
@@ -86,8 +21,11 @@ int Address_space_manager::add_ram(L4::Cap<L4Re::Dataspace>  ds,
 #ifdef CONFIG_MMU
   if (is_identity_mode() || is_dma_offset_mode())
     {
+      assert(_dma_space);
       l4_size_t phys_size = size;
-      int err = get_dma_mapping(ds, offset, dma_start, &phys_size);
+      int err = _dma_space->map(L4::Ipc::make_cap(ds, L4_CAP_FPAGE_RW), offset,
+                                &phys_size, L4Re::Dma_space::Attributes::None,
+                                L4Re::Dma_space::Bidirectional, dma_start);
       if (err < 0 || phys_size < size)
         {
           warn().printf(
@@ -96,7 +34,34 @@ int Address_space_manager::add_ram(L4::Cap<L4Re::Dataspace>  ds,
         }
     }
   else if (is_iommu_mode())
-    add_ram_iommu(Guest_addr(*dma_start), local_start, size);
+    {
+      l4_addr_t src_start = local_start;
+      l4_addr_t src_end   = src_start + size;
+      l4_addr_t dst_start = *dma_start;
+      l4_addr_t dst_end   = dst_start + size;
+
+      // Must be page aligned
+      assert(l4_trunc_page(src_start) == src_start);
+      assert(l4_trunc_page(dst_start) == dst_start);
+
+      warn().printf("Add RAM Iommu: [0x%lx, 0x%lx] -> [0x%lx, 0x%lx]\n", src_start,
+                    src_end - 1, dst_start, dst_end - 1);
+
+      // map all pages of region into DMA space
+      while (src_start < src_end - 1)
+        {
+          // Make sure the order fits both send and receive address
+          unsigned char order = cxx::min(
+            L4::max_order(L4_LOG2_PAGESIZE, src_start, src_start, src_end),
+            L4::max_order(L4_LOG2_PAGESIZE, dst_start, dst_start, dst_end));
+          L4Re::chksys(_kdma_space->map(L4Re::This_task,
+                                        l4_fpage(src_start, order, L4_FPAGE_RW),
+                                        dst_start),
+                       "Map guest RAM into KDMA space");
+          src_start += 1UL << order;
+          dst_start += 1UL << order;
+        }
+    }
 #else
   l4_addr_t ds_start;
   l4_addr_t ds_end;
@@ -118,7 +83,25 @@ int Address_space_manager::add_ram(L4::Cap<L4Re::Dataspace>  ds,
 void Address_space_manager::del_ram(Guest_addr dest, l4_size_t size)
 {
   if (is_iommu_mode())
-    del_ram_iommu(dest, size);
+    {
+      l4_addr_t dst_start = dest.get();
+      l4_addr_t dst_end = dst_start + size - 1;
+      l4_addr_t offs = 0;
+
+      // Must be page aligned
+      assert(l4_trunc_page(dst_start) == dst_start);
+
+      warn().printf("Remove RAM Iommu: [0x%lx, 0x%lx]\n", dst_start, dst_end);
+
+      Vmm::Batch_unmapper b(_kdma_space.get(), 0);
+      while (offs < size)
+        {
+          auto doffs = dst_start + offs;
+          char ps = Vmm::get_page_shift(doffs, dst_start, dst_end, offs);
+          b.unmap(l4_fpage(doffs, ps, L4_FPAGE_RWX));
+          offs += static_cast<l4_addr_t>(1) << ps;
+        }
+    }
 }
 
 void Address_space_manager::detect_sys_info(Virt_bus *vbus)
