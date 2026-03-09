@@ -110,7 +110,7 @@ public:
     // edk2/Ovmf/Library/QemuFwCfgS3Lib/QemuFwCfgS3PeiDxe.c
     // QemuFwCfgS3Enabled()
     // We only implement the bit needed for EFI to signal S3 support.
-    _system_states_file[3] = (1 << 7); // S3 supported
+    _system_states_file[3] = (1U << 7); // S3 supported
   }
 
   std::vector<char> const &rsdp() const
