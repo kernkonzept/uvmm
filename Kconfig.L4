@@ -206,6 +206,7 @@ config UVMM_VDEV_SBSA_GWDT
 	bool "SBSA Watchdog"
 	default y
 	depends on BUILD_ARCH_arm64
+	depends on HAVE_BIDPC_VWATCHDOG_HEADERS
 	help
 	  Emulate a SBSA watchdog for the guest.
 
