@@ -616,6 +616,9 @@ struct F : Vdev::Factory
   cxx::Ref_ptr<Vdev::Device> create(Vdev::Device_lookup *devs,
                                     Vdev::Dt_node const &node) override
   {
+    uint32_t erase_size = 4096U; // Default is 4KiB
+    uint32_t bank_width = 1U; // Default is one
+
     auto warn = Dbg(Dbg::Dev, Dbg::Warn, "CFI");
     l4_uint64_t base, size;
     int res = node.get_reg_val(0, &base, &size);
@@ -625,7 +628,11 @@ struct F : Vdev::Factory
         return nullptr;
       }
 
-    auto erase_size = fdt32_to_cpu(*node.check_prop<fdt32_t>("erase-size", 1));
+    int size_erase_size;
+    auto prop_erase_size = node.get_prop<fdt32_t>("erase-size", &size_erase_size);
+    if (prop_erase_size)
+      erase_size = fdt32_to_cpu(*prop_erase_size);
+
     if (erase_size & (erase_size - 1))
       {
         warn.printf("erase-size must be a power of two: %u\n", erase_size);
@@ -687,7 +694,11 @@ struct F : Vdev::Factory
         return nullptr;
       }
 
-    auto bank_width = fdt32_to_cpu(*node.check_prop<fdt32_t>("bank-width", 1));
+    int size_bank_width;
+    auto prop_bank_width = node.get_prop<fdt32_t>("bank-width", &size_bank_width);
+    if (prop_bank_width)
+      bank_width = fdt32_to_cpu(*prop_bank_width);
+
     if (bank_width & (bank_width - 1) || bank_width > sizeof(l4_umword_t))
       {
         warn.printf("Invalid bank-width value: %u\n", bank_width);
