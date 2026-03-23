@@ -25,6 +25,7 @@ SRC_CC          = main.cc ram_ds.cc generic_guest.cc \
 SRC_CC-$(CONFIG_RELEASE_MODE)y          += debug.cc
 SRC_CC-$(CONFIG_UVMM_MONITOR)           += monitor/monitor.cc
 SRC_CC_amd64-l4f-$(CONFIG_UVMM_MONITOR) += debugger/generic_guest_debugger.cc
+SRC_CC-$(CONFIG_UVMM_VDEV_MMIO_MOCK)    += device/mmio-mock-dev.cc
 
 SRC_CC_arm-common-$(CONFIG_UVMM_VDEV_GIC_V2) += arm/gic-v2.cc
 SRC_CC_arm-common-$(CONFIG_UVMM_VDEV_GIC_V3) += arm/gic-v3.cc

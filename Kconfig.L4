@@ -310,6 +310,13 @@ config UVMM_IRQ_DIRECT_INJECT
           support it. Uvmm will transparently fall back to regular, IPC based
           interrupt forwarding.
 
+config UVMM_VDEV_MMIO_MOCK
+	bool "Emulated device to mock an MMIO range."
+	default y
+	help
+	  Adds a MMIO mock device which stores writes and return them on read.
+
+
 menuconfig UVMM_VDEV_VIRTIO
 	bool "Virtio driver/device support"
 	default y
