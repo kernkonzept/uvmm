@@ -63,6 +63,7 @@ SRC_CC_arm-l4f-$(CONFIG_UVMM_VDEV_PSCI)   += device/arm/psci.cc
 SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_PSCI) += device/arm/psci.cc
 SRC_CC_arm-l4f-$(CONFIG_UVMM_VDEV_SMCCC_PROXY)   += device/arm/smccc_proxy.cc
 SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_SMCCC_PROXY) += device/arm/smccc_proxy.cc
+SRC_CC_arm64-l4f-$(CONFIG_UVMM_VDEV_IMX8MP) += device/arm/imx8mp-clk.cc
 
 SRC_CC-$(CONFIG_UVMM_VDEV_8250)  += device/uart_8250.cc
 SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_CONSOLE) += virtio_console.cc
