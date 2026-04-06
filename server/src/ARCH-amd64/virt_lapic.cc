@@ -29,7 +29,9 @@ Virt_lapic::Virt_lapic(unsigned id, cxx::Ref_ptr<Vmm::Cpu_dev> cpu)
   _x2apic_enabled(false),
   _nmi_pending(false),
   _cpu(cpu),
-  _registry(cpu->vcpu().get_ipc_registry())
+  _registry(cpu->vcpu().get_ipc_registry()),
+  _kvm_pv_eoi(nullptr),
+  _kvm_pv_eoi_irq(-1)
 {
   trace().printf("Virt_lapic ctor; ID 0x%x\n", id);
 
@@ -205,6 +207,8 @@ Virt_lapic::next_pending_irq()
       return irq;
     }
 
+  handle_pv_eoi();
+
   auto highest_irr = _regs.irr.get_highest_irq();
   if (highest_irr >= 0)
     {
@@ -213,8 +217,20 @@ Virt_lapic::next_pending_irq()
         {
           _regs.isr.set_irq(highest_irr);
           _regs.irr.clear_irq(highest_irr);
+
+          // KVM PV EOI: not for physical IRQ lines. For these the
+          // irq_src_handler must be invoked immediately, which needs the VMEXIT
+          if (highest_isr < 0 && get_irq_src_handler(highest_irr) == nullptr)
+            allow_pv_eoi(highest_irr);
+          else
+            deny_pv_eoi();
+
           return highest_irr;
         }
+      else
+        // KVM PV EOI: IRQ with lower priority is pending. This requires the
+        // VMEXIT on EOI to allow for immediate injection.
+        deny_pv_eoi();
     }
   return -1;
 }
@@ -227,7 +243,7 @@ Virt_lapic::is_irq_pending()
 }
 
 bool
-Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
+Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value)
 {
   switch (msr)
     {
@@ -266,8 +282,13 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value) const
     case 0x815:
     case 0x816:
     case Msr_ia32_x2apic_isr7:
-      *value = _regs.isr.get_reg(msr - 0x810);
-      break;
+      {
+        std::lock_guard<std::mutex> lock(_int_mutex);
+        // Handle paravirtualized EOI before returning ISR values
+        handle_pv_eoi();
+        *value = _regs.isr.get_reg(msr - 0x810);
+        break;
+      }
     case 0x818:
     case 0x819:
     case 0x81a:
@@ -364,6 +385,9 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
             if (hdlr)
               hdlr->eoi();
           }
+        // KVM PV EOI: guest decided to not use PV EOI path, ensure the
+        // VMM-side state is cleared.
+        deny_pv_eoi();
       }
       if (value != 0)
         {

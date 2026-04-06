@@ -104,10 +104,21 @@ public:
     _vmm(vmm)
   {}
 
-  bool read_msr(unsigned, l4_uint64_t *, unsigned) const override
+  bool read_msr(unsigned msr, l4_uint64_t *value, unsigned core_no) const override
   {
-    // Nothing to read, above structures are memory mapped in the guest.
-    return false;
+    switch (msr)
+      {
+      case Msr_kvm_eoi_en:
+        if (core_no < _pv_eoi_addrs.size())
+          *value = _pv_eoi_addrs[core_no];
+        else
+          *value = 0;
+        break;
+      default:
+        // Nothing to read, above structures are memory mapped in the guest.
+        return false;
+      }
+    return true;
   }
 
   bool write_msr(unsigned msr, l4_uint64_t addr, unsigned core_no) override
@@ -146,7 +157,33 @@ public:
         warn().printf("KVM steal time not implemented.\n");
         break;
       case Msr_kvm_eoi_en:
-        warn().printf("KVM EIO not implemented.\n");
+        enum { Kvm_eoi_enable_bit = 1, Kvm_eoi_mbz_mask = 0x2, };
+
+        if (addr & Kvm_eoi_mbz_mask)
+          return false;
+
+        if ((addr & Kvm_eoi_enable_bit) == 0)
+          {
+            _vmm->apic_array()->get(core_no)->set_pv_eoi_addr(nullptr);
+          }
+        else
+          {
+            try
+              {
+                auto pv_eoi = host_addr(Vmm::Guest_addr(addr & ~3LLU));
+                _vmm->apic_array()->get(core_no)->set_pv_eoi_addr(
+                    reinterpret_cast<l4_uint32_t*>(pv_eoi));
+              }
+            catch (L4::Element_not_found &)
+              {
+                warn().printf("KVM PV EOI: Invalid memory address\n");
+                return false;
+              }
+          }
+
+        if (_pv_eoi_addrs.size() <= core_no)
+          _pv_eoi_addrs.resize(core_no + 1);
+        _pv_eoi_addrs[core_no] = addr;
         break;
         // If the guest Linux is compiled with CONFIG_KVM and no-kvmclock is
         // set on the command line, Linux will try to write to these MSRs on
@@ -168,6 +205,7 @@ public:
     {
       Kvm_feature_clocksource = 1UL,       // clock at msr 0x11 & 0x12
       Kvm_feature_clocksource2 = 1UL << 3, // clock at msrs 0x4b564d00 & 01;
+      Kvm_feature_pv_eoi = 1UL << 6,
       // host communicates synchronized KVM clocks via Vcpu_time_info.flags[0]
       Kvm_feature_clocksource_stable_bit = 1UL << 24,
     };
@@ -181,7 +219,8 @@ public:
           *d = 0x4d;       // "M\0\0\0"
           return true;
         case 0x40000001:
-          *a = Kvm_feature_clocksource2 | Kvm_feature_clocksource_stable_bit;
+          *a = Kvm_feature_clocksource2 | Kvm_feature_clocksource_stable_bit
+               | Kvm_feature_pv_eoi;
           *d = 0;
           *b = *c = 0;
           return true;
@@ -224,12 +263,14 @@ private:
   }
 
   static Dbg trace() { return Dbg(Dbg::Dev, Dbg::Trace, "KVMclock"); }
+  static Dbg info() { return Dbg(Dbg::Dev, Dbg::Info, "KVMclock"); }
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "KVMclock"); }
 
   l4_cpu_time_t _boottime;
   std::vector<cxx::Ref_ptr<Kvm_clock>> _clocks;
   cxx::Ref_ptr<Vmm::Vm_ram> _memmap;
   Vmm::Guest *_vmm;
+  std::vector<l4_uint64_t> _pv_eoi_addrs;
 };
 
 } // namespace

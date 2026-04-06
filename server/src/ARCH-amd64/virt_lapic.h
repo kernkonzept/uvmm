@@ -245,7 +245,7 @@ public:
   bool next_pending_nmi();
 
   // X2APIC MSR interface
-  bool read_msr(unsigned msr, l4_uint64_t *value) const;
+  bool read_msr(unsigned msr, l4_uint64_t *value);
   bool write_msr(unsigned msr, l4_uint64_t value);
 
   l4_uint32_t logical_apic_id() const
@@ -299,6 +299,12 @@ public:
 
   Vcpu_obj_registry *registry() const { return _registry; }
 
+  void set_pv_eoi_addr(l4_uint32_t *addr)
+  {
+    handle_pv_eoi();
+    _kvm_pv_eoi = addr;
+  }
+
 private:
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "LAPIC"); }
   static Dbg warn() { return Dbg(Dbg::Irq, Dbg::Warn, "LAPIC"); }
@@ -322,6 +328,38 @@ private:
    */
   void start_cpu(l4_addr_t entry);
 
+  void allow_pv_eoi(int irq)
+  {
+    if (_kvm_pv_eoi == nullptr)
+        return;
+
+    *_kvm_pv_eoi |= 1U;
+    _kvm_pv_eoi_irq = irq;
+  }
+
+  void deny_pv_eoi()
+  {
+    _kvm_pv_eoi_irq = -1;
+
+    if (_kvm_pv_eoi == nullptr)
+        return;
+
+    *_kvm_pv_eoi &= ~1U;
+  }
+
+  void handle_pv_eoi()
+  {
+    if (_kvm_pv_eoi == nullptr)
+      return;
+
+    // 2nd condition: Guest signals EOI by clearing bit 0.
+    if (_kvm_pv_eoi_irq < 0 || (*_kvm_pv_eoi & 1) != 0)
+      return;
+
+    _regs.isr.clear_irq(_kvm_pv_eoi_irq);
+    _kvm_pv_eoi_irq = -1;
+  }
+
   cxx::Ref_ptr<Apic_timer> _apic_timer;
   Lapic_event _lapic_irq; /// IRQ to notify VCPU
   l4_uint32_t _lapic_x2_id;
@@ -335,6 +373,9 @@ private:
   cxx::Ref_ptr<Vmm::Cpu_dev> _cpu;
   Vcpu_obj_registry * const _registry;
   unsigned _sipi_cnt = 0;
+
+  l4_uint32_t *_kvm_pv_eoi;
+  int _kvm_pv_eoi_irq;
 }; // class Virt_lapic
 
 
