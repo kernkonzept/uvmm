@@ -133,8 +133,8 @@ Cpu_dev::reset()
                       | 1 << Exc_inst_access
                       | 1 << Exc_illegal_inst
                       | 1 << Exc_breakpoint
-                      | 1 << Exc_load_acesss
-                      | 1 << Exc_store_acesss
+                      | 1 << Exc_load_access
+                      | 1 << Exc_store_access
                       | 1 << Exc_ecall
                       | 1 << Exc_inst_page_fault
                       | 1 << Exc_load_page_fault
