@@ -131,6 +131,8 @@ public:
             _dma_offset = 0ULL;
             break;
           case 0x13: // 400
+          case 0x14: // CM4
+          case 0x15: // CM4S
             _dma_offset = 0ULL;
             break;
           }
