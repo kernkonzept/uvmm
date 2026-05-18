@@ -45,7 +45,7 @@ public:
 
     if (offset >= _mmio_size)
       {
-        warn().printf("Access out of bounds @offset 0x%x, max offset 0x%lx\n",
+        warn().printf("Access out of bounds @offset 0x%x, max offset 0x%zx\n",
                       offset, _mmio_size);
         return -1ULL;
       }
@@ -69,7 +69,7 @@ public:
                     width);
     if (offset >= _mmio_size)
       {
-        warn().printf("Access out of bounds @offset 0x%x, max offset 0x%lx\n",
+        warn().printf("Access out of bounds @offset 0x%x, max offset 0x%zx\n",
                       offset, _mmio_size);
         return;
       }
