@@ -65,6 +65,8 @@ int Address_space_manager::reserve(L4Re::Dma_space::Dma_addr start,
 
   return 0;
 #else
+  static_cast<void>(start);
+  static_cast<void>(size);
   return -L4_EPERM;
 #endif
 }
@@ -81,7 +83,7 @@ int Address_space_manager::place_ram(L4::Cap<L4Re::Dataspace> ds,
 
   return 0;
 #else
-  return add_ram(ds, offset, start, *size);
+  return add_ram(ds, offset, start, size, -1, true);
 #endif
 }
 
