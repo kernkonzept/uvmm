@@ -10,7 +10,8 @@
 
 #include <string.h>
 
-#include <l4/re/util/cap_alloc>
+#include <l4/re/util/shared_cap>
+#include <l4/re/util/unique_cap>
 #include <l4/re/dataspace>
 #include <l4/re/env>
 #include <l4/re/error_helper>
@@ -97,15 +98,14 @@ class Virtio_device_proxy
     L4_region_config(l4_uint64_t size)
     {
       auto *e = L4Re::Env::env();
-      L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap ds
-        = L4Re::chkcap(L4Re::Util::make_ref_cap<L4Re::Dataspace>(),
-                       "Allocate Virtio::Dev dataspace capability.");
+      ds = L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dataspace>(),
+                        "Allocate Virtio::Dev dataspace capability.");
 
       L4Re::chksys(e->mem_alloc()->alloc(size, ds.get()),
                    "Allocate Virtio::Dev configuration memory.");
 
       ds_mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Virtio_device_proxy: l4 cfg",
-                                                  ds, 0, size,
+                                                  ds.get(), 0, size,
                                                   L4Re::Rm::F::RW |
                                                   L4Re::Rm::F::Cache_uncached);
       ds_hdlr = Vdev::make_device<Ds_handler>(ds_mgr, L4_FPAGE_RO);
@@ -155,6 +155,7 @@ class Virtio_device_proxy
       return L4_EOK;
     }
 
+    L4Re::Util::Unique_cap<L4Re::Dataspace> ds;
     cxx::Ref_ptr<Ds_handler> ds_hdlr;
     cxx::Ref_ptr<Vmm::Ds_manager> ds_mgr;
   };
@@ -163,7 +164,7 @@ public:
   Virtio_device_proxy(char const *name,
                       l4_uint32_t id,
                       Virtio_device_proxy_irq_sender *irq_sender,
-                      L4Re::Util::Ref_cap<L4::Rcv_endpoint>::Cap cap,
+                      L4Re::Util::Shared_cap<L4::Rcv_endpoint> cap,
                       Vmm::Guest *vmm,
                       cxx::Ref_ptr<Virtio_device_mem_pool> mempool)
   : _host_irq(this),
@@ -471,7 +472,7 @@ protected:
 
   l4_uint32_t _id;
   Virtio_device_proxy_irq_sender *_irq_sender;
-  L4Re::Util::Ref_cap<L4::Rcv_endpoint>::Cap _cap;
+  L4Re::Util::Shared_cap<L4::Rcv_endpoint> _cap;
 
   Dbg trace = {Dbg::Dev, Dbg::Trace, "viodev"};
   Dbg warn = {Dbg::Dev, Dbg::Warn, "viodev"};
@@ -567,7 +568,7 @@ class Virtio_device_proxy_control_base
 
 public:
   using viocaps_vector =
-    std::vector<std::pair<char const*, L4Re::Util::Ref_cap<L4::Rcv_endpoint>::Cap>>;
+    std::vector<std::pair<char const*, L4Re::Util::Shared_cap<L4::Rcv_endpoint>>>;
 
   /**
    * This manages the region containing the two pages required per actual
@@ -622,7 +623,7 @@ public:
      */
     l4_uint32_t add(Virtio_device_proxy_irq_sender *irq_sender,
                     char const *name,
-                    L4Re::Util::Ref_cap<L4::Rcv_endpoint>::Cap cap,
+                    L4Re::Util::Shared_cap<L4::Rcv_endpoint> cap,
                     Vmm::Guest *vmm,
                     cxx::Ref_ptr<Virtio_device_mem_pool> mempool)
     {
@@ -717,7 +718,7 @@ private:
       {
       case Add_reg:
         {
-          auto cap = L4Re::Util::make_ref_cap<L4::Rcv_endpoint>();
+          auto cap = L4Re::Util::make_shared_cap<L4::Rcv_endpoint>();
           if (!cap.is_valid())
             return -1;
 

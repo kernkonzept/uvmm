@@ -7,7 +7,6 @@
 
 #pragma once
 
-#include <l4/re/util/cap_alloc>
 #include <l4/re/dataspace>
 #include <l4/re/rm>
 #include <l4/re/env>
@@ -31,7 +30,7 @@ private:
   /// Debug name
   std::string const _dev_name;
   /// Dataspace capability for the dataspace to be managed
-  L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap _ds;
+  L4::Cap<L4Re::Dataspace> _ds;
   /// Offset within the dataspace of the managed part
   L4Re::Dataspace::Offset _offset = 0;
   /// Size of the managed dataspace part
@@ -60,7 +59,7 @@ private:
                             _local_flags
                             | L4Re::Rm::F::Search_addr
                             | L4Re::Rm::F::Eager_map,
-                            L4::Ipc::make_cap_rw(_ds.get()),
+                            L4::Ipc::make_cap_rw(_ds),
                             _offset, _align),
                  "Attach dataspace to local address space.");
     return _local.get();
@@ -80,7 +79,7 @@ public:
    * Create a manager for the given part of the given dataspace.
    */
   Ds_manager(std::string const &dev_name,
-             L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap const &ds,
+             L4::Cap<L4Re::Dataspace> ds,
              L4Re::Dataspace::Offset offset,
              L4Re::Dataspace::Size size,
              L4Re::Rm::Region_flags local_flags = L4Re::Rm::F::RW,
@@ -97,7 +96,7 @@ public:
   /**
    * Get the capability for the managed dataspace.
    */
-  L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap dataspace() const
+  L4::Cap<L4Re::Dataspace> dataspace() const
   { return _ds; }
 
   /**

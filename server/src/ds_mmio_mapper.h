@@ -210,7 +210,7 @@ public:
 
 private:
   /// just keep the dataspace cap (no local region is needed)
-  L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap _ds;
+  L4::Cap<L4Re::Dataspace>::Cap _ds;
 
   /// store the rights for the mapping into the guest
   L4_fpage_rights _rights;

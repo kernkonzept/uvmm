@@ -382,16 +382,14 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
   explicit Read_mapped_mmio_device_t(char const *dev_name,
                                      l4_size_t size,
                                      L4Re::Rm::Flags rm_flags = L4Re::Rm::F::Cache_uncached)
+  : _ds(L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dataspace>(),
+                     "Allocate dataspace capability for read-mapped MMIO dev."))
   {
     auto *e = L4Re::Env::env();
 
-    L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap ds
-      = L4Re::chkcap(L4Re::Util::make_ref_cap<L4Re::Dataspace>(),
-                     "Allocate dataspace capability for read-mapped MMIO dev.");
-
-    L4Re::chksys(e->mem_alloc()->alloc(size, ds.get()),
+    L4Re::chksys(e->mem_alloc()->alloc(size, _ds.get()),
                  "Allocate memory for read-mapped MMIO device.");
-    _mgr = cxx::make_unique<Ds_manager>(dev_name, ds, 0, size,
+    _mgr = cxx::make_unique<Ds_manager>(dev_name, _ds.get(), 0, size,
                                         rm_flags.region_flags() |
                                           L4Re::Rm::F::RW);
     _mgr->local_addr<void *>();
@@ -401,7 +399,7 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
   { return _mgr->size(); }
 
   L4::Cap<L4Re::Dataspace> mmio_ds() const
-  { return _mgr->dataspace().get(); }
+  { return _mgr->dataspace(); }
 
   T *mmio_local_addr() const
   { return _mgr->local_addr<T *>(); }
@@ -409,6 +407,7 @@ struct Read_mapped_mmio_device_t : Ro_ds_mapper_t<BASE>
 private:
   char const *dev_name() const override { return _mgr->dev_name(); }
 
+  L4Re::Util::Unique_cap<L4Re::Dataspace> _ds;
   cxx::unique_ptr<Ds_manager> _mgr;
 };
 

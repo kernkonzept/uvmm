@@ -6,6 +6,8 @@
  */
 #pragma once
 
+#include <l4/re/util/unique_cap>
+
 #include "pci_device.h"
 #include "msi_controller.h"
 #include "msix.h"
@@ -48,14 +50,13 @@ class Event_connector_msix
       l4_size_t size = Vdev::Msix::msix_table_pba_mem_size(num_msix_entries);
       auto *e = L4Re::Env::env();
 
-      L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap ds =
-        L4Re::chkcap(L4Re::Util::make_ref_cap<L4Re::Dataspace>(),
-                     "Failed to allocate dataspace capability for MSI-X table and PBA.");
+      _ds = L4Re::chkcap(L4Re::Util::make_unique_cap<L4Re::Dataspace>(),
+                         "Failed to allocate dataspace capability for MSI-X table and PBA.");
 
-      L4Re::chksys(e->mem_alloc()->alloc(size, ds.get(),
+      L4Re::chksys(e->mem_alloc()->alloc(size, _ds.get(),
                                          L4Re::Mem_alloc::Continuous),
                    "Failed to allocate continuous memory for MSI-X table and PBA.");
-      _mgr = cxx::make_unique<Vmm::Ds_manager>("MSI-X-PBA", ds, 0, size,
+      _mgr = cxx::make_unique<Vmm::Ds_manager>("MSI-X-PBA", _ds.get(), 0, size,
                                                L4Re::Rm::F::Cache_uncached
                                                  | L4Re::Rm::F::RW);
       _mgr->local_addr<void *>();
@@ -68,7 +69,7 @@ class Event_connector_msix
     l4_size_t mapped_mmio_size() const { return _mgr->size(); }
 
     L4::Cap<L4Re::Dataspace> mmio_ds() const
-    { return _mgr->dataspace().get(); }
+    { return _mgr->dataspace(); }
 
     l4_addr_t *mmio_local_addr() const
     { return _mgr->local_addr<l4_addr_t *>(); }
@@ -165,6 +166,7 @@ class Event_connector_msix
     unsigned _num_msix_entries;
     l4_size_t _msix_table_offset;
     l4_size_t _pba_offset;
+    L4Re::Util::Unique_cap<L4Re::Dataspace> _ds;
     cxx::unique_ptr<Vmm::Ds_manager> _mgr;
     cxx::unique_ptr<Vdev::Msix::Pending_bit_array> _pba;
   }; // class Msix_table_pba_mem

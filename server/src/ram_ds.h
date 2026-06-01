@@ -8,8 +8,6 @@
 
 #include <l4/re/dataspace>
 #include <l4/re/dma_space>
-#include <l4/re/util/cap_alloc>
-#include <l4/re/util/unique_cap>
 #include <l4/util/util.h>
 
 #include <cstdio>
@@ -36,7 +34,7 @@ public:
    * \param offset   Offset into the dataspace.
    * \param flags    Region manager flags of the mapping
    */
-  Ram_ds(L4Re::Util::Ref_cap<L4Re::Dataspace>::Cap ds,
+  Ram_ds(L4::Cap<L4Re::Dataspace> ds,
          l4_size_t size, l4_addr_t offset,
          L4Re::Rm::Region_flags flags = L4Re::Rm::F::RWX)
   : Ds_manager("Ram", ds, offset, size, flags,
@@ -92,7 +90,7 @@ public:
   { return p.get() + _offset; }
 
   L4::Cap<L4Re::Dataspace> ds() const noexcept
-  { return dataspace().get(); }
+  { return dataspace(); }
 
   void dt_append_dmaprop(Vdev::Dt_node const &mem_node) const
   {
