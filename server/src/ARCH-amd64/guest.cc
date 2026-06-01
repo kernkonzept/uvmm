@@ -986,8 +986,12 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
 
   while (1)
     {
+      vapic->check_pv_eoi();
+
       l4_msgtag_t tag = myself->vcpu_resume_commit(myself->vcpu_resume_start());
       auto e = l4_error(tag);
+
+      vapic->handle_pv_eoi();
 
       if (e == 1)
       // Fiasco indicates pending IRQs (IPCs); see fiasco: resume_vcpu()
@@ -1061,8 +1065,6 @@ Guest::event_injection_t(Vcpu_ptr vcpu, VMS *vm)
       // exact value.
       rec->make_add_event<Event_irq>(apic);
     }
-
-
   // TODO reenqueue what we haven't injected.
   Injection_event pending_event = vm->pending_event_injection();
 

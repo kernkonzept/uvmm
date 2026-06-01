@@ -43,6 +43,50 @@ class Apic_timer;
 
 class Virt_lapic : public Ic
 {
+  class Kvm_pv_eoi
+  {
+  public:
+    void set_addr(l4_uint32_t *addr)
+    { _kvm_pv_eoi = addr; }
+
+    bool valid() const
+    { return _kvm_pv_eoi != nullptr; }
+
+    bool is_set() const
+    {
+      return _kvm_pv_eoi && (read() & 1U);
+    }
+
+    void allow()
+    {
+      if (!valid())
+        return;
+
+      write(read() | 1U);
+    }
+
+    void deny()
+    {
+      if (!valid())
+        return;
+
+      write(read() &~ 1U);
+    }
+
+  private:
+    l4_uint32_t read() const
+    {
+      return __atomic_load_n(_kvm_pv_eoi, __ATOMIC_RELAXED);
+    }
+
+    void write(l4_uint32_t val)
+    {
+      __atomic_store_n(_kvm_pv_eoi, val, __ATOMIC_RELAXED);
+    }
+
+    l4_uint32_t *_kvm_pv_eoi = nullptr;
+  };
+
   // These MSRs correspond to the xAPIC MMIO registers.
   // see reg2msr for reference
   enum : l4_uint32_t
@@ -138,6 +182,13 @@ class Virt_lapic : public Ic
           return true;
 
       return false;
+    }
+
+    bool has_irq(l4_uint8_t irq)
+    {
+      l4_uint8_t idx = irq / Reg_bits;
+      l4_uint64_t bit = 1ULL << (irq % Reg_bits);
+      return _reg.u64[idx] & bit;
     }
 
     l4_uint32_t get_reg(l4_uint32_t idx) const
@@ -302,7 +353,66 @@ public:
   void set_pv_eoi_addr(l4_uint32_t *addr)
   {
     handle_pv_eoi();
-    _kvm_pv_eoi = addr;
+
+    _kvm_pv_eoi.set_addr(addr);
+    _kvm_pv_eoi_irq = -1;
+
+    _kvm_pv_eoi.deny();
+  }
+
+  // This function is called immediately after VM_EXIT. It explicitly closes
+  // the KVM_PV_EOI opportunity. Uvmm has to explicitly enable another
+  // opportunity if that is opportune.
+  void handle_pv_eoi()
+  {
+    std::lock_guard<std::mutex> lock(_int_mutex);
+    if (!_kvm_pv_eoi.valid())
+      return;
+
+    if (_kvm_pv_eoi_irq < 0)
+      return;
+
+    bool bit = _kvm_pv_eoi.is_set();
+    int armed = _kvm_pv_eoi_irq;
+    int hiisr = _regs.isr.get_highest_irq();
+
+    _kvm_pv_eoi_irq = -1;
+    _kvm_pv_eoi.deny();
+
+    if (!bit)
+      {
+        if (armed != hiisr)
+          {
+            warn().printf("BUG: irq mismatch isr=%d, pv_eoi=%d\n", hiisr, armed);
+            return;
+          }
+
+        if (hiisr > 0)
+            {
+              _regs.isr.clear_highest_irq();
+              Irq_src_handler *hdlr = get_irq_src_handler(hiisr);
+              if (hdlr)
+                hdlr->eoi();
+            }
+      }
+  }
+
+  // Called immediately before vm_resume. Ensures that PV_EOI is only allowed
+  // when no interrupts are waiting to be injected
+  void check_pv_eoi()
+  {
+    int irr = -1;
+
+    {
+      std::lock_guard<std::mutex> lock(_int_mutex);
+      irr = _regs.irr.get_highest_irq();
+    }
+
+    if (_kvm_pv_eoi_irq >= 0 && irr >= 0)
+      {
+        _kvm_pv_eoi_irq = -1;
+        _kvm_pv_eoi.deny();
+      }
   }
 
 private:
@@ -328,36 +438,15 @@ private:
    */
   void start_cpu(l4_addr_t entry);
 
-  void allow_pv_eoi(int irq)
+  void allow_pv_eoi_locked(int irq)
   {
-    if (_kvm_pv_eoi == nullptr)
+    if (!_kvm_pv_eoi.valid())
         return;
 
-    *_kvm_pv_eoi |= 1U;
+    assert(_kvm_pv_eoi_irq < 0);
+
     _kvm_pv_eoi_irq = irq;
-  }
-
-  void deny_pv_eoi()
-  {
-    _kvm_pv_eoi_irq = -1;
-
-    if (_kvm_pv_eoi == nullptr)
-        return;
-
-    *_kvm_pv_eoi &= ~1U;
-  }
-
-  void handle_pv_eoi()
-  {
-    if (_kvm_pv_eoi == nullptr)
-      return;
-
-    // 2nd condition: Guest signals EOI by clearing bit 0.
-    if (_kvm_pv_eoi_irq < 0 || (*_kvm_pv_eoi & 1) != 0)
-      return;
-
-    _regs.isr.clear_irq(_kvm_pv_eoi_irq);
-    _kvm_pv_eoi_irq = -1;
+    _kvm_pv_eoi.allow();
   }
 
   cxx::Ref_ptr<Apic_timer> _apic_timer;
@@ -374,7 +463,7 @@ private:
   Vcpu_obj_registry * const _registry;
   unsigned _sipi_cnt = 0;
 
-  l4_uint32_t *_kvm_pv_eoi;
+  Kvm_pv_eoi _kvm_pv_eoi;
   int _kvm_pv_eoi_irq;
 }; // class Virt_lapic
 
@@ -527,7 +616,7 @@ private:
     if (lowest)
       lowest->set(data);
     else
-      warn().printf("Lowest priority aribitration for MSI failed. DestId 0x%x, "
+      warn().printf("Lowest priority arbitration for MSI failed. DestId 0x%x, "
                     "Data 0x%llx\n",
                     did, data.raw);
 
