@@ -27,7 +27,9 @@ namespace {
   public:
     explicit Mapped_file(char const *name)
     {
-      int fd = open(name, O_RDWR);
+      /* Open read-only: the mapping below is MAP_PRIVATE (copy-on-write), so
+       * the overlay is never written back and a writable fd is not needed. */
+      int fd = open(name, O_RDONLY);
       if (fd < 0)
         {
           warn.printf("Unable to open file '%s': %s\n", name, strerror(errno));
