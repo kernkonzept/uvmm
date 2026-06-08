@@ -10,10 +10,20 @@ class Vcon_device
 public:
   Vcon_device(L4::Cap<L4::Vcon> con)
   : _con(con)
-  {}
+  {
+    /* Snapshot the console attributes before any derived UART backend
+     * switches the vcon to raw mode. The vcon is often shared with the
+     * launching shell, so the originals must be restored on teardown:
+     * otherwise the shell is left without echo or newline translation after
+     * the VM exits. */
+    _con_attr_valid = l4_error(_con->get_attr(&_con_attr)) == L4_EOK;
+  }
 
   ~Vcon_device()
   {
+    if (_con_attr_valid)
+      _con->set_attr(&_con_attr);
+
     if (_con_irq.is_valid())
       if (long err = l4_error(_con->unbind(0, _con_irq)) < 0)
           Dbg(Dbg::Irq, Dbg::Warn)
@@ -46,4 +56,6 @@ protected:
 
 private:
   L4::Cap<L4::Irq> _con_irq;
+  l4_vcon_attr_t _con_attr;
+  bool _con_attr_valid = false;
 };
