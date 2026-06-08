@@ -131,8 +131,8 @@ public:
     _offset = in_pg_offset;
     auto *e = L4Re::Env::env();
     L4Re::chksys(e->rm()->attach(&_ds_region, pg_size,
-                                 L4Re::Rm::F::Search_addr | L4Re::Rm::F::RWX,
-                                 L4::Ipc::make_cap_rw(ds), pg_offset),
+                                 L4Re::Rm::F::Search_addr | L4Re::Rm::F::RX,
+                                 ds, pg_offset),
                  "Could not attach Fw_item_ds");
   }
 
