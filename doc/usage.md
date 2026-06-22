@@ -3,11 +3,15 @@
 [comment]: # (This is a generated file. Do not change it.)
 [comment]: # (Instead, change capdb.yml.)
 
+
+## Description {#l4re_servers_uvmm_description}
+
 Uvmm provides a virtual machine for running an unmodified guest in non-
 privileged mode.
 
 
-## Capabilities
+<hr>
+## Capabilities {#l4re_servers_uvmm_capabilities}
 
 * `ram`
 
@@ -23,7 +27,8 @@ privileged mode.
   a machine suspend/shutdown/reboot.
 
 
-## Command Line Options
+<hr>
+## Command Line Options {#l4re_servers_uvmm_cmdline_options}
 
 * `--mon <option>`
 
@@ -154,6 +159,7 @@ RAM>`
 
   Flag. True if provided.
 
+<hr>
 ## Setting up guest memory
 
 In the most simple setup, memory for the guest can be provided via a simple

@@ -3,6 +3,9 @@
 [comment]: # (This is a generated file. Do not change it.)
 [comment]: # (Instead, change capdb.yml.)
 
+
+## Description {#l4re_servers_uvmm_uvmm_dtg_description}
+
 A virtual machine in Uvmm is configured with a device tree that contains
 information about the VMs resources, memory layout, virtual CPUs and peripheral
 devices.
@@ -11,14 +14,16 @@ Uvmm_dtg is a tool to generate such a device tree at runtime according to its
 command line.
 
 
-## Capabilities
+<hr>
+## Capabilities {#l4re_servers_uvmm_uvmm_dtg_capabilities}
 
 * `dt`
 
   The dataspace that the device tree is put into.
 
 
-## Command Line Options
+<hr>
+## Command Line Options {#l4re_servers_uvmm_uvmm_dtg_cmdline_options}
 
 ` <file | -->`
 
@@ -71,7 +76,8 @@ command line.
   String value.
 
 
-## Examples
+<hr>
+## Examples {#l4re_servers_uvmm_uvmm_dtg_examples}
 
 ### Usage in L4Re
 
