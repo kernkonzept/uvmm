@@ -387,7 +387,7 @@ public:
             return;
           }
 
-        if (hiisr > 0)
+        if (hiisr >= 0)
             {
               _regs.isr.clear_highest_irq();
               Irq_src_handler *hdlr = get_irq_src_handler(hiisr);

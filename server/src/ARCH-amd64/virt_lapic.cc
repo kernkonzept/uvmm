@@ -222,10 +222,12 @@ Virt_lapic::next_pending_irq()
           _regs.isr.set_irq(highest_irr);
           _regs.irr.clear_irq(highest_irr);
 
-          // KVM PV EOI: not for physical IRQ lines. For these the
-          // irq_src_handler must be invoked immediately, which needs the
-          // VMEXIT
-          if (highest_isr < 0 && get_irq_src_handler(highest_irr) == nullptr
+          // Allow a PV EOI iff the following conditions hold:
+          // a) no interrupt is currently in service
+          // b) no irq_src_handler is set for the next IRQ (e.g. not a HW IRQ)
+          // c) the next IRQ is not level triggered
+          if (highest_isr < 0
+              && get_irq_src_handler(highest_irr) == nullptr
               && !_regs.tmr.has_irq(highest_irr))
             allow_pv_eoi_locked(highest_irr);
 
