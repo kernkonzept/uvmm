@@ -94,7 +94,7 @@ public:
     cap->ctrl.max_msis() = max_devs - 1;
     cap->tbl.offset()    = _msix_bar_msix_table_offset;
     cap->tbl.bir()       = 0;
-    cap->pba.offset()    = _msix_bar_pba_offset >> 3;
+    cap->pba.offset()    = _msix_bar_pba_offset;
     cap->pba.bir()       = 0;
 
     auto *const hdr = get_header<Pci_header::Type0>();

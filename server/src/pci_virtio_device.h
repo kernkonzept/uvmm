@@ -265,7 +265,7 @@ private:
     cap->ctrl.max_msis() = max_msix_entries - 1;
     cap->tbl.offset()    = _msix_bar_msix_table_offset;
     cap->tbl.bir()       = bar_index;
-    cap->pba.offset()    = _msix_bar_pba_offset >> 3;
+    cap->pba.offset()    = _msix_bar_pba_offset;
     cap->pba.bir()       = bar_index;
 
     trace().printf("msi.msg_ctrl 0x%x\n", cap->ctrl.raw);
