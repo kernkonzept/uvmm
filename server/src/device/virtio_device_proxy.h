@@ -518,6 +518,11 @@ class Virtio_device_proxy_control_base
   public Virtio_device_proxy_irq_sender,
   public Vdev::Device
 {
+public:
+  // Returned to the guest if no device could be added
+  enum : l4_uint32_t { Invalid_id = ~0U };
+
+private:
   enum
   {
     Add_reg = 0x0,
@@ -618,8 +623,9 @@ public:
     /**
      * Create a new virtio device proxy.
      *
-     * \retval >=0 ID of the new Virtio device proxy.
-     * \retval < 0 Maximum number of supported Virtio device proxies reached.
+     * \retval Invalid_id Maximum number of supported Virtio device proxies
+     *                    reached.
+     * \retval others     ID of the new Virtio device proxy.
      */
     l4_uint32_t add(Virtio_device_proxy_irq_sender *irq_sender,
                     char const *name,
@@ -629,7 +635,7 @@ public:
     {
       auto id = _ida.get();
       if (id < 0)
-        return id;
+        return Invalid_id;
 
       _devices.emplace(id,
                        cxx::make_ref_obj<Virtio_device_proxy>(name,
@@ -695,7 +701,9 @@ private:
   {
     // Add any static configured devices
     for (auto &c: viocaps)
-      _prm->add(this, c.first, c.second, vmm, _mempool);
+      if (_prm->add(this, c.first, c.second, vmm, _mempool) == Invalid_id)
+        warn().printf("Adding the static device '%s' failed. The controller "
+                      "supports %u devices.\n", c.first, max_devs);
   }
 
   /**
@@ -703,14 +711,14 @@ private:
    *
    * Add_reg: Reading from this triggers the addition of a new virtio device
    *          proxy to this virtio device proxy controller. On return to the
-   *          guest, the read value is the id of the new device. On error -1 is
-   *          returned.
+   *          guest, the read value is the id of the new device. On error
+   *          Invalid_id is returned.
    *
    * Count_reg: Reading this value returns the actual count of currently
    *            configured virtio device proxies. Note, that the ids are not
    *            necessarily continuous.
    *
-   * All other reads are ignored and -1 is returned.
+   * All other reads are ignored and Invalid_id is returned.
    */
   l4_uint32_t read(unsigned reg, char /*size*/, unsigned /*cpu_id*/)
   {
@@ -720,11 +728,11 @@ private:
         {
           auto cap = L4Re::Util::make_shared_cap<L4::Rcv_endpoint>();
           if (!cap.is_valid())
-            return -1;
+            return Invalid_id;
 
           if (l4_error(L4Re::Env::env()->factory()->create_gate(
                        cap.get(), L4::Cap_base::Invalid, 0)) < 0)
-            return -1;
+            return Invalid_id;
 
           return _prm->add(this, nullptr, cap, _vmm, _mempool);
         }
@@ -734,7 +742,7 @@ private:
 
     warn().printf("Read from unsupported register %x.\n", reg);
 
-    return -1;
+    return Invalid_id;
   }
 
   /**
