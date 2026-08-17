@@ -341,13 +341,15 @@ public:
     if (!ds_cap_fp.cap_received())
       return -L4_EINVAL;
 
-    auto ds = L4::Epiface::server_iface()->rcv_cap<L4Re::Dataspace>(0);
-    if (!ds.is_valid())
+    auto rcv_ds = L4::Epiface::server_iface()->rcv_cap<L4Re::Dataspace>(0);
+    if (!rcv_ds.is_valid())
       return -L4_EINVAL;
 
     long err = L4::Epiface::server_iface()->realloc_rcv_cap(0);
     if (err < 0)
       return err;
+
+    L4Re::Util::Shared_cap<L4Re::Dataspace> ds(rcv_ds);
 
     l4_uint64_t dma_phys;
     auto *region = _mempool->register_ds(ds, ds_base, offset, sz, &dma_phys);

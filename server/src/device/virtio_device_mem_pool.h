@@ -10,6 +10,7 @@
 #include "debug.h"
 #include <l4/re/env>
 #include <l4/re/util/cap_alloc>
+#include <l4/re/util/shared_cap>
 #include <l4/re/dataspace>
 #include "guest.h"
 
@@ -197,7 +198,7 @@ public:
       }
   }
 
-  Vmm::Region const *register_ds(L4::Cap<L4Re::Dataspace> const &ds,
+  Vmm::Region const *register_ds(L4Re::Util::Shared_cap<L4Re::Dataspace> const &ds,
                                  l4_uint64_t ds_base, l4_umword_t offset,
                                  l4_umword_t sz,
                                  L4Re::Dma_space::Dma_addr *dma_start)
@@ -225,10 +226,11 @@ public:
 
     *dma_start = r->start.get();
     L4Re::Dma_space::Dma_size dma_size = sz;
-    auto ds_mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Virtio_mem_pool", ds,
+    auto ds_mgr = cxx::make_ref_obj<Vmm::Ds_manager>("Virtio_mem_pool", ds.get(),
                                                      offset, sz);
 
-    int err = _devs->ram()->as_mgr()->place_ram(ds, offset, dma_start, &dma_size);
+    int err = _devs->ram()->as_mgr()->place_ram(ds.get(), offset, dma_start,
+                                                &dma_size);
     if (err < 0)
       {
         warn.printf("Could not map foreign RAM: %d\n", err);
@@ -279,7 +281,7 @@ private:
 
   struct Ds_item
   {
-    Ds_item(L4::Cap<L4Re::Dataspace> const &ds,
+    Ds_item(L4Re::Util::Shared_cap<L4Re::Dataspace> const &ds,
             l4_uint64_t ds_base, l4_umword_t offset, l4_umword_t sz)
     : _ref(1),
       _ds(ds),
@@ -293,7 +295,8 @@ private:
     {
       return l._ds_base == r._ds_base && l._offset == r._offset
         && l._sz == r._sz
-        && L4Re::Env::env()->task()->cap_equal(l._ds, r._ds).label() == 1;
+        && L4Re::Env::env()->task()->cap_equal(l._ds.get(),
+                                               r._ds.get()).label() == 1;
     }
 
     void take_ref()
@@ -310,7 +313,7 @@ private:
 
   private:
     l4_uint64_t _ref;
-    L4::Cap<L4Re::Dataspace> _ds;
+    L4Re::Util::Shared_cap<L4Re::Dataspace> _ds;
     l4_uint64_t _ds_base;
     l4_uint64_t _dma_phys = 0;
     l4_umword_t _offset;
