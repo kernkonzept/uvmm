@@ -237,7 +237,7 @@ public:
 
   l4_uint64_t read(unsigned reg, char width, unsigned /*cpu_id*/)
   {
-    if (L4_UNLIKELY(reg >= mmio_size()))
+    if (L4_UNLIKELY(reg + (1U << width) > mmio_size()))
       return 0;
 
     // only naturally aligned 32bit accesses are allowed
@@ -252,7 +252,7 @@ public:
 
   void write(unsigned reg, char width, l4_umword_t value, unsigned /*cpu_id*/)
   {
-    if (L4_UNLIKELY(reg >= mmio_size()))
+    if (L4_UNLIKELY(reg + (1U << width) > mmio_size()))
       return;
 
     // only naturally aligned 32bit accesses are allowed
