@@ -354,7 +354,14 @@ public:
     if (!region)
       return -L4_ERANGE;
 
-    return _l4cfg.add_region(region, dma_phys, ds_base);
+    err = _l4cfg.add_region(region, dma_phys, ds_base);
+    if (err < 0)
+      {
+        _mempool->drop_region(region->start.get(), dma_phys, region->size());
+        return err;
+      }
+
+    return L4_EOK;
   }
 
   long op_set_status(L4virtio::Device::Rights, unsigned)
