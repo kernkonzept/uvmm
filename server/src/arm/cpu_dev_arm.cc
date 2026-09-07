@@ -145,6 +145,8 @@ Cpu_dev::reset()
   mark_on();
   Vmm::Guest::instance()->cpu_online(this);
 
+  _vcpu.setup_rcv_buffers(l4_utcb());
+
   L4::Cap<L4::Thread> myself;
   auto res = myself->vcpu_resume_commit(myself->vcpu_resume_start());
 

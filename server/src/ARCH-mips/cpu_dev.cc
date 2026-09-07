@@ -83,6 +83,8 @@ Cpu_dev::reset()
     .printf("Starting vcpu %d @ 0x%lx (handler @ %lx with stack @ %lx)\n",
             _vcpu.get_vcpu_id(), _vcpu->r.ip, _vcpu->entry_ip, _vcpu->entry_sp);
 
+  _vcpu.setup_rcv_buffers(l4_utcb());
+
   L4::Cap<L4::Thread> myself;
   auto e = l4_error(myself->vcpu_resume_commit(myself->vcpu_resume_start()));
 

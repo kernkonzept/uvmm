@@ -158,6 +158,8 @@ Cpu_dev::reset()
 
   mark_on();
 
+  _vcpu.setup_rcv_buffers(l4_utcb());
+
   L4::Cap<L4::Thread> self;
   auto e = l4_error(self->vcpu_resume_commit(self->vcpu_resume_start()));
 

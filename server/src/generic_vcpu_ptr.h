@@ -120,7 +120,26 @@ public:
   {
     while (_s->sticky_flags & L4_VCPU_SF_IRQ_PENDING)
       wait_for_ipc(utcb, L4_IPC_BOTH_TIMEOUT_0);
+
+    setup_rcv_buffers(utcb);
   }
+
+  /**
+   * Publish the receive buffers of the server loop in the UTCB.
+   *
+   * While the guest is running, the kernel delivers IPC for objects bound to
+   * this vCPU asynchronously: the sender transfers the message with the
+   * buffer registers which happen to be in the UTCB at that moment, the vCPU
+   * is not in a receive operation. Any client side RPC the VMM does itself
+   * resets those registers, because the client code only sets up the buffers
+   * its own call needs. A message which carries a capability is then cut and
+   * the sender gets L4_IPC_SEMSGCUT instead of a reply.
+   *
+   * Therefore write the buffers of the server loop back before the guest is
+   * entered.
+   */
+  void setup_rcv_buffers(l4_utcb_t *utcb)
+  { get_bm()->setup_wait(utcb, L4::Ipc_svr::Reply_separate); }
 
 protected:
   enum User_data_regs

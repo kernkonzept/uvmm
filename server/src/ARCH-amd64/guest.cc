@@ -987,6 +987,7 @@ Guest::run_vm_t(Vcpu_ptr vcpu, VMS *vm)
   while (1)
     {
       vapic->check_pv_eoi();
+      vcpu.setup_rcv_buffers(l4_utcb());
 
       l4_msgtag_t tag = myself->vcpu_resume_commit(myself->vcpu_resume_start());
       auto e = l4_error(tag);
