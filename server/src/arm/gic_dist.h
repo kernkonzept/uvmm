@@ -388,9 +388,17 @@ private:
     unsigned const nirq = (1 << size) << SHIFT;
 
     if (irq_s < Cpu::Num_local)
-      _demux_irq_reg<SHIFT>(_cpu[cpu_id]->local_irqs(), irq_s, nirq, reg, op);
+      {
+        Irq_array &irqs = _cpu[cpu_id]->local_irqs();
+        unsigned const n = cxx::min(nirq, irqs.size() - irq_s);
+        _demux_irq_reg<SHIFT>(irqs, irq_s, n, reg, op);
+      }
     else if (irq_s - Cpu::Num_local < _spis.size())
-      _demux_irq_reg<SHIFT>(_spis, irq_s - Cpu::Num_local, nirq, reg, op);
+      {
+        unsigned const s = irq_s - Cpu::Num_local;
+        unsigned const n = cxx::min(nirq, _spis.size() - s);
+        _demux_irq_reg<SHIFT>(_spis, s, n, reg, op);
+      }
   }
 
   /**
