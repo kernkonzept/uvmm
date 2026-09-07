@@ -15,7 +15,9 @@ namespace Vdev {
 Pit_timer::Pit_timer(cxx::Ref_ptr<Gic::Ic> const &ic, unsigned irq)
 : _irq(ic, irq)
 {
+  // channel 0: System Timer and IRQ 0
   _channel[0] = cxx::make_unique_ptr<Channel>(new Channel(this));
+  // channel 2: PC Speaker and Audio
   _channel[1] = cxx::make_unique_ptr<Channel>(new Channel(this, true));
   _port61 = make_device<Port61>(_channel[1].get());
 
@@ -63,9 +65,9 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
             if (control_reg.raw & (1U << 3)) // channel 2
               {
                 if (control_reg.is_latch_status())
-                  _channel[2]->latch_status();
+                  _channel[1]->latch_status();
                 if (control_reg.is_latch_count())
-                  _channel[2]->latch_count();
+                  _channel[1]->latch_count();
               }
             trace().printf("Read-back command: 0x%x\n", control_reg.raw);
             break;

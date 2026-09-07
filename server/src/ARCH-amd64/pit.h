@@ -46,11 +46,12 @@ class Pit_timer
 
   enum
   {
-    Channels = 2,
-    Pit_tick_rate = 1193182, // given in Herz
+    Channels = 2, // we emulate channel 0 and channel 2
+    Pit_tick_rate = 1193182, // given in Hertz
     Microseconds_per_second = 1000000ULL,
-    Channel_0_data = 0,
-    Channel_2_data = 2,
+    Channel_0_data = 0, // System Timer and IRQ 0
+    Channel_1_data = 1, // DRAM Refresh -- not emulated
+    Channel_2_data = 2, // PC Speaker and Audio
     Mode_command = 3,
 
     Low_byte_mask = 0xff,
@@ -402,6 +403,9 @@ class Pit_timer
     bool is_latch_count() const { return !(raw & (1U << 5)); }
   };
 
+  // 1st port: channel 0 => index 0
+  // 2nd port: channel 1 => index 0 (unused)
+  // 3rd port: channel 2 => index 1
   static constexpr int port2idx(int port) { return port >> 1; }
 
   static Dbg trace() { return Dbg(Dbg::Irq, Dbg::Trace, "PIT"); }
