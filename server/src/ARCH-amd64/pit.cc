@@ -43,15 +43,6 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
     case Mode_command: // PIC_MODE
       {
         Control_reg control_reg(value);
-        unsigned channel_select = control_reg.channel();
-        if (channel_select == 1)
-          {
-            warn().printf("set mode for channel 1 unsupported\n");
-            break;
-          }
-        // select either channel 0 or 2
-        channel_select = (channel_select >> 1) & 0x1;
-
         if (control_reg.is_read_back_cmd())
           {
             // read-back command
@@ -70,13 +61,23 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
                   _channel[1]->latch_count();
               }
             trace().printf("Read-back command: 0x%x\n", control_reg.raw);
-            break;
           }
+        else
+          {
+            unsigned channel_select = control_reg.channel();
+            if (channel_select == 1)
+              {
+                warn().printf("set mode for channel 1 unsupported\n");
+                break;
+              }
 
-        _channel[channel_select]->write_status(control_reg.raw
-                                                            & 0x3f);
-        trace().printf("Mode command on channel %d: 0x%x\n", channel_select,
-                       control_reg.raw);
+            // select either channel 0 or 2
+            channel_select = (channel_select >> 1) & 0x1;
+
+            _channel[channel_select]->write_status(control_reg.raw & 0x3f);
+            trace().printf("Mode command on channel %d: 0x%x\n",
+                           channel_select, control_reg.raw);
+          }
         break;
       }
     case Channel_0_data:
@@ -89,7 +90,7 @@ void Pit_timer::io_out(unsigned port, Vmm::Mem_access::Width width,
         break;
       }
     default:
-      warn().printf("write to unimplemented channel 1\n");
+      warn().printf("Write to unimplemented channel 1\n");
       break;
   }
 }
