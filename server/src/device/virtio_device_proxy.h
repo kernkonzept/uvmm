@@ -138,6 +138,16 @@ class Virtio_device_proxy
       return L4_EOK;
     }
 
+    int find_region(l4_uint64_t cpu_phys) const
+    {
+      auto config = get();
+      for (l4_uint32_t i = 0; i < config->num; ++i)
+        if (config->region[i].cpu_phys == cpu_phys)
+          return i;
+
+      return -L4_ENOENT;
+    }
+
     l4_uint32_t count() const
     { return get()->num; }
 
@@ -355,6 +365,12 @@ public:
     auto *region = _mempool->register_ds(ds, ds_base, offset, sz, &dma_phys);
     if (!region)
       return -L4_ERANGE;
+
+    if (_l4cfg.find_region(region->start.get()) >= 0)
+      {
+        _mempool->drop_region(region->start.get(), dma_phys, region->size());
+        return L4_EOK;
+      }
 
     err = _l4cfg.add_region(region, dma_phys, ds_base);
     if (err < 0)
