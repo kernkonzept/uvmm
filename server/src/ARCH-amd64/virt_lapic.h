@@ -264,6 +264,8 @@ public:
     _regs.irr.clear();
     _regs.tmr.clear();
     _regs.isr.clear();
+
+    update_ppr_locked();
   }
 
   // IC interface
@@ -294,6 +296,28 @@ public:
   int next_pending_irq();
   bool is_irq_pending();
   bool next_pending_nmi();
+
+  /**
+   * Set the virtual TPR and recompute the processor priority.
+   *
+   * \param tpr  New task priority (bits 7:0 are used).
+   */
+  void set_tpr(l4_uint32_t tpr);
+
+  /**
+   * Mark the TPR as being virtualized by the VMCS (TPR shadowing).
+   *
+   * If enabled, the interrupt injection logic respects the TPR when
+   * selecting the next pending interrupt.
+   */
+  void enable_tpr_shadow() { _tpr_shadow = true; }
+
+  /**
+   * Get the highest pending interrupt request.
+   *
+   * \return Highest pending IRR vector, or -1 if there is none.
+   */
+  int highest_pending_irq();
 
   // X2APIC MSR interface
   bool read_msr(unsigned msr, l4_uint64_t *value);
@@ -424,6 +448,13 @@ private:
   void init_ipi();
 
   /**
+   * Recompute the processor priority (PPR) from the current TPR and ISR.
+   *
+   * Must be called with _int_mutex held.
+   */
+  void update_ppr_locked();
+
+  /**
    * Handle STARTUP IPIs
    *
    * Intel specifies that the correct sequence is INIT, STARTUP, STARTUP.
@@ -456,6 +487,7 @@ private:
   std::mutex _int_mutex;
   LAPIC_registers _regs;
   bool _x2apic_enabled;
+  bool _tpr_shadow = false;
   std::atomic<bool> _nmi_pending;
   Irq_src_handler *_sources[256] = {};
   std::queue<unsigned> _non_irr_irqs;

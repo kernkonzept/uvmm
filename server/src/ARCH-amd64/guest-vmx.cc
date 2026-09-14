@@ -93,6 +93,11 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
   auto *ev_rec = recorder(vcpu.get_vcpu_id());
   unsigned vcpu_id = vcpu.get_vcpu_id();
 
+  // With TPR shadowing the hardware VTPR may have been modified by the guest
+  // through CR8. Keep the software LAPIC in sync.
+  if (vms->has_tpr_shadow())
+    lapic(vcpu)->set_tpr(vms->vtpr());
+
   if (reason != Vmx_state::Exit::Exec_vmcall)
     trace().printf("[%3u]: Exit at guest IP 0x%lx SP 0x%lx with %llu ('%s') (Qual: 0x%llx)\n",
                    vcpu_id, vms->ip(), vms->sp(),
@@ -197,6 +202,12 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
 
     case Exit::Interrupt_window:
     case Exit::Nmi_window:
+      return Retry;
+
+    case Exit::Tpr_threshold:
+      // The guest lowered its TPR below the armed threshold. Re-evaluate
+      // pending interrupts. This is a trap-like exit, i.e. the guest IP
+      // already points to the next instruction.
       return Retry;
 
     case Exit::Exec_halt:

@@ -213,8 +213,12 @@ Virt_lapic::next_pending_irq()
       return irq;
     }
 
+  update_ppr_locked();
+
   auto highest_irr = _regs.irr.get_highest_irq();
-  if (highest_irr >= 0)
+  if (highest_irr >= 0
+      && (!_tpr_shadow
+          || (static_cast<l4_uint32_t>(highest_irr) & 0xf0U) > _regs.ppr))
     {
       auto highest_isr = _regs.isr.get_highest_irq();
       if (highest_irr > highest_isr)
@@ -235,6 +239,31 @@ Virt_lapic::next_pending_irq()
         }
     }
   return -1;
+}
+
+void
+Virt_lapic::set_tpr(l4_uint32_t tpr)
+{
+  std::lock_guard<std::mutex> lock(_int_mutex);
+  _regs.tpr = tpr & 0xffU;
+  update_ppr_locked();
+}
+
+int
+Virt_lapic::highest_pending_irq()
+{
+  std::lock_guard<std::mutex> lock(_int_mutex);
+  return _regs.irr.get_highest_irq();
+}
+
+void
+Virt_lapic::update_ppr_locked()
+{
+  int isr = _regs.isr.get_highest_irq();
+  l4_uint32_t isr_prio = isr >= 0 ? static_cast<l4_uint32_t>(isr) & 0xf0U : 0U;
+  l4_uint32_t tpr_prio = _regs.tpr & 0xf0U;
+
+  _regs.ppr = tpr_prio >= isr_prio ? tpr_prio : isr_prio;
 }
 
 bool
@@ -268,7 +297,13 @@ Virt_lapic::read_msr(unsigned msr, l4_uint64_t *value)
       break;
     case Msr_ia32_x2apic_version: *value = _lapic_version; break;
     case Msr_ia32_x2apic_tpr: *value = _regs.tpr; break;
-    case Msr_ia32_x2apic_ppr: *value = _regs.ppr; break;
+    case Msr_ia32_x2apic_ppr:
+      {
+        std::lock_guard<std::mutex> lock(_int_mutex);
+        update_ppr_locked();
+        *value = _regs.ppr;
+        break;
+      }
     case Msr_ia32_x2apic_ldr: *value = _regs.ldr; break;
     case Mmio_apic_destination_format_register:
       // not existent in x2apic mode
@@ -363,7 +398,13 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
       _apic_timer->write_tsc_deadline_msr(value);
       break;
     case Msr_ia32_x2apic_version: break; // RO register: ignore write
-    case Msr_ia32_x2apic_tpr: _regs.tpr = value; break;
+    case Msr_ia32_x2apic_tpr:
+      // Update the software model and, on VMX with TPR shadowing, the VTPR
+      // field of the software VMCS.
+      set_tpr(value);
+      if (auto *vm = _cpu->vcpu().vm_state())
+        vm->set_tpr(value);
+      break;
     case Msr_ia32_x2apic_ldr:
       // not writable in x2apic mode
       if (!_x2apic_enabled)
@@ -379,6 +420,7 @@ Virt_lapic::write_msr(unsigned msr, l4_uint64_t value)
       {
         std::lock_guard<std::mutex> lock(_int_mutex);
         int irq_num = _regs.isr.clear_highest_irq();
+        update_ppr_locked();
         if (irq_num > 0)
           {
             Irq_src_handler *hdlr = get_irq_src_handler(irq_num);

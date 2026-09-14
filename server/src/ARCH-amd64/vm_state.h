@@ -9,6 +9,8 @@
 #include <l4/sys/types.h>
 #include <l4/cxx/bitfield>
 
+namespace Gic { class Virt_lapic; }
+
 namespace Vmm {
 
 /// Abstraction of the VMX and SVM event injection format.
@@ -80,6 +82,25 @@ public:
 
   // must only be called once per VM entry
   virtual void advance_entry_ip(unsigned bytes) = 0;
+
+  /**
+   * Set the virtual TPR.
+   *
+   * Called when user space emulates a write to the guest's TPR. The default
+   * implementation does nothing. VMX overrides this to update the VTPR field
+   * of the software VMCS.
+   */
+  virtual void set_tpr(l4_uint32_t) {}
+
+  /**
+   * Update the TPR threshold for the next VM entry.
+   *
+   * Called before every VM entry with the local APIC of the vCPU. VT-x uses
+   * this to arm the TPR threshold so that a TPR-below-threshold VM exit is
+   * generated when the guest lowers its TPR below the priority of a pending
+   * interrupt. The default implementation does nothing.
+   */
+  virtual void update_tpr_threshold(Gic::Virt_lapic *) {}
 };
 
 } // namespace Vmm

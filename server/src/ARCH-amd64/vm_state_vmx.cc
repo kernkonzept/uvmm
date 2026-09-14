@@ -10,6 +10,7 @@
 #include "vm_state_vmx.h"
 #include "consts.h"
 #include "event_recorder.h"
+#include "virt_lapic.h"
 
 namespace Vmm {
 
@@ -51,6 +52,48 @@ Vmx_state::Vmx_state(l4_vm_vmx_vcpu_state_t *state)
   if (nested_abi_revision() != 0)
     info().printf("vCPU interface supports nested virtualization. However, "
                   "uvmm does not implement nested virtualization.\n");
+}
+
+/**
+ * Set the virtual TPR (VTPR) in the software VMCS.
+ *
+ * On the next VM entry the kernel copies the VTPR into the virtual-APIC page
+ * of the hardware VMCS.
+ */
+void
+Vmx_state::set_tpr(l4_uint32_t tpr)
+{
+  vmx_write(L4_VM_VMX_VMCS_VTPR, tpr & 0xffU);
+}
+
+/**
+ * Arm the TPR threshold for the next VM entry.
+ *
+ * If the priority of the highest pending interrupt does not exceed the
+ * guest's current TPR, the threshold is set to the interrupt's priority so
+ * that the processor causes a "TPR below threshold" VM exit once the guest
+ * lowers its TPR below that priority (see Intel SDM Vol. 3C, Section 32.1.2).
+ */
+void
+Vmx_state::update_tpr_threshold(Gic::Virt_lapic *apic)
+{
+  if (!has_tpr_shadow())
+    return;
+
+  // From now on, the TPR is virtualized by the VMCS.
+  apic->enable_tpr_shadow();
+
+  int pending = apic->highest_pending_irq();
+  l4_uint32_t threshold = 0;
+
+  if (pending >= 0)
+    {
+      l4_uint32_t irr_prio = static_cast<l4_uint32_t>(pending) & 0xf0U;
+      if ((vtpr() & 0xf0U) >= irr_prio)
+        threshold = irr_prio >> 4;
+    }
+
+  vmx_write(VMCS_TPR_THRESHOLD, threshold);
 }
 
 /**

@@ -1066,18 +1066,24 @@ Guest::event_injection_t(Vcpu_ptr vcpu, VMS *vm)
       // exact value.
       rec->make_add_event<Event_irq>(apic);
     }
-  // TODO reenqueue what we haven't injected.
+  // TODO re-enqueue what we haven't injected.
   Injection_event pending_event = vm->pending_event_injection();
 
+  bool injected;
   if (pending_event.valid())
     {
       vm->inject_event(pending_event);
-      return true;
+      injected = true;
     }
   else
-    {
-      return rec->inject(static_cast<Vm_state *>(vm));
-    }
+    injected = rec->inject(static_cast<Vm_state *>(vm));
+
+  // Arm the TPR threshold for the next VM entry so that a TPR-below-threshold
+  // exit is generated when the guest lowers its TPR below the priority of a
+  // pending interrupt that could not be injected.
+  vm->update_tpr_threshold(apic);
+
+  return injected;
 }
 
 } // namespace

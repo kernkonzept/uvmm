@@ -223,6 +223,7 @@ public:
                 | Hlt_exit_bit
                 | Rdpmc_exit_bit // kernel enforced. keep in sync here.
                 | Mov_dr_exit_bit // kernel enforced. keep in sync here.
+                | Tpr_shadow_bit // kernel enforced. keep in sync here.
                 | Enable_secondary_ctls_bit
               );
 
@@ -452,6 +453,32 @@ public:
   {
     set_activity_state(Vmx_state::Activity_state::Active);
   }
+
+  /**
+   * Get the virtual TPR (VTPR) from the software VMCS.
+   *
+   * \return Virtual TPR.
+   */
+  l4_uint32_t vtpr() const
+  { return static_cast<l4_uint32_t>(vmx_read(L4_VM_VMX_VMCS_VTPR)); }
+
+  /**
+   * Check whether the CPU supports the "use TPR shadow" VM-execution control.
+   *
+   * The capability word is in the format of the IA32_VMX_PROCBASED_CTLS MSR:
+   * the upper 32 bits contain the allowed-to-be-1 bits.
+   *
+   * \retval true   TPR shadowing is supported by the CPU.
+   * \retval false  TPR shadowing is not supported by the CPU.
+   */
+  bool has_tpr_shadow() const
+  {
+    return cap_read(L4_VM_VMX_TRUE_PROCBASED_CTLS_REG)
+           & (static_cast<l4_uint64_t>(Tpr_shadow_bit) << 32);
+  }
+
+  void set_tpr(l4_uint32_t tpr) override;
+  void update_tpr_threshold(Gic::Virt_lapic *apic) override;
 
   class Interruptibility_state
   {
