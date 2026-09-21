@@ -82,12 +82,17 @@ public:
       L4Re::throw_error(-L4_EINVAL,
                         "CFI: virtio device read only. Not supported.");
 
+    // The device may limit the size of a single segment.
+    if (_dev.feature_negotiated(L4VIRTIO_BLOCK_F_SIZE_MAX))
+      {
+        l4_size_t m = _dev.device_config().size_max & ~(Sector_size - 1U);
+        if (m)
+          _max_chunk = m;
+      }
+
     // read device up-front
-    auto h = _dev.start_request(0, L4VIRTIO_BLOCK_T_IN, 0);
-    L4Re::chksys(_dev.add_block(h, _devaddr, _size),
-                 "CFI: Error during virtio setup: add block failed.");
-    L4Re::chksys(_dev.process_request(h),
-                 "CFI: Error during virtio setup: process request failed.");
+    L4Re::chksys(transfer(L4VIRTIO_BLOCK_T_IN, 0, _size),
+                 "CFI: Error during virtio setup: reading device failed.");
 
     // bring in pages
     l4_touch_ro(_localaddr, _size);
@@ -121,15 +126,12 @@ public:
     if (_dirty_start <= _dirty_end)
       {
         l4_size_t blocks = _dirty_end - _dirty_start + 1U;
-        auto da = L4virtio::Ptr<void>(_devaddr.get() + _dirty_start * Sector_size);
-        auto h = _dev.start_request(_dirty_start, L4VIRTIO_BLOCK_T_OUT, 0);
 
         // There is no way to recover from errors here.
         // At least tell the user something went wrong.
-        if(_dev.add_block(h, da, blocks * Sector_size) < 0)
-          warn().printf("write_back: add block failed\n");
-        else if (_dev.process_request(h) < 0)
-          warn().printf("write_back: process request failed\n");
+        if (transfer(L4VIRTIO_BLOCK_T_OUT, _dirty_start,
+                     blocks * Sector_size) < 0)
+          warn().printf("write_back: writing to device failed\n");
 
         _dirty_start = ~0UL;
         _dirty_end = 0;
@@ -139,7 +141,40 @@ public:
 private:
   static Dbg warn() { return Dbg(Dbg::Dev, Dbg::Warn, "CFI(vio)"); }
 
+  /**
+   * Transfer `len` bytes starting at `sector` between the device and the
+   * local copy, in chunks no larger than the device's segment size limit.
+   */
+  int transfer(l4_uint32_t type, l4_uint64_t sector, l4_size_t len)
+  {
+    while (len)
+      {
+        l4_size_t chunk = cxx::min(len, _max_chunk);
+        auto da = L4virtio::Ptr<void>(_devaddr.get() + sector * Sector_size);
+        auto h = _dev.start_request(sector, type, 0);
+        if (!h.valid())
+          return -L4_EAGAIN;
+
+        int r = _dev.add_block(h, da, chunk);
+        if (r < 0)
+          {
+            _dev.free_request(h);
+            return r;
+          }
+
+        r = _dev.process_request(h);
+        if (r < 0)
+          return r;
+
+        sector += chunk / Sector_size;
+        len -= chunk;
+      }
+
+    return 0;
+  }
+
   l4_size_t _size;
+  l4_size_t _max_chunk = ~l4_size_t{0} & ~(l4_size_t{Sector_size} - 1U);
   void *_localaddr = nullptr;
   L4virtio::Ptr<void> _devaddr;
   L4virtio::Driver::Block_device _dev;
