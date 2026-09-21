@@ -109,16 +109,17 @@ public:
 
   l4_uint32_t read(unsigned reg, char size, unsigned /*cpu_id*/)
   {
-    if (size != Vmm::Mem_access::Width::Wd32)
-    {
-      warn().printf("Read access width not 32-bit, ignoring access: "
-                    "Reg: 0x%x, Wd: %i\n", reg, size);
-      return 0;
-    }
+    if (size == Vmm::Mem_access::Width::Wd64)
+      {
+        warn().printf("Read access width of 64-bit not supported, ignored: "
+                      "Reg: 0x%x, Wd: %i\n", reg, size);
+        return 0;
+      }
 
     l4_umword_t retval = 0;
+    unsigned r = reg & ~0x3U;
 
-    switch (reg)
+    switch (r)
       {
       case Registers::Dr: retval = counter(); break;
       case Registers::Mr: retval = _match_reg; break;
@@ -136,18 +137,21 @@ public:
       case Registers::Periph_id1: [[fallthrough]];
       case Registers::Periph_id2: [[fallthrough]];
       case Registers::Periph_id3:
-        retval = periph_id[(reg - Periph_id0) >> 2];
+        retval = periph_id[(r - Periph_id0) >> 2];
         break;
 
       case Registers::Pcell_id0: [[fallthrough]];
       case Registers::Pcell_id1: [[fallthrough]];
       case Registers::Pcell_id2: [[fallthrough]];
       case Registers::Pcell_id3:
-        retval = pcell_id[(reg - Pcell_id0) >> 2];
+        retval = pcell_id[(r - Pcell_id0) >> 2];
         break;
 
       default: break;
       }
+
+    if (size != Vmm::Mem_access::Width::Wd32)
+      retval >>= (reg & 0x3u) * 8;
 
     return retval;
   }
