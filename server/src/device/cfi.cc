@@ -640,7 +640,9 @@ private:
 
   l4_uint8_t _cfi_table[Cfi_table_size] = { 0 };
 
-  l4_uint8_t _buffer[Block_buffer_size];
+  // Buffer writes go through Mem_access::write_width(), which only accepts
+  // naturally aligned accesses.
+  alignas(l4_uint64_t) l4_uint8_t _buffer[Block_buffer_size];
   unsigned int _buf_start = 0;
   unsigned int _buf_len = 0;
   unsigned int _buf_written = 0;
