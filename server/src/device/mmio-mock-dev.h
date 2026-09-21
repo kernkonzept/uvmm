@@ -42,8 +42,9 @@ public:
   l4_uint64_t read(unsigned offset, char width, unsigned)
   {
     l4_addr_t const addr = _mmio_base + offset;
+    unsigned num_bytes = 1U << width;
 
-    if (offset >= _mmio_size)
+    if (offset + num_bytes > _mmio_size)
       {
         warn().printf("Access out of bounds @offset 0x%x, max offset 0x%zx\n",
                       offset, _mmio_size);
@@ -51,9 +52,8 @@ public:
       }
 
     l4_uint64_t value = 0x0ULL;
-    unsigned num_bytes = 1 << width;
     for (unsigned i = 0; i < num_bytes; ++i)
-      value |= l4_uint64_t(_mem[offset + i]) << i;
+      value |= l4_uint64_t(_mem[offset + i]) << (8 * i);
 
     if (0)
       info().printf("READ @ 0x%lx, val 0x%llx, width 0x%x\n", addr, value,
@@ -64,19 +64,20 @@ public:
   void write(unsigned offset, char width, l4_uint64_t value, unsigned)
   {
     l4_addr_t const addr = _mmio_base + offset;
+    unsigned num_bytes = 1U << width;
+
     if (0)
       info().printf("WRITE @ 0x%lx, val 0x%llx, width 0x%x\n", addr, value,
                     width);
-    if (offset >= _mmio_size)
+    if (offset + num_bytes > _mmio_size)
       {
         warn().printf("Access out of bounds @offset 0x%x, max offset 0x%zx\n",
                       offset, _mmio_size);
         return;
       }
 
-    unsigned num_bytes = 1 << width;
     for (unsigned i = 0; i < num_bytes; ++i)
-      _mem[offset + i] = value & (0xff << i);
+      _mem[offset + i] = (value >> (8 * i)) & 0xff;
   }
 
   char const *dev_name() const override { return "Mmio_mock_dev"; }
