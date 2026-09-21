@@ -400,7 +400,7 @@ private:
       {
         if (device_val != ((val >> (shift * 8)) & device_mask()))
           {
-            warn().printf("Invalid command: 0x%lx, must be the same for all "
+            info().printf("Invalid command: 0x%lx, must be the same for all "
                           "chips\n", val);
             return false;
           }
@@ -548,7 +548,7 @@ private:
             set_mode(vm_task, cmd);
             break;
           default:
-            warn().printf("Unsupported command: %02x\n", cmd);
+            info().printf("Unsupported command: %02x\n", cmd);
             break;
           }
         break;
