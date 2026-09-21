@@ -78,7 +78,7 @@ public:
       L4Re::throw_error(-L4_EINVAL,
                         "Block device size too small for CFI registers.");
 
-    if (_dev.feature_negotiated(5 /* VIRTIO_BLK_F_RO */))
+    if (_dev.feature_negotiated(L4VIRTIO_BLOCK_F_RO))
       L4Re::throw_error(-L4_EINVAL,
                         "CFI: virtio device read only. Not supported.");
 
