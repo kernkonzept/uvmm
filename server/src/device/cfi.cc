@@ -589,7 +589,7 @@ private:
         // fill temporary buffer with original values
         // this is necessary because writes can only clear bits (bitwise AND)
         _buf_start = reg;
-        memcpy(&_buffer, local_addr() + reg, _buf_len);
+        memcpy(_buffer, local_addr() + reg, _buf_len);
       }
 
     if (_buf_written >= _buf_len)
