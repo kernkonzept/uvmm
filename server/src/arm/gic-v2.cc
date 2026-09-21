@@ -181,7 +181,9 @@ public:
     // attach GICC to VM
     Gicc_region_mapper::map_gicc(devs, node);
 
-    node.setprop_string("compatible", "arm,gic-400");
+    static char const compatible[]
+      = "arm,cortex-a15-gic\0arm,cortex-a7-gic\0arm,gic-400";
+    node.setprop_data("compatible", compatible, sizeof(compatible));
     return self;
   }
 
