@@ -122,6 +122,7 @@ public:
           case Mips::Op::Bal:
           case Mips::Op::Bgezall:
             r->r[31] = r->ip + 8;
+            [[fallthrough]];
           case Mips::Op::Bgez:
           case Mips::Op::Bgezl:
             if ((long) r->r[insn.rs()] >= 0)
@@ -132,6 +133,7 @@ public:
           case Mips::Op::Nal:
           case Mips::Op::Bltzall:
             r->r[31] = r->ip + 8;
+            [[fallthrough]];
           case Mips::Op::Bltz:
           case Mips::Op::Bltzl:
             if ((long) r->r[insn.rs()] < 0)
