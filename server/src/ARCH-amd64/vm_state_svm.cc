@@ -349,27 +349,27 @@ Svm_state::handle_cr0_write(l4_vcpu_regs_t *regs)
 int
 Svm_state::handle_xsetbv(l4_vcpu_regs_t *regs)
 {
-  // TODO: We have to check that the current privilege level is 0, and inject
-  // a general protection exception into the guest otherwise!
-  if (_vmcb->state_save_area.cpl != 0)
-    {
-      warn().printf(
-        "Ignoring write to extended control register %ld from CPL %d.\n",
-        regs->cx, _vmcb->state_save_area.cpl);
-      return Jump_instr;
-    }
+  // only allowed in priviledge level 0 or real mode
+  if (!in_real_mode() && _vmcb->state_save_area.cpl != 0)
+    return General_protection;
 
   if (regs->cx == 0)
     {
       l4_uint64_t value = (l4_uint64_t(regs->ax) & 0xFFFFFFFF)
                           | (l4_uint64_t(regs->dx) << 32);
+
+      if (!(value & 0x1)) // x87 state must not be disabled.
+        return General_protection;
+      if (((value & 0x6) >> 1) == 0x2) // AVX needs SSE
+        return General_protection;
+
       _vmcb->state_save_area.xcr0 = value;
       trace().printf("Setting xcr0 to 0x%llx\n", value);
       return Jump_instr;
     }
 
   info().printf("Writing unknown extended control register %ld\n", regs->cx);
-  return -L4_EINVAL;
+  return General_protection;
 }
 
 int
@@ -442,6 +442,12 @@ Svm_state::read_gpr(l4_vcpu_regs_t *regs, unsigned reg) const
     case 15: return regs->r15;
     default: L4Re::throw_error(-L4_EINVAL, "Invalid register num.");
     }
+}
+
+bool
+Svm_state::in_real_mode() const
+{
+  return (_vmcb->state_save_area.cr0 & Cr0_pe) == 0;
 }
 
 const char *

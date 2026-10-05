@@ -462,6 +462,14 @@ private:
   static Dbg trace()
   { return Dbg(Dbg::Cpu, Dbg::Trace, "SVM"); }
 
+  /**
+   * Check that the guest is running in real mode.
+   *
+   * \retval true   Guest is running in real mode.
+   * \retval false  Guest is not running in real mode.
+   */
+  bool in_real_mode() const;
+
   l4_vm_svm_vmcb_t *_vmcb;
   bool halted = false;
 };

@@ -262,17 +262,28 @@ Guest::handle_exit<Vmx_state>(Vmm::Cpu_dev *cpu, Vmx_state *vms)
       return L4_EOK;
 
     case Exit::Exec_xsetbv:
+      // only allowed in priviledge level 0 or real mode
+      if (   !vms->in_real_mode()
+          && (vms->vmx_read(VMCS_GUEST_CS_SELECTOR) & 0x3) != 0)
+        return General_protection;
+
       if (regs->cx == 0)
         {
           l4_uint64_t value = (l4_uint64_t(regs->ax) & 0xFFFFFFFF)
                               | (l4_uint64_t(regs->dx) << 32);
+
+          if (!(value & 0x1)) // x87 state must not be disabled.
+            return General_protection;
+          if (((value & 0x6) >> 1) == 0x2) // AVX needs SSE
+            return General_protection;
+
           vms->vmx_write(L4_VM_VMX_VMCS_XCR0, value);
           trace().printf("[%3u]: Setting xcr0 to 0x%llx\n", vcpu_id, value);
           return Jump_instr;
         }
       Dbg().printf("[%3u]: Writing unknown extended control register %ld\n",
                    vcpu_id, regs->cx);
-      return -L4_EINVAL;
+      return General_protection;
 
     case Exit::Apic_write:
       // Trap like exit: IP already on next instruction

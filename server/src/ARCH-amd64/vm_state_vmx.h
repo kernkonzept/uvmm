@@ -828,6 +828,14 @@ public:
   int rep_prefix_condition(l4_vcpu_regs_t *regs, Vmx_insn_info_field info,
                            bool *next);
 
+  /**
+   * Check that the guest is running in real mode.
+   *
+   * \retval true   Guest is running in real mode.
+   * \retval false  Guest is not running in real mode.
+   */
+  bool in_real_mode() const;
+
 private:
   using Hw_vmcs = L4Re::Util::Unique_cap<L4::Vcpu_context>;
 
@@ -859,14 +867,6 @@ private:
    * \retval false  Guest does not have paging enabled.
    */
   bool is_paging_enabled() const;
-
-  /**
-   * Check that the guest is running in real mode.
-   *
-   * \retval true   Guest is running in real mode.
-   * \retval false  Guest is not running in real mode.
-   */
-  bool in_real_mode() const;
 
   /**
    * Check that the guest is running in long mode.
