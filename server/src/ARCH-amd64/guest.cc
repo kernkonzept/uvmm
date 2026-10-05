@@ -407,6 +407,8 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
     Xget_bv = (1UL << 2),
     Xsave_s = (1UL << 3),
     Xfd_bit = (1UL << 4),
+
+    Cr4_osxsave = (1UL << 18)
   };
 
   if (   (rax > Cpuid_max_basic_info_leaf && rax < 0x8000'0000)
@@ -443,6 +445,9 @@ Guest::handle_cpuid(Vcpu_ptr vcpu)
           b |= id << 24;
 
         cpuid_reg_apply(&c, Cpuid_1_ecx_supported, Cpuid_1_ecx_mandatory);
+        if (vms->cr4() & Cr4_osxsave)
+          c |= Cpuid_1_ecx_osxsave;
+
         cpuid_reg_apply(&d, Cpuid_1_edx_supported);
         break;
       }

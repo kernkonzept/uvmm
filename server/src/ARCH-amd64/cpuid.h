@@ -277,6 +277,9 @@ enum Cpuid_configuration : l4_uint32_t
   //   Cpuid_1_ecx_dca
   //   Cpuid_1_ecx_ds_cpl
   //   Cpuid_1_ecx_dtes64
+  //
+  // Runtime dependent:
+  //   Cpuid_1_ecx_osxsave
 
   Cpuid_1_ecx_supported = \
     Cpuid_1_ecx_sse3 \

@@ -273,6 +273,9 @@ public:
   l4_umword_t cr3() const override
   { return _vmcb->state_save_area.cr3; }
 
+  l4_umword_t cr4() const override
+  { return _vmcb->state_save_area.cr4; }
+
   l4_uint64_t xcr0() const override
   { return _vmcb->state_save_area.xcr0; }
 

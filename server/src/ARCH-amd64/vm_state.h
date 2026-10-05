@@ -65,6 +65,7 @@ public:
   virtual l4_umword_t sp() const = 0;
   virtual bool pf_write() const = 0;
   virtual l4_umword_t cr3() const = 0;
+  virtual l4_umword_t cr4() const = 0;
   virtual l4_uint64_t xcr0() const = 0;
 
   virtual bool read_msr(unsigned msr, l4_uint64_t *value) const = 0;

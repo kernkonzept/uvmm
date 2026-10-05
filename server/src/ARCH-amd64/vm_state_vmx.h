@@ -259,6 +259,9 @@ public:
   l4_umword_t cr3() const override
   { return l4_vm_vmx_read_nat(_vmcs, VMCS_GUEST_CR3); }
 
+  l4_umword_t cr4() const override
+  { return vmx_read(VMCS_GUEST_CR4); }
+
   l4_uint64_t xcr0() const override
   { return vmx_read(L4_VM_VMX_VMCS_XCR0); }
 
