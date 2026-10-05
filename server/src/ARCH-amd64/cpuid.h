@@ -390,7 +390,9 @@ enum Cpuid_configuration : l4_uint32_t
     | Cpuid_7_0_edx_md_clear,
 
   Cpuid_8000_0001_ecx_supported = \
-    Cpuid_8000_0001_ecx_lahf,
+    Cpuid_8000_0001_ecx_lahf \
+    | Cpuid_8000_0001_ecx_lzcnt \
+    | Cpuid_8000_0001_ecx_prefetchw,
 
   Cpuid_8000_0001_edx_supported = \
     Cpuid_8000_0001_edx_syscall \
