@@ -216,7 +216,7 @@ public:
       }
 
     // Not found, find/add new one.
-    it = _region_map.add_region(sz, mr);
+    it = _region_map.add_region(sz, mr, Region_align);
     if (it == _region_map.end())
       return nullptr;
 
@@ -274,6 +274,13 @@ public:
   }
 
 private:
+  /*
+   * The guest maps a region with struct pages, which it manages in units of
+   * 2 MiB. Starting every region on such a boundary keeps the rest of the
+   * unit free of other regions.
+   */
+  enum { Region_align = 21 };
+
   Dbg info = {Dbg::Dev, Dbg::Info, "viodev-mp"};
   Dbg warn = {Dbg::Dev, Dbg::Warn, "viodev-mp"};
 
