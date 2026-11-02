@@ -1,0 +1,31 @@
+/dts-v1/;
+/plugin/;
+
+/**
+ * Example overlay for use of the SBSA Generic Watchdog Timer.
+ */
+
+/ {
+
+  fragment@0 {
+    target-path = "/";
+    __overlay__ {
+      l4vmm {
+        #address-cells = <1>;
+        #size-cells = <1>;
+
+        virt_sbsa_gwdt@3000 {
+          compatible = "arm,sbsa-gwdt";
+          reg = <0x3000 0x1000>,  // Watchdog Control
+                <0x4000 0x1000>;  // Refresh
+          interrupt-parent = <&gic>;
+          interrupts = <0 124 4>;
+          l4vmm,ctrlcap = "wdt_ctrl";
+          l4vmm,stages = <2>;     // Default <1>: (sbsa_wdog.action=0)
+                                  //         <2>: (sbsa_wdog.action=1)
+        };
+      };
+    };
+  };
+
+};
