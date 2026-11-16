@@ -97,17 +97,17 @@ SRC_CC_amd64-l4f-$(CONFIG_UVMM_QEMU_FW_IF) += \
 	ARCH-amd64/qemu_fw_cfg_e820.cc
 
 ifeq ($(CONFIG_UVMM_PCI_SUPPORT),y)
-    SRC_CC   += pci_device.cc virt_pci_device.cc
+    SRC_CC += pci_device.cc virt_pci_device.cc device/pci_host_bridge.cc
 
-    SRC_CC_amd64-l4f += device/pci_host_bridge.cc device/pci_host_generic.cc \
+    SRC_CC_amd64-l4f += device/pci_host_generic.cc
 
     SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_CONSOLE) += virtio_console_pci.cc
     SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_PROXY) += virtio_proxy_pci.cc
     SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_INPUT) += device/virtio_input_event_pci.cc
     SRC_CC-$(CONFIG_UVMM_VDEV_VIRTIO_POWER) += device/virtio_input_power_pci.cc
     SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_PROXY) += device/virtio_device_proxy_pci.cc
-    SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += device/pci_host_bridge.cc \
-                                                             device/pci_host_ecam_generic.cc
+    SRC_CC-$(CONFIG_UVMM_VDEV_DEVICE_PCI_HOST_ECAM_GENERIC) += \
+	    device/pci_host_ecam_generic.cc
 endif
 
 SRC_CC += binary_loader.cc
