@@ -113,6 +113,7 @@ config UVMM_VDEV_SMCCC_PROXY
 
 config UVMM_PCI_SUPPORT
 	bool "Support PCI emulation" if BUILD_ARCH_arm64 || BUILD_ARCH_arm
+	depends on BUILD_ARCH_amd64 || BUILD_ARCH_arm64 || BUILD_ARCH_arm
 	default y
 	help
 	  Configures if the PCI subsystem (and the corresponding devices using the
