@@ -173,7 +173,6 @@
             bus-range = <0x0 0xff>;
             #address-cells = <3>;
             #size-cells = <2>;
-            #interrupt-cells = <1>;
 
             // The first cell encodes the following information. See the PCI
             // bus device-tree binding [1] for more details:
