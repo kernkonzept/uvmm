@@ -13,14 +13,18 @@
     target-path = "/";
     __overlay__ {
       l4vmm {
+        #address-cells = <1>;
+        #size-cells = <1>;
+
         l4rtc {
             compatible = "l4rtc";
             l4vmm,rtccap = "rtc";
         };
 
-        virt_pl031 {
+        virt_pl031@13000 {
           compatible = "arm,pl031", "arm,primecell";
           reg = <0x13000 0x1000>;
+          interrupt-parent = <&gic>;
           interrupts = <0x00 0x02 0x04>;
           clocks = <&apb_dummy_pclk>;
           clock-names = "apb_pclk";
